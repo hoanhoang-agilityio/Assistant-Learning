@@ -24,6 +24,8 @@ The purpose is to define:
 * How unsafe requests are handled
 * Expected outcomes for both normal and exceptional scenarios
 
+The internal implementation uses 5 intelligence agents (Supervisor, Planning, Research, Fitness Reasoning, Verification) orchestrated by a rule-based supervisor. The user experience remains one coherent PT AI workflow.
+
 ---
 
 # Product Scope
@@ -35,31 +37,19 @@ The Core Deep Researcher only operates within fitness-related topics.
 Supported categories include:
 
 ```text
+Training
+
 Fat Loss
-
 Muscle Gain
-
 Body Recomposition
-
 Strength Development
-
 Hypertrophy
-
 Sports Performance
-
 Endurance Training
-
 General Fitness
-
-Nutrition Planning
-
-Meal Strategy
-
-Supplement Research
-
 Exercise Programming
 
-Recovery Optimization
+Macro Calculation
 ```
 
 ---
@@ -90,6 +80,14 @@ Programming assistance
 Travel planning
 
 Business consulting
+
+Meal planning
+
+Nutrition coaching
+
+Diet plans
+
+Supplement research
 ```
 
 If a user submits a request outside the fitness domain, the system redirects them back to supported topics.
@@ -105,10 +103,9 @@ Help me build a SaaS startup
 Agent:
 
 ```text
-PT AI only supports fitness, nutrition, training,
-body composition, recovery, and performance goals.
+PT AI only supports training plans and macro targets.
 
-Please provide a fitness-related objective.
+Please provide a training or macro-related objective.
 ```
 
 ---
@@ -117,16 +114,16 @@ Please provide a fitness-related objective.
 
 The system is not a chatbot.
 
-The system is a fitness research and planning agent.
+The system is a fitness training and macro planning agent.
 
 Its responsibility is to transform a fitness goal into:
 
 ```text
-A researched plan
+A researched training plan
+
+Macro targets
 
 A verified recommendation
-
-An actionable strategy
 
 Supporting evidence
 
@@ -148,13 +145,9 @@ Create a hypertrophy plan
 
 Help me prepare for a marathon
 
-Design a nutrition strategy for fat loss
-
-Research whether creatine is effective
+Calculate my macros
 
 Build a beginner strength program
-
-Calculate my macros
 ```
 
 ---
@@ -210,9 +203,9 @@ Fat Loss
 Muscle Gain
 Strength
 Endurance
-Nutrition
-Supplement Research
+Macro Calculation
 General Fitness
+Training Plan
 ```
 
 ---
@@ -266,12 +259,14 @@ The workflow pauses until the user responds.
 
 ### If Information Is Complete
 
-The agent proceeds directly to:
+PT AI proceeds directly to the supervised research workflow:
 
 ```text
+Planning (includes domain check + profile extraction)
+
 Research
 
-Planning
+Fitness Reasoning (includes plan synthesis)
 
 Verification
 
@@ -319,9 +314,11 @@ Goal: 75 kg
 Agent performs:
 
 ```text
+Planning
+
 Research
 
-Planning
+Fitness Reasoning
 
 Verification
 
@@ -344,17 +341,19 @@ Recommended Rate:
 0.4–0.6 kg/week
 ```
 
-### Nutrition Strategy
+### Macro Targets
 
 ```text
 Calories
 
-Protein
+Protein (g)
 
-Carbohydrates
+Carbohydrates (g)
 
-Fat
+Fat (g)
 ```
+
+Note: PT AI provides macro targets only. It does not generate meal plans or nutrition coaching.
 
 ### Training Strategy
 
@@ -421,9 +420,11 @@ Create a fat-loss plan.
 The system immediately proceeds to:
 
 ```text
+Planning
+
 Research
 
-Planning
+Fitness Reasoning
 
 Verification
 
@@ -431,44 +432,6 @@ Output Generation
 ```
 
 No clarification round is required.
-
----
-
-# Happy Path #3
-
-## Supplement Research
-
-User:
-
-```text
-Research whether creatine improves muscle growth.
-```
-
-Agent performs:
-
-```text
-Literature Review
-
-Evidence Collection
-
-Evidence Verification
-
-Conclusion Generation
-```
-
-Final Output:
-
-```text
-Evidence Summary
-
-Benefits
-
-Limitations
-
-Practical Recommendations
-
-Confidence Rating
-```
 
 ---
 
@@ -712,16 +675,15 @@ Help me write a business plan.
 Agent:
 
 ```text
-PT AI only supports fitness-related goals.
+PT AI only supports training plans and macro targets.
 
 Examples include:
 
-- Fat loss
-- Muscle gain
-- Nutrition
+- Fat loss training plan
+- Muscle gain training plan
+- Macro calculation
 - Strength training
 - Endurance training
-- Supplement research
 ```
 
 No research workflow is started.
@@ -731,6 +693,8 @@ No research workflow is started.
 # Approval Flow
 
 Before finalizing any generated plan, the user receives a review opportunity.
+
+Internally, the supervisor pauses execution at the HITL approval gate. No permanent final artifact is persisted until the user approves the verified plan.
 
 Example:
 
@@ -837,10 +801,12 @@ A successful experience means:
 * Missing information is explicitly requested.
 * Ambiguous goals are clarified.
 * Unsafe goals are challenged.
+* Planning happens before retrieval.
 * Recommendations are evidence-backed.
 * Plans are actionable.
 * Uncertainty is communicated honestly.
 * Outputs are verified before delivery.
 * Users can request revisions before finalization.
+* Final persistence only happens after human approval.
 
 ---

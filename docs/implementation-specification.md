@@ -6,15 +6,15 @@
 
 # 1. System Overview
 
-The Core Deep Researcher is a **Fitness-only AI Coaching & Research System**.
+The Core Deep Researcher is a **Fitness Training & Macro System**.
 
 It transforms user fitness goals into:
 
-* Evidence-based fitness plans
-* Personalized nutrition strategies
-* Training programs
-* Behavioral coaching
+* Evidence-based training plans
+* Macro targets (calories, protein, carbs, fat)
 * Verified actionable outputs
+
+The implementation uses a lean multi-agent architecture with exactly 5 LLM agents. The supervisor is a rule-based router (STANDARD tier). Orchestration-only concerns (HITL interrupt, persistence) are handled deterministically without additional agents.
 
 ---
 
@@ -28,6 +28,10 @@ The system does NOT support:
 * Legal advice
 * General knowledge Q&A
 * Medical diagnosis
+* Meal planning
+* Nutrition coaching
+* Diet plans
+* Supplement research
 
 ---
 
@@ -62,53 +66,29 @@ The system does NOT support:
 
 ---
 
-# 3. Graph Architecture (DCG)
+# 3. Graph Architecture (5-Agent DCG)
 
 ```text id="graph_01"
 START
   ↓
-DOMAIN_NODE
+SUPERVISOR_NODE
   ↓
-FITNESS?
-
- ├── NO → OUT_OF_SCOPE_NODE → END
-
- └── YES
-        ↓
-INFO_CHECK_NODE
-        ↓
-COMPLETE?
-
- ├── NO → HITL_NODE → WAIT → INFO_CHECK_NODE
-
- └── YES
-        ↓
-PLAN_NODE
-        ↓
+PLANNING_NODE
+  ↓
 RESEARCH_NODE
-        ↓
-DRAFT_NODE
-        ↓
-VERIFY_NODE
-        ↓
-ROUTER_NODE
+  ↓
+FITNESS_REASONING_NODE
+  ↓
+VERIFICATION_NODE
+  ↓
+SUPERVISOR_NODE
 
- ├── FIX → FIX_NODE → VERIFY_NODE
- ├── REPLAN → REPLAN_NODE → RESEARCH_NODE
- ├── HITL → HITL_NODE
- └── PASS
+ ├── FIX_LOOP → FITNESS_REASONING_NODE → VERIFICATION_NODE
+ ├── REPLAN → PLANNING_NODE → RESEARCH_NODE
+ ├── HITL → WAIT → SUPERVISOR_NODE
+ └── COMPLETE
         ↓
-APPROVAL_NODE
-        ↓
-APPROVED?
- ├── NO → REPLAN_NODE
- └── YES
-        ↓
-PUBLISH_NODE
-        ↓
-EVALUATE_NODE
-        ↓
-PERSIST_NODE
+PERSIST_RESULTS()
         ↓
 END
 ```
@@ -123,7 +103,7 @@ class AgentState(TypedDict):
     thread_id: str
     query: str
 
-    route_decision: str | None
+    route_decision: str | None       # FIX_LOOP | REPLAN | HITL | COMPLETE
     retry_count: int
     replan_count: int
 
@@ -132,6 +112,8 @@ class AgentState(TypedDict):
 
     approval_status: str | None
 
+    verification_passed: bool
+    faithfulness_score: float | None
     current_node: str
     workspace_path: str
     final_artifact_path: str | None
@@ -156,39 +138,50 @@ DON'T store:
 ```text id="vfs_01"
 workspace/run_<id>/
 
-├── intake/
-│   ├── query.md
-│   └── profile.json
-│
 ├── plan/
 │   ├── plan.md
-│   └── todos.json
+│   ├── todos.json
+│   └── profile.json
 │
 ├── research/
 │   ├── research_notes.md
 │   ├── sources.json
 │   └── findings.json
 │
-├── drafts/
-│   ├── draft_v1.md
-│   ├── draft_v2.md
+├── fitness/
+│   ├── calculations.json
+│   ├── safety_flags.json
+│   └── final_plan.md
 │
 ├── verify/
 │   ├── verification_v1.json
-│   └── verification_v2.json
-│
-├── evaluation/
 │   └── ragas.json
 │
 ├── final/
 │   └── final_plan.md
 │
 └── logs/
+    ├── supervisor_decisions.jsonl
+    └── persist_result.json
 ```
 
 ---
 
-# 6. Tool System
+# 6. Agent Tool System
+
+---
+
+## Agent Ownership (5 agents only)
+
+| Agent | Owns | Notes |
+| --- | --- | --- |
+| Supervisor Agent | rule-based routing, retries, HITL triggers | STANDARD tier — reads verification JSON, no LLM reasoning |
+| Planning Agent | domain check, profile extraction, `write_todos`, plan | XHIGH — absorbs former Intake Agent |
+| Research Agent | external evidence retrieval | Must use MCP clients only |
+| Fitness Reasoning Agent | calculations, safety, plan synthesis | Absorbs former Draft + Fix Agent |
+| Verification Agent | validation + RAGAS faithfulness | XHIGH — absorbs former Evaluation Agent |
+
+Non-agent: `HITL interrupt` (LangGraph), `PERSIST_RESULTS()` (deterministic)
 
 ---
 
@@ -209,8 +202,7 @@ workspace/run_<id>/
 ```json id="tool_02"
 [
   "collect_profile",
-  "calculate_calories",
-  "build_meal_plan",
+  "calculate_macros",
   "build_training_plan"
 ]
 ```
@@ -235,18 +227,15 @@ workspace/run_<id>/
 
 ## Fitness Domain Tools
 
-* calculate_calories
 * calculate_macros
-* build_meal_plan
 * build_training_plan
-* build_habit_plan
-* supplement_research
 
 ---
 
-## Draft Tools
+## Draft Tools (Fitness Reasoning Agent)
 
-* draft_plan
+* synthesize_plan
+* fix_plan_from_verification_feedback
 
 ---
 
@@ -255,33 +244,20 @@ workspace/run_<id>/
 * citation_check
 * consistency_check
 * completeness_check
+* safety_check
 * llm_verifier
+* ragas_faithfulness
 
 ---
 
-## Fix Tools
-
-* fix_plan
-* fix_citations
-* fix_consistency
-
----
-
-## HITL Tools
+## HITL Tools (Supervisor — LangGraph interrupt)
 
 * request_clarification
 * request_approval
 
 ---
 
-## Evaluation Tools (OAC-2)
-
-* ragas_faithfulness
-* ragas_context_precision
-
----
-
-## Persistence Tools
+## Persistence (PERSIST_RESULTS — deterministic)
 
 * save_run
 * save_metrics
@@ -291,102 +267,74 @@ workspace/run_<id>/
 
 # 7. Node Responsibilities
 
-## DOMAIN_NODE
+## SUPERVISOR_NODE (STANDARD — rule-based)
 
-* classify fitness / non-fitness
-
----
-
-## INFO_CHECK_NODE
-
-* validate profile completeness
+* Route based on verification JSON and state flags
+* Decide `FIX_LOOP`, `REPLAN`, `HITL`, or `COMPLETE`
+* Maintain retry and replan counters
+* Trigger HITL interrupt for approval before `PERSIST_RESULTS()`
+* Write routing decisions to `logs/supervisor_decisions.jsonl`
 
 ---
 
-## PLAN_NODE
+## PLANNING_NODE (XHIGH)
 
-* generate todos (write_todos)
-
----
-
-## RESEARCH_NODE
-
-* gather evidence
+* Classify fitness / non-fitness domain
+* Extract and validate profile fields
+* Generate todos (`write_todos`) — must run before retrieval
+* Trigger HITL if profile incomplete or goal ambiguous
 
 ---
 
-## DRAFT_NODE
+## RESEARCH_NODE (STANDARD)
 
-* generate structured plan
-
----
-
-## VERIFY_NODE
-
-* full validation (rules + LLM)
+* Gather evidence through MCP clients only
 
 ---
 
-## ROUTER_NODE
+## FITNESS_REASONING_NODE (STANDARD)
 
-* decide:
-
-  * PASS
-  * FIX
-  * REPLAN
-  * HITL
-
----
-
-## FIX_NODE
-
-* repair issues
+* Calculate macro targets (calories, protein, carbs, fat)
+* Training constraints, recovery guidance
+* Run safety checks
+* Synthesize final plan → `fitness/final_plan.md`
+* Re-run with verification feedback on FIX_LOOP
 
 ---
 
-## REPLAN_NODE
+## VERIFICATION_NODE (XHIGH)
 
-* regenerate plan scope
-
----
-
-## APPROVAL_NODE
-
-* human approval gate
+* Programmatic validation (schemas, citations, safety, consistency)
+* LLM verification
+* RAGAS faithfulness scoring (target >= 0.90)
 
 ---
 
-## PUBLISH_NODE
+## HITL interrupt (non-agent)
 
-* final artifact generation
-
----
-
-## EVALUATE_NODE
-
-* RAGAS scoring
+* LangGraph interrupt — clarification, approval, retry exhaustion
+* Resume via checkpointer
 
 ---
 
-## PERSIST_NODE
+## PERSIST_RESULTS() (non-agent)
 
-* store run metadata
+* Copy approved plan to `final/final_plan.md`
+* Save run metadata and trace references
 
 ---
 
 # 8. Model Strategy (Reasoning Sandwich)
 
-| Node     | Tier     |
-| -------- | -------- |
-| PLAN     | XHIGH    |
-| VERIFY   | XHIGH    |
-| ROUTER   | XHIGH    |
-| REPLAN   | XHIGH    |
-| RESEARCH | STANDARD |
-| DRAFT    | STANDARD |
-| FIX      | STANDARD |
+| Agent | Tier |
+| --- | --- |
+| Planning Agent | XHIGH |
+| Verification Agent | XHIGH |
+| Supervisor Agent | STANDARD |
+| Research Agent | STANDARD |
+| Fitness Reasoning Agent | STANDARD |
 
-Graph NEVER sees model names.
+Only Planning and Verification use XHIGH. Supervisor routing is rule-based.
 
 ---
 
@@ -396,28 +344,29 @@ Every node creates spans:
 
 * trace_id = run_id
 * node-level spans required
+* agent-level spans required
 * capture:
 
   * tokens
   * latency
   * tool calls
   * routing decisions
+  * VFS reads/writes
+  * MCP server names
 
 ---
 
 # 10. Checkpoint System
 
-Checkpoint after EVERY node:
+Checkpoint after EVERY agent node:
 
-* PLAN
+* SUPERVISOR
+* PLANNING
 * RESEARCH
-* DRAFT
-* VERIFY
-* ROUTER
-* FIX
-* REPLAN
-* APPROVAL
-* PERSIST
+* FITNESS_REASONING
+* VERIFICATION
+* HITL (interrupt/resume)
+* PERSIST_RESULTS
 
 Recovery:
 
@@ -427,31 +376,40 @@ load checkpoint → resume node → continue execution
 
 ---
 
-# 11. Router Logic
+# 11. Supervisor Routing Logic
 
-## PASS
+## COMPLETE
 
 * verification passed
+* faithfulness score >= 0.90
+* HITL approval received
+* triggers `PERSIST_RESULTS()`
 
 ---
 
-## FIX
+## FIX_LOOP
 
-* minor issues
+* minor issues in verification JSON
+* retry_count < 3
+* routes back to FITNESS_REASONING_NODE with feedback
 
 ---
 
 ## REPLAN
 
 * major structural issues
+* insufficient evidence
+* unsafe recommendation pattern
+* routes back to PLANNING_NODE
 
 ---
 
 ## HITL
 
-* missing information
-* conflicting data
-* unclear objective
+* missing profile fields (from PlanningAgent)
+* conflicting or unsafe user constraints
+* retry_count >= 3
+* final approval before persistence
 
 ---
 
@@ -477,16 +435,15 @@ final plan → user approval → persist
 
 System is COMPLETE only when:
 
-* Fitness domain validated
+* Fitness domain validated (PlanningAgent)
 * Profile complete
-* Plan generated
-* Research completed
-* Draft created
-* Verification passed
-* Human approved
-* RAGAS evaluated
-* Artifacts persisted
-* LangFuse trace exists
+* `write_todos` executed before retrieval
+* Research completed via MCP
+* Fitness reasoning + plan synthesis completed
+* Verification passed with RAGAS faithfulness >= 0.90
+* Human approved via HITL
+* `PERSIST_RESULTS()` executed
+* LangFuse trace exists with 5 agent spans
 * Checkpoint stored
 
 ---
@@ -498,7 +455,7 @@ PT AI is NOT a chatbot.
 It is a:
 
 ```text id="product_01"
-Fitness Research & Coaching Engine
+Fitness Training & Macro Engine
 ```
 
 It converts:
@@ -506,9 +463,8 @@ It converts:
 ```text id="product_02"
 User Goal
 → Evidence
-→ Structured Plan
+→ Training Plan + Macro Targets
 → Verified Output
-→ Actionable Fitness Program
 ```
 
 ---
