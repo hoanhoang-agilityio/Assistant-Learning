@@ -24,7 +24,7 @@ The purpose is to define:
 * How unsafe requests are handled
 * Expected outcomes for both normal and exceptional scenarios
 
-The internal implementation uses 5 intelligence agents (Supervisor, Planning, Research, Fitness Reasoning, Verification) orchestrated by a rule-based supervisor. The user experience remains one coherent PT AI workflow.
+The internal implementation uses a supervisor-orchestrated subgraph architecture (Planning, Research, Fitness, Verification). The user experience remains one coherent PT AI workflow.
 
 ---
 

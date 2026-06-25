@@ -10,7 +10,7 @@ Build a production-grade PT AI Deep Research system with:
 * Durable execution with crash recovery
 * Human-in-the-loop safety gates
 * Full observability & evaluation framework
-* Supervisor-led multi-agent delegation
+* Supervisor-orchestrated subgraph architecture
 
 ---
 
@@ -18,32 +18,21 @@ Build a production-grade PT AI Deep Research system with:
 
 ## High-Level Flow
 
-Only agents that create intelligence are kept. Orchestration-only nodes (intake, draft, fix, publish, persist) are merged or replaced with deterministic logic.
+Supervisor orchestrates 4 intelligence subgraphs. Global orchestration state is separate from subgraph-scoped state. Artifacts persist to VFS.
 
 ```text id="arch_01"
-User Query
+START
     ↓
-SUPERVISOR (STANDARD)
+SUPERVISOR (ORCHESTRATOR)
     ↓
-PLANNING AGENT (XHIGH)
+PLANNING → RESEARCH → FITNESS → VERIFICATION
     ↓
-write_todos()
-    ↓
-RESEARCH AGENT (STANDARD)
-    ↓
-FITNESS REASONING AGENT (STANDARD)
-    ↓
-VERIFICATION AGENT (XHIGH)
-    ↓
-SUPERVISOR (STANDARD)
-    ├── FIX_LOOP → FITNESS REASONING AGENT
-    ├── REPLAN → PLANNING AGENT
-    ├── HITL
-    └── COMPLETE
-            ↓
-     PERSIST_RESULTS()
-            ↓
-        FINAL ARTIFACT
+SUPERVISOR
+    ├── FIX_REASONING → FITNESS
+    ├── REPLAN        → PLANNING
+    ├── RERESEARCH    → RESEARCH
+    ├── HITL          → WAIT → SUPERVISOR
+    └── COMPLETE      → PERSIST_RESULTS → END
 ```
 
 ---
@@ -62,123 +51,104 @@ SUPERVISOR (STANDARD)
 | Database            | PostgreSQL                             |
 | UI                  | Streamlit                              |
 
-See `docs/multi-agent-implementation-plan.md` for the detailed supervisor-agent implementation plan.
+See `docs/multi-agent-implementation-plan.md` for the full subgraph orchestration diagram.
 
 ---
 
 # 2. Graph Architecture (LangGraph DCG)
 
-## Intelligence Agents (5 only)
+## Subgraphs (4 intelligence units)
 
-The graph is a DCG with 5 LLM agents. The `SUPERVISOR_NODE` is a rule-based router — no LLM reasoning required. Non-agent components (`HITL interrupt`, `PERSIST_RESULTS()`) are deterministic.
-
-| Agent | Tier | Responsibility |
+| Subgraph | Tier | Responsibility |
 | --- | --- | --- |
-| Supervisor Agent | STANDARD | Rule-based routing, retries, HITL triggers, acceptance gates |
-| Planning Agent | XHIGH | Domain check, profile extraction, objective decomposition, `write_todos` |
-| Research Agent | STANDARD | Evidence retrieval through MCP clients |
-| Fitness Reasoning Agent | STANDARD | Calculations, safety checks, plan synthesis |
-| Verification Agent | XHIGH | Programmatic + LLM verification, RAGAS faithfulness |
+| Supervisor | STANDARD | Orchestrator — route, partial rerun, HITL, persist trigger |
+| Planning | XHIGH | Profile extraction, validation, `write_todos` |
+| Research | STANDARD | Evidence retrieval via MCP |
+| Fitness | STANDARD | Macro targets, training plan, plan synthesis |
+| Verification | XHIGH | Citation, consistency, safety, RAGAS |
+
+Non-subgraph: **HITL subsystem**, **PERSIST_RESULTS**
+
+---
+
+## Orchestration State vs Subgraph State
+
+**Global (OrchestrationState)** — checkpointer:
+
+```text
+run_id, thread_id, current_node
+query, user_profile, constraints
+request_type, affected_domains
+route_decision, retry_count, replan_count
+verification_passed, faithfulness_score
+waiting_for_user, approval_status, user_response
+workspace_path, final_artifact_path
+```
+
+**Scoped per subgraph:**
+
+| Subgraph | State fields |
+| --- | --- |
+| Planning | profile, missing_fields, todos, planning_output |
+| Research | research_questions, evidence, sources, evidence_summary |
+| Fitness | macro_targets, training_constraints, training_plan, draft_plan, safety_flags |
+| Verification | verification_report, feedback, faithfulness_score, pass_fail |
 
 ---
 
 ## Nodes
 
-### SUPERVISOR_NODE (STANDARD — rule-based, no LLM)
+### SUPERVISOR (ORCHESTRATOR)
 
-* Route to next agent based on state flags and verification JSON
-* Retry and replan counting
-* HITL interrupt triggers
-* Approval gate enforcement before `PERSIST_RESULTS()`
+Tools: `read_global_state`, `classify_request`, `route_subgraph`, `partial_rerun_decision`, `hitl_control`, `persist_trigger`
 
-Outputs:
-
-```text
-logs/supervisor_decisions.jsonl
-```
+* Route subgraphs based on orchestration state
+* Partial rerun: FIX_REASONING, REPLAN, RERESEARCH
+* HITL control and persist trigger
 
 ---
 
-### PLANNING_NODE / Planning Agent (XHIGH)
+### PLANNING SUBGRAPH (XHIGH)
 
-* Fitness domain classification
-* Profile extraction and completeness check
-* Goal decomposition via `write_todos`
-* HITL trigger if profile incomplete
+Tools: `extract_profile`, `validate_profile`, `write_todos`
 
-Outputs:
-
-```text
-plan/plan.md
-plan/todos.json
-plan/profile.json
-```
+Outputs → VFS `plan/`
 
 ---
 
-### RESEARCH_NODE / Research Agent (STANDARD)
+### RESEARCH SUBGRAPH (STANDARD)
 
-* Web search through MCP
-* RAG retrieval through MCP
-* Evidence collection
+Tools: `search_evidence`, `retrieve_documents`, `rank_sources`, `verify_sources` (MCP for external)
 
-Outputs:
-
-```text
-research/research_notes.md
-research/sources.json
-research/findings.json
-```
+Outputs → VFS `research/`
 
 ---
 
-### FITNESS_REASONING_NODE / Fitness Reasoning Agent (STANDARD)
+### FITNESS SUBGRAPH (STANDARD)
 
-* Macro target calculation
-* Training and recovery constraints
-* Safety checks
-* Plan synthesis (absorbs former Draft Agent)
+Tools: `calculate_macros`, `build_training_plan`, `synthesize_plan`
 
-Outputs:
-
-```text
-fitness/calculations.json
-fitness/safety_flags.json
-fitness/final_plan.md
-```
+Outputs → VFS `fitness/`
 
 ---
 
-### VERIFY_NODE / Verification Agent (XHIGH)
+### VERIFICATION SUBGRAPH (XHIGH)
 
-Hybrid verification + RAGAS evaluation:
+Tools: `citation_check`, `consistency_check`, `safety_check`, `ragas_faithfulness`
 
-* Programmatic verification (schemas, citations, safety)
-* LLM verification (reasoning-based evaluation)
-* RAGAS faithfulness scoring
-
-Outputs:
-
-```text
-verify/verification_vN.json
-verify/ragas.json
-```
+Outputs → VFS `verify/`
 
 ---
 
-### HITL interrupt (non-agent)
+### HITL SUBSYSTEM
 
-* LangGraph interrupt — not a separate LLM agent
-* Human clarification, approval, unsafe goal review
-* Resume via checkpointer
+Tools: `request_clarification`, `request_approval`
 
 ---
 
-### PERSIST_RESULTS() (non-agent)
+### PERSIST_RESULTS
 
-* Deterministic function — not an LLM agent
-* Copies approved plan to `final/final_plan.md`
-* Saves run metadata and trace references
+Tools: `save_run`, `save_metrics`, `save_artifacts`
 
 ---
 
@@ -244,7 +214,7 @@ class VFS:
 
 ### Requirement
 
-The Planning Agent MUST generate structured todos BEFORE any retrieval.
+The Planning Subgraph MUST generate structured todos BEFORE any retrieval.
 
 ---
 
@@ -253,15 +223,15 @@ The Planning Agent MUST generate structured todos BEFORE any retrieval.
 ```text id="fr1_flow"
 User Query
     ↓
-SUPERVISOR_NODE
+SUPERVISOR (route_subgraph)
     ↓
-PLANNING_NODE
+PLANNING SUBGRAPH
     ↓
 write_todos()
     ↓
-todos.json
+todos.json → VFS plan/
     ↓
-RESEARCH
+RESEARCH SUBGRAPH
 ```
 
 ---
@@ -278,20 +248,21 @@ RESEARCH
 
 ### Requirement
 
-The Supervisor Agent MUST NOT allow successful termination until verification passes.
+The Supervisor MUST NOT trigger COMPLETE until verification passes.
 
 ---
 
 ### Loop
 
 ```text id="bvf"
-FITNESS_REASONING (build)
+FITNESS SUBGRAPH (build)
     ↓
-VERIFICATION
+VERIFICATION SUBGRAPH
     ↓
 SUPERVISOR
-    ├── FIX_LOOP → FITNESS_REASONING
-    ├── REPLAN → PLANNING
+    ├── FIX_REASONING → FITNESS
+    ├── REPLAN        → PLANNING
+    ├── RERESEARCH    → RESEARCH
     └── HITL (retry_count >= 3)
 ```
 
@@ -395,13 +366,13 @@ Used for:
 
 ## Node Mapping
 
-| Agent | Tier |
+| Subgraph | Tier |
 | --- | --- |
 | Planning | XHIGH |
 | Verification | XHIGH |
 | Supervisor | STANDARD |
 | Research | STANDARD |
-| Fitness Reasoning | STANDARD |
+| Fitness | STANDARD |
 
 ---
 
@@ -518,7 +489,7 @@ PERSIST_RESULTS()
 
 ### Reject
 
-→ FIX_LOOP (Fitness Reasoning) or REPLAN (Planning)
+→ FIX_REASONING (Fitness) or REPLAN (Planning) or RERESEARCH (Research)
 
 ---
 
@@ -571,13 +542,13 @@ Agent CANNOT bypass approval gate.
 
 ## Architecture Integrity Rules
 
-1. Only 5 LLM agents — no orchestration-only agents
-2. Supervisor routing is rule-based, not LLM-driven
-3. All reasoning artifacts go to VFS
-4. State must remain minimal
-5. All execution must be checkpointable
+1. Supervisor orchestrates; subgraphs produce intelligence
+2. Orchestration state vs subgraph-scoped state are separated
+3. Partial rerun: FIX_REASONING, REPLAN, RERESEARCH
+4. All reasoning artifacts go to VFS
+5. Global state stores orchestration metadata only
 6. No final output without HITL approval
 7. No termination without verification pass
-8. RAGAS runs inside VerificationAgent, not as separate agent
+8. RAGAS runs inside Verification subgraph
 
 ---

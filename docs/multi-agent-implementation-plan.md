@@ -1,113 +1,273 @@
-# PT AI Core Deep Researcher — Multi-Agent Implementation Plan
+# PT AI Core Deep Researcher — Subgraph Orchestration Plan
 
----
+## Architecture Diagram
 
-## Target Architecture
-
-```text id="multi_agent_arch_01"
-User Query
-    ↓
-SUPERVISOR (STANDARD)
-    ↓
-PLANNING_AGENT (XHIGH)
-    ↓
-write_todos()
-    ↓
-RESEARCH_AGENT (STANDARD)
-    ↓
-FITNESS_REASONING_AGENT (STANDARD)
-    ↓
-VERIFICATION_AGENT (XHIGH)
-    ↓
-SUPERVISOR (STANDARD)
-    ├── FIX_LOOP → FITNESS_REASONING_AGENT
-    ├── REPLAN → PLANNING_AGENT
-    ├── HITL → WAIT → SUPERVISOR
-    └── COMPLETE
-            ↓
-     PERSIST_RESULTS()
-            ↓
-          RETURN
+```mermaid
+flowchart TB
+    START(["START"]) --> SUPERVISOR["SUPERVISOR (ORCHESTRATOR)"]
+    GLOBAL_STATE["ORCHESTRATION STATE"] -. read/write .-> SUPERVISOR
+    SUPERVISOR --> PLANNING["PLANNING SUBGRAPH"] & RESEARCH["RESEARCH SUBGRAPH"] & FITNESS["FITNESS SUBGRAPH"]
+    PLANNING -. uses .-> PLANNING_STATE["PLANNING_STATE"]
+    RESEARCH -. uses .-> RESEARCH_STATE["RESEARCH_STATE"]
+    FITNESS -. uses .-> FITNESS_STATE["FITNESS_STATE"]
+    FITNESS --> VERIFY["VERIFICATION SUBGRAPH"]
+    VERIFY -. uses .-> VERIFY_STATE["VERIFICATION_STATE"]
+    VERIFY --> SUPERVISOR
+    SUPERVISOR -- FIX_REASONING --> FITNESS
+    SUPERVISOR -- REPLAN --> PLANNING
+    SUPERVISOR -- RERESEARCH --> RESEARCH
+    SUPERVISOR -- HITL --> HITL["HITL SUBSYSTEM"]
+    HITL --> WAIT["WAIT FOR USER INPUT"]
+    WAIT --> SUPERVISOR
+    SUPERVISOR -- COMPLETE --> PERSIST["PERSIST_RESULTS"]
+    PERSIST --> END_NODE(["END"])
+    PLANNING -. plan/* .-> VFS["WORKSPACE / VFS"]
+    RESEARCH -. research/* .-> VFS
+    FITNESS -. fitness/* .-> VFS
+    VERIFY -. verify/* .-> VFS
+    PERSIST -. final/* .-> VFS
 ```
 
 ---
 
-## Agent Responsibilities
+## Design Principle
 
-| Agent | Tier | Creates Intelligence | VFS Outputs |
-| --- | --- | --- | --- |
-| `SupervisorAgent` | STANDARD | No — deterministic router | `logs/supervisor_decisions.jsonl` |
-| `PlanningAgent` | XHIGH | Yes — domain check, profile extraction, plan, todos | `plan/plan.md`, `plan/todos.json`, `plan/profile.json` |
-| `ResearchAgent` | STANDARD | Yes — evidence retrieval via MCP | `research/research_notes.md`, `research/sources.json` |
-| `FitnessReasoningAgent` | STANDARD | Yes — macro targets, safety, plan synthesis | `fitness/calculations.json`, `fitness/final_plan.md` |
-| `VerificationAgent` | XHIGH | Yes — programmatic + LLM verify, RAGAS | `verify/verification_vN.json`, `verify/ragas.json` |
+The system is a **supervisor-orchestrated subgraph architecture**:
 
-### Non-Agent Components
+* **Supervisor** — orchestrator only; reads/writes global state, routes subgraphs, triggers partial reruns and HITL
+* **Subgraphs** — 4 intelligence units (Planning, Research, Fitness, Verification); each owns a scoped state + tools
+* **VFS** — source of truth for reasoning artifacts; global state stores orchestration metadata only
+* **HITL / Persist** — subsystems, not LLM agents
 
-| Component | Type | Purpose |
-| --- | --- | --- |
-| `HITL interrupt` | LangGraph interrupt | Pause for missing info, unsafe goals, approval, retry exhaustion |
-| `PERSIST_RESULTS()` | Deterministic function | Write final artifact + run metadata after COMPLETE |
+Product scope: **Training plans + Macro targets** only.
 
 ---
 
-## LangGraph DCG
+## Supervisor (Orchestrator)
 
-```text id="multi_agent_graph_01"
-START
-  ↓
-SUPERVISOR_NODE
-  ↓
-PLANNING_NODE
-  ↓
-RESEARCH_NODE
-  ↓
-FITNESS_REASONING_NODE
-  ↓
-VERIFICATION_NODE
-  ↓
-SUPERVISOR_NODE
-  ├── FIX_LOOP → FITNESS_REASONING_NODE → VERIFICATION_NODE
-  ├── REPLAN → PLANNING_NODE → RESEARCH_NODE
-  ├── HITL → WAIT → SUPERVISOR_NODE
-  └── COMPLETE
-        ↓
-PERSIST_RESULTS()
-        ↓
-END
-```
+Does not produce fitness intelligence. Controls graph execution via tools:
 
-Supervisor routing is **rule-based** — reads structured JSON from VerificationAgent, no LLM call required for routing decisions.
+| Tool | Purpose |
+| --- | --- |
+| `read_global_state` | Read current orchestration state |
+| `classify_request` | Determine `request_type` and `affected_domains` |
+| `route_subgraph` | Dispatch to Planning, Research, Fitness, or Verification |
+| `partial_rerun_decision` | Select FIX_REASONING / REPLAN / RERESEARCH target |
+| `hitl_control` | Pause, resume, or reject based on HITL status |
+| `persist_trigger` | Invoke `PERSIST_RESULTS` after COMPLETE + approval |
+
+Tier: **STANDARD** (rule-based routing; reads structured verification output)
 
 ---
 
-## State Contract
+## Orchestration State (Global)
 
-```python id="multi_agent_state_01"
-class AgentState(TypedDict):
+Stored in LangGraph checkpointer. Subgraph reasoning data must NOT live here.
+
+```python
+class OrchestrationState(TypedDict):
     run_id: str
     thread_id: str
-    query: str
-    workspace_path: str
     current_node: str
-    route_decision: str | None       # FIX_LOOP | REPLAN | HITL | COMPLETE
+
+    query: str
+    user_profile: dict
+    constraints: dict
+
+    request_type: str | None          # training_plan | macro_calculation | ...
+    affected_domains: list[str]       # planning | research | fitness | verify
+
+    route_decision: str | None        # FIX_REASONING | REPLAN | RERESEARCH | HITL | COMPLETE
     retry_count: int
     replan_count: int
-    missing_fields: list[str]
-    waiting_for_user: bool
-    approval_status: str | None
+
     verification_passed: bool
     faithfulness_score: float | None
+
+    waiting_for_user: bool
+    approval_status: str | None
+    user_response: str | None
+
+    workspace_path: str
     final_artifact_path: str | None
 ```
 
-State must not store research notes, drafts, calculations, or verification reports — VFS only.
+---
+
+## Subgraphs
+
+### Planning Subgraph (XHIGH)
+
+Tools:
+
+* `extract_profile`
+* `validate_profile`
+* `write_todos`
+
+Scoped state (`PLANNING_STATE`):
+
+```python
+class PlanningState(TypedDict):
+    profile: dict
+    missing_fields: list[str]
+    todos: list[str]
+    planning_output: str | None
+```
+
+VFS: `plan/plan.md`, `plan/todos.json`, `plan/profile.json`
+
+---
+
+### Research Subgraph (STANDARD)
+
+Tools (MCP only for external retrieval):
+
+* `search_evidence`
+* `retrieve_documents`
+* `rank_sources`
+* `verify_sources`
+
+Scoped state (`RESEARCH_STATE`):
+
+```python
+class ResearchState(TypedDict):
+    research_questions: list[str]
+    evidence: list[dict]
+    sources: list[dict]
+    evidence_summary: str | None
+```
+
+VFS: `research/research_notes.md`, `research/sources.json`, `research/findings.json`
+
+---
+
+### Fitness Subgraph (STANDARD)
+
+Tools:
+
+* `calculate_macros`
+* `build_training_plan`
+* `synthesize_plan`
+
+Scoped state (`FITNESS_STATE`):
+
+```python
+class FitnessState(TypedDict):
+    macro_targets: dict               # calories, protein, carbs, fat
+    training_constraints: dict
+    training_plan: dict | None
+    draft_plan: str | None
+    safety_flags: list[str]
+```
+
+VFS: `fitness/calculations.json`, `fitness/safety_flags.json`, `fitness/final_plan.md`
+
+---
+
+### Verification Subgraph (XHIGH)
+
+Tools:
+
+* `citation_check`
+* `consistency_check`
+* `safety_check`
+* `ragas_faithfulness`
+
+Scoped state (`VERIFICATION_STATE`):
+
+```python
+class VerificationState(TypedDict):
+    verification_report: dict
+    feedback: str | None
+    faithfulness_score: float | None
+    pass_fail: bool
+```
+
+VFS: `verify/verification_v1.json`, `verify/ragas.json`
+
+---
+
+## Execution Flow
+
+### Happy Path
+
+```text
+START
+  → SUPERVISOR (classify_request, route_subgraph)
+  → PLANNING → RESEARCH → FITNESS → VERIFICATION
+  → SUPERVISOR (COMPLETE)
+  → HITL (request_approval)
+  → WAIT → SUPERVISOR
+  → PERSIST_RESULTS
+  → END
+```
+
+### Partial Rerun Paths
+
+Supervisor uses `partial_rerun_decision` to rerun only affected subgraphs:
+
+| Route | Trigger | Rerun |
+| --- | --- | --- |
+| `FIX_REASONING` | Minor fitness/plan issues | FITNESS → VERIFICATION |
+| `REPLAN` | Structural or profile issues | PLANNING → (downstream as needed) |
+| `RERESEARCH` | Insufficient or weak evidence | RESEARCH → FITNESS → VERIFICATION |
+
+```text
+SUPERVISOR
+  ├── FIX_REASONING → FITNESS → VERIFY → SUPERVISOR
+  ├── REPLAN        → PLANNING → ... → SUPERVISOR
+  ├── RERESEARCH    → RESEARCH → FITNESS → VERIFY → SUPERVISOR
+  ├── HITL          → WAIT → SUPERVISOR
+  └── COMPLETE      → PERSIST_RESULTS → END
+```
+
+Constraint: `retry_count < 3` for FIX_REASONING; exhausted → HITL.
+
+---
+
+## HITL Subsystem
+
+Not an LLM agent. LangGraph interrupt + supervisor `hitl_control`.
+
+Tools:
+
+* `request_clarification` — missing profile, ambiguous goal
+* `request_approval` — final plan approval before persist
+
+Interrupt points:
+
+* Missing profile fields (Planning subgraph)
+* Conflicting or unsafe constraints
+* `retry_count >= 3`
+* Final approval before `PERSIST_RESULTS`
+
+---
+
+## PERSIST_RESULTS
+
+Deterministic subsystem triggered by supervisor `persist_trigger`.
+
+Tools:
+
+* `save_run`
+* `save_metrics`
+* `save_artifacts`
+
+Writes: `final/final_plan.md`, `logs/persist_result.json`
+
+Only runs when:
+
+```text
+verification_passed = true
+faithfulness_score >= 0.90
+approval_status = approved
+```
 
 ---
 
 ## VFS Workspace
 
-```text id="multi_agent_vfs_01"
+```text
 workspace/run_<id>/
 ├── plan/
 │   ├── plan.md
@@ -131,174 +291,122 @@ workspace/run_<id>/
     └── persist_result.json
 ```
 
-Each agent writes only to its owned folder. `PERSIST_RESULTS()` copies `fitness/final_plan.md` → `final/final_plan.md` after COMPLETE.
+Subgraphs write to their folder. Global state never stores artifact content.
 
 ---
 
 ## Reasoning Sandwich
 
-Only 2 agents use XHIGH — where reasoning quality directly affects output.
-
-| Agent | Tier | Why |
-| --- | --- | --- |
-| `PlanningAgent` | XHIGH | Strategic decomposition, domain judgment, profile gap analysis |
-| `VerificationAgent` | XHIGH | Quality judgment, RAGAS interpretation, pass/fail reasoning |
-| `SupervisorAgent` | STANDARD | Rule-based routing — reads structured verification JSON |
-| `ResearchAgent` | STANDARD | Retrieval and summarization |
-| `FitnessReasoningAgent` | STANDARD | Calculations and plan synthesis |
-
-```text
-XHIGH  → Planning (start) + Verification (end)
-STANDARD → everything else
-```
+| Subgraph | Tier |
+| --- | --- |
+| Planning | XHIGH |
+| Verification | XHIGH |
+| Supervisor | STANDARD (orchestrator) |
+| Research | STANDARD |
+| Fitness | STANDARD |
 
 ---
 
-## Build-Verify-Fix Loop
+## LangGraph Implementation
 
-```text id="multi_agent_bvf_01"
-FITNESS_REASONING_AGENT builds plan
-    ↓
-VERIFICATION_AGENT verifies
-    ↓
-SUPERVISOR reads verification_vN.json
-    ├── PASS + faithfulness >= 0.90 → HITL approval → COMPLETE
-    ├── FIX_LOOP (retry_count < 3) → FITNESS_REASONING_AGENT
-    ├── REPLAN (major issues) → PLANNING_AGENT
-    └── HITL (exhausted retries / missing info / unsafe)
+```python
+def build_graph() -> CompiledStateGraph:
+    graph = StateGraph(OrchestrationState)
+
+    graph.add_node("supervisor", supervisor_node)
+    graph.add_node("planning", planning_subgraph)
+    graph.add_node("research", research_subgraph)
+    graph.add_node("fitness", fitness_subgraph)
+    graph.add_node("verification", verification_subgraph)
+    graph.add_node("hitl", hitl_subsystem)
+    graph.add_node("persist", persist_results)
+
+    graph.set_entry_point("supervisor")
+    graph.add_conditional_edges("supervisor", route_from_supervisor)
+    graph.add_edge("planning", "supervisor")
+    graph.add_edge("research", "supervisor")
+    graph.add_edge("fitness", "verification")
+    graph.add_edge("verification", "supervisor")
+    graph.add_edge("hitl", "supervisor")
+    graph.add_edge("persist", END)
+
+    return graph.compile(
+        checkpointer=checkpointer,
+        interrupt_before=["hitl"],
+    )
 ```
 
-Verification includes:
+```python
+def route_from_supervisor(state: OrchestrationState) -> str:
+    if state["waiting_for_user"]:
+        return "hitl"
 
-* Schema validation
-* Citation coverage
-* Fitness safety check
-* Profile ↔ calculation ↔ recommendation consistency
-* RAGAS faithfulness (target >= 0.90)
+    decision = state["route_decision"]
 
----
+    if decision == "FIX_REASONING":
+        return "fitness"
+    if decision == "REPLAN":
+        return "planning"
+    if decision == "RERESEARCH":
+        return "research"
+    if decision == "COMPLETE":
+        if state["approval_status"] != "approved":
+            state["waiting_for_user"] = True
+            return "hitl"
+        return "persist"
 
-## HITL Interrupt Points
-
-Handled by Supervisor via LangGraph `interrupt()`, not a separate agent.
-
-* Missing profile fields (detected by PlanningAgent)
-* Ambiguous or conflicting goals
-* Unsafe training constraints
-* `retry_count >= 3` after FIX_LOOP
-* Final approval before `PERSIST_RESULTS()`
+    # Initial or sequential dispatch via affected_domains
+    return resolve_next_subgraph(state)
+```
 
 ---
 
 ## LangFuse Trace Hierarchy
 
-```text id="langfuse_trace_01"
+```text
 Thread: thread_id
 └── Trace: run_id
-    ├── Supervisor routing span (no LLM)
-    ├── Planning agent span (XHIGH)
-    ├── Research agent span + MCP tool spans
-    ├── Fitness reasoning span
-    ├── Verification agent span (XHIGH)
-    ├── FIX_LOOP / REPLAN cycle spans (if any)
-    ├── HITL interrupt span
-    └── PERSIST_RESULTS span (no LLM)
-```
-
----
-
-## Implementation Pseudocode
-
-```python id="multi_agent_pseudocode_01"
-def build_graph() -> StateGraph:
-    graph = StateGraph(AgentState)
-    graph.add_node("supervisor", execute_supervisor)
-    graph.add_node("planning", execute_planning_agent)
-    graph.add_node("research", execute_research_agent)
-    graph.add_node("fitness_reasoning", execute_fitness_reasoning_agent)
-    graph.add_node("verification", execute_verification_agent)
-    graph.add_node("hitl", execute_hitl_interrupt)
-    graph.add_node("persist", persist_results)
-    graph.set_entry_point("supervisor")
-    graph.add_conditional_edges("supervisor", route_from_supervisor)
-    graph.add_edge("planning", "research")
-    graph.add_edge("research", "fitness_reasoning")
-    graph.add_edge("fitness_reasoning", "verification")
-    graph.add_edge("verification", "supervisor")
-    graph.add_edge("hitl", "supervisor")
-    graph.add_edge("persist", END)
-    return graph.compile(checkpointer=checkpointer, interrupt_before=["hitl"])
-```
-
-```python id="multi_agent_supervisor_pseudocode_01"
-def route_from_supervisor(state: AgentState) -> str:
-    if state["waiting_for_user"]:
-        return "hitl"
-    if state["route_decision"] == "REPLAN":
-        return "planning"
-    if state["route_decision"] == "FIX_LOOP":
-        return "fitness_reasoning"
-    if state["route_decision"] == "COMPLETE":
-        if state["approval_status"] != "approved":
-            state["waiting_for_user"] = True
-            return "hitl"
-        return "persist"
-    # Initial dispatch
-    if state["current_node"] == "supervisor" and not state.get("plan_exists"):
-        return "planning"
-    return state["route_decision"]
-```
-
-```python id="persist_results_pseudocode_01"
-def persist_results(state: AgentState) -> AgentState:
-    vfs = VFS(state["workspace_path"])
-    vfs.copy("fitness/final_plan.md", "final/final_plan.md")
-    save_run_metadata(state)
-    state["final_artifact_path"] = "final/final_plan.md"
-    return state
+    ├── Supervisor span (orchestration tools)
+    ├── Planning subgraph span (XHIGH)
+    ├── Research subgraph span + MCP spans
+    ├── Fitness subgraph span
+    ├── Verification subgraph span (XHIGH)
+    ├── Partial rerun spans (FIX_REASONING / REPLAN / RERESEARCH)
+    ├── HITL subsystem span
+    └── PERSIST_RESULTS span
 ```
 
 ---
 
 ## 2-Week Implementation Plan
 
-### Week 1 — Core Agents
-
 | Day | Task |
 | --- | --- |
-| 1 | `AgentState`, VFS interface, workspace schemas |
-| 2 | Model-tier router, LangGraph checkpointer, graph skeleton |
-| 3 | `PlanningAgent` — domain check, profile extraction, `write_todos`, HITL for missing fields |
-| 4 | MCP client boundary + `ResearchAgent` |
-| 5 | `FitnessReasoningAgent` — macro targets, safety, plan synthesis → `fitness/final_plan.md` |
-
-### Week 2 — Verification, Routing, Release
-
-| Day | Task |
-| --- | --- |
-| 6 | `VerificationAgent` — programmatic checks + LLM verify + RAGAS |
-| 7 | `SupervisorAgent` — rule-based routing, BVF loop, retry/replan counters |
-| 8 | HITL interrupts — clarification, approval, retry exhaustion |
-| 9 | `PERSIST_RESULTS()` + crash-resume tests |
-| 10 | LangFuse tracing — 5 agent spans + MCP + routing |
-| 11 | Integration tests — happy paths + edge cases from `workflow.md` |
-| 12 | RAGAS benchmark — macro calculation, training |
-| 13 | Full acceptance suite |
-| 14 | Review traces, VFS artifacts, freeze Phase 1 criteria |
+| 1 | `OrchestrationState` + subgraph state schemas + VFS |
+| 2 | Supervisor orchestrator + `read_global_state`, `route_subgraph` |
+| 3 | Planning subgraph + `write_todos` gate |
+| 4 | Research subgraph + MCP boundary |
+| 5 | Fitness subgraph + macro + training plan synthesis |
+| 6 | Verification subgraph + RAGAS |
+| 7 | `partial_rerun_decision` — FIX_REASONING, REPLAN, RERESEARCH |
+| 8 | HITL subsystem + checkpointer resume |
+| 9 | `PERSIST_RESULTS` + approval gate |
+| 10 | LangFuse tracing |
+| 11–12 | Integration tests + RAGAS benchmark |
+| 13–14 | Acceptance review |
 
 ---
 
 ## Acceptance Criteria
 
-* Exactly 5 LLM agents — no orchestration-only agents
-* `write_todos` runs before any MCP retrieval
-* External data access only through MCP
-* All reasoning artifacts in VFS, not state
-* BVF loop blocks termination until verification passes
+* Supervisor orchestrates via global state; subgraphs use scoped state
+* Partial rerun: FIX_REASONING, REPLAN, RERESEARCH route to correct subgraph only
+* `write_todos` before MCP retrieval
+* MCP-only external data access
+* Artifacts in VFS, not global state
 * RAGAS faithfulness >= 0.90
-* HITL approval before `PERSIST_RESULTS()`
-* LangGraph checkpointer resumes interrupted runs
-* LangFuse trace shows 5 agent spans + routing + MCP calls
-* Fitness domain guardrails reject out-of-scope requests
+* HITL approval before persist
+* LangGraph checkpointer resume
+* Product scope: training + macro only
 
 ---
