@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pt_ai
+      POSTGRES_PASSWORD: pt_ai_dev
+      POSTGRES_DB: pt_ai_core
+    ports:
+      - "5432:5432"
+    volumes:
+      - pt_ai_pgdata:/var/lib/postgresql/data
+
+volumes:
+  pt_ai_pgdata:

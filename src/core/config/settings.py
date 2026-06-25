@@ -1,12 +1,13 @@
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_DEFAULT_WORKSPACE = _PROJECT_ROOT / "src" / "workspace"
 
-@dataclass
+
 class Settings(BaseSettings):
     """Application settings loaded from environment / .env file."""
 
@@ -36,7 +37,7 @@ class Settings(BaseSettings):
     langfuse_host: str = "https://cloud.langfuse.com"
 
     # VFS
-    workspace_root: Path = Field(default=Path("./workspace"))
+    workspace_root: Path = Field(default=_DEFAULT_WORKSPACE)
 
     # MCP research servers (JSON string → parsed in client setup)
     mcp_servers_json: str = "{}"
@@ -50,7 +51,10 @@ class Settings(BaseSettings):
     @field_validator("workspace_root", mode="before")
     @classmethod
     def resolve_workspace_root(cls, value: str | Path) -> Path:
-        return Path(value).resolve()
+        path = Path(value)
+        if not path.is_absolute():
+            path = _PROJECT_ROOT / path
+        return path.resolve()
 
     @property
     def checkpointer_dsn(self) -> str:

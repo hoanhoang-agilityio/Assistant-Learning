@@ -28,7 +28,7 @@ htmlcov/
 .DS_Store
 
 # Project artifacts (VFS runtime output)
-workspace/run_*/
+src/workspace/run_*/
 
 # Streamlit
 .streamlit/secrets.toml
