@@ -7,7 +7,7 @@ Detailed task estimates for the Core Deep Researcher (Fitness AI).
 | Parameter | Value |
 | --- | --- |
 | Capacity | **8 hours / day** |
-| Work week | **5 days / week** (Mon–Fri) |
+| Work week | **5 days / week** |
 | Total duration | **2 weeks · 10 working days · 80 hours** |
 | Scope | Full Phase 1: graph, subgraphs, HITL, persist, **FastAPI**, **Streamlit**, **full LangFuse tracing**, **RAGAS benchmark**, tests, acceptance |
 | Reference docs | `implementation-specification.md`, `multi-agent-implementation-plan.md` |
