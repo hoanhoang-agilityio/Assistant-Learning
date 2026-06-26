@@ -9,7 +9,7 @@ Detailed task estimates for the Core Deep Researcher (Fitness AI).
 | Capacity | **8 hours / day** |
 | Work week | **5 days / week** |
 | Total duration | **2 weeks · 10 working days · 80 hours** |
-| Scope | Full Phase 1: graph, subgraphs, HITL, persist, **FastAPI**, **Streamlit**, **full LangFuse tracing**, **RAGAS benchmark**, tests, acceptance |
+| Scope | Full Phase 1: graph, subgraphs, **Tavily MCP (pre-built)**, HITL, persist, **FastAPI**, **Streamlit**, **full LangFuse tracing**, **RAGAS benchmark**, tests, acceptance |
 | Reference docs | `implementation-specification.md`, `multi-agent-implementation-plan.md` |
 
 ## Progress Snapshot (as of scaffold + state/tools PRs)
@@ -21,6 +21,7 @@ Detailed task estimates for the Core Deep Researcher (Fitness AI).
 | Supervisor / HITL / persist / subgraph tool stubs | Done (bodies are `...`) |
 | `Settings` (Postgres DSN, workspace root, LLM keys, LangFuse) | Done |
 | `docker-compose.yml` (Postgres 16) | Done |
+| Tavily MCP client wiring (pre-built server, no custom MCP) | Not started |
 | VFS module | Not started |
 | LangGraph `StateGraph` + checkpointer | Not started |
 | Subgraph graphs + real tool logic | Not started |
@@ -34,7 +35,7 @@ Detailed task estimates for the Core Deep Researcher (Fitness AI).
 
 ## Week 1 — Foundation & Intelligence Subgraphs
 
-**Goal:** Runnable supervisor graph; all four subgraphs produce VFS artifacts on the happy path.
+**Goal:** Runnable supervisor graph; Tavily-backed research ready; all four subgraphs produce VFS artifacts on the happy path.
 
 ---
 
@@ -86,17 +87,39 @@ Detailed task estimates for the Core Deep Researcher (Fitness AI).
 
 ---
 
-### Day 4 — Research Subgraph + MCP (8h)
+## Research Retrieval Architecture
+
+External evidence via official [Tavily MCP server](https://docs.tavily.com/documentation/mcp) only.
+
+| Layer | Module | Role |
+| --- | --- | --- |
+| Tavily MCP | `core/mcp/tavily_client.py` | Wire **pre-built** Tavily MCP via `langchain-mcp-adapters` |
+| Research tools | `search_evidence`, `retrieve_documents`, `rank_sources`, `verify_sources` | Tavily-backed retrieval; todos gate enforced |
+
+### Tavily MCP (pre-built — no custom server)
+
+| Item | Detail |
+| --- | --- |
+| Server | Official **Tavily MCP** — remote `https://mcp.tavily.com/mcp` (streamable HTTP) or local `npx -y tavily-mcp@latest` (stdio) |
+| Client | `langchain-mcp-adapters` `MultiServerMCPClient` — config + tool binding only |
+| Auth | `TAVILY_API_KEY` in `Settings` / `.env` |
+| Tool mapping | `search_evidence` → `tavily-search`; `retrieve_documents` → `tavily-extract` |
+| Out of scope | Custom MCP server, MCP protocol implementation, new research API wrappers |
+
+---
+
+### Day 4 — Research Subgraph + Tavily MCP (8h)
 
 | Time | Task | Deliverable |
 | --- | --- | --- |
-| 1.5h | MCP client via `langchain-mcp-adapters` | `core/mcp/client.py` |
+| 0.5h | Extend `Settings`: **`tavily_api_key`** | `core/config/settings.py` |
+| 1.5h | **Tavily MCP client** — `MultiServerMCPClient` → official Tavily MCP; smoke test `tavily-search` / `tavily-extract`; **no custom MCP build** | `core/mcp/tavily_client.py` |
 | 1.0h | Research `StateGraph` subgraph node | `core/subgraphs/research/graph.py` |
-| 2.5h | `search_evidence` + `retrieve_documents` (MCP only; `todos` gate) | `core/subgraphs/research/tools.py` |
+| 2.5h | `search_evidence` + `retrieve_documents` — delegate to Tavily MCP tools; **`todos` gate** | `core/subgraphs/research/tools.py` |
 | 2.0h | `rank_sources` + `verify_sources` | `core/subgraphs/research/tools.py` |
-| 1.0h | VFS writes + research subgraph test | `research/*`, `tests/test_research_subgraph.py` |
+| 1.0h | VFS writes (`research/sources.json`, `research/findings.json`) + subgraph test | `research/*`, `tests/test_research_subgraph.py` |
 
-**Exit criteria:** Research blocked without todos; external data only via MCP.
+**Exit criteria:** Research blocked without todos; Tavily MCP connected via pre-built server; evidence artifacts on VFS.
 
 **PR:** `feat/research-subgraph`
 
@@ -164,7 +187,7 @@ Detailed task estimates for the Core Deep Researcher (Fitness AI).
 | --- | --- | --- |
 | 1.0h | `persist_trigger` guards (verify pass, score ≥ 0.90, approved) | `core/agents/tools.py` |
 | 1.5h | `save_run` + `save_metrics` + `save_artifacts` | `core/persist/tools.py` |
-| 2.0h | E2E test: START → … → HITL → persist → END (mocked LLM/MCP) | `tests/test_e2e_happy_path.py` |
+| 2.0h | E2E test: START → … → HITL → persist → END (mocked LLM / Tavily) | `tests/test_e2e_happy_path.py` |
 | 1.0h | Test fixtures: temp workspace + checkpointer | `tests/conftest.py` |
 | 1.5h | LangFuse client from `settings.langfuse_*`; root trace per `run_id` | `core/observability/langfuse.py` |
 | 1.0h | Supervisor span + thread (`thread_id`) wiring | callback handler |
@@ -179,9 +202,9 @@ Detailed task estimates for the Core Deep Researcher (Fitness AI).
 
 | Time | Task | Deliverable |
 | --- | --- | --- |
-| 2.5h | **Full LangFuse span hierarchy** per spec: Planning, Research (+ MCP child spans), Fitness, Verification, partial rerun spans, HITL, PERSIST | `core/observability/langfuse.py` |
+| 2.5h | **Full LangFuse span hierarchy** per spec: Planning, Research (+ **Tavily MCP** child spans), Fitness, Verification, partial rerun spans, HITL, PERSIST | `core/observability/langfuse.py` |
 | 0.5h | Verify trace tree in LangFuse UI matches `multi-agent-implementation-plan.md` diagram | trace checklist |
-| 2.0h | Integration tests: `write_todos` gate, partial rerun paths, happy path (mocked) | `tests/integration/` |
+| 2.0h | Integration tests: `write_todos` gate, Tavily research path, partial rerun, happy path (mocked) | `tests/integration/` |
 | 2.0h | **`scripts/ragas_benchmark.py`** — batch N sample queries, aggregate faithfulness scores, CSV/JSON report | `scripts/ragas_benchmark.py` |
 | 1.0h | Golden fixtures + CI regression: assert faithfulness ≥ 0.90 | `tests/test_ragas_benchmark.py` |
 
@@ -214,14 +237,16 @@ Use on **Day 10** to confirm Phase 1 completion.
 
 - [ ] Supervisor orchestrates via global state; subgraphs use scoped state
 - [ ] Partial rerun: FIX_REASONING, REPLAN, RERESEARCH route to correct subgraph only
-- [ ] `write_todos` enforced before MCP retrieval
-- [ ] MCP-only external data access
+- [ ] `write_todos` enforced before Tavily retrieval
+- [ ] **Official Tavily MCP server** (remote or `tavily-mcp` npx) — **no custom MCP server built**
+- [ ] `search_evidence` / `retrieve_documents` map to `tavily-search` / `tavily-extract`
+- [ ] External data access via Tavily MCP only
 - [ ] Artifacts in VFS, not global state
 - [ ] RAGAS faithfulness ≥ 0.90 on golden set
 - [ ] **`scripts/ragas_benchmark.py` runs N queries and produces reproducible report**
 - [ ] HITL approval before persist
 - [ ] LangGraph checkpointer resume after interrupt
-- [ ] **LangFuse trace hierarchy: supervisor → subgraphs → MCP → HITL → persist (+ rerun spans)**
+- [ ] **LangFuse trace hierarchy: supervisor → subgraphs → Tavily MCP → HITL → persist (+ rerun spans)**
 - [ ] **FastAPI: create run, get status, resume HITL**
 - [ ] **Streamlit: submit run, approve/reject, view final plan**
 - [ ] Product scope: training + macro only
@@ -232,7 +257,7 @@ Use on **Day 10** to confirm Phase 1 completion.
 
 | Week | Days | Focus | Hours |
 | --- | --- | --- | --- |
-| 1 | 1–5 | VFS, supervisor, planning, research, fitness | 40h |
+| 1 | 1–5 | VFS, supervisor, planning, **research (Tavily MCP)**, fitness | 40h |
 | 2 | 6–10 | Verification, rerun, HITL, persist, LangFuse, RAGAS benchmark, API, UI, acceptance | 40h |
 | **Total** | **10** | | **80h** |
 
@@ -257,7 +282,7 @@ Thread: thread_id
     ├── Supervisor span (orchestration tools)
     ├── Planning subgraph span (XHIGH)
     ├── Research subgraph span
-    │   └── MCP child spans (search, retrieve)
+    │   └── Tavily MCP child spans (tavily-search, tavily-extract)
     ├── Fitness subgraph span
     ├── Verification subgraph span (XHIGH)
     ├── Partial rerun spans (FIX_REASONING / REPLAN / RERESEARCH)
