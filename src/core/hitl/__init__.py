@@ -1,9 +1,4 @@
-"""Human-in-the-loop subsystem — LangGraph interrupt + supervisor hitl_control."""
+from core.hitl.node import invoke_hitl_node
+from core.hitl.tools import HITL_TOOLS
 
-from core.hitl.tools import HITL_TOOLS, request_approval, request_clarification
-
-__all__ = [
-    "HITL_TOOLS",
-    "request_approval",
-    "request_clarification",
-]
+__all__ = ["HITL_TOOLS", "invoke_hitl_node"]

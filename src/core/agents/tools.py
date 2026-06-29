@@ -1,6 +1,8 @@
 from langchain_core.tools import BaseTool, tool
 
+from core.agents.rerun import partial_rerun_decision_data
 from core.agents.state import AffectedDomain, OrchestrationState, RequestType
+from core.hitl.utils import hitl_control_data
 
 REQUEST_TYPE_KEYWORDS: list[tuple[RequestType, tuple[str, ...]]] = [
     ("fat_loss", ("lose weight", "fat loss", "cutting", "cut ")),
@@ -77,7 +79,7 @@ def partial_rerun_decision(
     replan_count: int,
 ) -> dict:
     """Select FIX_REASONING, REPLAN, or RERESEARCH target for partial rerun."""
-    ...
+    return partial_rerun_decision_data(verification_report, retry_count, replan_count)
 
 
 @tool
@@ -87,7 +89,7 @@ def hitl_control(
     user_response: str | None,
 ) -> dict:
     """Pause, resume, or reject workflow based on HITL status."""
-    ...
+    return hitl_control_data(waiting_for_user, approval_status, user_response)
 
 
 @tool

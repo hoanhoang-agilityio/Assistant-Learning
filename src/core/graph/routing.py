@@ -1,3 +1,4 @@
+from core.agents.rerun import MAX_REPLAN_COUNT, MAX_RETRY_COUNT
 from core.agents.state import OrchestrationState
 
 DOMAIN_ORDER = ("planning", "research", "fitness", "verify")
@@ -42,11 +43,19 @@ def route_from_supervisor(state: OrchestrationState) -> str:
         return "hitl"
 
     decision = state["route_decision"]
+    if decision == "HITL":
+        return "hitl"
     if decision == "FIX_REASONING":
+        if state["retry_count"] >= MAX_RETRY_COUNT:
+            return "hitl"
         return "fitness"
     if decision == "REPLAN":
+        if state["replan_count"] >= MAX_REPLAN_COUNT:
+            return "hitl"
         return "planning"
     if decision == "RERESEARCH":
+        if state["retry_count"] >= MAX_RETRY_COUNT:
+            return "hitl"
         return "research"
     if decision == "COMPLETE":
         if state["approval_status"] == "approved":

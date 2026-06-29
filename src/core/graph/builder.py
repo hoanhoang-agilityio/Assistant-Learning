@@ -6,6 +6,7 @@ from core.agents.state import OrchestrationState
 from core.agents.supervisor import supervisor_node
 from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.routing import route_from_supervisor
+from core.hitl.node import invoke_hitl_node
 from core.subgraphs.fitness.graph import invoke_fitness_subgraph
 from core.subgraphs.planning.graph import invoke_planning_subgraph
 from core.subgraphs.research.graph import invoke_research_subgraph
@@ -29,11 +30,7 @@ def verification_node(state: OrchestrationState) -> dict:
 
 
 def hitl_node(state: OrchestrationState) -> dict:
-    return {
-        "current_node": "hitl",
-        "waiting_for_user": False,
-        "approval_status": state["approval_status"] or "approved",
-    }
+    return invoke_hitl_node(state)
 
 
 def persist_node(state: OrchestrationState) -> dict:
