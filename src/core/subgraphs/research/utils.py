@@ -3,7 +3,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from core.mcp.tavily_client import get_tavily_client
+from core.mcp.tavily_client import (
+    TAVILY_EXTRACT_TOOL,
+    TAVILY_SEARCH_TOOL,
+    get_tavily_client,
+)
+from core.observability.tracing import tavily_mcp_span_context
 from core.subgraphs.planning.utils import has_planning_todos, load_planning_todos
 from core.vfs import VFS
 
@@ -64,7 +69,8 @@ def search_evidence_data(research_questions: list[str], todos: list[str]) -> dic
     client = get_tavily_client()
     sources: list[dict[str, Any]] = []
     for question in research_questions:
-        search_result = client.search(question)
+        with tavily_mcp_span_context(TAVILY_SEARCH_TOOL, input_data={"query": question}):
+            search_result = client.search(question)
         sources.extend(normalize_search_results(search_result, question))
     return {"sources": sources}
 
@@ -102,7 +108,8 @@ def retrieve_documents_data(source_ids: list[str], sources: list[dict[str, Any]]
         return {"evidence": []}
 
     client = get_tavily_client()
-    extract_result = client.extract(selected_urls)
+    with tavily_mcp_span_context(TAVILY_EXTRACT_TOOL, input_data={"urls": selected_urls}):
+        extract_result = client.extract(selected_urls)
     return {"evidence": normalize_extract_results(extract_result)}
 
 
