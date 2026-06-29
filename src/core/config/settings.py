@@ -61,6 +61,10 @@ class Settings(BaseSettings):
         return path.resolve()
 
     @property
+    def is_langfuse_enabled(self) -> bool:
+        return bool(self.langfuse_public_key and self.langfuse_secret_key)
+
+    @property
     def checkpointer_dsn(self) -> str:
         if self.database_url:
             return str(self.database_url)

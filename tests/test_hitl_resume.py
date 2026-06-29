@@ -31,6 +31,7 @@ def approval_state(tmp_path: Path) -> OrchestrationState:
         "affected_domains": ["planning", "research", "fitness", "verify"],
         "current_node": "supervisor",
         "verification_passed": True,
+        "faithfulness_score": 0.95,
         "route_decision": "COMPLETE",
         "waiting_for_user": True,
         "approval_status": "pending",

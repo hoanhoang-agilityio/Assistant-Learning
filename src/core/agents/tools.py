@@ -3,6 +3,7 @@ from langchain_core.tools import BaseTool, tool
 from core.agents.rerun import partial_rerun_decision_data
 from core.agents.state import AffectedDomain, OrchestrationState, RequestType
 from core.hitl.utils import hitl_control_data
+from core.persist.utils import persist_trigger_data
 
 REQUEST_TYPE_KEYWORDS: list[tuple[RequestType, tuple[str, ...]]] = [
     ("fat_loss", ("lose weight", "fat loss", "cutting", "cut ")),
@@ -99,7 +100,7 @@ def persist_trigger(
     approval_status: str | None,
 ) -> dict:
     """Trigger PERSIST_RESULTS after COMPLETE and user approval."""
-    ...
+    return persist_trigger_data(verification_passed, faithfulness_score, approval_status)
 
 
 SUPERVISOR_TOOLS: list[BaseTool] = [
