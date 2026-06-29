@@ -7,6 +7,7 @@ from core.agents.supervisor import supervisor_node
 from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.routing import route_from_supervisor
 from core.subgraphs.planning.graph import invoke_planning_subgraph
+from core.subgraphs.research.graph import invoke_research_subgraph
 
 
 def planning_node(state: OrchestrationState) -> dict:
@@ -14,7 +15,7 @@ def planning_node(state: OrchestrationState) -> dict:
 
 
 def research_node(state: OrchestrationState) -> dict:
-    return {"current_node": "research"}
+    return invoke_research_subgraph(state)
 
 
 def fitness_node(state: OrchestrationState) -> dict:
