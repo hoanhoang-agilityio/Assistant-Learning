@@ -7,10 +7,20 @@ from core.agents.supervisor import supervisor_node
 from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.routing import route_from_supervisor
 from core.hitl.node import invoke_hitl_node
+from core.observability.langfuse import supervisor_span_context
+from core.persist.node import invoke_persist_node
 from core.subgraphs.fitness.graph import invoke_fitness_subgraph
 from core.subgraphs.planning.graph import invoke_planning_subgraph
 from core.subgraphs.research.graph import invoke_research_subgraph
 from core.subgraphs.verification.graph import invoke_verification_subgraph
+
+
+def traced_supervisor_node(state: OrchestrationState) -> dict:
+    with supervisor_span_context(state) as span:
+        result = supervisor_node(state)
+        if span is not None:
+            span.update(output=result)
+        return result
 
 
 def planning_node(state: OrchestrationState) -> dict:
@@ -34,11 +44,7 @@ def hitl_node(state: OrchestrationState) -> dict:
 
 
 def persist_node(state: OrchestrationState) -> dict:
-    workspace_path = state["workspace_path"]
-    return {
-        "current_node": "persist",
-        "final_artifact_path": f"{workspace_path}/final/final_plan.md",
-    }
+    return invoke_persist_node(state)
 
 
 def build_graph(
@@ -47,7 +53,7 @@ def build_graph(
     """Build and compile the supervisor-orchestrated LangGraph."""
     graph = StateGraph(OrchestrationState)
 
-    graph.add_node("supervisor", supervisor_node)
+    graph.add_node("supervisor", traced_supervisor_node)
     graph.add_node("planning", planning_node)
     graph.add_node("research", research_node)
     graph.add_node("fitness", fitness_node)
