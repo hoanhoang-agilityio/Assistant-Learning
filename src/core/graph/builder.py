@@ -8,6 +8,7 @@ from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.routing import route_from_supervisor
 from core.hitl.node import invoke_hitl_node
 from core.observability.langfuse import supervisor_span_context
+from core.observability.tracing import wrap_traced_subgraph_node
 from core.persist.node import invoke_persist_node
 from core.subgraphs.fitness.graph import invoke_fitness_subgraph
 from core.subgraphs.planning.graph import invoke_planning_subgraph
@@ -23,28 +24,12 @@ def traced_supervisor_node(state: OrchestrationState) -> dict:
         return result
 
 
-def planning_node(state: OrchestrationState) -> dict:
-    return invoke_planning_subgraph(state)
-
-
-def research_node(state: OrchestrationState) -> dict:
-    return invoke_research_subgraph(state)
-
-
-def fitness_node(state: OrchestrationState) -> dict:
-    return invoke_fitness_subgraph(state)
-
-
-def verification_node(state: OrchestrationState) -> dict:
-    return invoke_verification_subgraph(state)
-
-
-def hitl_node(state: OrchestrationState) -> dict:
-    return invoke_hitl_node(state)
-
-
-def persist_node(state: OrchestrationState) -> dict:
-    return invoke_persist_node(state)
+planning_node = wrap_traced_subgraph_node("planning", invoke_planning_subgraph)
+research_node = wrap_traced_subgraph_node("research", invoke_research_subgraph)
+fitness_node = wrap_traced_subgraph_node("fitness", invoke_fitness_subgraph)
+verification_node = wrap_traced_subgraph_node("verification", invoke_verification_subgraph)
+hitl_node = wrap_traced_subgraph_node("hitl", invoke_hitl_node)
+persist_node = wrap_traced_subgraph_node("persist", invoke_persist_node)
 
 
 def build_graph(

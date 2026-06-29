@@ -1,0 +1,61 @@
+{
+  "cases": [
+    {
+      "id": "fat_loss_strength",
+      "query": "I want a 4-day training plan to lose weight with strength training.",
+      "request_type": "fat_loss",
+      "profile": {
+        "age": 30,
+        "sex": "male",
+        "height_cm": 175,
+        "current_weight_kg": 85.0,
+        "target_weight_kg": 75.0,
+        "activity_level": "gym_3x_week",
+        "goal": "fat_loss"
+      },
+      "constraints": {
+        "days_per_week": 4,
+        "equipment": "gym"
+      },
+      "min_faithfulness": 0.9
+    },
+    {
+      "id": "muscle_gain_hypertrophy",
+      "query": "Build muscle with a hypertrophy training plan and macro targets.",
+      "request_type": "muscle_gain",
+      "profile": {
+        "age": 28,
+        "sex": "female",
+        "height_cm": 165,
+        "current_weight_kg": 62.0,
+        "target_weight_kg": 65.0,
+        "activity_level": "gym_4x_week",
+        "goal": "muscle_gain"
+      },
+      "constraints": {
+        "days_per_week": 4,
+        "equipment": "gym"
+      },
+      "min_faithfulness": 0.9
+    },
+    {
+      "id": "macro_calculation_cut",
+      "query": "Calculate my macros for a cutting phase with gym training.",
+      "request_type": "macro_calculation",
+      "profile": {
+        "age": 35,
+        "sex": "male",
+        "height_cm": 180,
+        "current_weight_kg": 90.0,
+        "target_weight_kg": 82.0,
+        "activity_level": "gym_5x_week",
+        "goal": "fat_loss"
+      },
+      "constraints": {
+        "days_per_week": 5,
+        "equipment": "gym"
+      },
+      "min_faithfulness": 0.9
+    }
+  ]
+}

@@ -46,6 +46,10 @@ def create_trace_id_for_run(run_id: str, settings: Settings | None = None) -> st
     return client.create_trace_id(seed=run_id)
 
 
+def _trace_context(run_id: str, settings: Settings | None = None) -> dict[str, str]:
+    return {"trace_id": create_trace_id_for_run(run_id, settings=settings)}
+
+
 def build_langfuse_callbacks(
     run_id: str,
     *,
@@ -54,10 +58,9 @@ def build_langfuse_callbacks(
     """Build LangChain callbacks that attach graph execution to a root trace."""
     if not is_langfuse_enabled(settings):
         return []
-    trace_id = create_trace_id_for_run(run_id, settings=settings)
     return [
         CallbackHandler(
-            trace_context={"trace_id": trace_id},
+            trace_context=_trace_context(run_id, settings=settings),
             update_trace=True,
         )
     ]
@@ -95,10 +98,9 @@ def supervisor_span_context(
     client = get_langfuse_client(settings)
     if client is None:
         return nullcontext()
-    trace_id = create_trace_id_for_run(state["run_id"], settings=settings)
     return client.start_as_current_span(
-        trace_context={"trace_id": trace_id},
-        name="supervisor",
+        trace_context=_trace_context(state["run_id"], settings=settings),
+        name="Supervisor",
         input={
             "query": state["query"],
             "current_node": state["current_node"],
@@ -107,6 +109,65 @@ def supervisor_span_context(
         metadata={
             "run_id": state["run_id"],
             "thread_id": state["thread_id"],
+            "span_type": "supervisor",
+        },
+    )
+
+
+def subgraph_span_context(
+    state: OrchestrationState,
+    span_name: str,
+    *,
+    tier: str | None = None,
+    subgraph: str | None = None,
+    is_partial_rerun: bool = False,
+    settings: Settings | None = None,
+) -> AbstractContextManager[Any]:
+    """Open a subgraph or partial-rerun span on the root trace."""
+    client = get_langfuse_client(settings)
+    if client is None:
+        return nullcontext()
+    metadata: dict[str, Any] = {
+        "run_id": state["run_id"],
+        "thread_id": state["thread_id"],
+        "subgraph": subgraph,
+        "span_type": "partial_rerun" if is_partial_rerun else "subgraph",
+    }
+    if tier:
+        metadata["reasoning_tier"] = tier
+    if state.get("route_decision"):
+        metadata["route_decision"] = state["route_decision"]
+    return client.start_as_current_span(
+        trace_context=_trace_context(state["run_id"], settings=settings),
+        name=span_name,
+        input={
+            "query": state["query"],
+            "current_node": state["current_node"],
+            "route_decision": state["route_decision"],
+        },
+        metadata=metadata,
+    )
+
+
+def tavily_tool_span_context(
+    run_id: str,
+    tool_name: str,
+    *,
+    input_data: dict[str, Any] | None = None,
+    settings: Settings | None = None,
+) -> AbstractContextManager[Any]:
+    """Open a Tavily MCP tool span as a child under the research trace."""
+    client = get_langfuse_client(settings)
+    if client is None:
+        return nullcontext()
+    return client.start_as_current_span(
+        trace_context=_trace_context(run_id, settings=settings),
+        name=tool_name,
+        input=input_data,
+        metadata={
+            "run_id": run_id,
+            "provider": "tavily-mcp",
+            "span_type": "mcp_tool",
         },
     )
 
