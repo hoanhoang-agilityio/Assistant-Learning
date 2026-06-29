@@ -176,3 +176,14 @@ def has_planning_todos(workspace_path: str) -> bool:
     """Return whether planning todos exist on the run workspace VFS."""
     vfs = VFS.for_run(Path(workspace_path))
     return vfs.exists("plan/todos.json")
+
+
+def load_planning_todos(workspace_path: str) -> list[str]:
+    """Load planning todos from the run workspace VFS."""
+    if not has_planning_todos(workspace_path):
+        return []
+    vfs = VFS.for_run(Path(workspace_path))
+    todos = json.loads(vfs.read("plan/todos.json"))
+    if not isinstance(todos, list):
+        raise ValueError("plan/todos.json must contain a JSON list")
+    return [str(todo) for todo in todos]

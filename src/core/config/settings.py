@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # VFS
     workspace_root: Path = Field(default=_DEFAULT_WORKSPACE)
 
+    # Tavily MCP (pre-built official server — no custom MCP)
+    tavily_api_key: str | None = None
+    tavily_mcp_url: str = "https://mcp.tavily.com/mcp"
+
     # MCP research servers (JSON string → parsed in client setup)
     mcp_servers_json: str = "{}"
 
