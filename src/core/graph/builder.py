@@ -9,6 +9,7 @@ from core.graph.routing import route_from_supervisor
 from core.subgraphs.fitness.graph import invoke_fitness_subgraph
 from core.subgraphs.planning.graph import invoke_planning_subgraph
 from core.subgraphs.research.graph import invoke_research_subgraph
+from core.subgraphs.verification.graph import invoke_verification_subgraph
 
 
 def planning_node(state: OrchestrationState) -> dict:
@@ -24,11 +25,7 @@ def fitness_node(state: OrchestrationState) -> dict:
 
 
 def verification_node(state: OrchestrationState) -> dict:
-    return {
-        "current_node": "verification",
-        "verification_passed": True,
-        "faithfulness_score": 0.95,
-    }
+    return invoke_verification_subgraph(state)
 
 
 def hitl_node(state: OrchestrationState) -> dict:
