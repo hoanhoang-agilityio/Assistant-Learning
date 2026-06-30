@@ -4,8 +4,10 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
+from core.profile.labels import format_missing_profile_prompt
 from core.subgraphs.planning.state import PlanningState
 from core.subgraphs.planning.tools import extract_profile, validate_profile, write_todos
+from core.subgraphs.planning.utils import profile_to_orchestration_updates
 
 
 def _extract_profile_node(state: PlanningState) -> dict:
@@ -38,10 +40,9 @@ def _write_todos_node(state: PlanningState) -> dict:
 
 
 def _planning_hitl_node(state: PlanningState) -> dict:
-    missing_fields = ", ".join(state["missing_fields"])
     return {
         "requires_hitl": True,
-        "planning_output": f"Clarification required for: {missing_fields}",
+        "planning_output": format_missing_profile_prompt(state["missing_fields"]),
     }
 
 
@@ -96,7 +97,16 @@ def to_planning_state(state: OrchestrationState) -> PlanningState:
 def invoke_planning_subgraph(state: OrchestrationState) -> dict:
     """Run the Planning subgraph and map results back to orchestration updates."""
     result = get_planning_subgraph().invoke(to_planning_state(state))
-    updates: dict = {"current_node": "planning"}
+    profile = result.get("profile", {})
+    sync = profile_to_orchestration_updates(
+        profile,
+        missing_fields=result.get("missing_fields") if result["requires_hitl"] else [],
+    )
+    updates: dict = {
+        "current_node": "planning",
+        "user_profile": sync["user_profile"],
+        "constraints": {**state["constraints"], **sync["constraints"]},
+    }
     if result["requires_hitl"]:
         updates["waiting_for_user"] = True
     return updates

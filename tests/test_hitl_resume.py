@@ -48,6 +48,7 @@ def test_request_clarification_sets_waiting_state() -> None:
     assert result["waiting_for_user"] is True
     assert result["hitl_type"] == "clarification"
     assert "age" in result["message"]
+    assert "fitness goal" in result["message"]
 
 
 def test_request_approval_sets_waiting_state() -> None:
@@ -87,3 +88,40 @@ def test_graph_interrupts_before_hitl_and_resumes_to_persist(
     assert resumed["approval_status"] == "approved"
     assert resumed["current_node"] == "persist"
     assert resumed["final_artifact_path"] is not None
+
+
+def test_graph_interrupts_on_hitl_route_and_resumes_to_persist(
+    approval_state: OrchestrationState,
+) -> None:
+    """When verification fails and route is HITL, approving must still persist."""
+    graph = build_graph()
+    hitl_state: OrchestrationState = {
+        **approval_state,
+        "verification_passed": False,
+        "route_decision": "HITL",
+        "faithfulness_score": 0.5,
+    }
+    config = {"configurable": {"thread_id": hitl_state["thread_id"]}}
+
+    paused = graph.invoke(hitl_state, config)
+    assert paused["waiting_for_user"] is True
+
+    snapshot = graph.get_state(config)
+    assert snapshot.next == ("hitl",)
+
+    resumed = graph.invoke(
+        Command(
+            update={
+                "user_response": "approve",
+                "approval_status": "approved",
+                "waiting_for_user": False,
+            }
+        ),
+        config,
+    )
+    assert resumed["approval_status"] == "approved"
+    assert resumed["current_node"] == "persist"
+    assert resumed["final_artifact_path"] is not None
+
+    final_snapshot = graph.get_state(config)
+    assert final_snapshot.next == ()
