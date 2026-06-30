@@ -8,7 +8,6 @@ from core.agents.state import OrchestrationState
 from core.graph.run import create_initial_state
 from core.subgraphs.fitness.graph import build_fitness_subgraph
 from core.subgraphs.fitness.state import FitnessState
-from core.subgraphs.planning.utils import write_planning_todos
 from core.subgraphs.verification.agent import VerificationAgent
 from core.subgraphs.verification.graph import (
     build_verification_subgraph,
@@ -23,6 +22,7 @@ from core.subgraphs.verification.tools import (
 )
 from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.vfs import VFS
+from tests.helpers.planning import seed_execution_plan
 
 
 @pytest.fixture
@@ -55,7 +55,7 @@ def verification_state(
         user_profile=complete_profile,
         workspace_root=workspace_root,
     )
-    write_planning_todos(complete_profile, "fat_loss", initial["workspace_path"])
+    seed_execution_plan(initial["workspace_path"], complete_profile)
     vfs = VFS.for_run(Path(initial["workspace_path"]))
     evidence = [
         {

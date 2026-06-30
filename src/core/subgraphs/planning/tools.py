@@ -1,9 +1,10 @@
 from langchain_core.tools import BaseTool, tool
 
+from core.subgraphs.planning.planning_agent import generate_execution_plan
 from core.subgraphs.planning.utils import (
     build_profile,
+    persist_execution_plan,
     validate_profile_data,
-    write_planning_todos,
 )
 
 
@@ -21,13 +22,25 @@ def validate_profile(profile: dict) -> dict:
 
 
 @tool
-def write_todos(profile: dict, request_type: str | None, workspace_path: str) -> dict:
-    """Write planning todos before research retrieval."""
-    return write_planning_todos(profile, request_type, workspace_path)
+def generate_plan(
+    profile: dict,
+    query: str,
+    request_type: str | None,
+    constraints: dict,
+    workspace_path: str,
+) -> dict:
+    """Generate a structured execution plan via the Planning Agent."""
+    plan = generate_execution_plan(
+        profile=profile,
+        query=query,
+        request_type=request_type,
+        constraints=constraints,
+    )
+    return persist_execution_plan(profile, plan, workspace_path)
 
 
 PLANNING_TOOLS: list[BaseTool] = [
     extract_profile,
     validate_profile,
-    write_todos,
+    generate_plan,
 ]

@@ -15,8 +15,8 @@ from core.subgraphs.fitness.utils import (
     detect_safety_flags_data,
     write_fitness_artifacts,
 )
-from core.subgraphs.planning.utils import write_planning_todos
 from core.vfs import VFS
+from tests.helpers.planning import seed_execution_plan
 
 
 @pytest.fixture
@@ -46,7 +46,7 @@ def fitness_state(workspace_root: Path, complete_profile: dict[str, Any]) -> Fit
         user_profile=complete_profile,
         workspace_root=workspace_root,
     )
-    write_planning_todos(complete_profile, "fat_loss", initial["workspace_path"])
+    seed_execution_plan(initial["workspace_path"], complete_profile)
     vfs = VFS.for_run(Path(initial["workspace_path"]))
     vfs.write(
         "research/findings.json",

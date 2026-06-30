@@ -11,6 +11,8 @@ from core.mcp.mock_tavily import build_mock_tavily_client
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.observability.langfuse import reset_langfuse_client
 from core.profile.extraction import configure_profile_extractor
+from core.subgraphs.planning.planning_agent import configure_planning_agent
+from core.subgraphs.planning.utils import build_default_execution_plan
 
 
 @pytest.fixture
@@ -36,6 +38,13 @@ def reset_profile_extractor() -> None:
     configure_profile_extractor(None)
     yield
     configure_profile_extractor(None)
+
+
+@pytest.fixture(autouse=True)
+def reset_planning_agent() -> None:
+    configure_planning_agent(lambda **kwargs: build_default_execution_plan(kwargs.get("profile")))
+    yield
+    configure_planning_agent(None)
 
 
 @pytest.fixture(autouse=True)

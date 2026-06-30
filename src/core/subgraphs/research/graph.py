@@ -14,24 +14,28 @@ from core.subgraphs.research.tools import (
 from core.subgraphs.research.utils import (
     build_evidence_summary,
     build_research_questions,
-    load_todos_for_research,
+    execution_plan_to_todo_strings,
+    load_execution_plan_for_research,
     write_research_artifacts,
 )
 
 
 def _todos_gate_node(state: ResearchState) -> dict:
-    todos = load_todos_for_research(state["workspace_path"])
-    if not todos:
+    plan = load_execution_plan_for_research(state["workspace_path"])
+    if plan is None:
         return {
             "todos": [],
             "research_questions": [],
             "blocked_by_todos": True,
-            "evidence_summary": "Research blocked: plan/todos.json is required before retrieval",
+            "evidence_summary": (
+                "Research blocked: plan/execution_plan.json is required before retrieval"
+            ),
         }
 
+    todos = execution_plan_to_todo_strings(plan)
     return {
         "todos": todos,
-        "research_questions": build_research_questions(state["query"], todos),
+        "research_questions": build_research_questions(state["query"], plan),
         "blocked_by_todos": False,
     }
 

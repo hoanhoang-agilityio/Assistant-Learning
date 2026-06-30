@@ -9,7 +9,12 @@ from core.mcp.tavily_client import (
     get_tavily_client,
 )
 from core.observability.tracing import tavily_mcp_span_context
-from core.subgraphs.planning.utils import has_planning_todos, load_planning_todos
+from core.subgraphs.planning.schema import ExecutionPlan
+from core.subgraphs.planning.utils import (
+    execution_plan_to_todo_strings,
+    has_execution_plan,
+    load_execution_plan,
+)
 from core.vfs import VFS
 
 TRUSTED_DOMAIN_SUFFIXES = (".edu", ".gov", ".org")
@@ -26,17 +31,18 @@ FITNESS_KEYWORDS = (
 
 
 class ResearchTodosGateError(ValueError):
-    """Raised when research is invoked before planning todos exist."""
+    """Raised when research is invoked before a planning execution plan exists."""
 
 
-def build_research_questions(query: str, todos: list[str]) -> list[str]:
-    return [f"{todo} (user query: {query})" for todo in todos]
+def build_research_questions(query: str, plan: ExecutionPlan) -> list[str]:
+    ordered = sorted(plan.tasks, key=lambda task: task.order)
+    return [f"{task.task} (rationale: {task.rationale}; user query: {query})" for task in ordered]
 
 
 def assert_todos_gate(todos: list[str]) -> None:
     if not todos:
         raise ResearchTodosGateError(
-            "Research blocked: plan/todos.json is required before retrieval"
+            "Research blocked: plan/execution_plan.json is required before retrieval"
         )
 
 
@@ -175,7 +181,15 @@ def write_research_artifacts(
     )
 
 
+def load_execution_plan_for_research(workspace_path: str) -> ExecutionPlan | None:
+    if not has_execution_plan(workspace_path):
+        return None
+    return load_execution_plan(workspace_path)
+
+
 def load_todos_for_research(workspace_path: str) -> list[str]:
-    if not has_planning_todos(workspace_path):
+    """Derive ordered task strings from the execution plan for legacy tool signatures."""
+    plan = load_execution_plan_for_research(workspace_path)
+    if plan is None:
         return []
-    return load_planning_todos(workspace_path)
+    return execution_plan_to_todo_strings(plan)

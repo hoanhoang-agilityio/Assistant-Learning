@@ -1,13 +1,17 @@
 from typing import Any
 
+from core.profile.labels import format_missing_profile_prompt
+
 
 def request_clarification_data(missing_fields: list[str], context: str) -> dict[str, Any]:
-    fields = ", ".join(missing_fields) if missing_fields else "additional profile details"
+    message = format_missing_profile_prompt(missing_fields)
+    if context:
+        message = f"{message} Context: {context}"
     return {
         "waiting_for_user": True,
         "approval_status": "pending",
         "hitl_type": "clarification",
-        "message": f"Please provide: {fields}. Context: {context}",
+        "message": message,
         "missing_fields": missing_fields,
     }
 
