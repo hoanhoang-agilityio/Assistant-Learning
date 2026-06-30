@@ -10,6 +10,7 @@ from core.graph.run import create_initial_state
 from core.mcp.mock_tavily import build_mock_tavily_client
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.observability.langfuse import reset_langfuse_client
+from core.profile.extraction import configure_profile_extractor
 
 
 @pytest.fixture
@@ -28,6 +29,13 @@ def complete_profile() -> dict[str, Any]:
         "activity_level": "gym_3x_week",
         "goal": "fat_loss",
     }
+
+
+@pytest.fixture(autouse=True)
+def reset_profile_extractor() -> None:
+    configure_profile_extractor(None)
+    yield
+    configure_profile_extractor(None)
 
 
 @pytest.fixture(autouse=True)

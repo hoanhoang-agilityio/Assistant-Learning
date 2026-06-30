@@ -5,6 +5,8 @@ import pytest
 
 from core.agents.state import OrchestrationState
 from core.graph.run import create_initial_state
+from core.profile.extraction import configure_profile_extractor
+from core.profile.schema import Constraints, ExtractedProfile, Goal, Profile
 from core.subgraphs.planning.agent import PlanningAgent
 from core.subgraphs.planning.graph import build_planning_subgraph, invoke_planning_subgraph
 from core.subgraphs.planning.state import PlanningState
@@ -55,6 +57,18 @@ def planning_state(workspace_root: Path, complete_profile: dict) -> PlanningStat
 
 
 def test_extract_profile_merges_query_and_profile(complete_profile: dict) -> None:
+    configure_profile_extractor(
+        lambda _query: ExtractedProfile(
+            profile=Profile(
+                sex="male",
+                age=30,
+                height_cm=175,
+                current_weight_kg=85,
+            ),
+            goal=Goal(goal="fat_loss", target_weight_kg=75),
+            constraints=Constraints(days_per_week=3),
+        )
+    )
     query = "I want to lose weight. Male, 30 years old, 175 cm, 85 kg. Gym 3x/week. Goal: 75 kg"
     result = extract_profile.invoke(
         {
@@ -76,6 +90,9 @@ def test_extract_profile_merges_query_and_profile(complete_profile: dict) -> Non
 
 
 def test_extract_profile_prefers_existing_user_profile(complete_profile: dict) -> None:
+    configure_profile_extractor(
+        lambda _query: ExtractedProfile(profile=Profile(age=40, height_cm=180, sex="male"))
+    )
     result = extract_profile.invoke(
         {
             "query": "Male, 40 years old, 180 cm, 90 kg",
@@ -89,6 +106,12 @@ def test_extract_profile_prefers_existing_user_profile(complete_profile: dict) -
 
 
 def test_extract_profile_parses_natural_language_query() -> None:
+    configure_profile_extractor(
+        lambda _query: ExtractedProfile(
+            profile=Profile(age=27, height_cm=171, current_weight_kg=75),
+            goal=Goal(goal="fat_loss", target_weight_kg=73),
+        )
+    )
     query = "im 27, 75kg, 171cm, i want to lose 2kg in 2 months"
     result = extract_profile.invoke(
         {
@@ -106,6 +129,13 @@ def test_extract_profile_parses_natural_language_query() -> None:
 
 
 def test_extract_profile_parses_muscle_gain_query() -> None:
+    configure_profile_extractor(
+        lambda _query: ExtractedProfile(
+            profile=Profile(age=27, height_cm=171, current_weight_kg=73),
+            goal=Goal(goal="muscle_gain", target_weight_kg=75),
+            constraints=Constraints(days_per_week=5),
+        )
+    )
     query = (
         "i want to gain 2 kg muscle, height 171cm, weight 73kg, age 27, training 5 days per week"
     )
@@ -164,6 +194,7 @@ def test_planning_subgraph_writes_todos_on_complete_profile(planning_state: Plan
 
 
 def test_planning_subgraph_missing_fields_sets_hitl_flag(workspace_root: Path) -> None:
+    configure_profile_extractor(lambda _query: ExtractedProfile(goal=Goal(goal="fat_loss")))
     initial = create_initial_state(
         run_id="plan-hitl",
         thread_id="plan-hitl-thread",
