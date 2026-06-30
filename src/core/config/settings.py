@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     tavily_mcp_url: str = "https://mcp.tavily.com/mcp"
     mock_research: bool = False
 
+    # Research Agent
+    research_max_search_iterations: int = 3
+    research_extract_top_k: int = 8
+    research_trusted_domains: str = ""
+
     # MCP research servers (JSON string → parsed in client setup)
     mcp_servers_json: str = "{}"
 

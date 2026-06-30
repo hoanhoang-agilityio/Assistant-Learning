@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.llm.factory import invoke_xhigh_structured_output
+from core.llm.factory import invoke_standard_structured_output, invoke_xhigh_structured_output
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
@@ -105,3 +105,21 @@ def test_invoke_xhigh_structured_output_raises_when_both_providers_fail(
 
     with pytest.raises(RuntimeError, match="failed for both OpenAI and Anthropic"):
         invoke_xhigh_structured_output(ExecutionPlan, [])
+
+
+@patch("core.llm.factory.get_settings")
+@patch("core.llm.factory.get_standard_llm")
+def test_invoke_standard_structured_output(
+    mock_get_standard: MagicMock,
+    mock_get_settings: MagicMock,
+) -> None:
+    expected = _sample_plan()
+    mock_get_settings.return_value.openai_api_key = "openai-key"
+    structured_llm = MagicMock()
+    structured_llm.invoke.return_value = expected
+    mock_get_standard.return_value.with_structured_output.return_value = structured_llm
+
+    result = invoke_standard_structured_output(ExecutionPlan, [])
+
+    assert result == expected
+    mock_get_standard.assert_called_once()
