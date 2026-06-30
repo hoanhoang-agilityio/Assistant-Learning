@@ -1,167 +1,17 @@
 import json
-import re
 from pathlib import Path
 from typing import Any
 
+from core.profile.extraction import extract_profile_from_query
 from core.profile.labels import format_activity_label, format_goal_label
+from core.profile.normalize import merge_profile_sources
+from core.profile.schema import (
+    CONSTRAINT_FIELDS,
+    GOAL_REQUIRED_FIELDS,
+    PROFILE_FIELDS,
+    REQUIRED_PROFILE_FIELDS,
+)
 from core.vfs import VFS
-
-REQUIRED_PROFILE_FIELDS = (
-    "age",
-    "sex",
-    "height_cm",
-    "current_weight_kg",
-    "activity_level",
-    "goal",
-)
-GOAL_REQUIRED_FIELDS = {
-    "fat_loss": ("target_weight_kg",),
-}
-
-
-def extract_sex(profile: dict[str, Any], query: str) -> None:
-    if "sex" in profile:
-        return
-    query_lower = query.lower()
-    if re.search(r"\bfemale\b|\bwoman\b", query_lower):
-        profile["sex"] = "female"
-        return
-    if re.search(r"\bmale\b|\bman\b", query_lower):
-        profile["sex"] = "male"
-
-
-def extract_age(profile: dict[str, Any], query: str) -> None:
-    if "age" in profile:
-        return
-    query_lower = query.lower()
-    age_patterns = (
-        r"age\s+(\d{1,2})\b",
-        r"(?:^|[\s,])i'?m\s+(\d{1,2})\b",
-        r"(\d{2})\s*(?:years?\s*old|yo|y\.o\.)",
-        r"(?:^|[\s,])(\d{1,2})\s*,",
-    )
-    for pattern in age_patterns:
-        age_match = re.search(pattern, query_lower)
-        if age_match:
-            profile["age"] = int(age_match.group(1))
-            return
-
-
-def extract_height(profile: dict[str, Any], query: str) -> None:
-    if "height_cm" in profile:
-        return
-    height_match = re.search(r"(\d{2,3})\s*cm", query.lower())
-    if height_match:
-        profile["height_cm"] = int(height_match.group(1))
-
-
-def extract_current_weight(profile: dict[str, Any], query: str) -> None:
-    if "current_weight_kg" in profile:
-        return
-    query_lower = query.lower()
-    labeled_match = re.search(r"weight\s+(\d{2,3}(?:\.\d+)?)\s*kg", query_lower)
-    if labeled_match:
-        profile["current_weight_kg"] = float(labeled_match.group(1))
-        return
-    weight_matches = re.findall(r"(\d{2,3}(?:\.\d+)?)\s*kg", query_lower)
-    if weight_matches:
-        profile["current_weight_kg"] = float(weight_matches[0])
-
-
-def extract_target_weight(profile: dict[str, Any], query: str) -> None:
-    if "target_weight_kg" in profile:
-        return
-    query_lower = query.lower()
-    gain_match = re.search(r"gain\s+(\d+(?:\.\d+)?)\s*kg", query_lower)
-    if gain_match:
-        gain_kg = float(gain_match.group(1))
-        current = profile.get("current_weight_kg")
-        if current is not None:
-            profile["target_weight_kg"] = float(current) + gain_kg
-            return
-    lose_match = re.search(r"lose\s+(\d+(?:\.\d+)?)\s*kg", query_lower)
-    if lose_match:
-        loss_kg = float(lose_match.group(1))
-        current = profile.get("current_weight_kg")
-        if current is not None:
-            profile["target_weight_kg"] = float(current) - loss_kg
-            return
-    goal_weight_match = re.search(r"goal[:\s]+(\d{2,3})\s*kg", query_lower)
-    if goal_weight_match:
-        profile["target_weight_kg"] = float(goal_weight_match.group(1))
-        return
-    weight_matches = re.findall(r"(\d{2,3})\s*kg", query_lower)
-    if len(weight_matches) > 1:
-        profile["target_weight_kg"] = float(weight_matches[1])
-
-
-def extract_activity(profile: dict[str, Any], query: str) -> None:
-    query_lower = query.lower()
-    days_patterns = (
-        r"(?:training|train)\s+(\d+)\s*days?",
-        r"(\d+)\s*days?\s*(?:per week|a week|/week|weekly)",
-    )
-    for pattern in days_patterns:
-        days_match = re.search(pattern, query_lower)
-        if days_match:
-            days = min(int(days_match.group(1)), 6)
-            profile["days_per_week"] = days
-            profile["activity_level"] = f"gym_{days}x_week"
-            return
-    if "activity_level" in profile:
-        return
-    gym_match = re.search(r"gym\s*(\d+)x", query_lower)
-    if gym_match:
-        profile["activity_level"] = f"gym_{gym_match.group(1)}x_week"
-        return
-    if "sedentary" in query_lower:
-        profile["activity_level"] = "sedentary"
-
-
-def extract_goal(profile: dict[str, Any], query: str) -> None:
-    if "goal" in profile:
-        return
-    query_lower = query.lower()
-    if re.search(r"gain\s+\d+(?:\.\d+)?\s*kg", query_lower):
-        profile["goal"] = "muscle_gain"
-        return
-    if re.search(r"lose\s+\d+(?:\.\d+)?\s*kg", query_lower):
-        profile["goal"] = "fat_loss"
-        return
-    if any(keyword in query_lower for keyword in ("lose weight", "fat loss", "cutting")):
-        profile["goal"] = "fat_loss"
-        return
-    if any(keyword in query_lower for keyword in ("muscle", "hypertrophy", "bulk")):
-        profile["goal"] = "muscle_gain"
-        return
-    if any(keyword in query_lower for keyword in ("strength", "powerlifting")):
-        profile["goal"] = "strength"
-        return
-    if "endurance" in query_lower or "marathon" in query_lower:
-        profile["goal"] = "endurance"
-
-
-EXTRACTORS = (
-    extract_sex,
-    extract_age,
-    extract_height,
-    extract_current_weight,
-    extract_target_weight,
-    extract_activity,
-    extract_goal,
-)
-
-
-CONSTRAINT_FIELDS = ("days_per_week", "equipment", "session_duration_minutes", "high_protein")
-PROFILE_FIELDS = (
-    "age",
-    "sex",
-    "height_cm",
-    "current_weight_kg",
-    "target_weight_kg",
-    "activity_level",
-    "goal",
-)
 
 
 def profile_to_orchestration_updates(
@@ -180,14 +30,13 @@ def profile_to_orchestration_updates(
 def build_profile(
     query: str, user_profile: dict[str, Any], constraints: dict[str, Any]
 ) -> dict[str, Any]:
-    profile: dict[str, Any] = {
-        "query": query,
-        **user_profile,
-        **constraints,
-    }
-    for extractor in EXTRACTORS:
-        extractor(profile, query)
-    return profile
+    extracted = extract_profile_from_query(query)
+    return merge_profile_sources(
+        query=query,
+        user_profile=user_profile,
+        constraints=constraints,
+        extracted=extracted,
+    )
 
 
 def validate_profile_data(profile: dict[str, Any]) -> dict[str, Any]:
