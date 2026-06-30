@@ -1,0 +1,83 @@
+from __future__ import annotations
+
+import os
+import time
+from collections.abc import Callable
+from typing import Any
+
+import httpx
+
+DEFAULT_API_BASE_URL = "http://localhost:8000"
+DEFAULT_REQUEST_TIMEOUT = 30.0
+DEFAULT_POLL_INTERVAL = 2.0
+DEFAULT_RUN_POLL_TIMEOUT = 900.0
+
+
+def get_api_base_url() -> str:
+    return os.getenv("API_BASE_URL", DEFAULT_API_BASE_URL).rstrip("/")
+
+
+def create_run(
+    client: httpx.Client,
+    *,
+    query: str,
+    user_profile: dict[str, Any],
+    constraints: dict[str, Any],
+) -> dict[str, Any]:
+    response = client.post(
+        "/runs",
+        json={
+            "query": query,
+            "user_profile": user_profile,
+            "constraints": constraints,
+        },
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def get_run(client: httpx.Client, run_id: str) -> dict[str, Any]:
+    response = client.get(f"/runs/{run_id}")
+    response.raise_for_status()
+    return response.json()
+
+
+def poll_run_until_settled(
+    client: httpx.Client,
+    run_id: str,
+    *,
+    timeout: float = DEFAULT_RUN_POLL_TIMEOUT,
+    interval: float = DEFAULT_POLL_INTERVAL,
+    on_progress: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    """Poll run status until it leaves the running state or the timeout expires."""
+    deadline = time.monotonic() + timeout
+    latest_status: dict[str, Any] | None = None
+    while time.monotonic() < deadline:
+        latest_status = get_run(client, run_id)
+        if on_progress is not None:
+            on_progress(latest_status)
+        if latest_status.get("status") != "running":
+            return latest_status
+        time.sleep(interval)
+    if latest_status is not None:
+        return latest_status
+    raise httpx.TimeoutException(
+        f"Run {run_id} did not finish within {timeout:.0f} seconds",
+        request=None,
+    )
+
+
+def resume_run(
+    client: httpx.Client,
+    run_id: str,
+    *,
+    user_response: str,
+    approval_status: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"user_response": user_response}
+    if approval_status is not None:
+        payload["approval_status"] = approval_status
+    response = client.post(f"/runs/{run_id}/resume", json=payload)
+    response.raise_for_status()
+    return response.json()
