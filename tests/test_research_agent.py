@@ -1,0 +1,146 @@
+"""Unit tests for Research Agent schemas, ranking, verification, and override."""
+
+import pytest
+from pydantic import ValidationError
+
+from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
+from core.subgraphs.research.ranking import rank_sources_data
+from core.subgraphs.research.research_agent import configure_research_agent, run_research_agent
+from core.subgraphs.research.schema import SearchQueryBatch, TaskQueryPlan
+from core.subgraphs.research.verification import verify_sources_data
+from tests.helpers.research import default_research_agent_result, research_agent_override
+
+_MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
+_MIN_PLAN_RATIONALE = "Test plan rationale with enough characters for validation."
+
+
+@pytest.fixture(autouse=True)
+def reset_research_agent() -> None:
+    configure_research_agent(research_agent_override)
+    yield
+    configure_research_agent(None)
+
+
+def _sample_plan() -> ExecutionPlan:
+    return ExecutionPlan(
+        plan_rationale=_MIN_PLAN_RATIONALE,
+        tasks=[
+            PlanTask(
+                order=1,
+                task="Research fat loss training volume",
+                rationale="Volume must match 3x/week gym schedule",
+            ),
+            PlanTask(
+                order=2,
+                task="Research protein intake during fat loss",
+                rationale="Protein supports lean mass retention while cutting",
+            ),
+            PlanTask(
+                order=3,
+                task="Verify credibility of selected fat loss sources",
+                rationale="Downstream synthesis needs trustworthy evidence",
+            ),
+        ],
+        plan_markdown=_MIN_PLAN_MARKDOWN,
+    )
+
+
+def test_task_query_plan_requires_two_to_five_queries() -> None:
+    with pytest.raises(ValidationError):
+        TaskQueryPlan(task_order=1, task="Research fat loss training", queries=["only one"])
+
+    plan = TaskQueryPlan(
+        task_order=1,
+        task="Research fat loss training",
+        queries=["ACSM fat loss guideline", "systematic review resistance training fat loss"],
+    )
+    assert len(plan.queries) == 2
+
+
+def test_search_query_batch_validation() -> None:
+    batch = SearchQueryBatch(
+        task_plans=[
+            TaskQueryPlan(
+                task_order=1,
+                task="Research fat loss training volume",
+                queries=["ACSM fat loss guideline", "hypertrophy fat loss review"],
+            )
+        ]
+    )
+    assert len(batch.task_plans) == 1
+
+
+def test_hybrid_ranking_orders_by_composite_score() -> None:
+    sources = [
+        {
+            "source_id": "a",
+            "title": "General blog",
+            "url": "https://example.com/blog",
+            "snippet": "random content",
+            "score": 0.95,
+            "authority_score": 0.2,
+        },
+        {
+            "source_id": "b",
+            "title": "Systematic review of hypertrophy training",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/study",
+            "snippet": "systematic review meta-analysis 2023",
+            "score": 0.7,
+            "authority_score": 1.0,
+        },
+    ]
+    verified = verify_sources_data(sources)["sources"]
+    ranked = rank_sources_data(verified)["sources"]
+    assert ranked[0]["source_id"] == "b"
+    assert ranked[0]["rank"] == 1
+    assert ranked[0]["composite_score"] >= ranked[1]["composite_score"]
+
+
+def test_verify_sources_marks_whitelist_and_fitness_keyword() -> None:
+    sources = [
+        {
+            "title": "NIH training study",
+            "url": "https://www.nih.gov/fitness",
+            "snippet": "training evidence",
+        },
+        {
+            "title": "Other",
+            "url": "https://example.com/other",
+            "snippet": "finance",
+        },
+        {
+            "title": "Training blog",
+            "url": "https://example.com/training",
+            "snippet": "hypertrophy workout",
+        },
+    ]
+    result = verify_sources_data(sources)
+    assert result["sources"][0]["verified"] is True
+    assert result["sources"][0]["authority_tier"] == "whitelist"
+    assert result["sources"][1]["verified"] is False
+    assert result["sources"][2]["authority_tier"] == "fitness_keyword"
+
+
+def test_run_research_agent_uses_override_without_llm() -> None:
+    result = run_research_agent(
+        query="lose weight",
+        request_type="fat_loss",
+        profile={"goal": "fat_loss"},
+        execution_plan=_sample_plan(),
+    )
+    assert result.agent_iterations == 1
+    assert result.structured_findings.consensus
+    assert len(result.sources) >= 1
+    assert "Key findings" in result.evidence_summary
+
+
+def test_configure_research_agent_override() -> None:
+    custom = default_research_agent_result()
+    configure_research_agent(lambda **kwargs: custom)
+    result = run_research_agent(
+        query="lose weight",
+        request_type="fat_loss",
+        profile={},
+        execution_plan=_sample_plan(),
+    )
+    assert result == custom
