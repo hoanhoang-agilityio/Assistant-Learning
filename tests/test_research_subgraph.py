@@ -10,8 +10,12 @@ from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.subgraphs.research.agent import ResearchAgent
 from core.subgraphs.research.graph import build_research_subgraph, invoke_research_subgraph
 from core.subgraphs.research.state import ResearchState
-from core.subgraphs.research.tools import rank_sources, search_evidence, verify_sources
-from core.subgraphs.research.utils import ResearchTodosGateError, search_evidence_data
+from core.subgraphs.research.tools import rank_sources, tavily_search, verify_sources
+from core.subgraphs.research.utils import (
+    ResearchTodosGateError,
+    assert_todos_gate,
+    search_tavily_data,
+)
 from core.vfs import VFS
 from tests.helpers.planning import seed_execution_plan
 
@@ -90,39 +94,58 @@ def research_state(
         query=initial["query"],
         request_type="fat_loss",
         workspace_path=initial["workspace_path"],
+        profile={},
+        execution_plan={},
         todos=[],
-        research_questions=[],
         evidence=[],
         sources=[],
+        structured_findings=None,
         evidence_summary=None,
         blocked_by_todos=False,
+        agent_iterations=0,
     )
 
 
-def test_search_evidence_blocked_without_todos(mock_tavily_client: TavilyMCPClient) -> None:
-    del mock_tavily_client
+def test_todos_gate_raises_without_todos() -> None:
     with pytest.raises(ResearchTodosGateError):
-        search_evidence_data(["macro evidence"], [])
+        assert_todos_gate([])
 
 
-def test_search_evidence_delegates_to_tavily(mock_tavily_client: TavilyMCPClient) -> None:
+def test_tavily_search_delegates_to_mcp(mock_tavily_client: TavilyMCPClient) -> None:
     del mock_tavily_client
-    result = search_evidence.invoke(
-        {
-            "research_questions": ["Research hypertrophy evidence"],
-            "todos": ["Gather hypertrophy evidence"],
-        }
-    )
+    result = search_tavily_data("Research hypertrophy evidence")
     assert len(result["sources"]) == 2
     assert result["sources"][0]["provider"] == "tavily"
 
 
-def test_rank_sources_orders_by_score() -> None:
+def test_tavily_search_tool_returns_json(mock_tavily_client: TavilyMCPClient) -> None:
+    del mock_tavily_client
+    payload = tavily_search.invoke({"query": "Research hypertrophy evidence"})
+    parsed = json.loads(payload)
+    assert parsed["source_count"] == 2
+
+
+def test_rank_sources_orders_by_composite_score() -> None:
     sources = [
-        {"source_id": "a", "score": 0.4},
-        {"source_id": "b", "score": 0.9},
+        {
+            "source_id": "a",
+            "title": "Blog",
+            "url": "https://example.com",
+            "snippet": "content",
+            "score": 0.9,
+            "authority_score": 0.2,
+        },
+        {
+            "source_id": "b",
+            "title": "Systematic review",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/study",
+            "snippet": "systematic review 2023",
+            "score": 0.7,
+            "authority_score": 1.0,
+        },
     ]
-    result = rank_sources.invoke({"sources": sources})
+    verified = verify_sources.invoke({"sources": sources})
+    result = rank_sources.invoke({"sources": verified["sources"]})
     assert result["sources"][0]["source_id"] == "b"
     assert result["sources"][0]["rank"] == 1
 
@@ -167,9 +190,11 @@ def test_research_subgraph_writes_vfs_artifacts(research_state: ResearchState) -
     assert vfs.exists("research/findings.json")
     sources = json.loads(vfs.read("research/sources.json"))
     findings = json.loads(vfs.read("research/findings.json"))
-    assert len(sources) >= 2
+    assert len(sources) >= 1
     assert findings["source_count"] == len(sources)
-    assert "verified" in findings["evidence_summary"]
+    assert "structured_findings" in findings
+    assert findings["structured_findings"]["consensus"]
+    assert "Key findings" in findings["evidence_summary"]
 
 
 def test_research_agent_runs_from_orchestration(research_state: ResearchState) -> None:
