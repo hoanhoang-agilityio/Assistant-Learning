@@ -58,6 +58,18 @@ def get_xhigh_llm() -> BaseChatModel:
     return get_xhigh_openai_llm()
 
 
+def invoke_standard_structured_output[T: BaseModel](
+    output_schema: type[T],
+    messages: list[BaseMessage],
+) -> T:
+    """Invoke structured output using the standard-tier OpenAI model."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY is required for STANDARD-tier structured output")
+    structured_llm = get_standard_llm().with_structured_output(output_schema)
+    return structured_llm.invoke(messages)
+
+
 def invoke_xhigh_structured_output[T: BaseModel](
     output_schema: type[T],
     messages: list[BaseMessage],

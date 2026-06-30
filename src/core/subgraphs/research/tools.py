@@ -1,28 +1,48 @@
+"""LangChain tools for the Research Agent and legacy unit-test wrappers."""
+
+import json
+
 from langchain_core.tools import BaseTool, tool
 
-from core.subgraphs.research.utils import (
-    rank_sources_data,
-    retrieve_documents_data,
-    search_evidence_data,
-    verify_sources_data,
-)
+from core.subgraphs.research.ranking import rank_sources_data
+from core.subgraphs.research.utils import extract_tavily_data, search_tavily_data
+from core.subgraphs.research.verification import verify_sources_data
 
 
 @tool
-def search_evidence(research_questions: list[str], todos: list[str]) -> dict:
-    """Search external evidence via Tavily MCP for fitness research questions."""
-    return search_evidence_data(research_questions, todos)
+def tavily_search(query: str) -> str:
+    """Search external fitness evidence via Tavily MCP for a single optimized query."""
+    result = search_tavily_data(query)
+    return json.dumps(
+        {
+            "query": result["query"],
+            "source_count": len(result["sources"]),
+            "sources": result["sources"][:5],
+        }
+    )
 
 
 @tool
-def retrieve_documents(source_ids: list[str], sources: list[dict]) -> dict:
-    """Retrieve full document content for ranked sources via Tavily MCP."""
-    return retrieve_documents_data(source_ids, sources)
+def tavily_extract(urls: list[str]) -> str:
+    """Extract full document content from URLs via Tavily MCP."""
+    result = extract_tavily_data(urls)
+    return json.dumps(
+        {
+            "document_count": len(result["evidence"]),
+            "evidence": [
+                {
+                    "url": item.get("url"),
+                    "content_preview": str(item.get("content", ""))[:500],
+                }
+                for item in result["evidence"]
+            ],
+        }
+    )
 
 
 @tool
 def rank_sources(sources: list[dict]) -> dict:
-    """Rank retrieved sources by relevance and evidence quality."""
+    """Rank retrieved sources by hybrid relevance and evidence quality."""
     return rank_sources_data(sources)
 
 
@@ -32,9 +52,12 @@ def verify_sources(sources: list[dict]) -> dict:
     return verify_sources_data(sources)
 
 
+RESEARCH_AGENT_TOOLS: list[BaseTool] = [tavily_search, tavily_extract]
+
+# Legacy export name for graph/orchestration imports
 RESEARCH_TOOLS: list[BaseTool] = [
-    search_evidence,
-    retrieve_documents,
+    tavily_search,
+    tavily_extract,
     rank_sources,
     verify_sources,
 ]

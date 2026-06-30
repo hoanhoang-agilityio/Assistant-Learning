@@ -38,3 +38,5 @@ def test_tavily_research_path_writes_artifacts(
     assert len(sources) >= 1
     assert findings["source_count"] >= 1
     assert "evidence" in findings
+    assert "structured_findings" in findings
+    assert findings["structured_findings"]["consensus"]

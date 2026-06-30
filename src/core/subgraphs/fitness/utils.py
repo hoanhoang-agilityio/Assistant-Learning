@@ -34,7 +34,11 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
 
     if vfs.exists("research/findings.json"):
         findings = json.loads(vfs.read("research/findings.json"))
-        evidence_summary = findings.get("evidence_summary")
+        structured = findings.get("structured_findings")
+        if isinstance(structured, dict) and structured.get("consensus"):
+            evidence_summary = _format_structured_evidence_summary(structured)
+        else:
+            evidence_summary = findings.get("evidence_summary")
 
     if vfs.exists("verify/verification_v1.json"):
         verification = json.loads(vfs.read("verify/verification_v1.json"))
@@ -45,6 +49,17 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
         "evidence_summary": evidence_summary,
         "verification_feedback": verification_feedback,
     }
+
+
+def _format_structured_evidence_summary(structured: dict[str, Any]) -> str:
+    lines = [str(structured.get("consensus", ""))]
+    key_findings = structured.get("key_findings") or []
+    if key_findings:
+        lines.append("")
+        lines.append("Key findings:")
+        for finding in key_findings:
+            lines.append(f"- {finding}")
+    return "\n".join(line for line in lines if line)
 
 
 def _calculate_bmr(profile: dict[str, Any]) -> float:

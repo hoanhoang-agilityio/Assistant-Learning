@@ -1,8 +1,10 @@
+"""Research subgraph utilities: MCP adapters, VFS I/O, and post-processing."""
+
 import json
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
+from core.config.settings import get_settings
 from core.mcp.tavily_client import (
     TAVILY_EXTRACT_TOOL,
     TAVILY_SEARCH_TOOL,
@@ -15,28 +17,14 @@ from core.subgraphs.planning.utils import (
     has_execution_plan,
     load_execution_plan,
 )
+from core.subgraphs.research.ranking import rank_sources_data
+from core.subgraphs.research.schema import ResearchFindings
+from core.subgraphs.research.verification import verify_sources_data
 from core.vfs import VFS
-
-TRUSTED_DOMAIN_SUFFIXES = (".edu", ".gov", ".org")
-FITNESS_KEYWORDS = (
-    "fitness",
-    "training",
-    "exercise",
-    "hypertrophy",
-    "strength",
-    "macro",
-    "nutrition",
-    "workout",
-)
 
 
 class ResearchTodosGateError(ValueError):
     """Raised when research is invoked before a planning execution plan exists."""
-
-
-def build_research_questions(query: str, plan: ExecutionPlan) -> list[str]:
-    ordered = sorted(plan.tasks, key=lambda task: task.order)
-    return [f"{task.task} (rationale: {task.rationale}; user query: {query})" for task in ordered]
 
 
 def assert_todos_gate(todos: list[str]) -> None:
@@ -46,7 +34,29 @@ def assert_todos_gate(todos: list[str]) -> None:
         )
 
 
-def normalize_search_results(raw_result: dict[str, Any], question: str) -> list[dict[str, Any]]:
+def load_profile_for_research(workspace_path: str) -> dict[str, Any]:
+    """Load validated profile from planning VFS artifacts."""
+    vfs = VFS.for_run(Path(workspace_path))
+    if not vfs.exists("plan/profile.json"):
+        return {}
+    return json.loads(vfs.read("plan/profile.json"))
+
+
+def load_execution_plan_for_research(workspace_path: str) -> ExecutionPlan | None:
+    if not has_execution_plan(workspace_path):
+        return None
+    return load_execution_plan(workspace_path)
+
+
+def load_todos_for_research(workspace_path: str) -> list[str]:
+    """Derive ordered task strings from the execution plan for legacy tool signatures."""
+    plan = load_execution_plan_for_research(workspace_path)
+    if plan is None:
+        return []
+    return execution_plan_to_todo_strings(plan)
+
+
+def normalize_search_results(raw_result: dict[str, Any], query: str) -> list[dict[str, Any]]:
     results = raw_result.get("results", raw_result.get("search_results", []))
     if not isinstance(results, list):
         return []
@@ -58,27 +68,24 @@ def normalize_search_results(raw_result: dict[str, Any], question: str) -> list[
         url = str(item.get("url", ""))
         normalized.append(
             {
-                "source_id": f"{question}:{index}",
+                "source_id": f"{query}:{index}",
                 "title": str(item.get("title", "Untitled source")),
                 "url": url,
                 "snippet": str(item.get("content", item.get("snippet", ""))),
                 "score": float(item.get("score", 0.0) or 0.0),
                 "provider": "tavily",
-                "research_question": question,
+                "research_query": query,
             }
         )
     return normalized
 
 
-def search_evidence_data(research_questions: list[str], todos: list[str]) -> dict[str, Any]:
-    assert_todos_gate(todos)
+def search_tavily_data(query: str) -> dict[str, Any]:
+    """Run a single Tavily search query and return normalized sources."""
     client = get_tavily_client()
-    sources: list[dict[str, Any]] = []
-    for question in research_questions:
-        with tavily_mcp_span_context(TAVILY_SEARCH_TOOL, input_data={"query": question}):
-            search_result = client.search(question)
-        sources.extend(normalize_search_results(search_result, question))
-    return {"sources": sources}
+    with tavily_mcp_span_context(TAVILY_SEARCH_TOOL, input_data={"query": query}):
+        search_result = client.search(query)
+    return {"sources": normalize_search_results(search_result, query), "query": query}
 
 
 def normalize_extract_results(raw_result: dict[str, Any]) -> list[dict[str, Any]]:
@@ -101,69 +108,86 @@ def normalize_extract_results(raw_result: dict[str, Any]) -> list[dict[str, Any]
     return evidence
 
 
-def retrieve_documents_data(source_ids: list[str], sources: list[dict[str, Any]]) -> dict[str, Any]:
-    if not source_ids:
-        return {"evidence": []}
-
-    selected_urls = [
-        source["url"]
-        for source in sources
-        if source.get("source_id") in source_ids and source.get("url")
-    ]
-    if not selected_urls:
+def extract_tavily_data(urls: list[str]) -> dict[str, Any]:
+    """Extract document content for the given URLs via Tavily MCP."""
+    cleaned_urls = [url for url in urls if url]
+    if not cleaned_urls:
         return {"evidence": []}
 
     client = get_tavily_client()
-    with tavily_mcp_span_context(TAVILY_EXTRACT_TOOL, input_data={"urls": selected_urls}):
-        extract_result = client.extract(selected_urls)
+    with tavily_mcp_span_context(TAVILY_EXTRACT_TOOL, input_data={"urls": cleaned_urls}):
+        extract_result = client.extract(cleaned_urls)
     return {"evidence": normalize_extract_results(extract_result)}
 
 
-def rank_sources_data(sources: list[dict[str, Any]]) -> dict[str, Any]:
-    ranked_sources = sorted(sources, key=lambda source: source.get("score", 0.0), reverse=True)
-    for index, source in enumerate(ranked_sources, start=1):
-        source["rank"] = index
-    return {"sources": ranked_sources}
-
-
-def _is_trusted_domain(url: str) -> bool:
-    hostname = urlparse(url).hostname or ""
-    return any(hostname.endswith(suffix) for suffix in TRUSTED_DOMAIN_SUFFIXES)
-
-
-def _is_fitness_relevant(source: dict[str, Any]) -> bool:
-    haystack = " ".join(
-        [
-            str(source.get("title", "")),
-            str(source.get("snippet", "")),
-            str(source.get("url", "")),
-        ]
-    ).lower()
-    return any(keyword in haystack for keyword in FITNESS_KEYWORDS)
-
-
-def verify_sources_data(sources: list[dict[str, Any]]) -> dict[str, Any]:
-    verified_sources: list[dict[str, Any]] = []
+def dedupe_sources_by_url(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the highest-scoring source per URL."""
+    by_url: dict[str, dict[str, Any]] = {}
     for source in sources:
-        verified_source = dict(source)
-        is_trusted = _is_trusted_domain(source.get("url", ""))
-        verified_source["verified"] = is_trusted or _is_fitness_relevant(source)
-        verified_sources.append(verified_source)
-    return {"sources": verified_sources}
+        url = str(source.get("url", ""))
+        if not url:
+            continue
+        existing = by_url.get(url)
+        if existing is None or float(source.get("score", 0.0)) > float(existing.get("score", 0.0)):
+            by_url[url] = source
+    return list(by_url.values())
 
 
-def build_evidence_summary(sources: list[dict[str, Any]], evidence: list[dict[str, Any]]) -> str:
-    verified_count = sum(1 for source in sources if source.get("verified"))
-    return (
-        f"Collected {len(sources)} sources and {len(evidence)} documents "
-        f"({verified_count} verified for fitness relevance)."
-    )
+def post_process_sources(
+    sources: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
+    *,
+    extract_top_k: int | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Dedupe, verify, rank, and extract top-K ranked URLs not yet in evidence."""
+    settings = get_settings()
+    top_k = extract_top_k if extract_top_k is not None else settings.research_extract_top_k
+
+    deduped = dedupe_sources_by_url(sources)
+    verified = verify_sources_data(deduped)["sources"]
+    ranked = rank_sources_data(verified)["sources"]
+
+    extracted_urls = {str(item.get("url", "")) for item in evidence}
+    urls_to_extract = [
+        str(source.get("url", ""))
+        for source in ranked[:top_k]
+        if str(source.get("url", "")) and str(source.get("url", "")) not in extracted_urls
+    ]
+
+    additional_evidence: list[dict[str, Any]] = []
+    if urls_to_extract:
+        additional_evidence = extract_tavily_data(urls_to_extract)["evidence"]
+
+    merged_evidence = _merge_evidence_by_url(evidence + additional_evidence)
+    return ranked, merged_evidence
+
+
+def _merge_evidence_by_url(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_url: dict[str, dict[str, Any]] = {}
+    for index, item in enumerate(evidence):
+        url = str(item.get("url", ""))
+        key = url or f"doc_{index}"
+        if key not in by_url:
+            by_url[key] = item
+    return list(by_url.values())
+
+
+def derive_evidence_summary(findings: ResearchFindings) -> str:
+    """Build backward-compatible evidence_summary from structured findings."""
+    lines = [findings.consensus]
+    if findings.key_findings:
+        lines.append("")
+        lines.append("Key findings:")
+        for finding in findings.key_findings[:3]:
+            lines.append(f"- {finding}")
+    return "\n".join(lines)
 
 
 def write_research_artifacts(
     workspace_path: str,
     sources: list[dict[str, Any]],
     evidence: list[dict[str, Any]],
+    structured_findings: ResearchFindings,
     evidence_summary: str,
 ) -> None:
     vfs = VFS.for_run(Path(workspace_path))
@@ -172,6 +196,7 @@ def write_research_artifacts(
         "research/findings.json",
         json.dumps(
             {
+                "structured_findings": structured_findings.model_dump(),
                 "evidence": evidence,
                 "evidence_summary": evidence_summary,
                 "source_count": len(sources),
@@ -179,17 +204,3 @@ def write_research_artifacts(
             indent=2,
         ),
     )
-
-
-def load_execution_plan_for_research(workspace_path: str) -> ExecutionPlan | None:
-    if not has_execution_plan(workspace_path):
-        return None
-    return load_execution_plan(workspace_path)
-
-
-def load_todos_for_research(workspace_path: str) -> list[str]:
-    """Derive ordered task strings from the execution plan for legacy tool signatures."""
-    plan = load_execution_plan_for_research(workspace_path)
-    if plan is None:
-        return []
-    return execution_plan_to_todo_strings(plan)

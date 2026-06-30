@@ -13,6 +13,8 @@ from core.observability.langfuse import reset_langfuse_client
 from core.profile.extraction import configure_profile_extractor
 from core.subgraphs.planning.planning_agent import configure_planning_agent
 from core.subgraphs.planning.utils import build_default_execution_plan
+from core.subgraphs.research.research_agent import configure_research_agent
+from tests.helpers.research import research_agent_override
 
 
 @pytest.fixture
@@ -45,6 +47,13 @@ def reset_planning_agent() -> None:
     configure_planning_agent(lambda **kwargs: build_default_execution_plan(kwargs.get("profile")))
     yield
     configure_planning_agent(None)
+
+
+@pytest.fixture(autouse=True)
+def reset_research_agent() -> None:
+    configure_research_agent(research_agent_override)
+    yield
+    configure_research_agent(None)
 
 
 @pytest.fixture(autouse=True)
