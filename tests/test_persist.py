@@ -26,11 +26,23 @@ def test_persist_trigger_blocks_low_faithfulness() -> None:
         {
             "verification_passed": True,
             "faithfulness_score": 0.5,
-            "approval_status": "approved",
+            "approval_status": "pending",
         }
     )
     assert result["can_persist"] is False
     assert "faithfulness_below_threshold" in result["persist_blocked_reasons"]
+
+
+def test_persist_trigger_allows_approved_despite_failed_verification() -> None:
+    result = persist_trigger.invoke(
+        {
+            "verification_passed": False,
+            "faithfulness_score": 0.5,
+            "approval_status": "approved",
+        }
+    )
+    assert result["can_persist"] is True
+    assert result["persist_blocked_reasons"] == []
 
 
 def test_persist_trigger_allows_happy_path() -> None:

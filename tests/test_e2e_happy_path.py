@@ -24,7 +24,7 @@ def langfuse_settings() -> Settings:
     return Settings(
         langfuse_public_key="pk-test",
         langfuse_secret_key="sk-test",
-        langfuse_host="http://localhost:3000",
+        langfuse_base_url="http://localhost:3000",
     )
 
 
