@@ -87,5 +87,34 @@ def langfuse_settings() -> Settings:
     return Settings(
         langfuse_public_key="pk-test",
         langfuse_secret_key="sk-test",
-        langfuse_host="http://localhost:3000",
+        langfuse_base_url="http://localhost:3000",
     )
+
+
+def test_langfuse_base_url_prefers_base_url_env() -> None:
+    settings = Settings.model_validate(
+        {
+            "LANGFUSE_BASE_URL": "http://localhost:3000",
+            "LANGFUSE_HOST": "https://cloud.langfuse.com",
+        }
+    )
+    assert settings.langfuse_base_url == "http://localhost:3000"
+
+
+@patch("core.observability.langfuse.httpx.get")
+def test_get_langfuse_client_disables_on_unauthorized(mock_get: MagicMock) -> None:
+    from core.observability.langfuse import get_langfuse_client, reset_langfuse_client
+
+    reset_langfuse_client()
+    mock_response = MagicMock()
+    mock_response.status_code = 401
+    mock_get.return_value = mock_response
+    settings = Settings(
+        langfuse_public_key="pk-test",
+        langfuse_secret_key="sk-test",
+        langfuse_base_url="http://localhost:3000",
+    )
+    assert get_langfuse_client(settings) is None
+    assert get_langfuse_client(settings) is None
+    mock_get.assert_called_once()
+    reset_langfuse_client()
