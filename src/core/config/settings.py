@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # LLM — Reasoning Sandwich tiers
     openai_api_key: str | None = None
     openai_standard_model: str = "gpt-4o-mini"
+    openai_xhigh_model: str = "gpt-4o"
     anthropic_api_key: str | None = None
     anthropic_xhigh_model: str = "claude-sonnet-4-20250514"
 
