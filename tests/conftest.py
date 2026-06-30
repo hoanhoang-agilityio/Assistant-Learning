@@ -7,6 +7,7 @@ from core.agents.state import OrchestrationState
 from core.config.settings import get_settings
 from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.run import create_initial_state
+from core.mcp.mock_tavily import build_mock_tavily_client
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.observability.langfuse import reset_langfuse_client
 
@@ -38,30 +39,7 @@ def reset_tavily_client() -> None:
 
 @pytest.fixture
 def mock_tavily_client() -> TavilyMCPClient:
-    def search(query: str) -> dict[str, Any]:
-        return {
-            "results": [
-                {
-                    "title": f"Evidence for {query}",
-                    "url": "https://example.edu/fitness-training",
-                    "content": "hypertrophy training evidence for strength programming",
-                    "score": 0.92,
-                },
-                {
-                    "title": "Generic page",
-                    "url": "https://example.com/page",
-                    "content": "unrelated content",
-                    "score": 0.2,
-                },
-            ]
-        }
-
-    def extract(urls: list[str]) -> dict[str, Any]:
-        return {
-            "results": [{"url": url, "raw_content": f"Document body for {url}"} for url in urls]
-        }
-
-    client = TavilyMCPClient(search=search, extract=extract)
+    client = build_mock_tavily_client()
     configure_tavily_client(client)
     return client
 
@@ -85,6 +63,7 @@ def orchestration_state(
 def disable_langfuse_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "")
+    monkeypatch.delenv("LANGFUSE_TRACING_ENABLED", raising=False)
     get_settings.cache_clear()
     reset_langfuse_client()
     yield

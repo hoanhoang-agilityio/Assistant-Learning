@@ -110,7 +110,7 @@ def calculate_macros_data(profile: dict[str, Any], constraints: dict[str, Any]) 
         "activity_level": activity_level,
     }
     training_constraints = {
-        "days_per_week": _parse_training_days(activity_level, constraints),
+        "days_per_week": _parse_training_days(activity_level, constraints, profile),
         "session_duration_minutes": int(constraints.get("session_duration_minutes", 60)),
         "equipment": constraints.get("equipment", "gym"),
         "goal": goal,
@@ -121,7 +121,13 @@ def calculate_macros_data(profile: dict[str, Any], constraints: dict[str, Any]) 
     }
 
 
-def _parse_training_days(activity_level: str, constraints: dict[str, Any]) -> int:
+def _parse_training_days(
+    activity_level: str,
+    constraints: dict[str, Any],
+    profile: dict[str, Any],
+) -> int:
+    if profile.get("days_per_week") is not None:
+        return int(profile["days_per_week"])
     if "days_per_week" in constraints:
         return int(constraints["days_per_week"])
     match = re.search(r"gym_(\d+)x_week", activity_level)

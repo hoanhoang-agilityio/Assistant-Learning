@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from core.profile.labels import format_activity_label, format_goal_label
 from core.vfs import VFS
 
 REQUIRED_PROFILE_FIELDS = (
@@ -32,9 +33,18 @@ def extract_sex(profile: dict[str, Any], query: str) -> None:
 def extract_age(profile: dict[str, Any], query: str) -> None:
     if "age" in profile:
         return
-    age_match = re.search(r"(\d{2})\s*(?:years?\s*old|yo|y\.o\.)", query.lower())
-    if age_match:
-        profile["age"] = int(age_match.group(1))
+    query_lower = query.lower()
+    age_patterns = (
+        r"age\s+(\d{1,2})\b",
+        r"(?:^|[\s,])i'?m\s+(\d{1,2})\b",
+        r"(\d{2})\s*(?:years?\s*old|yo|y\.o\.)",
+        r"(?:^|[\s,])(\d{1,2})\s*,",
+    )
+    for pattern in age_patterns:
+        age_match = re.search(pattern, query_lower)
+        if age_match:
+            profile["age"] = int(age_match.group(1))
+            return
 
 
 def extract_height(profile: dict[str, Any], query: str) -> None:
@@ -48,7 +58,12 @@ def extract_height(profile: dict[str, Any], query: str) -> None:
 def extract_current_weight(profile: dict[str, Any], query: str) -> None:
     if "current_weight_kg" in profile:
         return
-    weight_matches = re.findall(r"(\d{2,3})\s*kg", query.lower())
+    query_lower = query.lower()
+    labeled_match = re.search(r"weight\s+(\d{2,3}(?:\.\d+)?)\s*kg", query_lower)
+    if labeled_match:
+        profile["current_weight_kg"] = float(labeled_match.group(1))
+        return
+    weight_matches = re.findall(r"(\d{2,3}(?:\.\d+)?)\s*kg", query_lower)
     if weight_matches:
         profile["current_weight_kg"] = float(weight_matches[0])
 
@@ -57,6 +72,20 @@ def extract_target_weight(profile: dict[str, Any], query: str) -> None:
     if "target_weight_kg" in profile:
         return
     query_lower = query.lower()
+    gain_match = re.search(r"gain\s+(\d+(?:\.\d+)?)\s*kg", query_lower)
+    if gain_match:
+        gain_kg = float(gain_match.group(1))
+        current = profile.get("current_weight_kg")
+        if current is not None:
+            profile["target_weight_kg"] = float(current) + gain_kg
+            return
+    lose_match = re.search(r"lose\s+(\d+(?:\.\d+)?)\s*kg", query_lower)
+    if lose_match:
+        loss_kg = float(lose_match.group(1))
+        current = profile.get("current_weight_kg")
+        if current is not None:
+            profile["target_weight_kg"] = float(current) - loss_kg
+            return
     goal_weight_match = re.search(r"goal[:\s]+(\d{2,3})\s*kg", query_lower)
     if goal_weight_match:
         profile["target_weight_kg"] = float(goal_weight_match.group(1))
@@ -67,9 +96,20 @@ def extract_target_weight(profile: dict[str, Any], query: str) -> None:
 
 
 def extract_activity(profile: dict[str, Any], query: str) -> None:
+    query_lower = query.lower()
+    days_patterns = (
+        r"(?:training|train)\s+(\d+)\s*days?",
+        r"(\d+)\s*days?\s*(?:per week|a week|/week|weekly)",
+    )
+    for pattern in days_patterns:
+        days_match = re.search(pattern, query_lower)
+        if days_match:
+            days = min(int(days_match.group(1)), 6)
+            profile["days_per_week"] = days
+            profile["activity_level"] = f"gym_{days}x_week"
+            return
     if "activity_level" in profile:
         return
-    query_lower = query.lower()
     gym_match = re.search(r"gym\s*(\d+)x", query_lower)
     if gym_match:
         profile["activity_level"] = f"gym_{gym_match.group(1)}x_week"
@@ -82,6 +122,12 @@ def extract_goal(profile: dict[str, Any], query: str) -> None:
     if "goal" in profile:
         return
     query_lower = query.lower()
+    if re.search(r"gain\s+\d+(?:\.\d+)?\s*kg", query_lower):
+        profile["goal"] = "muscle_gain"
+        return
+    if re.search(r"lose\s+\d+(?:\.\d+)?\s*kg", query_lower):
+        profile["goal"] = "fat_loss"
+        return
     if any(keyword in query_lower for keyword in ("lose weight", "fat loss", "cutting")):
         profile["goal"] = "fat_loss"
         return
@@ -104,6 +150,31 @@ EXTRACTORS = (
     extract_activity,
     extract_goal,
 )
+
+
+CONSTRAINT_FIELDS = ("days_per_week", "equipment", "session_duration_minutes", "high_protein")
+PROFILE_FIELDS = (
+    "age",
+    "sex",
+    "height_cm",
+    "current_weight_kg",
+    "target_weight_kg",
+    "activity_level",
+    "goal",
+)
+
+
+def profile_to_orchestration_updates(
+    profile: dict[str, Any],
+    *,
+    missing_fields: list[str] | None = None,
+) -> dict[str, Any]:
+    """Map an extracted planning profile onto orchestration user_profile/constraints."""
+    user_profile = {field: profile[field] for field in PROFILE_FIELDS if field in profile}
+    if missing_fields is not None:
+        user_profile["missing_fields"] = missing_fields
+    constraints = {field: profile[field] for field in CONSTRAINT_FIELDS if field in profile}
+    return {"user_profile": user_profile, "constraints": constraints}
 
 
 def build_profile(
@@ -145,9 +216,11 @@ def write_planning_todos(
 ) -> dict[str, Any]:
     goal = profile.get("goal", "general_fitness")
     activity_level = profile.get("activity_level", "unspecified")
+    goal_label = format_goal_label(str(goal))
+    activity_label = format_activity_label(str(activity_level))
     todos = [
-        f"Research evidence-based training principles for {goal}",
-        f"Gather recommendations for activity level: {activity_level}",
+        f"Research evidence-based training principles for {goal_label.lower()}",
+        f"Gather recommendations for activity level: {activity_label}",
         "Collect macro and recovery guidance aligned with user constraints",
         "Verify fitness-domain credibility of selected sources",
     ]
@@ -159,8 +232,8 @@ def write_planning_todos(
     vfs.write("plan/todos.json", json.dumps(todos, indent=2))
     planning_output = (
         f"# Planning Summary\n\n"
-        f"- Goal: {goal}\n"
-        f"- Activity level: {activity_level}\n"
+        f"- Goal: {goal_label}\n"
+        f"- Activity level: {activity_label}\n"
         f"- Todos: {len(todos)}\n"
     )
     vfs.write("plan/plan.md", planning_output)

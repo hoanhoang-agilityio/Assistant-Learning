@@ -108,6 +108,22 @@ def test_route_guards_force_hitl_when_limits_exceeded() -> None:
     assert route_from_supervisor(replan_state) == "hitl"
 
 
+def test_route_from_supervisor_persists_after_hitl_approval() -> None:
+    base = create_initial_state(
+        run_id="approved-run",
+        thread_id="approved-thread",
+        query="test",
+        workspace_root=Path("/tmp/approved-workspace"),
+    )
+    hitl_state: OrchestrationState = {
+        **base,
+        "route_decision": "HITL",
+        "approval_status": "approved",
+        "waiting_for_user": False,
+    }
+    assert route_from_supervisor(hitl_state) == "persist"
+
+
 def test_hitl_control_approve_and_reject() -> None:
     approved = hitl_control.invoke(
         {

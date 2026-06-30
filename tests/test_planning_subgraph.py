@@ -88,6 +88,44 @@ def test_extract_profile_prefers_existing_user_profile(complete_profile: dict) -
     assert profile["height_cm"] == 175
 
 
+def test_extract_profile_parses_natural_language_query() -> None:
+    query = "im 27, 75kg, 171cm, i want to lose 2kg in 2 months"
+    result = extract_profile.invoke(
+        {
+            "query": query,
+            "user_profile": {},
+            "constraints": {},
+        }
+    )
+    profile = result["profile"]
+    assert profile["age"] == 27
+    assert profile["height_cm"] == 171
+    assert profile["current_weight_kg"] == 75.0
+    assert profile["target_weight_kg"] == 73.0
+    assert profile["goal"] == "fat_loss"
+
+
+def test_extract_profile_parses_muscle_gain_query() -> None:
+    query = (
+        "i want to gain 2 kg muscle, height 171cm, weight 73kg, age 27, training 5 days per week"
+    )
+    result = extract_profile.invoke(
+        {
+            "query": query,
+            "user_profile": {},
+            "constraints": {"days_per_week": 4, "equipment": "gym"},
+        }
+    )
+    profile = result["profile"]
+    assert profile["age"] == 27
+    assert profile["height_cm"] == 171
+    assert profile["current_weight_kg"] == 73.0
+    assert profile["target_weight_kg"] == 75.0
+    assert profile["goal"] == "muscle_gain"
+    assert profile["activity_level"] == "gym_5x_week"
+    assert profile["days_per_week"] == 5
+
+
 def test_validate_profile_flags_missing_fields() -> None:
     result = validate_profile.invoke({"profile": {"goal": "fat_loss"}})
     assert "age" in result["missing_fields"]
