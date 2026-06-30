@@ -81,6 +81,26 @@ def test_calculate_macros_returns_targets(complete_profile: dict[str, Any]) -> N
     assert result["training_constraints"]["days_per_week"] == 3
 
 
+def test_calculate_macros_prefers_profile_training_days_over_constraints() -> None:
+    profile = {
+        "age": 27,
+        "sex": "male",
+        "height_cm": 171,
+        "current_weight_kg": 73.0,
+        "activity_level": "gym_5x_week",
+        "goal": "muscle_gain",
+        "days_per_week": 5,
+    }
+    result = calculate_macros.invoke(
+        {
+            "profile": profile,
+            "constraints": {"days_per_week": 4, "equipment": "gym"},
+        }
+    )
+    assert result["training_constraints"]["days_per_week"] == 5
+    assert result["macro_targets"]["activity_level"] == "gym_5x_week"
+
+
 def test_build_training_plan_creates_sessions(complete_profile: dict[str, Any]) -> None:
     macro_result = calculate_macros.invoke({"profile": complete_profile, "constraints": {}})
     plan_result = build_training_plan_data(

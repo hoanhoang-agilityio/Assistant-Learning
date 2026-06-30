@@ -1,6 +1,6 @@
 import asyncio
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,26 +9,63 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from core.config.settings import Settings, get_settings
 
-TAVILY_SEARCH_TOOL = "tavily-search"
-TAVILY_EXTRACT_TOOL = "tavily-extract"
+TAVILY_SEARCH_TOOL = "tavily_search"
+TAVILY_EXTRACT_TOOL = "tavily_extract"
+TAVILY_SEARCH_TOOL_ALIASES = (TAVILY_SEARCH_TOOL, "tavily-search")
+TAVILY_EXTRACT_TOOL_ALIASES = (TAVILY_EXTRACT_TOOL, "tavily-extract")
+
+
+def _resolve_tool_name(
+    tools_by_name: dict[str, BaseTool],
+    aliases: tuple[str, ...],
+) -> str | None:
+    for name in aliases:
+        if name in tools_by_name:
+            return name
+    return None
+
+
+def _parse_text_payload(text: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return {"results": [{"content": text}]}
+    if isinstance(parsed, dict):
+        return parsed
+    return {"results": parsed}
 
 
 def _parse_tool_payload(result: Any) -> dict[str, Any]:
     if isinstance(result, dict):
         return result
+    if isinstance(result, list):
+        text_parts = [
+            str(block.get("text", ""))
+            for block in result
+            if isinstance(block, dict) and block.get("type") == "text"
+        ]
+        if text_parts:
+            return _parse_text_payload("\n".join(text_parts))
+        return {"results": result}
     if isinstance(result, str):
-        try:
-            parsed = json.loads(result)
-        except json.JSONDecodeError:
-            return {"results": [{"content": result}]}
-        if isinstance(parsed, dict):
-            return parsed
-        return {"results": parsed}
+        return _parse_text_payload(result)
     return {"results": [{"content": str(result)}]}
 
 
+def _run_async(coro: Awaitable[Any]) -> Any:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        return executor.submit(asyncio.run, coro).result()
+
+
 def _invoke_tool(tool: BaseTool, payload: dict[str, Any]) -> dict[str, Any]:
-    return _parse_tool_payload(tool.invoke(payload))
+    result = _run_async(tool.ainvoke(payload))
+    return _parse_tool_payload(result)
 
 
 @dataclass(frozen=True)
@@ -60,18 +97,23 @@ async def create_tavily_mcp_client(settings: Settings | None = None) -> TavilyMC
     tools = await client.get_tools()
     tools_by_name = {tool.name: tool for tool in tools}
 
+    search_tool_name = _resolve_tool_name(tools_by_name, TAVILY_SEARCH_TOOL_ALIASES)
+    extract_tool_name = _resolve_tool_name(tools_by_name, TAVILY_EXTRACT_TOOL_ALIASES)
     missing_tools = [
         tool_name
-        for tool_name in (TAVILY_SEARCH_TOOL, TAVILY_EXTRACT_TOOL)
-        if tool_name not in tools_by_name
+        for tool_name, resolved in (
+            (TAVILY_SEARCH_TOOL, search_tool_name),
+            (TAVILY_EXTRACT_TOOL, extract_tool_name),
+        )
+        if resolved is None
     ]
     if missing_tools:
         available = ", ".join(sorted(tools_by_name))
         missing = ", ".join(missing_tools)
         raise RuntimeError(f"Missing Tavily MCP tools [{missing}]. Available: {available}")
 
-    search_tool = tools_by_name[TAVILY_SEARCH_TOOL]
-    extract_tool = tools_by_name[TAVILY_EXTRACT_TOOL]
+    search_tool = tools_by_name[search_tool_name]
+    extract_tool = tools_by_name[extract_tool_name]
     return TavilyMCPClient(
         search=lambda query: _invoke_tool(search_tool, {"query": query}),
         extract=lambda urls: _invoke_tool(extract_tool, {"urls": urls}),
