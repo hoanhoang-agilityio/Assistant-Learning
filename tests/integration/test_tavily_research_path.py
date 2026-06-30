@@ -4,9 +4,9 @@ from pathlib import Path
 from core.agents.state import OrchestrationState
 from core.graph.run import create_initial_state
 from core.mcp.tavily_client import TavilyMCPClient
-from core.subgraphs.planning.utils import write_planning_todos
 from core.subgraphs.research.graph import invoke_research_subgraph
 from core.vfs import VFS
+from tests.helpers.planning import seed_execution_plan
 
 
 def test_tavily_research_path_writes_artifacts(
@@ -22,7 +22,7 @@ def test_tavily_research_path_writes_artifacts(
         user_profile=complete_profile,
         workspace_root=workspace_root,
     )
-    write_planning_todos(complete_profile, "fat_loss", state["workspace_path"])
+    seed_execution_plan(state["workspace_path"], complete_profile)
     orchestration_state: OrchestrationState = {
         **state,
         "request_type": "fat_loss",

@@ -11,7 +11,7 @@ from core.graph.run import create_initial_state
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.subgraphs.fitness.graph import build_fitness_subgraph
 from core.subgraphs.fitness.state import FitnessState
-from core.subgraphs.planning.utils import write_planning_todos
+from core.subgraphs.planning.utils import seed_execution_plan
 from core.subgraphs.research.graph import build_research_subgraph
 from core.subgraphs.research.state import ResearchState
 from core.subgraphs.verification.graph import build_verification_subgraph
@@ -109,7 +109,7 @@ def run_golden_case(
     )
     configure_tavily_client(_build_mock_tavily_client())
     try:
-        write_planning_todos(case.profile, case.request_type, initial["workspace_path"])
+        seed_execution_plan(initial["workspace_path"], case.profile)
         research_state = ResearchState(
             query=case.query,
             request_type=case.request_type,

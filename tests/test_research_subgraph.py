@@ -7,13 +7,13 @@ import pytest
 from core.agents.state import OrchestrationState
 from core.graph.run import create_initial_state
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
-from core.subgraphs.planning.utils import write_planning_todos
 from core.subgraphs.research.agent import ResearchAgent
 from core.subgraphs.research.graph import build_research_subgraph, invoke_research_subgraph
 from core.subgraphs.research.state import ResearchState
 from core.subgraphs.research.tools import rank_sources, search_evidence, verify_sources
 from core.subgraphs.research.utils import ResearchTodosGateError, search_evidence_data
 from core.vfs import VFS
+from tests.helpers.planning import seed_execution_plan
 
 
 @pytest.fixture(autouse=True)
@@ -85,7 +85,7 @@ def research_state(
         user_profile=complete_profile,
         workspace_root=workspace_root,
     )
-    write_planning_todos(complete_profile, "fat_loss", initial["workspace_path"])
+    seed_execution_plan(initial["workspace_path"], complete_profile)
     return ResearchState(
         query=initial["query"],
         request_type="fat_loss",
