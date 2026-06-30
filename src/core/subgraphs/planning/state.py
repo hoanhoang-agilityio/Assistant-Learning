@@ -12,5 +12,6 @@ class PlanningState(TypedDict):
     profile: dict
     missing_fields: list[str]
     todos: list[str]
+    execution_plan: dict
     planning_output: str | None
     requires_hitl: bool

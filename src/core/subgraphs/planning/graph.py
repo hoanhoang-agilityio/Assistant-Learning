@@ -6,7 +6,7 @@ from langgraph.graph.state import CompiledStateGraph
 from core.agents.state import OrchestrationState
 from core.profile.labels import format_missing_profile_prompt
 from core.subgraphs.planning.state import PlanningState
-from core.subgraphs.planning.tools import extract_profile, validate_profile, write_todos
+from core.subgraphs.planning.tools import extract_profile, generate_plan, validate_profile
 from core.subgraphs.planning.utils import profile_to_orchestration_updates
 
 
@@ -29,11 +29,13 @@ def _validate_profile_node(state: PlanningState) -> dict:
     }
 
 
-def _write_todos_node(state: PlanningState) -> dict:
-    return write_todos.invoke(
+def _generate_plan_node(state: PlanningState) -> dict:
+    return generate_plan.invoke(
         {
             "profile": state["profile"],
+            "query": state["query"],
             "request_type": state["request_type"],
+            "constraints": state["constraints"],
             "workspace_path": state["workspace_path"],
         }
     )
@@ -49,7 +51,7 @@ def _planning_hitl_node(state: PlanningState) -> dict:
 def _route_after_validate(state: PlanningState) -> str:
     if state["missing_fields"]:
         return "planning_hitl"
-    return "write_todos"
+    return "generate_plan"
 
 
 def build_planning_subgraph() -> CompiledStateGraph:
@@ -57,7 +59,7 @@ def build_planning_subgraph() -> CompiledStateGraph:
     graph = StateGraph(PlanningState)
     graph.add_node("extract_profile", _extract_profile_node)
     graph.add_node("validate_profile", _validate_profile_node)
-    graph.add_node("write_todos", _write_todos_node)
+    graph.add_node("generate_plan", _generate_plan_node)
     graph.add_node("planning_hitl", _planning_hitl_node)
     graph.add_edge(START, "extract_profile")
     graph.add_edge("extract_profile", "validate_profile")
@@ -66,10 +68,10 @@ def build_planning_subgraph() -> CompiledStateGraph:
         _route_after_validate,
         {
             "planning_hitl": "planning_hitl",
-            "write_todos": "write_todos",
+            "generate_plan": "generate_plan",
         },
     )
-    graph.add_edge("write_todos", END)
+    graph.add_edge("generate_plan", END)
     graph.add_edge("planning_hitl", END)
     return graph.compile()
 
@@ -89,6 +91,7 @@ def to_planning_state(state: OrchestrationState) -> PlanningState:
         profile={},
         missing_fields=[],
         todos=[],
+        execution_plan={},
         planning_output=None,
         requires_hitl=False,
     )

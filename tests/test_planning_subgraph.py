@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -9,9 +10,11 @@ from core.profile.extraction import configure_profile_extractor
 from core.profile.schema import Constraints, ExtractedProfile, Goal, Profile
 from core.subgraphs.planning.agent import PlanningAgent
 from core.subgraphs.planning.graph import build_planning_subgraph, invoke_planning_subgraph
+from core.subgraphs.planning.planning_agent import configure_planning_agent
+from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.planning.state import PlanningState
-from core.subgraphs.planning.tools import extract_profile, validate_profile, write_todos
-from core.subgraphs.planning.utils import has_planning_todos
+from core.subgraphs.planning.tools import extract_profile, generate_plan, validate_profile
+from core.subgraphs.planning.utils import has_execution_plan, has_planning_todos
 from core.vfs import VFS
 
 
@@ -33,6 +36,38 @@ def complete_profile() -> dict:
     }
 
 
+def _mock_fat_loss_execution_plan(**_kwargs: Any) -> ExecutionPlan:
+    return ExecutionPlan(
+        plan_rationale=(
+            "Fat loss research plan for a 3x/week gym user targeting 75 kg with "
+            "evidence-based training and nutrition retrieval."
+        ),
+        tasks=[
+            PlanTask(
+                order=1,
+                task="Research caloric deficit strategies for fat loss at gym_3x_week",
+                rationale="Tailor energy balance evidence to the user's fat_loss goal.",
+            ),
+            PlanTask(
+                order=2,
+                task="Gather hypertrophy-preserving training volume during fat loss",
+                rationale="Protect lean mass while cutting for this activity level.",
+            ),
+            PlanTask(
+                order=3,
+                task="Collect protein and recovery guidance for 85 kg male cutting phase",
+                rationale="Align macro and recovery evidence with user biometrics.",
+            ),
+        ],
+        plan_markdown=(
+            "# Fat Loss Planning Summary\n\n"
+            "- Goal: fat_loss\n"
+            "- Activity: gym_3x_week\n"
+            "- Tasks: 3 tailored research steps\n"
+        ),
+    )
+
+
 @pytest.fixture
 def planning_state(workspace_root: Path, complete_profile: dict) -> PlanningState:
     initial = create_initial_state(
@@ -51,6 +86,7 @@ def planning_state(workspace_root: Path, complete_profile: dict) -> PlanningStat
         profile={},
         missing_fields=[],
         todos=[],
+        execution_plan={},
         planning_output=None,
         requires_hitl=False,
     )
@@ -169,27 +205,40 @@ def test_validate_profile_passes_complete_profile(complete_profile: dict) -> Non
     assert result["requires_hitl"] is False
 
 
-def test_write_todos_persists_vfs_artifacts(planning_state: PlanningState) -> None:
-    result = write_todos.invoke(
+def test_generate_plan_persists_vfs_artifacts(planning_state: PlanningState) -> None:
+    configure_planning_agent(_mock_fat_loss_execution_plan)
+    result = generate_plan.invoke(
         {
             "profile": planning_state["user_profile"],
+            "query": planning_state["query"],
             "request_type": planning_state["request_type"],
+            "constraints": planning_state["constraints"],
             "workspace_path": planning_state["workspace_path"],
         }
     )
     vfs = VFS.for_run(Path(planning_state["workspace_path"]))
-    assert len(result["todos"]) >= 4
+    assert len(result["todos"]) == 3
+    assert "fat loss" in result["todos"][0].lower()
+    assert vfs.exists("plan/execution_plan.json")
     assert vfs.exists("plan/todos.json")
     assert vfs.exists("plan/profile.json")
     assert vfs.exists("plan/plan.md")
+    assert vfs.read("plan/plan.md") == result["planning_output"]
+    execution_plan = json.loads(vfs.read("plan/execution_plan.json"))
+    assert execution_plan["plan_rationale"]
+    assert len(execution_plan["tasks"]) == 3
     todos = json.loads(vfs.read("plan/todos.json"))
-    assert isinstance(todos, list)
     assert todos == result["todos"]
 
 
-def test_planning_subgraph_writes_todos_on_complete_profile(planning_state: PlanningState) -> None:
+def test_planning_subgraph_writes_execution_plan_on_complete_profile(
+    planning_state: PlanningState,
+) -> None:
+    configure_profile_extractor(lambda _query: ExtractedProfile())
+    configure_planning_agent(_mock_fat_loss_execution_plan)
     graph = build_planning_subgraph()
     graph.invoke(planning_state)
+    assert has_execution_plan(planning_state["workspace_path"]) is True
     assert has_planning_todos(planning_state["workspace_path"]) is True
 
 
@@ -208,10 +257,12 @@ def test_planning_subgraph_missing_fields_sets_hitl_flag(workspace_root: Path) -
     }
     updates = invoke_planning_subgraph(orchestration_state)
     assert updates["waiting_for_user"] is True
-    assert has_planning_todos(initial["workspace_path"]) is False
+    assert has_execution_plan(initial["workspace_path"]) is False
 
 
 def test_planning_agent_runs_from_orchestration(planning_state: PlanningState) -> None:
+    configure_profile_extractor(lambda _query: ExtractedProfile())
+    configure_planning_agent(_mock_fat_loss_execution_plan)
     orchestration_state: OrchestrationState = {
         "run_id": "plan-run",
         "thread_id": "plan-thread",
@@ -235,4 +286,4 @@ def test_planning_agent_runs_from_orchestration(planning_state: PlanningState) -
     agent = PlanningAgent()
     updates = agent.run(orchestration_state)
     assert updates["current_node"] == "planning"
-    assert has_planning_todos(planning_state["workspace_path"]) is True
+    assert has_execution_plan(planning_state["workspace_path"]) is True
