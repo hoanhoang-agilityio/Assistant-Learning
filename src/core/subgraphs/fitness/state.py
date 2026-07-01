@@ -17,4 +17,6 @@ class FitnessState(TypedDict):
     safety_result: dict
     planner_feedback: list[str]
     planner_attempts: int
+    max_planner_attempts: int
+    is_verification_rerun: bool
     draft_plan: str | None

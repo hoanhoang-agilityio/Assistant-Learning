@@ -5,9 +5,10 @@ from typing import Any
 import pytest
 
 from core.agents.state import OrchestrationState
+from core.config.settings import get_settings
 from core.graph.run import create_initial_state
 from core.subgraphs.fitness.agent import FitnessAgent
-from core.subgraphs.fitness.graph import MAX_PLANNER_ATTEMPTS, build_fitness_subgraph
+from core.subgraphs.fitness.graph import build_fitness_subgraph, resolve_max_planner_attempts
 from core.subgraphs.fitness.planner import configure_fitness_planner
 from core.subgraphs.fitness.schema import StructuredWorkout, WorkoutDay, WorkoutExercise
 from core.subgraphs.fitness.state import FitnessState
@@ -80,6 +81,8 @@ def fitness_state(workspace_root: Path, complete_profile: dict[str, Any]) -> Fit
         safety_result={"passed": False, "feedback": []},
         planner_feedback=[],
         planner_attempts=0,
+        max_planner_attempts=get_settings().max_planner_attempts,
+        is_verification_rerun=False,
         draft_plan=None,
     )
 
@@ -264,9 +267,40 @@ def test_fitness_planner_stops_after_max_attempts(fitness_state: FitnessState) -
     )
     graph = build_fitness_subgraph()
     result = graph.invoke(fitness_state)
-    assert result["planner_attempts"] == MAX_PLANNER_ATTEMPTS
+    assert result["planner_attempts"] == get_settings().max_planner_attempts
     assert result["safety_result"]["passed"] is False
     assert result["draft_plan"]
+
+
+def test_resolve_max_planner_attempts_limits_fix_reasoning_reruns() -> None:
+    base = create_initial_state(
+        run_id="fitness-run",
+        thread_id="fitness-thread",
+        query="lose weight",
+        workspace_root=Path("/tmp/fitness-workspace"),
+    )
+    default_state: OrchestrationState = {**base, "route_decision": None}
+    rerun_state: OrchestrationState = {**base, "route_decision": "FIX_REASONING"}
+    assert resolve_max_planner_attempts(default_state) == get_settings().max_planner_attempts
+    assert (
+        resolve_max_planner_attempts(rerun_state) == get_settings().fix_reasoning_planner_attempts
+    )
+
+
+def test_fitness_verification_rerun_loads_prior_safety_feedback(
+    fitness_state: FitnessState,
+) -> None:
+    vfs = VFS.for_run(Path(fitness_state["workspace_path"]))
+    vfs.write("fitness/safety_flags.json", json.dumps(["training_day_count_mismatch"]))
+    vfs.write(
+        "verify/verification_v1.json",
+        json.dumps({"feedback": "Address citation issues in the draft."}),
+    )
+    fitness_state["is_verification_rerun"] = True
+    fitness_state["max_planner_attempts"] = get_settings().fix_reasoning_planner_attempts
+    graph = build_fitness_subgraph()
+    result = graph.invoke(fitness_state)
+    assert "training_day_count_mismatch" in result["planner_feedback"]
 
 
 def test_fitness_agent_runs_from_orchestration(fitness_state: FitnessState) -> None:

@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from core.agents.state import OrchestrationState
+from core.config.settings import get_settings
 from core.graph.run import create_initial_state
 from core.subgraphs.fitness.graph import build_fitness_subgraph
 from core.subgraphs.fitness.state import FitnessState
@@ -105,6 +106,8 @@ def verification_state(
         safety_result={"passed": False, "feedback": []},
         planner_feedback=[],
         planner_attempts=0,
+        max_planner_attempts=get_settings().max_planner_attempts,
+        is_verification_rerun=False,
         draft_plan=None,
     )
     build_fitness_subgraph().invoke(fitness_state)
