@@ -9,6 +9,7 @@ from core.profile.schema import (
     GOAL_REQUIRED_FIELDS,
     PROFILE_FIELDS,
     REQUIRED_PROFILE_FIELDS,
+    ExtractedProfile,
 )
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.vfs import VFS
@@ -27,10 +28,21 @@ def profile_to_orchestration_updates(
     return {"user_profile": user_profile, "constraints": constraints}
 
 
+def _should_skip_profile_extraction(
+    user_profile: dict[str, Any], constraints: dict[str, Any]
+) -> bool:
+    """Skip LLM extraction when orchestration already has a complete profile."""
+    candidate = {**user_profile, **constraints}
+    return not validate_profile_data(candidate)["requires_hitl"]
+
+
 def build_profile(
     query: str, user_profile: dict[str, Any], constraints: dict[str, Any]
 ) -> dict[str, Any]:
-    extracted = extract_profile_from_query(query)
+    if _should_skip_profile_extraction(user_profile, constraints):
+        extracted = ExtractedProfile()
+    else:
+        extracted = extract_profile_from_query(query)
     return merge_profile_sources(
         query=query,
         user_profile=user_profile,

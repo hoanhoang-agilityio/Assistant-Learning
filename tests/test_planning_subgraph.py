@@ -14,7 +14,12 @@ from core.subgraphs.planning.planning_agent import configure_planning_agent
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.planning.state import PlanningState
 from core.subgraphs.planning.tools import extract_profile, generate_plan, validate_profile
-from core.subgraphs.planning.utils import has_execution_plan, has_planning_todos
+from core.subgraphs.planning.utils import (
+    build_profile,
+    has_execution_plan,
+    has_planning_todos,
+    validate_profile_data,
+)
 from core.vfs import VFS
 
 
@@ -127,7 +132,7 @@ def test_extract_profile_merges_query_and_profile(complete_profile: dict) -> Non
 
 def test_extract_profile_prefers_existing_user_profile(complete_profile: dict) -> None:
     configure_profile_extractor(
-        lambda _query: ExtractedProfile(profile=Profile(age=40, height_cm=180, sex="male"))
+        lambda _query: (_ for _ in ()).throw(AssertionError("extractor should be skipped"))
     )
     result = extract_profile.invoke(
         {
@@ -190,6 +195,20 @@ def test_extract_profile_parses_muscle_gain_query() -> None:
     assert profile["goal"] == "muscle_gain"
     assert profile["activity_level"] == "gym_5x_week"
     assert profile["days_per_week"] == 5
+
+
+def test_build_profile_skips_extraction_when_profile_complete(complete_profile: dict) -> None:
+    configure_profile_extractor(
+        lambda _query: (_ for _ in ()).throw(AssertionError("extractor should be skipped"))
+    )
+    profile = build_profile(
+        query="I want to lose weight with a gym 3x/week plan.",
+        user_profile=complete_profile,
+        constraints={},
+    )
+    assert validate_profile_data(profile)["requires_hitl"] is False
+    assert profile["age"] == 30
+    assert profile["goal"] == "fat_loss"
 
 
 def test_validate_profile_flags_missing_fields() -> None:

@@ -1,6 +1,5 @@
 """LLM-driven Research Agent with custom ReAct loop and structured outputs."""
 
-import json
 from collections.abc import Callable
 from typing import Any
 
@@ -12,6 +11,7 @@ from core.llm.factory import (
     invoke_bound_llm,
     invoke_standard_structured_output,
 )
+from core.llm.payload import compact_json
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.research.prompts import (
     EVALUATION_SYSTEM_PROMPT,
@@ -54,7 +54,9 @@ class _ResearchSession:
         self.evidence: list[dict[str, Any]] = []
         self.iterations: int = 0
         self.search_count: int = 0
-        self.max_total_searches: int = get_settings().research_max_total_searches
+        settings = get_settings()
+        self.max_total_searches: int = settings.research_max_total_searches
+        self.tool_content_preview_chars: int = settings.research_tool_content_preview_chars
 
     def add_sources(self, sources: list[dict[str, Any]]) -> None:
         self.sources.extend(sources)
@@ -87,7 +89,7 @@ def _plan_search_queries(
         SearchQueryBatch,
         [
             SystemMessage(content=QUERY_PLANNING_SYSTEM_PROMPT),
-            HumanMessage(content=json.dumps(payload, indent=2)),
+            HumanMessage(content=compact_json(payload)),
         ],
     )
 
@@ -101,7 +103,7 @@ def _build_react_initial_message(query_batch: SearchQueryBatch) -> str:
         }
         for plan in query_batch.task_plans
     ]
-    return json.dumps({"planned_search_queries": planned}, indent=2)
+    return compact_json({"planned_search_queries": planned})
 
 
 def _execute_tool_call(
@@ -111,7 +113,7 @@ def _execute_tool_call(
 ) -> str:
     if tool_name == "tavily_search":
         if not session.can_search():
-            return json.dumps(
+            return compact_json(
                 {
                     "error": "search_budget_exhausted",
                     "message": "Maximum Tavily search calls reached for this run.",
@@ -122,7 +124,7 @@ def _execute_tool_call(
         session.record_search()
         result = search_tavily_data(search_query)
         session.add_sources(result["sources"])
-        return json.dumps(
+        return compact_json(
             {
                 "query": search_query,
                 "source_count": len(result["sources"]),
@@ -135,13 +137,14 @@ def _execute_tool_call(
             urls = []
         result = extract_tavily_data([str(url) for url in urls])
         session.add_evidence(result["evidence"])
-        return json.dumps(
+        preview_limit = session.tool_content_preview_chars
+        return compact_json(
             {
                 "document_count": len(result["evidence"]),
                 "evidence": [
                     {
                         "url": item.get("url"),
-                        "content_preview": str(item.get("content", ""))[:500],
+                        "content_preview": str(item.get("content", ""))[:preview_limit],
                     }
                     for item in result["evidence"]
                 ],
@@ -149,7 +152,7 @@ def _execute_tool_call(
         )
     tool = _TOOL_MAP.get(tool_name)
     if tool is None:
-        return json.dumps({"error": f"Unknown tool: {tool_name}"})
+        return compact_json({"error": f"Unknown tool: {tool_name}"})
     return str(tool.invoke(tool_args))
 
 
@@ -162,6 +165,54 @@ def _run_planned_searches(query_batch: SearchQueryBatch, session: _ResearchSessi
             session.record_search()
             result = search_tavily_data(search_query)
             session.add_sources(result["sources"])
+
+
+def _has_sufficient_evidence_deterministic(
+    sources: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
+) -> bool:
+    """Heuristic gate to skip the LLM evidence-evaluation call when coverage looks adequate."""
+    settings = get_settings()
+    verified_sources = sum(1 for source in sources if source.get("verified"))
+    return (
+        len(sources) >= settings.research_min_verified_sources_for_skip_eval
+        and verified_sources >= settings.research_min_verified_sources_for_skip_eval
+        and len(evidence) >= settings.research_min_evidence_docs_for_skip_eval
+    )
+
+
+def _evaluate_evidence(
+    *,
+    query: str,
+    profile: dict[str, Any],
+    execution_plan: ExecutionPlan,
+    sources: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
+) -> EvidenceEvaluation:
+    if _has_sufficient_evidence_deterministic(sources, evidence):
+        return EvidenceEvaluation(sufficient=True, gaps=[], refined_queries=[])
+
+    payload = {
+        "query": query,
+        "profile": profile,
+        "tasks": [task.model_dump() for task in execution_plan.tasks],
+        "source_count": len(sources),
+        "sources_preview": sources[:10],
+        "evidence_preview": [
+            {
+                "url": item.get("url"),
+                "content_preview": str(item.get("content", ""))[:300],
+            }
+            for item in evidence[:5]
+        ],
+    }
+    return invoke_standard_structured_output(
+        EvidenceEvaluation,
+        [
+            SystemMessage(content=EVALUATION_SYSTEM_PROMPT),
+            HumanMessage(content=compact_json(payload)),
+        ],
+    )
 
 
 def _run_react_loop(
@@ -188,7 +239,7 @@ def _run_react_loop(
         SystemMessage(content=REACT_SYSTEM_PROMPT),
         HumanMessage(
             content=(
-                f"Research context:\n{json.dumps(context_payload, indent=2)}\n\n"
+                f"Research context:\n{compact_json(context_payload)}\n\n"
                 "Planned queries (already searched):\n"
                 f"{_build_react_initial_message(query_batch)}\n\n"
                 "Use tavily_extract on the best URLs from collected sources. "
@@ -243,37 +294,6 @@ def _run_react_loop(
         session.add_sources(result["sources"])
 
 
-def _evaluate_evidence(
-    *,
-    query: str,
-    profile: dict[str, Any],
-    execution_plan: ExecutionPlan,
-    sources: list[dict[str, Any]],
-    evidence: list[dict[str, Any]],
-) -> EvidenceEvaluation:
-    payload = {
-        "query": query,
-        "profile": profile,
-        "tasks": [task.model_dump() for task in execution_plan.tasks],
-        "source_count": len(sources),
-        "sources_preview": sources[:10],
-        "evidence_preview": [
-            {
-                "url": item.get("url"),
-                "content_preview": str(item.get("content", ""))[:300],
-            }
-            for item in evidence[:5]
-        ],
-    }
-    return invoke_standard_structured_output(
-        EvidenceEvaluation,
-        [
-            SystemMessage(content=EVALUATION_SYSTEM_PROMPT),
-            HumanMessage(content=json.dumps(payload, indent=2)),
-        ],
-    )
-
-
 def _synthesize_findings(
     *,
     query: str,
@@ -281,6 +301,7 @@ def _synthesize_findings(
     sources: list[dict[str, Any]],
     evidence: list[dict[str, Any]],
 ) -> ResearchFindings:
+    settings = get_settings()
     payload = {
         "query": query,
         "profile": profile,
@@ -288,16 +309,18 @@ def _synthesize_findings(
         "evidence": [
             {
                 "url": item.get("url"),
-                "content": str(item.get("content", ""))[:1500],
+                "content": str(item.get("content", ""))[
+                    : settings.research_synthesis_content_chars
+                ],
             }
-            for item in evidence[:8]
+            for item in evidence[: settings.research_synthesis_evidence_limit]
         ],
     }
     return invoke_standard_structured_output(
         ResearchFindings,
         [
             SystemMessage(content=SYNTHESIS_SYSTEM_PROMPT),
-            HumanMessage(content=json.dumps(payload, indent=2)),
+            HumanMessage(content=compact_json(payload)),
         ],
     )
 

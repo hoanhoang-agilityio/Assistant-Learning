@@ -1,12 +1,12 @@
 """LLM structured workout generation for the Fitness subgraph."""
 
-import json
 from collections.abc import Callable
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.llm.factory import invoke_standard_structured_output
+from core.llm.payload import compact_json, limit_feedback_items
 from core.subgraphs.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
 from core.subgraphs.fitness.schema import StructuredWorkout
 from core.subgraphs.planning.schema import ExecutionPlan
@@ -21,6 +21,19 @@ def configure_fitness_planner(override: PlannerOverride | None) -> None:
     """Override the fitness planner (used in tests)."""
     global _AGENT_OVERRIDE
     _AGENT_OVERRIDE = override
+
+
+def compact_structured_findings(
+    structured_findings: ResearchFindings | None,
+) -> dict[str, Any] | None:
+    """Return a compact findings payload for the fitness planner."""
+    if structured_findings is None:
+        return None
+    return {
+        "consensus": structured_findings.consensus,
+        "key_findings": structured_findings.key_findings[:3],
+        "limitations": structured_findings.limitations[:2],
+    }
 
 
 def build_planner_payload(
@@ -41,10 +54,8 @@ def build_planner_payload(
         "macro_targets": macro_targets,
         "training_constraints": training_constraints,
         "execution_plan": execution_plan.model_dump(),
-        "structured_findings": (
-            structured_findings.model_dump() if structured_findings is not None else None
-        ),
-        "planner_feedback": planner_feedback,
+        "structured_findings": compact_structured_findings(structured_findings),
+        "planner_feedback": limit_feedback_items(planner_feedback),
         "verification_feedback": verification_feedback,
     }
 
@@ -86,6 +97,6 @@ def generate_structured_workout(
         StructuredWorkout,
         [
             SystemMessage(content=FITNESS_PLANNER_SYSTEM_PROMPT),
-            HumanMessage(content=json.dumps(payload, indent=2)),
+            HumanMessage(content=compact_json(payload)),
         ],
     )
