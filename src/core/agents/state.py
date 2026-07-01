@@ -19,6 +19,7 @@ class OrchestrationState(TypedDict):
 
     run_id: str
     thread_id: str
+    user_id: str
     current_node: str
 
     query: str

@@ -9,6 +9,10 @@ class CreateRunRequest(BaseModel):
     query: str = Field(min_length=3)
     user_profile: dict[str, Any] = Field(default_factory=dict)
     constraints: dict[str, Any] = Field(default_factory=dict)
+    user_id: str | None = Field(
+        default=None,
+        description="Optional user id for rate limiting (X-User-Id header wins).",
+    )
 
 
 class ResumeRunRequest(BaseModel):

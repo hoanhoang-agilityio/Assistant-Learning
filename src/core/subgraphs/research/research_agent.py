@@ -7,7 +7,11 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from core.config.settings import get_settings
-from core.llm.factory import get_standard_llm, invoke_standard_structured_output
+from core.llm.factory import (
+    get_standard_llm,
+    invoke_bound_llm,
+    invoke_standard_structured_output,
+)
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.research.prompts import (
     EVALUATION_SYSTEM_PROMPT,
@@ -195,7 +199,11 @@ def _run_react_loop(
 
     for iteration in range(max_iterations):
         session.iterations = iteration + 1
-        response = llm.invoke(messages)
+        response = invoke_bound_llm(
+            llm,
+            messages,
+            model_name=settings.openai_standard_model,
+        )
         if not isinstance(response, AIMessage):
             break
 
