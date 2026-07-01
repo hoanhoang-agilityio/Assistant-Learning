@@ -79,11 +79,53 @@ def test_route_from_supervisor_rerun_targets() -> None:
     fix_state: OrchestrationState = {**base, "route_decision": "FIX_REASONING", "retry_count": 1}
     assert route_from_supervisor(fix_state) == "fitness"
 
-    replan_state: OrchestrationState = {**base, "route_decision": "REPLAN", "replan_count": 1}
+    replan_state: OrchestrationState = {
+        **base,
+        "route_decision": "REPLAN",
+        "replan_count": 1,
+        "current_node": "verification",
+    }
     assert route_from_supervisor(replan_state) == "planning"
 
-    research_state: OrchestrationState = {**base, "route_decision": "RERESEARCH", "retry_count": 1}
+    replan_continue_state: OrchestrationState = {
+        **base,
+        "route_decision": "REPLAN",
+        "replan_count": 1,
+        "current_node": "planning",
+    }
+    assert route_from_supervisor(replan_continue_state) == "research"
+
+    research_state: OrchestrationState = {
+        **base,
+        "route_decision": "RERESEARCH",
+        "retry_count": 1,
+        "current_node": "verification",
+    }
     assert route_from_supervisor(research_state) == "research"
+
+    reresearch_continue_state: OrchestrationState = {
+        **base,
+        "route_decision": "RERESEARCH",
+        "retry_count": 1,
+        "current_node": "research",
+    }
+    assert route_from_supervisor(reresearch_continue_state) == "fitness"
+
+
+def test_route_from_supervisor_replan_continues_to_fitness_after_research() -> None:
+    base = create_initial_state(
+        run_id="rerun-run",
+        thread_id="rerun-thread",
+        query="test",
+        workspace_root=Path("/tmp/rerun-workspace"),
+    )
+    state: OrchestrationState = {
+        **base,
+        "route_decision": "REPLAN",
+        "replan_count": 1,
+        "current_node": "research",
+    }
+    assert route_from_supervisor(state) == "fitness"
 
 
 def test_route_guards_force_hitl_when_limits_exceeded() -> None:
@@ -103,7 +145,7 @@ def test_route_guards_force_hitl_when_limits_exceeded() -> None:
     replan_state: OrchestrationState = {
         **base,
         "route_decision": "REPLAN",
-        "replan_count": MAX_REPLAN_COUNT,
+        "replan_count": MAX_REPLAN_COUNT + 1,
     }
     assert route_from_supervisor(replan_state) == "hitl"
 

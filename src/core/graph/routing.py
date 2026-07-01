@@ -1,5 +1,5 @@
 from core.agents.rerun import MAX_REPLAN_COUNT, MAX_RETRY_COUNT
-from core.agents.state import OrchestrationState
+from core.agents.state import OrchestrationState, RouteDecision
 
 DOMAIN_ORDER = ("planning", "research", "fitness", "verify")
 DOMAIN_TO_NODE = {
@@ -9,6 +9,8 @@ DOMAIN_TO_NODE = {
     "verify": "verification",
 }
 NODE_TO_DOMAIN = {node: domain for domain, node in DOMAIN_TO_NODE.items()}
+
+_PARTIAL_RERUN_ENTRY_NODES = frozenset({"supervisor", "verification"})
 
 
 def resolve_next_subgraph(state: OrchestrationState) -> str:
@@ -37,6 +39,39 @@ def resolve_next_subgraph(state: OrchestrationState) -> str:
     return DOMAIN_TO_NODE[ordered_domains[next_index]]
 
 
+def _resolve_partial_rerun_route(state: OrchestrationState) -> str | None:
+    """Route partial reruns and continue downstream after the entry subgraph completes."""
+    decision: RouteDecision | None = state["route_decision"]
+    current_node = state["current_node"]
+
+    if decision == "FIX_REASONING":
+        if state["retry_count"] >= MAX_RETRY_COUNT:
+            return "hitl"
+        return "fitness"
+
+    if decision == "REPLAN":
+        if state["replan_count"] > MAX_REPLAN_COUNT:
+            return "hitl"
+        if current_node in _PARTIAL_RERUN_ENTRY_NODES:
+            return "planning"
+        if current_node == "planning":
+            return "research"
+        if current_node == "research":
+            return "fitness"
+        return resolve_next_subgraph(state)
+
+    if decision == "RERESEARCH":
+        if state["retry_count"] >= MAX_RETRY_COUNT:
+            return "hitl"
+        if current_node in _PARTIAL_RERUN_ENTRY_NODES:
+            return "research"
+        if current_node == "research":
+            return "fitness"
+        return resolve_next_subgraph(state)
+
+    return None
+
+
 def route_from_supervisor(state: OrchestrationState) -> str:
     """Route from supervisor to the next graph node."""
     if state["waiting_for_user"]:
@@ -44,19 +79,14 @@ def route_from_supervisor(state: OrchestrationState) -> str:
 
     decision = state["route_decision"]
     if decision == "HITL":
+        if state["approval_status"] == "approved":
+            return "persist"
         return "hitl"
-    if decision == "FIX_REASONING":
-        if state["retry_count"] >= MAX_RETRY_COUNT:
-            return "hitl"
-        return "fitness"
-    if decision == "REPLAN":
-        if state["replan_count"] >= MAX_REPLAN_COUNT:
-            return "hitl"
-        return "planning"
-    if decision == "RERESEARCH":
-        if state["retry_count"] >= MAX_RETRY_COUNT:
-            return "hitl"
-        return "research"
+
+    partial_route = _resolve_partial_rerun_route(state)
+    if partial_route is not None:
+        return partial_route
+
     if decision == "COMPLETE":
         if state["approval_status"] == "approved":
             return "persist"

@@ -2,8 +2,8 @@ from typing import Any
 
 from core.agents.state import RouteDecision
 
-MAX_RETRY_COUNT = 3
-MAX_REPLAN_COUNT = 2
+MAX_RETRY_COUNT = 2
+MAX_REPLAN_COUNT = 1
 
 STRUCTURAL_ISSUE_MARKERS = (
     "missing_macro_targets",
