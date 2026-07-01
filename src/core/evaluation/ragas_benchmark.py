@@ -10,7 +10,9 @@ from typing import Any
 from core.graph.run import create_initial_state
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.subgraphs.fitness.graph import build_fitness_subgraph
+from core.subgraphs.fitness.planner import configure_fitness_planner
 from core.subgraphs.fitness.state import FitnessState
+from core.subgraphs.fitness.utils import build_default_structured_workout
 from core.subgraphs.planning.utils import seed_execution_plan
 from core.subgraphs.research.graph import build_research_subgraph
 from core.subgraphs.research.state import ResearchState
@@ -108,6 +110,12 @@ def run_golden_case(
         workspace_root=workspace_root,
     )
     configure_tavily_client(_build_mock_tavily_client())
+    configure_fitness_planner(
+        lambda **kwargs: build_default_structured_workout(
+            profile=kwargs.get("profile"),
+            constraints=kwargs.get("constraints"),
+        )
+    )
     try:
         seed_execution_plan(initial["workspace_path"], case.profile)
         research_state = ResearchState(
@@ -126,13 +134,17 @@ def run_golden_case(
             workspace_path=initial["workspace_path"],
             profile=case.profile,
             constraints=case.constraints,
+            execution_plan={},
+            structured_findings=None,
             evidence_summary=None,
             verification_feedback=None,
             macro_targets={},
             training_constraints={},
-            training_plan=None,
+            structured_workout=None,
+            safety_result={"passed": False, "feedback": []},
+            planner_feedback=[],
+            planner_attempts=0,
             draft_plan=None,
-            safety_flags=[],
         )
         build_fitness_subgraph().invoke(fitness_state)
         verification_state = VerificationState(
@@ -161,6 +173,7 @@ def run_golden_case(
         )
     finally:
         configure_tavily_client(None)
+        configure_fitness_planner(None)
 
 
 def summarize_results(results: list[BenchmarkResult]) -> dict[str, Any]:
