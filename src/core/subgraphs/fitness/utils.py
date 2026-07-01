@@ -87,6 +87,17 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
     }
 
 
+def load_prior_safety_feedback(workspace_path: str) -> list[str]:
+    """Load prior safety feedback persisted from an earlier Fitness run."""
+    vfs = VFS.for_run(Path(workspace_path))
+    if not vfs.exists("fitness/safety_flags.json"):
+        return []
+    raw = json.loads(vfs.read("fitness/safety_flags.json"))
+    if not isinstance(raw, list):
+        return []
+    return [str(item) for item in raw if str(item).strip()]
+
+
 def _format_structured_evidence_summary(structured: dict[str, Any]) -> str:
     lines = [str(structured.get("consensus", ""))]
     key_findings = structured.get("key_findings") or []

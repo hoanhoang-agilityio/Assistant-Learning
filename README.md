@@ -32,6 +32,23 @@ uv run pytest
 uv run ruff check src tests scripts
 ```
 
+## Precheck (before commit)
+
+Install git hooks once after `uv sync --extra dev`:
+
+```bash
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
+```
+
+On each commit, **precheck** runs Ruff lint/format on staged Python files. The **commit prefix** hook requires conventional messages such as `feat: ...` or `fix: ...` (merge commits are allowed).
+
+Run manually:
+
+```bash
+uv run pre-commit run precheck --all-files
+```
+
 ## Run the API
 
 ```bash

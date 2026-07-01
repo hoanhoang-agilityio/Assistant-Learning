@@ -108,6 +108,28 @@ def test_invoke_xhigh_structured_output_raises_when_both_providers_fail(
 
 
 @patch("core.llm.factory.get_settings")
+@patch("core.llm.factory.get_xhigh_anthropic_llm")
+@patch("core.llm.factory.get_xhigh_openai_llm")
+def test_invoke_xhigh_structured_output_skips_fallback_for_non_transient_errors(
+    mock_get_openai: MagicMock,
+    mock_get_anthropic: MagicMock,
+    mock_get_settings: MagicMock,
+) -> None:
+    mock_get_settings.return_value.openai_api_key = "openai-key"
+    mock_get_settings.return_value.anthropic_api_key = "anthropic-key"
+
+    openai_structured = MagicMock()
+    openai_structured.invoke.side_effect = ValueError("validation error: invalid schema")
+    mock_get_openai.return_value.with_structured_output.return_value = openai_structured
+
+    with pytest.raises(ValueError, match="validation error"):
+        invoke_xhigh_structured_output(ExecutionPlan, [])
+
+    mock_get_openai.assert_called_once()
+    mock_get_anthropic.assert_not_called()
+
+
+@patch("core.llm.factory.get_settings")
 @patch("core.llm.factory.get_standard_llm")
 def test_invoke_standard_structured_output(
     mock_get_standard: MagicMock,

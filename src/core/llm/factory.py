@@ -18,6 +18,33 @@ logger = logging.getLogger(__name__)
 
 _rate_limiter = AIRateLimiter()
 
+_TRANSIENT_ERROR_MARKERS = (
+    "timeout",
+    "timed out",
+    "rate limit",
+    "rate_limit",
+    "429",
+    "503",
+    "502",
+    "500",
+    "overloaded",
+    "unavailable",
+    "connection error",
+    "connection reset",
+)
+
+_NON_TRANSIENT_ERROR_MARKERS = (
+    "validation",
+    "json",
+    "schema",
+    "bad request",
+    "invalid",
+    "400",
+    "401",
+    "403",
+    "404",
+)
+
 
 def get_rate_limiter() -> AIRateLimiter:
     return _rate_limiter
@@ -27,6 +54,14 @@ def configure_rate_limiter(limiter: AIRateLimiter | None) -> None:
     """Override the shared rate limiter (used in tests)."""
     global _rate_limiter
     _rate_limiter = limiter or AIRateLimiter()
+
+
+def _is_transient_llm_error(exc: Exception) -> bool:
+    """Return True only for errors where a cross-provider retry is worthwhile."""
+    message = str(exc).lower()
+    if any(marker in message for marker in _NON_TRANSIENT_ERROR_MARKERS):
+        return False
+    return any(marker in message for marker in _TRANSIENT_ERROR_MARKERS)
 
 
 @lru_cache
@@ -124,7 +159,7 @@ def invoke_xhigh_structured_output[T: BaseModel](
     output_schema: type[T],
     messages: list[BaseMessage],
 ) -> T:
-    """Invoke structured output using OpenAI, falling back to Anthropic on failure."""
+    """Invoke structured output using OpenAI, falling back to Anthropic on transient failure."""
     settings = get_settings()
     estimated_tokens = estimate_message_tokens(messages)
     _rate_limiter.check_active_user_tokens(estimated_tokens=estimated_tokens)
@@ -142,12 +177,18 @@ def invoke_xhigh_structured_output[T: BaseModel](
             return result
         except Exception as exc:
             openai_error = exc
+            if not _is_transient_llm_error(exc):
+                logger.warning(
+                    "XHIGH OpenAI structured output failed with non-transient error; skipping fallback: %s",
+                    exc,
+                )
+                raise
             logger.warning(
-                "XHIGH OpenAI structured output failed; trying Anthropic fallback: %s",
+                "XHIGH OpenAI structured output failed with transient error; trying Anthropic fallback: %s",
                 exc,
             )
 
-    if settings.anthropic_api_key:
+    if settings.anthropic_api_key and openai_error is not None:
         try:
             structured_llm = get_xhigh_anthropic_llm().with_structured_output(output_schema)
             result = structured_llm.invoke(messages)
@@ -158,11 +199,9 @@ def invoke_xhigh_structured_output[T: BaseModel](
             )
             return result
         except Exception as anthropic_error:
-            if openai_error is not None:
-                raise RuntimeError(
-                    "XHIGH structured output failed for both OpenAI and Anthropic"
-                ) from anthropic_error
-            raise
+            raise RuntimeError(
+                "XHIGH structured output failed for both OpenAI and Anthropic"
+            ) from anthropic_error
 
     if openai_error is not None:
         raise openai_error

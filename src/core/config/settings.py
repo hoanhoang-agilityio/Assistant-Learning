@@ -26,12 +26,12 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     database_url: PostgresDsn | None = None
 
-    # LLM — Reasoning Sandwich tiers
+    # LLM — Reasoning Sandwich tiers (defaults favor lower-cost models)
     openai_api_key: str | None = None
     openai_standard_model: str = "gpt-4o-mini"
-    openai_xhigh_model: str = "gpt-4o"
+    openai_xhigh_model: str = "gpt-4o-mini"
     anthropic_api_key: str | None = None
-    anthropic_xhigh_model: str = "claude-sonnet-4-20250514"
+    anthropic_xhigh_model: str = "claude-3-5-haiku-20241022"
 
     # LangFuse — prefer LANGFUSE_BASE_URL; LANGFUSE_HOST is a legacy alias
     langfuse_public_key: str | None = None
@@ -48,10 +48,19 @@ class Settings(BaseSettings):
     mock_research: bool = False
 
     # Research Agent
-    research_max_search_iterations: int = 3
+    research_max_search_iterations: int = 2
     research_max_total_searches: int = 5
     research_extract_top_k: int = 8
     research_trusted_domains: str = ""
+    research_tool_content_preview_chars: int = 250
+    research_synthesis_evidence_limit: int = 5
+    research_synthesis_content_chars: int = 800
+    research_min_verified_sources_for_skip_eval: int = 2
+    research_min_evidence_docs_for_skip_eval: int = 1
+
+    # Orchestration / Fitness retry budgets
+    max_planner_attempts: int = 2
+    fix_reasoning_planner_attempts: int = 1
 
     # Per-user AI rate limits (UTC day buckets)
     rate_limit_enabled: bool = True

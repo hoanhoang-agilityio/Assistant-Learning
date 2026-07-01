@@ -7,6 +7,10 @@ from core.agents.tools import classify_request, read_global_state, route_subgrap
 from core.graph.builder import build_graph
 from core.graph.routing import resolve_next_subgraph, route_from_supervisor
 from core.graph.run import create_initial_state
+from core.profile.extraction import configure_profile_extractor
+from core.profile.schema import ExtractedProfile, Goal, Profile
+from core.subgraphs.planning.planning_agent import configure_planning_agent
+from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 
 
 @pytest.fixture
@@ -68,6 +72,25 @@ def test_graph_compiles() -> None:
 
 
 def test_first_invoke_routes_to_planning(initial_state: OrchestrationState) -> None:
+    configure_profile_extractor(
+        lambda _query: ExtractedProfile(
+            profile=Profile(age=30, sex="male", height_cm=175, current_weight_kg=80),
+            goal=Goal(goal="general_fitness"),
+        )
+    )
+    configure_planning_agent(
+        lambda **_kwargs: ExecutionPlan(
+            plan_rationale="Deterministic planning output for supervisor graph test.",
+            tasks=[
+                PlanTask(order=1, task="Research training volume", rationale="Baseline evidence."),
+                PlanTask(order=2, task="Research recovery guidance", rationale="Support recovery."),
+                PlanTask(
+                    order=3, task="Verify source credibility", rationale="Trustworthy sources."
+                ),
+            ],
+            plan_markdown="# Test Plan\n\nDeterministic planning output for supervisor graph test.",
+        )
+    )
     graph = build_graph()
     config = {"configurable": {"thread_id": initial_state["thread_id"]}}
     result = graph.invoke(

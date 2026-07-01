@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.config.settings import get_settings
 from core.graph.run import create_initial_state
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.subgraphs.fitness.graph import build_fitness_subgraph
@@ -144,6 +145,8 @@ def run_golden_case(
             safety_result={"passed": False, "feedback": []},
             planner_feedback=[],
             planner_attempts=0,
+            max_planner_attempts=get_settings().max_planner_attempts,
+            is_verification_rerun=False,
             draft_plan=None,
         )
         build_fitness_subgraph().invoke(fitness_state)

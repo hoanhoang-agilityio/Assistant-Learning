@@ -4,28 +4,32 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
+from core.config.settings import get_settings
 from core.subgraphs.fitness.planner import generate_structured_workout
 from core.subgraphs.fitness.state import FitnessState
 from core.subgraphs.fitness.tools import calculate_macros, synthesize_plan
 from core.subgraphs.fitness.utils import (
     default_execution_plan_for_fitness,
     load_fitness_context,
+    load_prior_safety_feedback,
     validate_workout_safety_data,
     write_fitness_artifacts,
 )
 from core.subgraphs.research.schema import ResearchFindings
 
-MAX_PLANNER_ATTEMPTS = 3
-
 
 def _load_context_node(state: FitnessState) -> dict:
     context = load_fitness_context(state["workspace_path"])
+    planner_feedback: list[str] = []
+    if state["is_verification_rerun"]:
+        planner_feedback = load_prior_safety_feedback(state["workspace_path"])
     return {
         "profile": context["profile"] or state["profile"],
         "execution_plan": context["execution_plan"],
         "structured_findings": context["structured_findings"],
         "evidence_summary": context["evidence_summary"],
         "verification_feedback": context["verification_feedback"],
+        "planner_feedback": planner_feedback,
     }
 
 
@@ -69,7 +73,7 @@ def _safety_check_node(state: FitnessState) -> dict:
         structured_workout=state["structured_workout"],
     )
     updates: dict = {"safety_result": safety_result}
-    if not safety_result["passed"] and state["planner_attempts"] < MAX_PLANNER_ATTEMPTS:
+    if not safety_result["passed"] and state["planner_attempts"] < state["max_planner_attempts"]:
         merged_feedback = list(state["planner_feedback"])
         for item in safety_result["feedback"]:
             if item not in merged_feedback:
@@ -81,7 +85,7 @@ def _safety_check_node(state: FitnessState) -> dict:
 def _route_after_safety(state: FitnessState) -> str:
     if state["safety_result"]["passed"]:
         return "synthesize_plan"
-    if state["planner_attempts"] < MAX_PLANNER_ATTEMPTS:
+    if state["planner_attempts"] < state["max_planner_attempts"]:
         return "fitness_planner"
     return "synthesize_plan"
 
@@ -142,7 +146,16 @@ def get_fitness_subgraph() -> CompiledStateGraph:
     return build_fitness_subgraph()
 
 
+def resolve_max_planner_attempts(state: OrchestrationState) -> int:
+    """Resolve planner retry budget for the current orchestration rerun context."""
+    settings = get_settings()
+    if state.get("route_decision") == "FIX_REASONING":
+        return settings.fix_reasoning_planner_attempts
+    return settings.max_planner_attempts
+
+
 def to_fitness_state(state: OrchestrationState) -> FitnessState:
+    is_verification_rerun = state.get("route_decision") == "FIX_REASONING"
     return FitnessState(
         workspace_path=state["workspace_path"],
         profile=state["user_profile"],
@@ -157,6 +170,8 @@ def to_fitness_state(state: OrchestrationState) -> FitnessState:
         safety_result={"passed": False, "feedback": []},
         planner_feedback=[],
         planner_attempts=0,
+        max_planner_attempts=resolve_max_planner_attempts(state),
+        is_verification_rerun=is_verification_rerun,
         draft_plan=None,
     )
 

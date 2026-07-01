@@ -1,12 +1,12 @@
 """LLM structured execution plan generation for the Planning subgraph."""
 
-import json
 from collections.abc import Callable
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.llm.factory import invoke_xhigh_structured_output
+from core.llm.payload import compact_json
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 
 PlanningAgentOverride = Callable[..., ExecutionPlan]
@@ -75,7 +75,7 @@ def generate_execution_plan(
         ExecutionPlan,
         [
             SystemMessage(content=_PLANNING_SYSTEM_PROMPT),
-            HumanMessage(content=json.dumps(payload, indent=2)),
+            HumanMessage(content=compact_json(payload)),
         ],
     )
     return normalize_execution_plan(plan)
