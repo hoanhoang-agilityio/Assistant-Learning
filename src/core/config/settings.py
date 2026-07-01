@@ -49,8 +49,16 @@ class Settings(BaseSettings):
 
     # Research Agent
     research_max_search_iterations: int = 3
+    research_max_total_searches: int = 5
     research_extract_top_k: int = 8
     research_trusted_domains: str = ""
+
+    # Per-user AI rate limits (UTC day buckets)
+    rate_limit_enabled: bool = True
+    rate_limit_default_user_id: str = "anonymous"
+    rate_limit_daily_max_requests_per_user: int = 20
+    rate_limit_daily_max_tokens_per_user: int = 200_000
+    rate_limit_daily_max_cost_usd_per_user: float = 2.0
 
     # MCP research servers (JSON string → parsed in client setup)
     mcp_servers_json: str = "{}"
@@ -88,6 +96,15 @@ class Settings(BaseSettings):
     @field_validator("langfuse_tracing_enabled", mode="before")
     @classmethod
     def parse_langfuse_tracing_enabled(cls, value: object) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() not in {"0", "false", "no", "off"}
+        return True
+
+    @field_validator("rate_limit_enabled", mode="before")
+    @classmethod
+    def parse_rate_limit_enabled(cls, value: object) -> bool:
         if isinstance(value, bool):
             return value
         if isinstance(value, str):

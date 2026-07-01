@@ -91,7 +91,8 @@ def test_resume_run_persists_final_plan(api_client: TestClient, complete_profile
         json={"user_response": "approve", "approval_status": "approved"},
     )
     assert resumed.status_code == 200
-    payload = resumed.json()
+    assert resumed.json()["status"] == "running"
+    payload = _wait_for_settled(api_client, created["run_id"])
     assert payload["status"] == "completed"
     assert payload["current_node"] == "persist"
     assert payload["final_plan"] is not None

@@ -74,10 +74,25 @@ def resume_run(
     *,
     user_response: str,
     approval_status: str | None = None,
+    poll: bool = True,
+    timeout: float = DEFAULT_RUN_POLL_TIMEOUT,
+    interval: float = DEFAULT_POLL_INTERVAL,
+    on_progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {"user_response": user_response}
     if approval_status is not None:
         payload["approval_status"] = approval_status
     response = client.post(f"/runs/{run_id}/resume", json=payload)
     response.raise_for_status()
-    return response.json()
+    resumed = response.json()
+    if not poll:
+        return resumed
+    if resumed.get("status") != "running":
+        return resumed
+    return poll_run_until_settled(
+        client,
+        run_id,
+        timeout=timeout,
+        interval=interval,
+        on_progress=on_progress,
+    )

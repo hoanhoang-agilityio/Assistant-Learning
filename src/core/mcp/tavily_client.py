@@ -115,7 +115,10 @@ async def create_tavily_mcp_client(settings: Settings | None = None) -> TavilyMC
     search_tool = tools_by_name[search_tool_name]
     extract_tool = tools_by_name[extract_tool_name]
     return TavilyMCPClient(
-        search=lambda query: _invoke_tool(search_tool, {"query": query}),
+        search=lambda query: _invoke_tool(
+            search_tool,
+            {"query": query, "max_results": 5, "search_depth": "advanced"},
+        ),
         extract=lambda urls: _invoke_tool(extract_tool, {"urls": urls}),
     )
 

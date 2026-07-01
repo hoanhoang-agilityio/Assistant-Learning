@@ -1,29 +1,34 @@
-"""Welcome screen with suggestion chips."""
+"""Empty-state suggestions for new chats."""
 
 import streamlit as st
 
 SUGGESTIONS = [
     (
-        "Create a workout plan",
-        "I want a 4-day training plan to lose weight with strength training.",
+        "4-day fat loss plan",
+        "I want a 4-day training plan to lose weight with strength training. "
+        "27, male, 171 cm, 73 kg, goal 70 kg.",
     ),
-    ("Calculate calories", "Help me calculate my daily calorie needs for fat loss."),
-    ("Suggest meals", "Suggest high-protein meals that support muscle recovery."),
-    ("Improve endurance", "I want to improve my cardiovascular endurance over 8 weeks."),
+    (
+        "Daily calories",
+        "Help me calculate my daily calorie and protein needs for fat loss.",
+    ),
+    (
+        "High-protein meals",
+        "Suggest high-protein meals that support muscle recovery.",
+    ),
+    (
+        "Endurance block",
+        "I want to improve cardiovascular endurance over 8 weeks.",
+    ),
 ]
 
 
 def render_welcome() -> None:
     st.markdown(
-        """
-        <div class="welcome-panel">
-            <h2>Welcome to PT AI</h2>
-            <p>Your personal trainer for workouts, nutrition, and recovery.</p>
-        </div>
-        """,
+        '<p class="pt-empty-state">Describe your goal, stats, and constraints in one message. '
+        "PT AI will build a plan and ask for approval when ready.</p>",
         unsafe_allow_html=True,
     )
-    st.markdown('<p class="pt-suggestions-label">Try asking</p>', unsafe_allow_html=True)
     cols = st.columns(2)
     for index, (label, query) in enumerate(SUGGESTIONS):
         col = cols[index % 2]

@@ -7,7 +7,11 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from core.config.settings import get_settings
-from core.llm.factory import get_standard_llm, invoke_standard_structured_output
+from core.llm.factory import (
+    get_standard_llm,
+    invoke_bound_llm,
+    invoke_standard_structured_output,
+)
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.research.prompts import (
     EVALUATION_SYSTEM_PROMPT,
@@ -49,12 +53,20 @@ class _ResearchSession:
         self.sources: list[dict[str, Any]] = []
         self.evidence: list[dict[str, Any]] = []
         self.iterations: int = 0
+        self.search_count: int = 0
+        self.max_total_searches: int = get_settings().research_max_total_searches
 
     def add_sources(self, sources: list[dict[str, Any]]) -> None:
         self.sources.extend(sources)
 
     def add_evidence(self, evidence: list[dict[str, Any]]) -> None:
         self.evidence.extend(evidence)
+
+    def can_search(self) -> bool:
+        return self.search_count < self.max_total_searches
+
+    def record_search(self) -> None:
+        self.search_count += 1
 
 
 def _plan_search_queries(
@@ -98,7 +110,16 @@ def _execute_tool_call(
     session: _ResearchSession,
 ) -> str:
     if tool_name == "tavily_search":
+        if not session.can_search():
+            return json.dumps(
+                {
+                    "error": "search_budget_exhausted",
+                    "message": "Maximum Tavily search calls reached for this run.",
+                    "source_count": len(session.sources),
+                }
+            )
         search_query = str(tool_args.get("query", ""))
+        session.record_search()
         result = search_tavily_data(search_query)
         session.add_sources(result["sources"])
         return json.dumps(
@@ -132,6 +153,17 @@ def _execute_tool_call(
     return str(tool.invoke(tool_args))
 
 
+def _run_planned_searches(query_batch: SearchQueryBatch, session: _ResearchSession) -> None:
+    """Execute planned queries once, respecting the global search budget."""
+    for task_plan in query_batch.task_plans:
+        for search_query in task_plan.queries:
+            if not session.can_search():
+                return
+            session.record_search()
+            result = search_tavily_data(search_query)
+            session.add_sources(result["sources"])
+
+
 def _run_react_loop(
     *,
     query: str,
@@ -157,14 +189,21 @@ def _run_react_loop(
         HumanMessage(
             content=(
                 f"Research context:\n{json.dumps(context_payload, indent=2)}\n\n"
-                f"Planned queries:\n{_build_react_initial_message(query_batch)}"
+                "Planned queries (already searched):\n"
+                f"{_build_react_initial_message(query_batch)}\n\n"
+                "Use tavily_extract on the best URLs from collected sources. "
+                "Only call tavily_search for refined follow-up queries if evidence gaps remain."
             )
         ),
     ]
 
     for iteration in range(max_iterations):
         session.iterations = iteration + 1
-        response = llm.invoke(messages)
+        response = invoke_bound_llm(
+            llm,
+            messages,
+            model_name=settings.openai_standard_model,
+        )
         if not isinstance(response, AIMessage):
             break
 
@@ -186,23 +225,22 @@ def _run_react_loop(
                 )
             )
 
-        evaluation = _evaluate_evidence(
-            query=query,
-            profile=profile,
-            execution_plan=execution_plan,
-            sources=session.sources,
-            evidence=session.evidence,
-        )
-        if evaluation.sufficient:
+    evaluation = _evaluate_evidence(
+        query=query,
+        profile=profile,
+        execution_plan=execution_plan,
+        sources=session.sources,
+        evidence=session.evidence,
+    )
+    if evaluation.sufficient or not evaluation.refined_queries or not session.can_search():
+        return
+
+    for refined_query in evaluation.refined_queries:
+        if not session.can_search():
             break
-        if iteration + 1 >= max_iterations:
-            break
-        if evaluation.refined_queries:
-            refinement = "Evidence gaps identified. Run follow-up searches for:\n" + json.dumps(
-                {"gaps": evaluation.gaps, "refined_queries": evaluation.refined_queries},
-                indent=2,
-            )
-            messages.append(HumanMessage(content=refinement))
+        session.record_search()
+        result = search_tavily_data(refined_query)
+        session.add_sources(result["sources"])
 
 
 def _evaluate_evidence(
@@ -288,10 +326,7 @@ def run_research_agent(
         execution_plan=execution_plan,
     )
 
-    for task_plan in query_batch.task_plans:
-        for search_query in task_plan.queries:
-            result = search_tavily_data(search_query)
-            session.add_sources(result["sources"])
+    _run_planned_searches(query_batch, session)
 
     _run_react_loop(
         query=query,

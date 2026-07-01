@@ -90,6 +90,7 @@ def disable_langfuse_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "")
     monkeypatch.delenv("LANGFUSE_TRACING_ENABLED", raising=False)
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
     get_settings.cache_clear()
     reset_langfuse_client()
     yield

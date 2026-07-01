@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from core.llm.factory import get_standard_llm
+from core.llm.factory import invoke_standard_structured_output
 from core.profile.schema import ExtractedProfile
 
 ProfileExtractor = Callable[[str], ExtractedProfile]
@@ -39,10 +39,10 @@ def extract_profile_from_query(query: str) -> ExtractedProfile:
     """Extract structured profile fields from a user query via LLM structured output."""
     if _EXTRACTOR_OVERRIDE is not None:
         return _EXTRACTOR_OVERRIDE(query)
-    llm = get_standard_llm().with_structured_output(ExtractedProfile)
-    return llm.invoke(
+    return invoke_standard_structured_output(
+        ExtractedProfile,
         [
             SystemMessage(content=_EXTRACTION_SYSTEM_PROMPT),
             HumanMessage(content=query),
-        ]
+        ],
     )

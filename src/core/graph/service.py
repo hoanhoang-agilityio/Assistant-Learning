@@ -12,11 +12,17 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
 from core.agents.state import ApprovalStatus, OrchestrationState
+from core.config.settings import get_settings
 from core.graph.builder import build_graph
 from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.run import create_initial_state
 from core.observability.langfuse import build_graph_invoke_config, flush_langfuse
 from core.profile.labels import format_missing_profile_prompt
+from core.rate_limit import (
+    AIRateLimiter,
+    reset_rate_limit_user_id,
+    set_rate_limit_user_id,
+)
 from core.vfs import VFS
 
 logger = logging.getLogger(__name__)
@@ -54,9 +60,14 @@ class RunStatus:
 class RunOrchestrator:
     """Execute and resume orchestration runs via the compiled LangGraph."""
 
-    def __init__(self, checkpointer: BaseCheckpointSaver | None = None) -> None:
+    def __init__(
+        self,
+        checkpointer: BaseCheckpointSaver | None = None,
+        rate_limiter: AIRateLimiter | None = None,
+    ) -> None:
         self._checkpointer = checkpointer or create_memory_checkpointer()
         self._graph: CompiledStateGraph = build_graph(checkpointer=self._checkpointer)
+        self._rate_limiter = rate_limiter or AIRateLimiter()
         self._lock = threading.Lock()
         self._pending_runs: dict[str, dict[str, Any]] = {}
         self._run_failures: dict[str, dict[str, str]] = {}
@@ -72,14 +83,17 @@ class RunOrchestrator:
         user_profile: dict[str, Any] | None = None,
         constraints: dict[str, Any] | None = None,
         run_id: str | None = None,
+        user_id: str | None = None,
     ) -> RunStatus:
         resolved_run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
+        self._rate_limiter.reserve_request(user_id)
         state = create_initial_state(
             run_id=resolved_run_id,
             thread_id=resolved_run_id,
             query=query,
             user_profile=user_profile,
             constraints=constraints,
+            user_id=user_id,
         )
         config = build_graph_invoke_config(state)
         result = self._graph.invoke(state, config)
@@ -94,15 +108,18 @@ class RunOrchestrator:
         user_profile: dict[str, Any] | None = None,
         constraints: dict[str, Any] | None = None,
         run_id: str | None = None,
+        user_id: str | None = None,
     ) -> RunStatus:
         """Start a run in a background thread and return immediately."""
         resolved_run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
+        self._rate_limiter.reserve_request(user_id)
         state = create_initial_state(
             run_id=resolved_run_id,
             thread_id=resolved_run_id,
             query=query,
             user_profile=user_profile,
             constraints=constraints,
+            user_id=user_id,
         )
         config = build_graph_invoke_config(state)
         with self._lock:
@@ -160,10 +177,55 @@ class RunOrchestrator:
                 if key != "missing_fields"
             }
             update["user_profile"] = cleared_profile
-        result = self._graph.invoke(Command(update=update), config)
-        flush_langfuse()
-        next_snapshot = self._graph.get_state(config)
-        return self._to_status(run_id, result, next_snapshot.next)
+        return self.start_resume_run(run_id, update=update)
+
+    def start_resume_run(self, run_id: str, *, update: dict[str, Any]) -> RunStatus:
+        """Resume a HITL-paused run in a background thread and return immediately."""
+        config = self._build_config(run_id)
+        snapshot = self._graph.get_state(config)
+        if not snapshot.values:
+            raise RunNotFoundError(f"Run not found: {run_id}")
+        if snapshot.next != ("hitl",) and not snapshot.values.get("waiting_for_user"):
+            raise ValueError("Run is not waiting for HITL input")
+
+        with self._lock:
+            self._run_failures.pop(run_id, None)
+            self._pending_runs[run_id] = {**snapshot.values, **update}
+
+        thread = threading.Thread(
+            target=self._execute_resume_run,
+            args=(run_id, update, config),
+            daemon=True,
+            name=f"resume-{run_id}",
+        )
+        thread.start()
+        resumed_state = {**snapshot.values, **update, "waiting_for_user": False}
+        return self._to_status(run_id, resumed_state, ("supervisor",))
+
+    def _execute_resume_run(
+        self,
+        run_id: str,
+        update: dict[str, Any],
+        config: dict[str, Any],
+    ) -> None:
+        snapshot = self._graph.get_state(config)
+        user_id = str(snapshot.values.get("user_id", ""))
+        context_token = set_rate_limit_user_id(user_id or None)
+        try:
+            self._graph.invoke(Command(update=update), config)
+            flush_langfuse()
+        except Exception as exc:
+            logger.exception("Resume for run %s failed", run_id)
+            with self._lock:
+                snapshot = self._graph.get_state(config)
+                self._run_failures[run_id] = {
+                    "error": str(exc),
+                    "query": str(snapshot.values.get("query", "")),
+                }
+        finally:
+            reset_rate_limit_user_id(context_token)
+            with self._lock:
+                self._pending_runs.pop(run_id, None)
 
     def _execute_create_run(
         self,
@@ -171,6 +233,7 @@ class RunOrchestrator:
         config: dict[str, Any],
         run_id: str,
     ) -> None:
+        context_token = set_rate_limit_user_id(str(state.get("user_id", "")) or None)
         try:
             self._graph.invoke(state, config)
             flush_langfuse()
@@ -182,6 +245,7 @@ class RunOrchestrator:
                     "query": str(state.get("query", "")),
                 }
         finally:
+            reset_rate_limit_user_id(context_token)
             with self._lock:
                 self._pending_runs.pop(run_id, None)
 
@@ -232,6 +296,7 @@ class RunOrchestrator:
             OrchestrationState(
                 run_id=run_id,
                 thread_id=run_id,
+                user_id=get_settings().rate_limit_default_user_id,
                 current_node="supervisor",
                 query="",
                 user_profile={},
@@ -264,7 +329,7 @@ class RunOrchestrator:
             run_id=run_id,
             thread_id=str(state.get("thread_id", run_id)),
             status=lifecycle,
-            current_node=str(state.get("current_node", "supervisor")),
+            current_node=_resolve_display_node(state, next_nodes, lifecycle),
             query=str(state.get("query", "")),
             waiting_for_user=bool(state.get("waiting_for_user")),
             approval_status=state.get("approval_status"),
@@ -279,6 +344,22 @@ class RunOrchestrator:
             next_nodes=next_nodes,
             error_message=None,
         )
+
+
+def _resolve_display_node(
+    state: dict[str, Any],
+    next_nodes: tuple[str, ...],
+    lifecycle: RunLifecycleStatus,
+) -> str:
+    """Return the node the UI should show as the active pipeline step.
+
+    While a run is in flight, LangGraph checkpoints only update when a node
+    finishes, so ``state["current_node"]`` lags behind the subgraph that is
+    actually executing. Prefer ``next_nodes[0]`` in that case.
+    """
+    if lifecycle == "running" and next_nodes:
+        return next_nodes[0]
+    return str(state.get("current_node", "supervisor"))
 
 
 def _resolve_lifecycle_status(

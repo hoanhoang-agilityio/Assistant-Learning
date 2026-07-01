@@ -1,6 +1,7 @@
 """Research subgraph utilities: MCP adapters, VFS I/O, and post-processing."""
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,7 @@ from core.mcp.tavily_client import (
     TAVILY_SEARCH_TOOL,
     get_tavily_client,
 )
-from core.observability.tracing import tavily_mcp_span_context
+from core.observability.tracing import traced_tavily_call
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.planning.utils import (
     execution_plan_to_todo_strings,
@@ -21,6 +22,8 @@ from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.schema import ResearchFindings
 from core.subgraphs.research.verification import verify_sources_data
 from core.vfs import VFS
+
+logger = logging.getLogger(__name__)
 
 
 class ResearchTodosGateError(ValueError):
@@ -83,9 +86,21 @@ def normalize_search_results(raw_result: dict[str, Any], query: str) -> list[dic
 def search_tavily_data(query: str) -> dict[str, Any]:
     """Run a single Tavily search query and return normalized sources."""
     client = get_tavily_client()
-    with tavily_mcp_span_context(TAVILY_SEARCH_TOOL, input_data={"query": query}):
+    with traced_tavily_call(TAVILY_SEARCH_TOOL, input_data={"query": query}) as span:
         search_result = client.search(query)
-    return {"sources": normalize_search_results(search_result, query), "query": query}
+        sources = normalize_search_results(search_result, query)
+        if span is not None:
+            raw_keys = sorted(search_result.keys()) if isinstance(search_result, dict) else []
+            span.update(
+                output={
+                    "source_count": len(sources),
+                    "sources": sources[:5],
+                    "raw_keys": raw_keys,
+                }
+            )
+        if not sources:
+            logger.warning("Tavily search returned no sources for query: %s", query[:120])
+    return {"sources": sources, "query": query}
 
 
 def normalize_extract_results(raw_result: dict[str, Any]) -> list[dict[str, Any]]:
@@ -115,9 +130,22 @@ def extract_tavily_data(urls: list[str]) -> dict[str, Any]:
         return {"evidence": []}
 
     client = get_tavily_client()
-    with tavily_mcp_span_context(TAVILY_EXTRACT_TOOL, input_data={"urls": cleaned_urls}):
+    with traced_tavily_call(TAVILY_EXTRACT_TOOL, input_data={"urls": cleaned_urls}) as span:
         extract_result = client.extract(cleaned_urls)
-    return {"evidence": normalize_extract_results(extract_result)}
+        evidence = normalize_extract_results(extract_result)
+        if span is not None:
+            span.update(
+                output={
+                    "document_count": len(evidence),
+                    "urls": cleaned_urls,
+                    "raw_keys": sorted(extract_result.keys())
+                    if isinstance(extract_result, dict)
+                    else [],
+                }
+            )
+        if not evidence:
+            logger.warning("Tavily extract returned no documents for urls: %s", cleaned_urls)
+    return {"evidence": evidence}
 
 
 def dedupe_sources_by_url(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
