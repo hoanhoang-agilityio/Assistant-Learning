@@ -3,6 +3,14 @@ import re
 from pathlib import Path
 from typing import Any
 
+from core.subgraphs.fitness.schema import (
+    SafetyResult,
+    StructuredWorkout,
+    WorkoutDay,
+    WorkoutExercise,
+)
+from core.subgraphs.planning.schema import ExecutionPlan
+from core.subgraphs.planning.utils import has_execution_plan, load_execution_plan
 from core.vfs import VFS
 
 ACTIVITY_MULTIPLIERS = {
@@ -21,21 +29,47 @@ MAX_CALORIES = 4500
 MAX_PROTEIN_G_PER_KG = 3.0
 MAX_TRAINING_DAYS = 6
 MAX_WEEKLY_SETS = 120
+MIN_EXERCISE_SETS = 1
+MAX_EXERCISE_SETS = 10
+
+BODYWEIGHT_GYM_KEYWORDS = (
+    "barbell",
+    "smith machine",
+    "cable",
+    "leg press",
+    "lat pulldown",
+    "machine",
+    "rack",
+)
+
+HOME_GYM_KEYWORDS = (
+    "cable machine",
+    "leg press",
+    "smith machine",
+    "lat pulldown",
+    "hack squat",
+)
 
 
 def load_fitness_context(workspace_path: str) -> dict[str, Any]:
     vfs = VFS.for_run(Path(workspace_path))
     profile: dict[str, Any] = {}
     evidence_summary: str | None = None
+    structured_findings: dict[str, Any] | None = None
     verification_feedback: str | None = None
+    execution_plan: dict[str, Any] = {}
 
     if vfs.exists("plan/profile.json"):
         profile = json.loads(vfs.read("plan/profile.json"))
+
+    if has_execution_plan(workspace_path):
+        execution_plan = load_execution_plan(workspace_path).model_dump()
 
     if vfs.exists("research/findings.json"):
         findings = json.loads(vfs.read("research/findings.json"))
         structured = findings.get("structured_findings")
         if isinstance(structured, dict) and structured.get("consensus"):
+            structured_findings = structured
             evidence_summary = _format_structured_evidence_summary(structured)
         else:
             evidence_summary = findings.get("evidence_summary")
@@ -46,6 +80,8 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
 
     return {
         "profile": profile,
+        "execution_plan": execution_plan,
+        "structured_findings": structured_findings,
         "evidence_summary": evidence_summary,
         "verification_feedback": verification_feedback,
     }
@@ -151,127 +187,147 @@ def _parse_training_days(
     return 3
 
 
-def _session_templates(days_per_week: int, goal: str) -> list[dict[str, Any]]:
-    if days_per_week <= 3:
-        focus = "hypertrophy" if goal in {"muscle_gain", "strength"} else "fat_loss conditioning"
-        return [
-            {
-                "day": index + 1,
-                "name": f"Full Body {index + 1}",
-                "focus": focus,
-                "exercises": [
-                    {"name": "Squat", "sets": 3, "reps": "6-10"},
-                    {"name": "Bench Press", "sets": 3, "reps": "6-10"},
-                    {"name": "Romanian Deadlift", "sets": 3, "reps": "8-12"},
-                    {"name": "Lat Pulldown", "sets": 3, "reps": "10-12"},
-                ],
-            }
-            for index in range(days_per_week)
-        ]
-
-    if days_per_week == 4:
-        blocks = [
-            ("Upper A", "upper body strength"),
-            ("Lower A", "lower body strength"),
-            ("Upper B", "upper body hypertrophy"),
-            ("Lower B", "lower body hypertrophy"),
-        ]
-    else:
-        blocks = [
-            ("Push", "pressing muscles"),
-            ("Pull", "back and biceps"),
-            ("Legs", "quads, hamstrings, glutes"),
-            ("Upper", "upper body volume"),
-            ("Lower", "lower body volume"),
-        ]
-
-    sessions: list[dict[str, Any]] = []
-    for index in range(days_per_week):
-        name, focus = blocks[index % len(blocks)]
-        sessions.append(
-            {
-                "day": index + 1,
-                "name": name,
-                "focus": focus,
-                "exercises": [
-                    {"name": "Compound Lift", "sets": 4, "reps": "5-8"},
-                    {"name": "Accessory 1", "sets": 3, "reps": "8-12"},
-                    {"name": "Accessory 2", "sets": 3, "reps": "10-15"},
-                ],
-            }
-        )
-    return sessions
+def compute_weekly_sets(structured_workout: dict[str, Any]) -> int:
+    """Sum exercise sets across all days in a structured workout."""
+    return sum(
+        int(exercise["sets"])
+        for day in structured_workout.get("days", [])
+        for exercise in day.get("exercises", [])
+    )
 
 
-def build_training_plan_data(
-    profile: dict[str, Any],
-    macro_targets: dict[str, Any],
-    training_constraints: dict[str, Any],
-    evidence_summary: str | None,
-) -> dict[str, Any]:
-    del profile
-    days_per_week = int(training_constraints["days_per_week"])
-    goal = str(training_constraints["goal"])
-    sessions = _session_templates(days_per_week, goal)
-    training_plan = {
-        "split": f"{days_per_week}-day",
-        "goal": goal,
-        "sessions": sessions,
-        "weekly_sets": sum(
-            exercise["sets"] for session in sessions for exercise in session["exercises"]
-        ),
-        "evidence_summary": evidence_summary,
-    }
-    return {"training_plan": training_plan}
-
-
-def detect_safety_flags_data(
-    profile: dict[str, Any],
-    macro_targets: dict[str, Any],
-    training_plan: dict[str, Any],
-) -> dict[str, Any]:
-    flags: list[str] = []
+def _check_macro_safety(profile: dict[str, Any], macro_targets: dict[str, Any]) -> list[str]:
+    feedback: list[str] = []
     calories = float(macro_targets["calories"])
     tdee = float(macro_targets["tdee"])
     weight_kg = float(profile["current_weight_kg"])
     protein_g = float(macro_targets["protein_g"])
-    days_per_week = len(training_plan.get("sessions", []))
-    weekly_sets = int(training_plan.get("weekly_sets", 0))
 
     if calories < _minimum_calories(profile):
-        flags.append("calories_below_safe_minimum")
+        feedback.append("calories_below_safe_minimum")
     if calories > MAX_CALORIES:
-        flags.append("calories_above_recommended_maximum")
+        feedback.append("calories_above_recommended_maximum")
     if tdee > 0 and calories < tdee * 0.75:
-        flags.append("aggressive_calorie_deficit")
+        feedback.append("aggressive_calorie_deficit")
     if protein_g / weight_kg > MAX_PROTEIN_G_PER_KG:
-        flags.append("protein_intake_too_high")
-    if days_per_week > MAX_TRAINING_DAYS:
-        flags.append("training_frequency_too_high")
-    if weekly_sets > MAX_WEEKLY_SETS:
-        flags.append("weekly_training_volume_too_high")
+        feedback.append("protein_intake_too_high")
+    return feedback
 
-    return {"safety_flags": sorted(set(flags))}
+
+def _check_equipment_mismatch(
+    exercise_name: str,
+    equipment: str,
+) -> str | None:
+    name_lower = exercise_name.lower()
+    if equipment == "bodyweight":
+        for keyword in BODYWEIGHT_GYM_KEYWORDS:
+            if keyword in name_lower:
+                return f"equipment_mismatch:bodyweight:{exercise_name}"
+    if equipment == "home":
+        for keyword in HOME_GYM_KEYWORDS:
+            if keyword in name_lower:
+                return f"equipment_mismatch:home:{exercise_name}"
+    return None
+
+
+def validate_workout_safety_data(
+    profile: dict[str, Any],
+    macro_targets: dict[str, Any],
+    training_constraints: dict[str, Any],
+    structured_workout: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Validate macro targets and LLM workout output with deterministic rules."""
+    feedback: list[str] = _check_macro_safety(profile, macro_targets)
+
+    if structured_workout is None:
+        feedback.append("missing_structured_workout")
+        return SafetyResult(passed=False, feedback=sorted(set(feedback))).model_dump()
+
+    try:
+        workout = StructuredWorkout.model_validate(structured_workout)
+    except Exception:
+        feedback.append("invalid_workout_schema")
+        return SafetyResult(passed=False, feedback=sorted(set(feedback))).model_dump()
+
+    expected_days = int(training_constraints["days_per_week"])
+    actual_days = len(workout.days)
+    equipment = str(training_constraints.get("equipment", "gym"))
+
+    if actual_days != expected_days:
+        feedback.append(f"training_day_count_mismatch:expected_{expected_days}_got_{actual_days}")
+    if actual_days > MAX_TRAINING_DAYS:
+        feedback.append("training_frequency_too_high")
+
+    computed_sets = compute_weekly_sets(structured_workout)
+    if workout.weekly_sets != computed_sets:
+        feedback.append(
+            f"weekly_sets_mismatch:declared_{workout.weekly_sets}_computed_{computed_sets}"
+        )
+    if workout.weekly_sets > MAX_WEEKLY_SETS or computed_sets > MAX_WEEKLY_SETS:
+        feedback.append("weekly_training_volume_too_high")
+
+    for day in workout.days:
+        seen_in_day: dict[str, int] = {}
+        if not day.exercises:
+            feedback.append(f"empty_exercises:{day.name}")
+        for exercise in day.exercises:
+            if exercise.sets < MIN_EXERCISE_SETS or exercise.sets > MAX_EXERCISE_SETS:
+                feedback.append(f"invalid_set_count:{exercise.name}:{exercise.sets}")
+            normalized_name = exercise.name.strip().lower()
+            seen_in_day[normalized_name] = seen_in_day.get(normalized_name, 0) + 1
+            equipment_issue = _check_equipment_mismatch(exercise.name, equipment)
+            if equipment_issue:
+                feedback.append(equipment_issue)
+        for name, count in seen_in_day.items():
+            if count > 1:
+                feedback.append(f"duplicate_exercise:{day.name}:{name}")
+
+    unique_feedback = sorted(set(feedback))
+    return SafetyResult(passed=not unique_feedback, feedback=unique_feedback).model_dump()
 
 
 def synthesize_plan_data(
     macro_targets: dict[str, Any],
-    training_plan: dict[str, Any],
+    structured_workout: dict[str, Any] | None,
     evidence_summary: str | None,
     verification_feedback: str | None,
-    safety_flags: list[str],
+    safety_result: dict[str, Any],
 ) -> dict[str, Any]:
-    sessions_markdown = []
-    for session in training_plan["sessions"]:
+    if structured_workout is None:
+        return {"draft_plan": "# Fitness Plan Draft\n\nWorkout plan unavailable.\n"}
+
+    days_markdown: list[str] = []
+    for index, day in enumerate(structured_workout.get("days", []), start=1):
         exercise_lines = "\n".join(
             f"  - {exercise['name']}: {exercise['sets']} x {exercise['reps']}"
-            for exercise in session["exercises"]
+            for exercise in day.get("exercises", [])
         )
-        sessions_markdown.append(
-            f"### Day {session['day']} — {session['name']}\n"
-            f"Focus: {session['focus']}\n"
-            f"{exercise_lines}"
+        days_markdown.append(
+            f"### Day {index} — {day['name']}\nFocus: {day['focus']}\n{exercise_lines}"
         )
+
+    progression = structured_workout.get("progression")
+    progression_section = ""
+    if progression:
+        progression_section = f"\n## Progression\n\n{progression}\n"
+
+    substitutions = structured_workout.get("substitutions") or []
+    substitutions_section = ""
+    if substitutions:
+        sub_lines = "\n".join(f"- {item}" for item in substitutions)
+        substitutions_section = f"\n## Substitutions\n\n{sub_lines}\n"
+
+    notes = structured_workout.get("notes") or []
+    notes_section = ""
+    if notes:
+        note_lines = "\n".join(f"- {note}" for note in notes)
+        notes_section = f"\n## Notes\n\n{note_lines}\n"
+
+    evidence_applied = structured_workout.get("evidence_applied") or []
+    evidence_applied_section = ""
+    if evidence_applied:
+        applied_lines = "\n".join(f"- {item}" for item in evidence_applied)
+        evidence_applied_section = f"\n## Evidence Applied\n\n{applied_lines}\n"
 
     feedback_section = ""
     if verification_feedback:
@@ -282,9 +338,10 @@ def synthesize_plan_data(
         evidence_section = f"\n## Evidence Summary\n\n{evidence_summary}\n"
 
     safety_section = ""
-    if safety_flags:
-        safety_lines = "\n".join(f"- {flag}" for flag in safety_flags)
-        safety_section = f"\n## Safety Flags\n\n{safety_lines}\n"
+    safety_feedback = safety_result.get("feedback") or []
+    if safety_feedback:
+        safety_lines = "\n".join(f"- {item}" for item in safety_feedback)
+        safety_section = f"\n## Safety Warnings\n\n{safety_lines}\n"
 
     draft_plan = (
         "# Fitness Plan Draft\n\n"
@@ -294,8 +351,12 @@ def synthesize_plan_data(
         f"- Carbs: {macro_targets['carbs_g']} g\n"
         f"- Fat: {macro_targets['fat_g']} g\n\n"
         "## Training Plan\n\n"
-        f"Split: {training_plan['split']} ({training_plan['goal']})\n\n"
-        f"{chr(10).join(sessions_markdown)}"
+        f"Split: {structured_workout['split']} ({structured_workout['goal']})\n\n"
+        f"{chr(10).join(days_markdown)}"
+        f"{progression_section}"
+        f"{substitutions_section}"
+        f"{notes_section}"
+        f"{evidence_applied_section}"
         f"{evidence_section}"
         f"{feedback_section}"
         f"{safety_section}"
@@ -303,23 +364,79 @@ def synthesize_plan_data(
     return {"draft_plan": draft_plan}
 
 
+def build_workout_summary(structured_workout: dict[str, Any]) -> dict[str, Any]:
+    """Derive a compact workout summary for downstream verification."""
+    return {
+        "split": structured_workout["split"],
+        "goal": structured_workout["goal"],
+        "weekly_sets": structured_workout["weekly_sets"],
+        "sessions": len(structured_workout.get("days", [])),
+    }
+
+
 def write_fitness_artifacts(
     workspace_path: str,
     macro_targets: dict[str, Any],
-    training_plan: dict[str, Any],
+    structured_workout: dict[str, Any],
     draft_plan: str,
-    safety_flags: list[str],
+    safety_result: dict[str, Any],
 ) -> None:
     vfs = VFS.for_run(Path(workspace_path))
+    workout_summary = build_workout_summary(structured_workout)
     calculations = {
         "macro_targets": macro_targets,
-        "training_plan_summary": {
-            "split": training_plan["split"],
-            "goal": training_plan["goal"],
-            "weekly_sets": training_plan["weekly_sets"],
-            "sessions": len(training_plan["sessions"]),
-        },
+        "workout_summary": workout_summary,
+        "training_plan_summary": workout_summary,
     }
+    vfs.write("fitness/workout.json", json.dumps(structured_workout, indent=2))
     vfs.write("fitness/calculations.json", json.dumps(calculations, indent=2))
-    vfs.write("fitness/safety_flags.json", json.dumps(safety_flags, indent=2))
+    safety_feedback = safety_result.get("feedback") or []
+    vfs.write("fitness/safety_flags.json", json.dumps(safety_feedback, indent=2))
     vfs.write("fitness/final_plan.md", draft_plan)
+
+
+def default_execution_plan_for_fitness(execution_plan: dict[str, Any]) -> ExecutionPlan:
+    """Return a valid execution plan, using a minimal fallback when VFS plan is absent."""
+    if execution_plan:
+        return ExecutionPlan.model_validate(execution_plan)
+    from core.subgraphs.planning.utils import build_default_execution_plan
+
+    return build_default_execution_plan()
+
+
+def build_default_structured_workout(
+    profile: dict[str, Any] | None = None,
+    constraints: dict[str, Any] | None = None,
+) -> StructuredWorkout:
+    """Build a deterministic fallback structured workout for tests and benchmarks."""
+    resolved_profile = profile or {}
+    resolved_constraints = constraints or {}
+    goal = str(resolved_profile.get("goal", "general_fitness"))
+    days_per_week = int(
+        resolved_constraints.get("days_per_week") or resolved_profile.get("days_per_week") or 3
+    )
+    exercise_models = [
+        WorkoutExercise(name="Goblet Squat", sets=3, reps="8-10"),
+        WorkoutExercise(name="Push-up", sets=3, reps="8-12"),
+        WorkoutExercise(name="Romanian Deadlift", sets=3, reps="8-12"),
+        WorkoutExercise(name="Row", sets=3, reps="10-12"),
+    ]
+    weekly_sets = days_per_week * sum(exercise.sets for exercise in exercise_models)
+    days = [
+        WorkoutDay(
+            name=f"Day {index + 1}",
+            focus="full body",
+            exercises=exercise_models,
+        )
+        for index in range(days_per_week)
+    ]
+    return StructuredWorkout(
+        split=f"{days_per_week}-day",
+        goal=goal,
+        days=days,
+        weekly_sets=weekly_sets,
+        progression="Add 2.5-5 kg or 1-2 reps when all sets hit the top of the rep range.",
+        substitutions=["Swap barbell movements for dumbbells when equipment is limited."],
+        notes=["Default deterministic workout for tests and benchmarks."],
+        evidence_applied=["Applied general hypertrophy volume guidance."],
+    )
