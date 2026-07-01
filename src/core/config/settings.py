@@ -49,6 +49,7 @@ class Settings(BaseSettings):
 
     # Research Agent
     research_max_search_iterations: int = 3
+    research_max_total_searches: int = 5
     research_extract_top_k: int = 8
     research_trusted_domains: str = ""
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from contextlib import AbstractContextManager, nullcontext
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar, Token
 from typing import Any
 
@@ -93,3 +93,14 @@ def tavily_mcp_span_context(
     if run_id is None:
         return nullcontext()
     return tavily_tool_span_context(run_id, tool_name, input_data=input_data)
+
+
+@contextmanager
+def traced_tavily_call(
+    tool_name: str,
+    *,
+    input_data: dict[str, Any] | None = None,
+) -> Iterator[Any]:
+    """Open a Tavily span and allow callers to attach output before it closes."""
+    with tavily_mcp_span_context(tool_name, input_data=input_data) as span:
+        yield span
