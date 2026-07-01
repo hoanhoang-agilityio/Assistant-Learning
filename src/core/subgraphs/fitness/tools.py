@@ -1,7 +1,6 @@
 from langchain_core.tools import BaseTool, tool
 
 from core.subgraphs.fitness.utils import (
-    build_training_plan_data,
     calculate_macros_data,
     synthesize_plan_data,
 )
@@ -14,41 +13,24 @@ def calculate_macros(profile: dict, constraints: dict) -> dict:
 
 
 @tool
-def build_training_plan(
-    profile: dict,
-    macro_targets: dict,
-    training_constraints: dict,
-    evidence_summary: str | None,
-) -> dict:
-    """Build structured training plan from profile, macros, and evidence."""
-    return build_training_plan_data(
-        profile=profile,
-        macro_targets=macro_targets,
-        training_constraints=training_constraints,
-        evidence_summary=evidence_summary,
-    )
-
-
-@tool
 def synthesize_plan(
     macro_targets: dict,
-    training_plan: dict,
+    structured_workout: dict | None,
     evidence_summary: str | None,
     verification_feedback: str | None,
-    safety_flags: list[str],
+    safety_result: dict,
 ) -> dict:
-    """Synthesize draft fitness plan markdown from macros and training plan."""
+    """Synthesize draft fitness plan markdown from macros and structured workout."""
     return synthesize_plan_data(
         macro_targets=macro_targets,
-        training_plan=training_plan,
+        structured_workout=structured_workout,
         evidence_summary=evidence_summary,
         verification_feedback=verification_feedback,
-        safety_flags=safety_flags,
+        safety_result=safety_result,
     )
 
 
 FITNESS_TOOLS: list[BaseTool] = [
     calculate_macros,
-    build_training_plan,
     synthesize_plan,
 ]

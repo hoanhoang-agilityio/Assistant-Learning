@@ -95,13 +95,17 @@ def verification_state(
         workspace_path=initial["workspace_path"],
         profile=complete_profile,
         constraints={"days_per_week": 3, "equipment": "gym"},
+        execution_plan={},
+        structured_findings=None,
         evidence_summary="hypertrophy training evidence collected",
         verification_feedback=None,
         macro_targets={},
         training_constraints={},
-        training_plan=None,
+        structured_workout=None,
+        safety_result={"passed": False, "feedback": []},
+        planner_feedback=[],
+        planner_attempts=0,
         draft_plan=None,
-        safety_flags=[],
     )
     build_fitness_subgraph().invoke(fitness_state)
 

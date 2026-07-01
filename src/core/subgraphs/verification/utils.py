@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from core.subgraphs.fitness.utils import build_workout_summary
 from core.vfs import VFS
 
 FAITHFULNESS_PASS_THRESHOLD = 0.90
@@ -32,10 +33,16 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
     if vfs.exists("research/findings.json"):
         findings = json.loads(vfs.read("research/findings.json"))
         evidence = findings.get("evidence", [])
+    if vfs.exists("fitness/workout.json"):
+        structured_workout = json.loads(vfs.read("fitness/workout.json"))
+        training_plan = build_workout_summary(structured_workout)
     if vfs.exists("fitness/calculations.json"):
         calculations = json.loads(vfs.read("fitness/calculations.json"))
         macro_targets = calculations.get("macro_targets", {})
-        training_plan = calculations.get("training_plan_summary", {})
+        if not training_plan:
+            training_plan = calculations.get("workout_summary") or calculations.get(
+                "training_plan_summary", {}
+            )
     if vfs.exists("plan/profile.json"):
         profile = json.loads(vfs.read("plan/profile.json"))
     if vfs.exists("fitness/safety_flags.json"):
