@@ -45,9 +45,8 @@ def read_global_state(state: OrchestrationState) -> dict:
 
 
 @tool
-def classify_request(query: str, user_profile: dict, constraints: dict) -> dict:
+def classify_request(query: str) -> dict:
     """Classify request into request_type and affected_domains."""
-    del user_profile, constraints
     query_lower = query.lower()
     request_type: RequestType = "general_fitness"
 
@@ -60,17 +59,6 @@ def classify_request(query: str, user_profile: dict, constraints: dict) -> dict:
         "request_type": request_type,
         "affected_domains": list(DEFAULT_AFFECTED_DOMAINS),
     }
-
-
-@tool
-def route_subgraph(
-    route_decision: str | None,
-    affected_domains: list[str],
-    current_node: str,
-) -> dict:
-    """Dispatch execution to the next subgraph node."""
-    del route_decision, affected_domains, current_node
-    return {}
 
 
 @tool
@@ -106,7 +94,6 @@ def persist_trigger(
 SUPERVISOR_TOOLS: list[BaseTool] = [
     read_global_state,
     classify_request,
-    route_subgraph,
     partial_rerun_decision,
     hitl_control,
     persist_trigger,

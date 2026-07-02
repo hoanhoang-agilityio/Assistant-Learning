@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from core.agents.state import OrchestrationState
 from core.agents.supervisor_log import append_supervisor_decision, load_verification_report
-from core.agents.tools import classify_request, partial_rerun_decision, route_subgraph
+from core.agents.tools import classify_request, partial_rerun_decision
 
 
 def supervisor_node(state: OrchestrationState) -> dict:
@@ -13,8 +13,6 @@ def supervisor_node(state: OrchestrationState) -> dict:
         classification = classify_request.invoke(
             {
                 "query": state["query"],
-                "user_profile": state["user_profile"],
-                "constraints": state["constraints"],
             }
         )
         updates.update(classification)
@@ -42,14 +40,6 @@ def supervisor_node(state: OrchestrationState) -> dict:
 
     if route_decision == "COMPLETE" and merged_state["approval_status"] != "approved":
         updates["waiting_for_user"] = True
-
-    route_subgraph.invoke(
-        {
-            "route_decision": route_decision,
-            "affected_domains": merged_state["affected_domains"],
-            "current_node": merged_state["current_node"],
-        }
-    )
 
     return updates
 
