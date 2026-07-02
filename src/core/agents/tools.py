@@ -41,6 +41,9 @@ def read_global_state(state: OrchestrationState) -> dict:
         "approval_status": state["approval_status"],
         "workspace_path": state["workspace_path"],
         "final_artifact_path": state["final_artifact_path"],
+        "steps": state.get("steps") or [],
+        "approved_tools": state.get("approved_tools") or [],
+        "pending_tool": state.get("pending_tool"),
     }
 
 
