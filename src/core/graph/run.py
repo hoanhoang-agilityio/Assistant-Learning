@@ -39,4 +39,7 @@ def create_initial_state(
         user_response=None,
         workspace_path=str(workspace_path),
         final_artifact_path=None,
+        steps=[],
+        approved_tools=[],
+        pending_tool=None,
     )

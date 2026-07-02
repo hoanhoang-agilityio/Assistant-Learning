@@ -76,6 +76,24 @@ def test_get_run_status(api_client: TestClient, complete_profile: dict) -> None:
     assert response.json()["status"] == payload["status"] == "waiting_hitl"
 
 
+def test_resume_run_with_decision_type(api_client: TestClient, complete_profile: dict) -> None:
+    created = api_client.post(
+        "/runs",
+        json={
+            "query": "I want a 4-day fat loss strength plan.",
+            "user_profile": complete_profile,
+            "constraints": {"days_per_week": 4, "equipment": "gym"},
+        },
+    ).json()
+    _wait_for_settled(api_client, created["run_id"])
+    resumed = api_client.post(
+        f"/runs/{created['run_id']}/resume",
+        json={"decision_type": "approve"},
+    )
+    assert resumed.status_code == 200
+    assert resumed.json()["status"] == "running"
+
+
 def test_resume_run_persists_final_plan(api_client: TestClient, complete_profile: dict) -> None:
     created = api_client.post(
         "/runs",

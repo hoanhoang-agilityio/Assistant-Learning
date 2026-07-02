@@ -72,16 +72,29 @@ def resume_run(
     client: httpx.Client,
     run_id: str,
     *,
-    user_response: str,
+    user_response: str | None = None,
     approval_status: str | None = None,
+    decision_type: str | None = None,
+    message: str | None = None,
+    pending_tool: str | None = None,
     poll: bool = True,
     timeout: float = DEFAULT_RUN_POLL_TIMEOUT,
     interval: float = DEFAULT_POLL_INTERVAL,
     on_progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    payload: dict[str, Any] = {"user_response": user_response}
+    payload: dict[str, Any] = {}
+    if decision_type is not None:
+        payload["decision_type"] = decision_type
+        if message is not None:
+            payload["message"] = message
+    elif user_response is not None:
+        payload["user_response"] = user_response
+    else:
+        raise ValueError("user_response or decision_type is required")
     if approval_status is not None:
         payload["approval_status"] = approval_status
+    if pending_tool is not None:
+        payload["pending_tool"] = pending_tool
     response = client.post(f"/runs/{run_id}/resume", json=payload)
     response.raise_for_status()
     resumed = response.json()

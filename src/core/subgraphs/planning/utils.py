@@ -36,6 +36,13 @@ def _should_skip_profile_extraction(
     return not validate_profile_data(candidate)["requires_hitl"]
 
 
+def should_use_llm_profile_extraction(
+    user_profile: dict[str, Any], constraints: dict[str, Any]
+) -> bool:
+    """Return True when profile extraction will invoke the LLM extractor."""
+    return not _should_skip_profile_extraction(user_profile, constraints)
+
+
 def build_profile(
     query: str, user_profile: dict[str, Any], constraints: dict[str, Any]
 ) -> dict[str, Any]:

@@ -16,6 +16,7 @@ from core.subgraphs.verification.utils import (
     load_verification_context,
     write_verification_artifacts,
 )
+from core.subgraphs.wrapper import merge_subgraph_updates
 
 
 def _load_context_node(state: VerificationState) -> dict:
@@ -148,11 +149,23 @@ def invoke_verification_subgraph(state: OrchestrationState) -> dict:
     """Run the Verification subgraph and map results back to orchestration updates."""
     result = get_verification_subgraph().invoke(to_verification_state(state))
     report = result["verification_report"]
-    return {
-        "current_node": "verification",
-        "verification_passed": report["passed"],
-        "faithfulness_score": result["faithfulness_score"],
-    }
+    return merge_subgraph_updates(
+        state,
+        {
+            "current_node": "verification",
+            "verification_passed": report["passed"],
+            "faithfulness_score": result["faithfulness_score"],
+        },
+        subgraph="verification",
+        steps=[
+            "load_context",
+            "citation_check",
+            "consistency_check",
+            "safety_check",
+            "ragas_faithfulness",
+            "write_artifacts",
+        ],
+    )
 
 
 class VerificationGraph:

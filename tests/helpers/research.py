@@ -85,7 +85,7 @@ def default_research_agent_result(
     )
 
 
-def research_agent_override() -> ResearchAgentResult:
+def research_agent_override(**_kwargs: Any) -> ResearchAgentResult:
     """Deterministic override callable for configure_research_agent."""
     return default_research_agent_result()
 

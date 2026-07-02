@@ -15,3 +15,6 @@ class PlanningState(TypedDict):
     execution_plan: dict
     planning_output: str | None
     requires_hitl: bool
+    approved_tools: list[str]
+    used_llm_extraction: bool
+    requires_tool_approval: bool

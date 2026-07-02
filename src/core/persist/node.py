@@ -2,6 +2,7 @@ from core.agents.state import OrchestrationState
 from core.agents.supervisor_log import load_verification_report
 from core.persist.tools import save_artifacts, save_metrics, save_run
 from core.persist.utils import persist_trigger_data, write_metrics_artifact
+from core.subgraphs.wrapper import merge_subgraph_updates
 
 
 def invoke_persist_node(state: OrchestrationState) -> dict:
@@ -12,11 +13,16 @@ def invoke_persist_node(state: OrchestrationState) -> dict:
         approval_status=state["approval_status"],
     )
     if not trigger["can_persist"]:
-        return {
-            "current_node": "persist",
-            "waiting_for_user": True,
-            "approval_status": state["approval_status"] or "pending",
-        }
+        return merge_subgraph_updates(
+            state,
+            {
+                "current_node": "persist",
+                "waiting_for_user": True,
+                "approval_status": state["approval_status"] or "pending",
+            },
+            subgraph="persist",
+            steps=["persist_trigger_blocked"],
+        )
 
     orchestration_snapshot = dict(state)
     save_run.invoke(
@@ -44,8 +50,13 @@ def invoke_persist_node(state: OrchestrationState) -> dict:
         }
     )
 
-    return {
-        "current_node": "persist",
-        "final_artifact_path": artifacts["final_artifact_path"],
-        "waiting_for_user": False,
-    }
+    return merge_subgraph_updates(
+        state,
+        {
+            "current_node": "persist",
+            "final_artifact_path": artifacts["final_artifact_path"],
+            "waiting_for_user": False,
+        },
+        subgraph="persist",
+        steps=["save_run", "save_metrics", "save_artifacts"],
+    )

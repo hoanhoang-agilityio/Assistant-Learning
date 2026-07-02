@@ -14,14 +14,19 @@ from core.subgraphs.fitness.graph import invoke_fitness_subgraph
 from core.subgraphs.planning.graph import invoke_planning_subgraph
 from core.subgraphs.research.graph import invoke_research_subgraph
 from core.subgraphs.verification.graph import invoke_verification_subgraph
+from core.subgraphs.wrapper import append_pipeline_steps
 
 
 def traced_supervisor_node(state: OrchestrationState) -> dict:
     with supervisor_span_context(state) as span:
         result = supervisor_node(state)
+        merged = {
+            **result,
+            "steps": append_pipeline_steps(state, "supervisor", ["route"]),
+        }
         if span is not None:
-            span.update(output=result)
-        return result
+            span.update(output=merged)
+        return merged
 
 
 planning_node = wrap_traced_subgraph_node("planning", invoke_planning_subgraph)

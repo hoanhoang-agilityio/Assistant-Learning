@@ -16,8 +16,23 @@ class CreateRunRequest(BaseModel):
 
 
 class ResumeRunRequest(BaseModel):
-    user_response: str = Field(min_length=1)
+    user_response: str | None = Field(
+        default=None,
+        description="Free-text user response (legacy). Prefer decision_type.",
+    )
     approval_status: ApprovalStatus | None = None
+    decision_type: Literal["approve", "reject", "revision"] | None = Field(
+        default=None,
+        description="Structured HITL decision. Use with message for reject/revision.",
+    )
+    message: str | None = Field(
+        default=None,
+        description="Required for reject/revision when using decision_type.",
+    )
+    pending_tool: str | None = Field(
+        default=None,
+        description="Tool name when resuming a per-tool approval interrupt.",
+    )
 
 
 class RunStatusResponse(BaseModel):
@@ -36,5 +51,7 @@ class RunStatusResponse(BaseModel):
     final_plan: str | None
     hitl_type: str | None
     hitl_message: str | None
+    steps: list[str]
+    pending_tool: str | None
     next_nodes: list[str]
     error_message: str | None = None

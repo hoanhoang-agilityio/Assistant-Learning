@@ -4,13 +4,21 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
+from core.hitl.tool_gate import evaluate_tool_interrupt
 from core.profile.labels import format_missing_profile_prompt
 from core.subgraphs.planning.state import PlanningState
 from core.subgraphs.planning.tools import extract_profile, generate_plan, validate_profile
-from core.subgraphs.planning.utils import profile_to_orchestration_updates
+from core.subgraphs.planning.utils import (
+    profile_to_orchestration_updates,
+    should_use_llm_profile_extraction,
+)
+from core.subgraphs.wrapper import merge_subgraph_updates
 
 
 def _extract_profile_node(state: PlanningState) -> dict:
+    used_llm_extraction = should_use_llm_profile_extraction(
+        state["user_profile"], state["constraints"]
+    )
     result = extract_profile.invoke(
         {
             "query": state["query"],
@@ -18,7 +26,43 @@ def _extract_profile_node(state: PlanningState) -> dict:
             "constraints": state["constraints"],
         }
     )
-    return {"profile": result["profile"]}
+    profile = result["profile"]
+    interrupt = evaluate_tool_interrupt(
+        "extract_profile",
+        used_sensitive_write=used_llm_extraction,
+        approved_tools=state.get("approved_tools") or [],
+        preview={
+            key: profile.get(key)
+            for key in ("age", "sex", "goal", "activity_level", "height_cm", "current_weight_kg")
+            if profile.get(key) is not None
+        },
+    )
+    if interrupt is not None:
+        return {
+            "profile": profile,
+            "used_llm_extraction": used_llm_extraction,
+            "requires_tool_approval": True,
+        }
+    return {
+        "profile": profile,
+        "used_llm_extraction": used_llm_extraction,
+        "requires_tool_approval": False,
+    }
+
+
+def _tool_approval_node(state: PlanningState) -> dict:
+    preview_fields = {
+        key: state["profile"].get(key)
+        for key in ("age", "sex", "goal", "activity_level", "height_cm", "current_weight_kg")
+        if state["profile"].get(key) is not None
+    }
+    return {
+        "requires_hitl": True,
+        "requires_tool_approval": True,
+        "planning_output": (
+            f"Review extracted profile fields before planning continues: {preview_fields}"
+        ),
+    }
 
 
 def _validate_profile_node(state: PlanningState) -> dict:
@@ -48,6 +92,12 @@ def _planning_hitl_node(state: PlanningState) -> dict:
     }
 
 
+def _route_after_extract(state: PlanningState) -> str:
+    if state["requires_tool_approval"]:
+        return "tool_approval"
+    return "validate_profile"
+
+
 def _route_after_validate(state: PlanningState) -> str:
     if state["missing_fields"]:
         return "planning_hitl"
@@ -58,11 +108,20 @@ def build_planning_subgraph() -> CompiledStateGraph:
     """Compile the Planning subgraph StateGraph."""
     graph = StateGraph(PlanningState)
     graph.add_node("extract_profile", _extract_profile_node)
+    graph.add_node("tool_approval", _tool_approval_node)
     graph.add_node("validate_profile", _validate_profile_node)
     graph.add_node("generate_plan", _generate_plan_node)
     graph.add_node("planning_hitl", _planning_hitl_node)
     graph.add_edge(START, "extract_profile")
-    graph.add_edge("extract_profile", "validate_profile")
+    graph.add_conditional_edges(
+        "extract_profile",
+        _route_after_extract,
+        {
+            "tool_approval": "tool_approval",
+            "validate_profile": "validate_profile",
+        },
+    )
+    graph.add_edge("tool_approval", END)
     graph.add_conditional_edges(
         "validate_profile",
         _route_after_validate,
@@ -94,7 +153,23 @@ def to_planning_state(state: OrchestrationState) -> PlanningState:
         execution_plan={},
         planning_output=None,
         requires_hitl=False,
+        approved_tools=list(state.get("approved_tools") or []),
+        used_llm_extraction=False,
+        requires_tool_approval=False,
     )
+
+
+def _planning_steps_from_result(result: dict) -> list[str]:
+    steps = ["extract_profile"]
+    if result.get("requires_tool_approval"):
+        steps.append("tool_approval")
+        return steps
+    steps.append("validate_profile")
+    if result.get("requires_hitl"):
+        steps.append("planning_hitl")
+        return steps
+    steps.append("generate_plan")
+    return steps
 
 
 def invoke_planning_subgraph(state: OrchestrationState) -> dict:
@@ -103,16 +178,28 @@ def invoke_planning_subgraph(state: OrchestrationState) -> dict:
     profile = result.get("profile", {})
     sync = profile_to_orchestration_updates(
         profile,
-        missing_fields=result.get("missing_fields") if result["requires_hitl"] else [],
+        missing_fields=result.get("missing_fields") if result.get("requires_hitl") else [],
     )
     updates: dict = {
         "current_node": "planning",
         "user_profile": sync["user_profile"],
         "constraints": {**state["constraints"], **sync["constraints"]},
     }
-    if result["requires_hitl"]:
+    if result.get("requires_tool_approval"):
+        updates.update(
+            {
+                "waiting_for_user": True,
+                "pending_tool": "extract_profile",
+            }
+        )
+    elif result.get("requires_hitl"):
         updates["waiting_for_user"] = True
-    return updates
+    return merge_subgraph_updates(
+        state,
+        updates,
+        subgraph="planning",
+        steps=_planning_steps_from_result(result),
+    )
 
 
 class PlanningGraph:

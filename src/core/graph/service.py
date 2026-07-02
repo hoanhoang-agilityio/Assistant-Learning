@@ -16,6 +16,7 @@ from core.config.settings import get_settings
 from core.graph.builder import build_graph
 from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.run import create_initial_state
+from core.hitl.resume import create_approval_decision, decision_to_resume_update
 from core.observability.langfuse import build_graph_invoke_config, flush_langfuse
 from core.profile.labels import format_missing_profile_prompt
 from core.rate_limit import (
@@ -53,6 +54,8 @@ class RunStatus:
     final_plan: str | None
     hitl_type: str | None
     hitl_message: str | None
+    steps: tuple[str, ...]
+    pending_tool: str | None
     next_nodes: tuple[str, ...]
     error_message: str | None = None
 
@@ -152,8 +155,12 @@ class RunOrchestrator:
         self,
         run_id: str,
         *,
-        user_response: str,
+        user_response: str | None = None,
         approval_status: ApprovalStatus | None = None,
+        decision_type: Literal["approve", "reject", "revision"] | None = None,
+        message: str | None = None,
+        pending_tool: str | None = None,
+        approved_tools: list[str] | None = None,
     ) -> RunStatus:
         config = self._build_config(run_id)
         snapshot = self._graph.get_state(config)
@@ -162,15 +169,40 @@ class RunOrchestrator:
         if snapshot.next != ("hitl",) and not snapshot.values.get("waiting_for_user"):
             raise ValueError("Run is not waiting for HITL input")
 
-        resolved_status = approval_status or _approval_from_response(user_response)
-        update: dict[str, Any] = {
-            "user_response": user_response,
-            "approval_status": resolved_status,
-            "waiting_for_user": False,
-        }
+        if decision_type is not None:
+            decision = create_approval_decision(
+                decision_type,
+                message,
+                pending_tool=pending_tool or snapshot.values.get("pending_tool"),
+                approved_tools=approved_tools or snapshot.values.get("approved_tools"),
+            )
+            update = decision_to_resume_update(decision)
+        else:
+            if not user_response:
+                raise ValueError("user_response or decision_type is required")
+            resolved_status = approval_status or _approval_from_response(user_response)
+            update = {
+                "user_response": user_response,
+                "approval_status": resolved_status,
+                "waiting_for_user": False,
+            }
+            if pending_tool and resolved_status == "approved":
+                merged_tools = list(snapshot.values.get("approved_tools") or [])
+                if pending_tool not in merged_tools:
+                    merged_tools.append(pending_tool)
+                update["approved_tools"] = merged_tools
+                update["pending_tool"] = None
+
         missing_fields = snapshot.values.get("user_profile", {}).get("missing_fields", [])
-        if missing_fields and resolved_status == "revision_requested":
-            update["query"] = f"{snapshot.values.get('query', '')}\n{user_response}".strip()
+        resolved_status = update.get("approval_status")
+        if (
+            missing_fields
+            and resolved_status == "revision_requested"
+            and update.get("user_response")
+        ):
+            update["query"] = (
+                f"{snapshot.values.get('query', '')}\n{update['user_response']}".strip()
+            )
             cleared_profile = {
                 key: value
                 for key, value in snapshot.values.get("user_profile", {}).items()
@@ -266,6 +298,8 @@ class RunOrchestrator:
             final_plan=None,
             hitl_type=None,
             hitl_message=None,
+            steps=(),
+            pending_tool=None,
             next_nodes=("supervisor",),
             error_message=None,
         )
@@ -287,6 +321,8 @@ class RunOrchestrator:
             final_plan=None,
             hitl_type=None,
             hitl_message=failure.get("error"),
+            steps=(),
+            pending_tool=None,
             next_nodes=(),
             error_message=failure.get("error"),
         )
@@ -313,6 +349,9 @@ class RunOrchestrator:
                 user_response=None,
                 workspace_path="",
                 final_artifact_path=None,
+                steps=[],
+                approved_tools=[],
+                pending_tool=None,
             )
         )
 
@@ -341,6 +380,8 @@ class RunOrchestrator:
             final_plan=final_plan,
             hitl_type=hitl_type,
             hitl_message=hitl_message,
+            steps=tuple(state.get("steps") or ()),
+            pending_tool=state.get("pending_tool"),
             next_nodes=next_nodes,
             error_message=None,
         )
@@ -414,6 +455,13 @@ def _resolve_hitl_context(
     missing_fields = state.get("user_profile", {}).get("missing_fields", [])
     if missing_fields:
         return "clarification", format_missing_profile_prompt(missing_fields)
+
+    pending_tool = state.get("pending_tool")
+    if pending_tool:
+        return (
+            "tool_approval",
+            state.get("hitl_message") or f"Approve sensitive tool execution: {pending_tool}",
+        )
 
     draft_plan = _read_final_plan(state)
     if draft_plan:

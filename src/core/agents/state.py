@@ -42,3 +42,7 @@ class OrchestrationState(TypedDict):
 
     workspace_path: str
     final_artifact_path: str | None
+
+    steps: list[str]
+    approved_tools: list[str]
+    pending_tool: str | None

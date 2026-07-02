@@ -19,6 +19,14 @@ def invoke_hitl_node(state: OrchestrationState) -> dict:
     if control.get("waiting_for_user") is False:
         return updates
 
+    pending_tool = state.get("pending_tool")
+    if pending_tool:
+        updates["hitl_type"] = "tool_approval"
+        updates["hitl_message"] = f"Approve sensitive tool execution: {pending_tool}"
+        updates["approval_status"] = state["approval_status"] or "pending"
+        updates["waiting_for_user"] = True
+        return updates
+
     if state["route_decision"] == "COMPLETE" or state["verification_passed"]:
         vfs = VFS.for_run(Path(state["workspace_path"]))
         draft_plan = ""
