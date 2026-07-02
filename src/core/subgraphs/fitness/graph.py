@@ -16,6 +16,7 @@ from core.subgraphs.fitness.utils import (
     write_fitness_artifacts,
 )
 from core.subgraphs.research.schema import ResearchFindings
+from core.subgraphs.wrapper import merge_subgraph_updates
 
 
 def _load_context_node(state: FitnessState) -> dict:
@@ -178,8 +179,22 @@ def to_fitness_state(state: OrchestrationState) -> FitnessState:
 
 def invoke_fitness_subgraph(state: OrchestrationState) -> dict:
     """Run the Fitness subgraph and map results back to orchestration updates."""
-    get_fitness_subgraph().invoke(to_fitness_state(state))
-    return {"current_node": "fitness"}
+    result = get_fitness_subgraph().invoke(to_fitness_state(state))
+    steps = [
+        "load_context",
+        "calculate_macros",
+        "fitness_planner",
+        "safety_check",
+    ]
+    if int(result.get("planner_attempts") or 0) > 1:
+        steps.append("fitness_planner_retry")
+    steps.extend(["synthesize_plan", "write_artifacts"])
+    return merge_subgraph_updates(
+        state,
+        {"current_node": "fitness"},
+        subgraph="fitness",
+        steps=steps,
+    )
 
 
 class FitnessGraph:

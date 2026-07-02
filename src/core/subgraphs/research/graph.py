@@ -13,6 +13,7 @@ from core.subgraphs.research.utils import (
     load_profile_for_research,
     write_research_artifacts,
 )
+from core.subgraphs.wrapper import merge_subgraph_updates
 
 
 def _todos_gate_node(state: ResearchState) -> dict:
@@ -126,10 +127,20 @@ def to_research_state(state: OrchestrationState) -> ResearchState:
 def invoke_research_subgraph(state: OrchestrationState) -> dict:
     """Run the Research subgraph and map results back to orchestration updates."""
     result = get_research_subgraph().invoke(to_research_state(state))
-    return {
-        "current_node": "research",
-        "waiting_for_user": result["blocked_by_todos"],
-    }
+    steps = ["todos_gate"]
+    if result["blocked_by_todos"]:
+        steps.append("blocked")
+    else:
+        steps.extend(["research_agent", "write_artifacts"])
+    return merge_subgraph_updates(
+        state,
+        {
+            "current_node": "research",
+            "waiting_for_user": result["blocked_by_todos"],
+        },
+        subgraph="research",
+        steps=steps,
+    )
 
 
 class ResearchGraph:
