@@ -94,6 +94,9 @@ def planning_state(workspace_root: Path, complete_profile: dict) -> PlanningStat
         execution_plan={},
         planning_output=None,
         requires_hitl=False,
+        approved_tools=[],
+        used_llm_extraction=False,
+        requires_tool_approval=False,
     )
 
 
@@ -248,6 +251,37 @@ def test_generate_plan_persists_vfs_artifacts(planning_state: PlanningState) -> 
     assert len(execution_plan["tasks"]) == 3
     todos = json.loads(vfs.read("plan/todos.json"))
     assert todos == result["todos"]
+
+
+def test_planning_subgraph_requires_tool_approval_without_complete_profile(
+    workspace_root: Path,
+) -> None:
+    configure_profile_extractor(
+        lambda _query: ExtractedProfile(
+            profile=Profile(age=28, sex="female", height_cm=165, current_weight_kg=70),
+            goal=Goal(goal="fat_loss"),
+        )
+    )
+    state = PlanningState(
+        query="Help me lose weight",
+        user_profile={},
+        constraints={},
+        request_type="fat_loss",
+        workspace_path=str(workspace_root / "runs" / "tool-approval-run"),
+        profile={},
+        missing_fields=[],
+        todos=[],
+        execution_plan={},
+        planning_output=None,
+        requires_hitl=False,
+        approved_tools=[],
+        used_llm_extraction=False,
+        requires_tool_approval=False,
+    )
+    Path(state["workspace_path"]).mkdir(parents=True, exist_ok=True)
+    result = build_planning_subgraph().invoke(state)
+    assert result["requires_tool_approval"] is True
+    assert result["requires_hitl"] is True
 
 
 def test_planning_subgraph_writes_execution_plan_on_complete_profile(
