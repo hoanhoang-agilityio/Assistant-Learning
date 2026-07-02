@@ -160,7 +160,6 @@ Defined in [`tools.py`](../../core/agents/tools.py):
 |------|---------|
 | `read_global_state` | Snapshot orchestration state |
 | `classify_request` | Keyword-based `request_type` + `affected_domains` |
-| `route_subgraph` | Dispatch placeholder (routing handled by `route_from_supervisor`) |
 | `partial_rerun_decision` | Select rerun target after verification failure |
 | `hitl_control` | HITL pause / resume helpers |
 | `persist_trigger` | Gate final persistence on approval |

@@ -100,7 +100,7 @@ workspace_path, final_artifact_path
 
 ### SUPERVISOR (ORCHESTRATOR)
 
-Tools: `read_global_state`, `classify_request`, `route_subgraph`, `partial_rerun_decision`, `hitl_control`, `persist_trigger`
+Tools: `read_global_state`, `classify_request`, `partial_rerun_decision`, `hitl_control`, `persist_trigger`
 
 * Route subgraphs based on orchestration state
 * Partial rerun: FIX_REASONING, REPLAN, RERESEARCH
@@ -223,7 +223,7 @@ The Planning Subgraph MUST generate structured todos BEFORE any retrieval.
 ```text id="fr1_flow"
 User Query
     ↓
-SUPERVISOR (route_subgraph)
+SUPERVISOR (route_from_supervisor)
     ↓
 PLANNING SUBGRAPH
     ↓
