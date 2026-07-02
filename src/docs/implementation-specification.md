@@ -177,7 +177,6 @@ workspace/run_<id>/
 
 * `read_global_state`
 * `classify_request`
-* `route_subgraph`
 * `partial_rerun_decision`
 * `hitl_control`
 * `persist_trigger`

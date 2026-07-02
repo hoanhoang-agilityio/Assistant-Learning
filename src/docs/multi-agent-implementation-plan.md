@@ -51,7 +51,6 @@ Does not produce fitness intelligence. Controls graph execution via tools:
 | --- | --- |
 | `read_global_state` | Read current orchestration state |
 | `classify_request` | Determine `request_type` and `affected_domains` |
-| `route_subgraph` | Dispatch to Planning, Research, Fitness, or Verification |
 | `partial_rerun_decision` | Select FIX_REASONING / REPLAN / RERESEARCH target |
 | `hitl_control` | Pause, resume, or reject based on HITL status |
 | `persist_trigger` | Invoke `PERSIST_RESULTS` after COMPLETE + approval |
@@ -193,7 +192,7 @@ VFS: `verify/verification_v1.json`, `verify/ragas.json`
 
 ```text
 START
-  → SUPERVISOR (classify_request, route_subgraph)
+  → SUPERVISOR (classify_request, route_from_supervisor)
   → PLANNING → RESEARCH → FITNESS → VERIFICATION
   → SUPERVISOR (COMPLETE)
   → HITL (request_approval)
@@ -383,7 +382,7 @@ Thread: thread_id
 | Day | Task |
 | --- | --- |
 | 1 | `OrchestrationState` + subgraph state schemas + VFS |
-| 2 | Supervisor orchestrator + `read_global_state`, `route_subgraph` |
+| 2 | Supervisor orchestrator + `read_global_state`, `route_from_supervisor` |
 | 3 | Planning subgraph + `write_todos` gate |
 | 4 | Research subgraph + MCP boundary |
 | 5 | Fitness subgraph + macro + training plan synthesis |

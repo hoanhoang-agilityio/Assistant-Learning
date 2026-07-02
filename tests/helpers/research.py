@@ -85,9 +85,8 @@ def default_research_agent_result(
     )
 
 
-def research_agent_override(**kwargs: Any) -> ResearchAgentResult:
+def research_agent_override() -> ResearchAgentResult:
     """Deterministic override callable for configure_research_agent."""
-    del kwargs
     return default_research_agent_result()
 
 
@@ -96,8 +95,7 @@ def research_agent_override_factory(
 ):
     """Return an override that always returns the given result."""
 
-    def _override(**kwargs: Any) -> ResearchAgentResult:
-        del kwargs
+    def _override() -> ResearchAgentResult:
         return result
 
     return _override

@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from core.agents.state import OrchestrationState
-from core.agents.tools import classify_request, read_global_state, route_subgraph
+from core.agents.tools import classify_request, read_global_state
 from core.graph.builder import build_graph
 from core.graph.routing import resolve_next_subgraph, route_from_supervisor
 from core.graph.run import create_initial_state
@@ -27,8 +27,6 @@ def test_classify_request_detects_training_plan() -> None:
     result = classify_request.invoke(
         {
             "query": "Create a 4-day training plan",
-            "user_profile": {},
-            "constraints": {},
         }
     )
     assert result["request_type"] == "training_plan"
@@ -42,23 +40,10 @@ def test_read_global_state_returns_orchestration_fields(initial_state: Orchestra
     assert result["workspace_path"] == initial_state["workspace_path"]
 
 
-def test_route_subgraph_returns_empty_dispatch_payload() -> None:
-    result = route_subgraph.invoke(
-        {
-            "route_decision": None,
-            "affected_domains": ["planning", "research", "fitness", "verify"],
-            "current_node": "supervisor",
-        }
-    )
-    assert result == {}
-
-
 def test_resolve_next_subgraph_routes_to_planning(initial_state: OrchestrationState) -> None:
     classified = classify_request.invoke(
         {
             "query": initial_state["query"],
-            "user_profile": initial_state["user_profile"],
-            "constraints": initial_state["constraints"],
         }
     )
     state = {**initial_state, **classified}

@@ -62,7 +62,7 @@ Detailed task estimates for the Core Deep Researcher (Fitness AI).
 | 1.5h | Postgres checkpointer factory | `core/graph/checkpointer.py` |
 | 2.0h | `StateGraph` — nodes: supervisor, planning, research, fitness, verification, hitl, persist | `core/graph/builder.py` |
 | 1.5h | `route_from_supervisor()` conditional edges | `core/graph/routing.py` |
-| 2.0h | Implement `read_global_state`, `classify_request`, `route_subgraph` (rule-based) | `core/agents/tools.py` |
+| 2.0h | Implement `read_global_state`, `classify_request` (rule-based) | `core/agents/tools.py` |
 | 1.0h | `supervisor_node` — update `current_node`, `route_decision` | `core/agents/supervisor.py` |
 
 **Exit criteria:** Graph compiles; first invoke routes to `planning`.
