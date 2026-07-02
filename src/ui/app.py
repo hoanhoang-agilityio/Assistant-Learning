@@ -78,7 +78,7 @@ def main() -> None:
         run_id = st.session_state.run_id
         if run_id and status and status.get("status") == "waiting_hitl":
             hitl_type = status.get("hitl_type") or "approval"
-            if hitl_type == "approval":
+            if hitl_type in {"approval", "tool_approval"}:
                 render_hitl_actions(client, run_id, status)
 
     query = st.chat_input(

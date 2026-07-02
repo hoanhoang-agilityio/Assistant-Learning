@@ -20,7 +20,17 @@ def _clarification_prompt(status: dict[str, Any]) -> str:
 
 
 def _pipeline_step(status: dict[str, Any]) -> str:
+    steps = status.get("steps") or []
+    if steps:
+        return steps[-1]
     return status.get("current_node") or "supervisor"
+
+
+def _format_steps_trail(status: dict[str, Any]) -> str | None:
+    steps = status.get("steps") or []
+    if not steps:
+        return None
+    return " → ".join(steps[-6:])
 
 
 def _write_pipeline_step(
@@ -31,9 +41,12 @@ def _write_pipeline_step(
 ) -> str:
     """Write a pipeline step line only when the active step changes."""
     step = _pipeline_step(status)
+    trail = _format_steps_trail(status)
     status_container.update(label=f"Running pipeline… — {step}")
     if step != last_step:
         status_container.write(f"Current step: **{step}**")
+        if trail:
+            status_container.caption(f"Progress: {trail}")
     return step
 
 
@@ -45,6 +58,11 @@ def _format_assistant_status_message(status: dict[str, Any]) -> str:
         hitl_type = status.get("hitl_type") or "approval"
         if hitl_type == "clarification":
             return _clarification_prompt(status)
+        if hitl_type == "tool_approval":
+            return (
+                status.get("hitl_message")
+                or "Review extracted profile data and approve to continue."
+            )
         draft = status.get("final_plan")
         if draft:
             return draft
@@ -149,7 +167,50 @@ def render_hitl_actions(
     run_id: str,
     status: dict[str, Any],
 ) -> None:
-    """Approval-only HITL controls. Clarification uses the chat input."""
+    """HITL controls for approval and per-tool profile confirmation."""
+    hitl_type = status.get("hitl_type") or "approval"
+    if hitl_type == "tool_approval":
+        pending_tool = status.get("pending_tool") or "extract_profile"
+        st.markdown(
+            '<div class="pt-hitl-panel"><p>Review extracted profile fields before planning continues.</p></div>',
+            unsafe_allow_html=True,
+        )
+        action_cols = st.columns(2)
+        if action_cols[0].button("Approve profile", type="primary", key="approve_tool"):
+            updated = resume_run(
+                client,
+                run_id,
+                decision_type="approve",
+                pending_tool=pending_tool,
+            )
+            st.session_state.run_status = updated
+            st.session_state.messages.append(
+                {"role": "user", "content": "Approved extracted profile."}
+            )
+            st.session_state.messages.append(
+                {"role": "assistant", "content": _assistant_message_from_status(updated)},
+            )
+            _update_run_history_status(run_id, updated.get("status", "unknown"))
+            st.rerun()
+        if action_cols[1].button("Reject profile", key="reject_tool"):
+            updated = resume_run(
+                client,
+                run_id,
+                decision_type="reject",
+                message="Rejected extracted profile.",
+                pending_tool=pending_tool,
+            )
+            st.session_state.run_status = updated
+            st.session_state.messages.append(
+                {"role": "user", "content": "Rejected extracted profile."}
+            )
+            st.session_state.messages.append(
+                {"role": "assistant", "content": _assistant_message_from_status(updated)},
+            )
+            _update_run_history_status(run_id, updated.get("status", "unknown"))
+            st.rerun()
+        return
+
     if not status.get("verification_passed"):
         st.markdown(
             '<div class="pt-hitl-panel"><p>Verification did not fully pass. '
@@ -173,8 +234,7 @@ def render_hitl_actions(
             updated = resume_run(
                 client,
                 run_id,
-                user_response="approve",
-                approval_status="approved",
+                decision_type="approve",
                 on_progress=handle_approve_progress,
             )
         st.session_state.run_status = updated
@@ -193,8 +253,8 @@ def render_hitl_actions(
         updated = resume_run(
             client,
             run_id,
-            user_response="reject",
-            approval_status="rejected",
+            decision_type="reject",
+            message="Rejected the plan.",
         )
         st.session_state.run_status = updated
         st.session_state.messages.append(

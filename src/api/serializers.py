@@ -19,6 +19,8 @@ def to_run_status_response(status: RunStatus) -> RunStatusResponse:
         final_plan=status.final_plan,
         hitl_type=status.hitl_type,
         hitl_message=status.hitl_message,
+        steps=list(status.steps),
+        pending_tool=status.pending_tool,
         next_nodes=list(status.next_nodes),
         error_message=status.error_message,
     )
