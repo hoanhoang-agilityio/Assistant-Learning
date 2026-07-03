@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from core.llm.factory import invoke_xhigh_structured_output
 from core.llm.payload import compact_json
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
+from core.subgraphs.planning.utils import build_planning_payload
 
 PlanningAgentOverride = Callable[..., ExecutionPlan]
 
@@ -65,12 +66,12 @@ def generate_execution_plan(
                 constraints=constraints,
             )
         )
-    payload = {
-        "profile": profile,
-        "query": query,
-        "request_type": request_type,
-        "constraints": constraints,
-    }
+    payload = build_planning_payload(
+        profile=profile,
+        query=query,
+        request_type=request_type,
+        constraints=constraints,
+    )
     plan = invoke_xhigh_structured_output(
         ExecutionPlan,
         [

@@ -1,5 +1,7 @@
 from typing import TypedDict
 
+from core.agents.state import RouteDecision
+
 
 class PlanningState(TypedDict):
     """Scoped state for the Planning subgraph."""
@@ -9,6 +11,7 @@ class PlanningState(TypedDict):
     constraints: dict
     request_type: str | None
     workspace_path: str
+    route_decision: RouteDecision | None
     profile: dict
     missing_fields: list[str]
     todos: list[str]
@@ -18,3 +21,4 @@ class PlanningState(TypedDict):
     approved_tools: list[str]
     used_llm_extraction: bool
     requires_tool_approval: bool
+    reused_execution_plan: bool

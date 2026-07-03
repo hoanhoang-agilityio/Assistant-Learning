@@ -24,6 +24,7 @@ from core.rate_limit import (
     reset_rate_limit_user_id,
     set_rate_limit_user_id,
 )
+from core.subgraphs.planning.utils import build_profile, profile_to_orchestration_updates
 from core.vfs import VFS
 
 logger = logging.getLogger(__name__)
@@ -200,15 +201,22 @@ class RunOrchestrator:
             and resolved_status == "revision_requested"
             and update.get("user_response")
         ):
-            update["query"] = (
-                f"{snapshot.values.get('query', '')}\n{update['user_response']}".strip()
-            )
             cleared_profile = {
                 key: value
                 for key, value in snapshot.values.get("user_profile", {}).items()
                 if key != "missing_fields"
             }
-            update["user_profile"] = cleared_profile
+            clarification = build_profile(
+                query=update["user_response"],
+                user_profile=cleared_profile,
+                constraints=snapshot.values.get("constraints") or {},
+            )
+            sync = profile_to_orchestration_updates(clarification)
+            update["user_profile"] = sync["user_profile"]
+            update["constraints"] = {
+                **(snapshot.values.get("constraints") or {}),
+                **sync["constraints"],
+            }
         return self.start_resume_run(run_id, update=update)
 
     def start_resume_run(self, run_id: str, *, update: dict[str, Any]) -> RunStatus:

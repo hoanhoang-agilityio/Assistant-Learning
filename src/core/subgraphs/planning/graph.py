@@ -9,7 +9,9 @@ from core.profile.labels import format_missing_profile_prompt
 from core.subgraphs.planning.state import PlanningState
 from core.subgraphs.planning.tools import extract_profile, generate_plan, validate_profile
 from core.subgraphs.planning.utils import (
+    load_execution_plan_from_vfs,
     profile_to_orchestration_updates,
+    should_reuse_execution_plan,
     should_use_llm_profile_extraction,
 )
 from core.subgraphs.wrapper import merge_subgraph_updates
@@ -85,6 +87,13 @@ def _generate_plan_node(state: PlanningState) -> dict:
     )
 
 
+def _reuse_execution_plan_node(state: PlanningState) -> dict:
+    return {
+        **load_execution_plan_from_vfs(state["workspace_path"]),
+        "reused_execution_plan": True,
+    }
+
+
 def _planning_hitl_node(state: PlanningState) -> dict:
     return {
         "requires_hitl": True,
@@ -101,6 +110,12 @@ def _route_after_extract(state: PlanningState) -> str:
 def _route_after_validate(state: PlanningState) -> str:
     if state["missing_fields"]:
         return "planning_hitl"
+    if should_reuse_execution_plan(
+        state.get("route_decision"),
+        state["workspace_path"],
+        state["profile"],
+    ):
+        return "reuse_execution_plan"
     return "generate_plan"
 
 
@@ -111,6 +126,7 @@ def build_planning_subgraph() -> CompiledStateGraph:
     graph.add_node("tool_approval", _tool_approval_node)
     graph.add_node("validate_profile", _validate_profile_node)
     graph.add_node("generate_plan", _generate_plan_node)
+    graph.add_node("reuse_execution_plan", _reuse_execution_plan_node)
     graph.add_node("planning_hitl", _planning_hitl_node)
     graph.add_edge(START, "extract_profile")
     graph.add_conditional_edges(
@@ -128,9 +144,11 @@ def build_planning_subgraph() -> CompiledStateGraph:
         {
             "planning_hitl": "planning_hitl",
             "generate_plan": "generate_plan",
+            "reuse_execution_plan": "reuse_execution_plan",
         },
     )
     graph.add_edge("generate_plan", END)
+    graph.add_edge("reuse_execution_plan", END)
     graph.add_edge("planning_hitl", END)
     return graph.compile()
 
@@ -147,6 +165,7 @@ def to_planning_state(state: OrchestrationState) -> PlanningState:
         constraints=state["constraints"],
         request_type=state["request_type"],
         workspace_path=state["workspace_path"],
+        route_decision=state.get("route_decision"),
         profile={},
         missing_fields=[],
         todos=[],
@@ -156,6 +175,7 @@ def to_planning_state(state: OrchestrationState) -> PlanningState:
         approved_tools=list(state.get("approved_tools") or []),
         used_llm_extraction=False,
         requires_tool_approval=False,
+        reused_execution_plan=False,
     )
 
 
@@ -167,6 +187,9 @@ def _planning_steps_from_result(result: dict) -> list[str]:
     steps.append("validate_profile")
     if result.get("requires_hitl"):
         steps.append("planning_hitl")
+        return steps
+    if result.get("reused_execution_plan"):
+        steps.append("reuse_execution_plan")
         return steps
     steps.append("generate_plan")
     return steps
