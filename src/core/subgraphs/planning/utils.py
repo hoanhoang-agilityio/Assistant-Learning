@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from core.agents.rerun import STRUCTURAL_ISSUE_MARKERS
 from core.profile.extraction import extract_profile_from_query
 from core.profile.normalize import merge_profile_sources
 from core.profile.schema import (
@@ -13,6 +14,53 @@ from core.profile.schema import (
 )
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.vfs import VFS
+
+_PROFILE_LLM_FIELDS: tuple[str, ...] = (*PROFILE_FIELDS, *CONSTRAINT_FIELDS)
+
+
+def compact_profile_for_llm(profile: dict[str, Any]) -> dict[str, Any]:
+    """Return canonical profile fields for LLM payloads, excluding query and metadata."""
+    return {
+        field_name: profile[field_name]
+        for field_name in _PROFILE_LLM_FIELDS
+        if field_name in profile and profile.get(field_name) not in (None, "")
+    }
+
+
+def resolve_extraction_query(query: str, user_profile: dict[str, Any]) -> str:
+    """Use only the latest user message when HITL resume appends clarifications to query."""
+    if not user_profile:
+        return query
+    if "\n" in query:
+        latest = query.rsplit("\n", 1)[-1].strip()
+        if latest:
+            return latest
+    return query
+
+
+def build_planning_payload(
+    *,
+    profile: dict[str, Any],
+    query: str,
+    request_type: str | None,
+    constraints: dict[str, Any],
+) -> dict[str, Any]:
+    """Build a deduplicated payload for the Planning Agent LLM call."""
+    compact_profile = compact_profile_for_llm(profile)
+    payload: dict[str, Any] = {"profile": compact_profile}
+    stripped_query = query.strip()
+    if stripped_query:
+        payload["query"] = stripped_query
+    if request_type:
+        payload["request_type"] = request_type
+    extra_constraints = {
+        key: value
+        for key, value in constraints.items()
+        if key not in compact_profile and value not in (None, "")
+    }
+    if extra_constraints:
+        payload["constraints"] = extra_constraints
+    return payload
 
 
 def profile_to_orchestration_updates(
@@ -49,7 +97,8 @@ def build_profile(
     if _should_skip_profile_extraction(user_profile, constraints):
         extracted = ExtractedProfile()
     else:
-        extracted = extract_profile_from_query(query)
+        extraction_query = resolve_extraction_query(query, user_profile)
+        extracted = extract_profile_from_query(extraction_query)
     return merge_profile_sources(
         query=query,
         user_profile=user_profile,
@@ -74,6 +123,89 @@ def validate_profile_data(profile: dict[str, Any]) -> dict[str, Any]:
     return {
         "missing_fields": unique_missing_fields,
         "requires_hitl": bool(unique_missing_fields),
+    }
+
+
+def load_stored_profile(workspace_path: str) -> dict[str, Any]:
+    """Load the profile snapshot persisted by planning."""
+    vfs = VFS.for_run(Path(workspace_path))
+    if not vfs.exists("plan/profile.json"):
+        return {}
+    return json.loads(vfs.read("plan/profile.json"))
+
+
+_ISSUE_TASK_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "missing_macro_targets": ("macro", "nutrition", "caloric", "protein"),
+    "training_day_count_mismatch": ("volume", "frequency", "training", "days", "week"),
+    "missing_training_plan": ("training", "workout", "program"),
+    "draft_missing": ("training", "workout", "program"),
+}
+
+
+def load_structural_issues(workspace_path: str) -> list[str]:
+    """Load structural consistency issues from the latest verification report."""
+    vfs = VFS.for_run(Path(workspace_path))
+    if not vfs.exists("verify/verification_v1.json"):
+        return []
+    report = json.loads(vfs.read("verify/verification_v1.json"))
+    issues = report.get("consistency", {}).get("issues", [])
+    if not isinstance(issues, list):
+        return []
+    return [
+        issue
+        for issue in issues
+        if isinstance(issue, str) and any(marker in issue for marker in STRUCTURAL_ISSUE_MARKERS)
+    ]
+
+
+def execution_plan_covers_issues(plan: ExecutionPlan, issues: list[str]) -> bool:
+    """Return True when every structural issue has a matching keyword in plan tasks."""
+    if not issues:
+        return True
+    task_text = " ".join(task.task.lower() for task in plan.tasks)
+    for issue in issues:
+        markers = [marker for marker in STRUCTURAL_ISSUE_MARKERS if marker in issue]
+        for marker in markers:
+            keywords = _ISSUE_TASK_KEYWORDS.get(marker, ())
+            if keywords and not any(keyword in task_text for keyword in keywords):
+                return False
+    return True
+
+
+def profile_matches_stored_profile(profile: dict[str, Any], workspace_path: str) -> bool:
+    """Return True when the current profile matches the planning VFS snapshot."""
+    stored = load_stored_profile(workspace_path)
+    if not stored:
+        return False
+    return compact_profile_for_llm(profile) == compact_profile_for_llm(stored)
+
+
+def should_reuse_execution_plan(
+    route_decision: str | None,
+    workspace_path: str,
+    profile: dict[str, Any],
+) -> bool:
+    """Skip XHIGH plan generation on REPLAN when the stored plan still fits the profile."""
+    if route_decision != "REPLAN":
+        return False
+    if not has_execution_plan(workspace_path):
+        return False
+    if not profile_matches_stored_profile(profile, workspace_path):
+        return False
+    plan = load_execution_plan(workspace_path)
+    issues = load_structural_issues(workspace_path)
+    return execution_plan_covers_issues(plan, issues)
+
+
+def load_execution_plan_from_vfs(workspace_path: str) -> dict[str, Any]:
+    """Load persisted execution plan fields without invoking the Planning Agent."""
+    plan = load_execution_plan(workspace_path)
+    todos = execution_plan_to_todo_strings(plan)
+    return {
+        "todos": todos,
+        "execution_plan": plan.model_dump(),
+        "planning_output": plan.plan_markdown,
+        "requires_hitl": False,
     }
 
 
