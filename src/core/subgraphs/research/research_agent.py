@@ -27,6 +27,7 @@ from core.subgraphs.research.schema import (
 )
 from core.subgraphs.research.tools import RESEARCH_AGENT_TOOLS
 from core.subgraphs.research.utils import (
+    build_research_context_payload,
     derive_evidence_summary,
     extract_tavily_data,
     post_process_sources,
@@ -78,13 +79,12 @@ def _plan_search_queries(
     profile: dict[str, Any],
     execution_plan: ExecutionPlan,
 ) -> SearchQueryBatch:
-    payload = {
-        "query": query,
-        "request_type": request_type,
-        "profile": profile,
-        "plan_rationale": execution_plan.plan_rationale,
-        "tasks": [task.model_dump() for task in execution_plan.tasks],
-    }
+    payload = build_research_context_payload(
+        query=query,
+        request_type=request_type,
+        profile=profile,
+        execution_plan=execution_plan,
+    )
     return invoke_standard_structured_output(
         SearchQueryBatch,
         [
@@ -192,20 +192,23 @@ def _evaluate_evidence(
     if _has_sufficient_evidence_deterministic(sources, evidence):
         return EvidenceEvaluation(sufficient=True, gaps=[], refined_queries=[])
 
-    payload = {
-        "query": query,
-        "profile": profile,
-        "tasks": [task.model_dump() for task in execution_plan.tasks],
-        "source_count": len(sources),
-        "sources_preview": sources[:10],
-        "evidence_preview": [
-            {
-                "url": item.get("url"),
-                "content_preview": str(item.get("content", ""))[:300],
-            }
-            for item in evidence[:5]
-        ],
-    }
+    payload = build_research_context_payload(
+        query=query,
+        request_type=None,
+        profile=profile,
+        execution_plan=execution_plan,
+        extra={
+            "source_count": len(sources),
+            "sources_preview": sources[:10],
+            "evidence_preview": [
+                {
+                    "url": item.get("url"),
+                    "content_preview": str(item.get("content", ""))[:300],
+                }
+                for item in evidence[:5]
+            ],
+        },
+    )
     return invoke_standard_structured_output(
         EvidenceEvaluation,
         [
@@ -228,13 +231,12 @@ def _run_react_loop(
     max_iterations = settings.research_max_search_iterations
     llm = get_standard_llm().bind_tools(RESEARCH_AGENT_TOOLS)
 
-    context_payload = {
-        "query": query,
-        "request_type": request_type,
-        "profile": profile,
-        "plan_rationale": execution_plan.plan_rationale,
-        "tasks": [task.model_dump() for task in execution_plan.tasks],
-    }
+    context_payload = build_research_context_payload(
+        query=query,
+        request_type=request_type,
+        profile=profile,
+        execution_plan=execution_plan,
+    )
     messages: list = [
         SystemMessage(content=REACT_SYSTEM_PROMPT),
         HumanMessage(
@@ -302,20 +304,23 @@ def _synthesize_findings(
     evidence: list[dict[str, Any]],
 ) -> ResearchFindings:
     settings = get_settings()
-    payload = {
-        "query": query,
-        "profile": profile,
-        "sources": sources[:15],
-        "evidence": [
-            {
-                "url": item.get("url"),
-                "content": str(item.get("content", ""))[
-                    : settings.research_synthesis_content_chars
-                ],
-            }
-            for item in evidence[: settings.research_synthesis_evidence_limit]
-        ],
-    }
+    payload = build_research_context_payload(
+        query=query,
+        request_type=None,
+        profile=profile,
+        extra={
+            "sources": sources[:15],
+            "evidence": [
+                {
+                    "url": item.get("url"),
+                    "content": str(item.get("content", ""))[
+                        : settings.research_synthesis_content_chars
+                    ],
+                }
+                for item in evidence[: settings.research_synthesis_evidence_limit]
+            ],
+        },
+    )
     return invoke_standard_structured_output(
         ResearchFindings,
         [

@@ -14,6 +14,7 @@ from core.mcp.tavily_client import (
 from core.observability.tracing import traced_tavily_call
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.planning.utils import (
+    compact_profile_for_llm,
     execution_plan_to_todo_strings,
     has_execution_plan,
     load_execution_plan,
@@ -57,6 +58,29 @@ def load_todos_for_research(workspace_path: str) -> list[str]:
     if plan is None:
         return []
     return execution_plan_to_todo_strings(plan)
+
+
+def build_research_context_payload(
+    *,
+    query: str,
+    request_type: str | None,
+    profile: dict[str, Any],
+    execution_plan: ExecutionPlan | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a deduplicated payload for Research Agent LLM calls."""
+    payload: dict[str, Any] = {"profile": compact_profile_for_llm(profile)}
+    stripped_query = query.strip()
+    if stripped_query:
+        payload["query"] = stripped_query
+    if request_type:
+        payload["request_type"] = request_type
+    if execution_plan is not None:
+        payload["plan_rationale"] = execution_plan.plan_rationale
+        payload["tasks"] = [task.model_dump() for task in execution_plan.tasks]
+    if extra:
+        payload.update(extra)
+    return payload
 
 
 def normalize_search_results(raw_result: dict[str, Any], query: str) -> list[dict[str, Any]]:
