@@ -62,13 +62,14 @@ def wrap_traced_subgraph_node(
         token = set_trace_run_id(state["run_id"])
         span_name = resolve_subgraph_span_name(node_key, state.get("route_decision"))
         tier = SUBGRAPH_TIERS.get(node_key)
+        is_partial_rerun = span_name.startswith("partial_rerun_")
         try:
             with subgraph_span_context(
                 state,
                 span_name,
                 tier=tier,
                 subgraph=node_key,
-                is_partial_rerun=state.get("route_decision") in PARTIAL_RERUN_DECISIONS,
+                is_partial_rerun=is_partial_rerun,
             ) as span:
                 result = invoke_fn(state)
                 if span is not None:
