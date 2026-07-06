@@ -26,15 +26,15 @@ def generate_plan(
     profile: dict,
     query: str,
     request_type: str | None,
-    constraints: dict,
     workspace_path: str,
+    constraints: dict | None = None,
 ) -> dict:
     """Generate a structured execution plan via the Planning Agent."""
     plan = generate_execution_plan(
         profile=profile,
         query=query,
         request_type=request_type,
-        constraints=constraints,
+        constraints=constraints or {},
     )
     return persist_execution_plan(profile, plan, workspace_path)
 

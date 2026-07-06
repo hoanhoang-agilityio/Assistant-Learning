@@ -20,6 +20,7 @@ from core.subgraphs.planning.utils import (
     compact_profile_for_llm,
     has_execution_plan,
     has_planning_todos,
+    load_planning_todos,
     persist_execution_plan,
     resolve_extraction_query,
     validate_profile_data,
@@ -95,9 +96,6 @@ def planning_state(workspace_root: Path, complete_profile: dict) -> PlanningStat
         route_decision=None,
         profile={},
         missing_fields=[],
-        todos=[],
-        execution_plan={},
-        planning_output=None,
         requires_hitl=False,
         approved_tools=[],
         used_llm_extraction=False,
@@ -312,23 +310,21 @@ def test_generate_plan_persists_vfs_artifacts(planning_state: PlanningState) -> 
             "profile": planning_state["user_profile"],
             "query": planning_state["query"],
             "request_type": planning_state["request_type"],
-            "constraints": planning_state["constraints"],
             "workspace_path": planning_state["workspace_path"],
         }
     )
     vfs = VFS.for_run(Path(planning_state["workspace_path"]))
-    assert len(result["todos"]) == 3
-    assert "fat loss" in result["todos"][0].lower()
+    todos = load_planning_todos(planning_state["workspace_path"])
+    assert len(todos) == 3
+    assert "fat loss" in todos[0].lower()
     assert vfs.exists("plan/execution_plan.json")
-    assert vfs.exists("plan/todos.json")
     assert vfs.exists("plan/profile.json")
     assert vfs.exists("plan/plan.md")
-    assert vfs.read("plan/plan.md") == result["planning_output"]
+    assert result == {"requires_hitl": False}
     execution_plan = json.loads(vfs.read("plan/execution_plan.json"))
     assert execution_plan["plan_rationale"]
     assert len(execution_plan["tasks"]) == 3
-    todos = json.loads(vfs.read("plan/todos.json"))
-    assert todos == result["todos"]
+    assert vfs.read("plan/plan.md") == execution_plan["plan_markdown"]
 
 
 def test_planning_subgraph_requires_tool_approval_without_complete_profile(
@@ -349,9 +345,6 @@ def test_planning_subgraph_requires_tool_approval_without_complete_profile(
         route_decision=None,
         profile={},
         missing_fields=[],
-        todos=[],
-        execution_plan={},
-        planning_output=None,
         requires_hitl=False,
         approved_tools=[],
         used_llm_extraction=False,
@@ -447,7 +440,7 @@ def test_replan_reuses_execution_plan_when_profile_and_coverage_match(
     }
     result = build_planning_subgraph().invoke(state)
     assert result["reused_execution_plan"] is True
-    assert len(result["todos"]) == 3
+    assert len(load_planning_todos(planning_state["workspace_path"])) == 3
 
 
 def test_replan_regenerates_when_plan_lacks_issue_coverage(
@@ -473,7 +466,7 @@ def test_replan_regenerates_when_plan_lacks_issue_coverage(
     }
     result = build_planning_subgraph().invoke(state)
     assert result.get("reused_execution_plan") is not True
-    assert len(result["todos"]) == 3
+    assert len(load_planning_todos(planning_state["workspace_path"])) == 3
 
 
 def test_replan_regenerates_when_profile_changed(

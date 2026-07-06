@@ -96,7 +96,6 @@ def research_state(
         workspace_path=initial["workspace_path"],
         profile={},
         execution_plan={},
-        todos=[],
         evidence=[],
         sources=[],
         structured_findings=None,

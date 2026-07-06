@@ -5,7 +5,6 @@ from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
 from core.hitl.tool_gate import evaluate_tool_interrupt
-from core.profile.labels import format_missing_profile_prompt
 from core.subgraphs.planning.state import PlanningState
 from core.subgraphs.planning.tools import extract_profile, generate_plan, validate_profile
 from core.subgraphs.planning.utils import (
@@ -47,23 +46,17 @@ def _extract_profile_node(state: PlanningState) -> dict:
         }
     return {
         "profile": profile,
+        "user_profile": {},
+        "constraints": {},
         "used_llm_extraction": used_llm_extraction,
         "requires_tool_approval": False,
     }
 
 
 def _tool_approval_node(state: PlanningState) -> dict:
-    preview_fields = {
-        key: state["profile"].get(key)
-        for key in ("age", "sex", "goal", "activity_level", "height_cm", "current_weight_kg")
-        if state["profile"].get(key) is not None
-    }
     return {
         "requires_hitl": True,
         "requires_tool_approval": True,
-        "planning_output": (
-            f"Review extracted profile fields before planning continues: {preview_fields}"
-        ),
     }
 
 
@@ -81,7 +74,6 @@ def _generate_plan_node(state: PlanningState) -> dict:
             "profile": state["profile"],
             "query": state["query"],
             "request_type": state["request_type"],
-            "constraints": state["constraints"],
             "workspace_path": state["workspace_path"],
         }
     )
@@ -97,7 +89,6 @@ def _reuse_execution_plan_node(state: PlanningState) -> dict:
 def _planning_hitl_node(state: PlanningState) -> dict:
     return {
         "requires_hitl": True,
-        "planning_output": format_missing_profile_prompt(state["missing_fields"]),
     }
 
 
@@ -168,9 +159,6 @@ def to_planning_state(state: OrchestrationState) -> PlanningState:
         route_decision=state.get("route_decision"),
         profile={},
         missing_fields=[],
-        todos=[],
-        execution_plan={},
-        planning_output=None,
         requires_hitl=False,
         approved_tools=list(state.get("approved_tools") or []),
         used_llm_extraction=False,
