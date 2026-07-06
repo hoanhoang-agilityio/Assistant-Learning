@@ -1,6 +1,6 @@
 """Pydantic schemas for LLM-generated execution plans."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PlanTask(BaseModel):
@@ -19,5 +19,14 @@ class ExecutionPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     plan_rationale: str = Field(min_length=20, description="Overall plan rationale")
-    tasks: list[PlanTask] = Field(min_length=3, max_length=10)
+    tasks: list[PlanTask]
     plan_markdown: str = Field(min_length=50, description="Human-readable planning summary")
+
+    @field_validator("tasks")
+    @classmethod
+    def validate_tasks(cls, tasks: list[PlanTask]) -> list[PlanTask]:
+        if len(tasks) < 3:
+            raise ValueError("Execution plan must contain at least 3 tasks")
+        if len(tasks) > 10:
+            raise ValueError("Execution plan must contain at most 10 tasks")
+        return tasks

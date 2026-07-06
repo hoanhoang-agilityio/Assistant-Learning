@@ -11,6 +11,7 @@ from core.llm.factory import (
     invoke_bound_llm,
     invoke_standard_structured_output,
 )
+from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.payload import compact_json
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.research.prompts import (
@@ -72,6 +73,14 @@ class _ResearchSession:
         self.search_count += 1
 
 
+def _invoke_with_node[T](node: str, schema: type[T], messages: list) -> T:
+    token = set_llm_metrics_node(node)
+    try:
+        return invoke_standard_structured_output(schema, messages)
+    finally:
+        reset_llm_metrics_node(token)
+
+
 def _plan_search_queries(
     *,
     query: str,
@@ -85,7 +94,8 @@ def _plan_search_queries(
         profile=profile,
         execution_plan=execution_plan,
     )
-    return invoke_standard_structured_output(
+    return _invoke_with_node(
+        "research_query_planning",
         SearchQueryBatch,
         [
             SystemMessage(content=QUERY_PLANNING_SYSTEM_PROMPT),
@@ -209,7 +219,8 @@ def _evaluate_evidence(
             ],
         },
     )
-    return invoke_standard_structured_output(
+    return _invoke_with_node(
+        "research_evidence_eval",
         EvidenceEvaluation,
         [
             SystemMessage(content=EVALUATION_SYSTEM_PROMPT),
@@ -250,33 +261,37 @@ def _run_react_loop(
         ),
     ]
 
-    for iteration in range(max_iterations):
-        session.iterations = iteration + 1
-        response = invoke_bound_llm(
-            llm,
-            messages,
-            model_name=settings.openai_standard_model,
-        )
-        if not isinstance(response, AIMessage):
-            break
-
-        messages.append(response)
-        tool_calls = response.tool_calls or []
-        if not tool_calls:
-            break
-
-        for tool_call in tool_calls:
-            tool_result = _execute_tool_call(
-                tool_call["name"],
-                tool_call.get("args", {}),
-                session,
+    token = set_llm_metrics_node("research_react_loop")
+    try:
+        for iteration in range(max_iterations):
+            session.iterations = iteration + 1
+            response = invoke_bound_llm(
+                llm,
+                messages,
+                model_name=settings.openai_standard_model,
             )
-            messages.append(
-                ToolMessage(
-                    content=tool_result,
-                    tool_call_id=tool_call["id"],
+            if not isinstance(response, AIMessage):
+                break
+
+            messages.append(response)
+            tool_calls = response.tool_calls or []
+            if not tool_calls:
+                break
+
+            for tool_call in tool_calls:
+                tool_result = _execute_tool_call(
+                    tool_call["name"],
+                    tool_call.get("args", {}),
+                    session,
                 )
-            )
+                messages.append(
+                    ToolMessage(
+                        content=tool_result,
+                        tool_call_id=tool_call["id"],
+                    )
+                )
+    finally:
+        reset_llm_metrics_node(token)
 
     evaluation = _evaluate_evidence(
         query=query,
@@ -321,7 +336,8 @@ def _synthesize_findings(
             ],
         },
     )
-    return invoke_standard_structured_output(
+    return _invoke_with_node(
+        "research_synthesis",
         ResearchFindings,
         [
             SystemMessage(content=SYNTHESIS_SYSTEM_PROMPT),

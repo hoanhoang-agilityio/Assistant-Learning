@@ -5,8 +5,15 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from core.llm.contracts import validate_fitness_planner_payload
 from core.llm.factory import invoke_standard_structured_output
+from core.llm.metrics import set_llm_metrics_node
 from core.llm.payload import compact_json, limit_feedback_items
+from core.llm.serializers import (
+    compact_execution_plan_for_llm,
+    compact_macro_targets_for_llm,
+    compact_profile_for_llm,
+)
 from core.subgraphs.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
 from core.subgraphs.fitness.schema import StructuredWorkout
 from core.subgraphs.planning.schema import ExecutionPlan
@@ -48,16 +55,18 @@ def build_planner_payload(
     verification_feedback: str | None,
 ) -> dict[str, Any]:
     """Build the human-message payload sent to the fitness planner."""
-    return {
-        "profile": profile,
-        "constraints": constraints,
-        "macro_targets": macro_targets,
+    del constraints
+    payload = {
+        "profile": compact_profile_for_llm(profile),
+        "macro_targets": compact_macro_targets_for_llm(macro_targets),
         "training_constraints": training_constraints,
-        "execution_plan": execution_plan.model_dump(),
+        "execution_plan": compact_execution_plan_for_llm(execution_plan),
         "structured_findings": compact_structured_findings(structured_findings),
         "planner_feedback": limit_feedback_items(planner_feedback),
         "verification_feedback": verification_feedback,
     }
+    validate_fitness_planner_payload(payload)
+    return payload
 
 
 def generate_structured_workout(
@@ -93,10 +102,16 @@ def generate_structured_workout(
         planner_feedback=planner_feedback,
         verification_feedback=verification_feedback,
     )
-    return invoke_standard_structured_output(
-        StructuredWorkout,
-        [
-            SystemMessage(content=FITNESS_PLANNER_SYSTEM_PROMPT),
-            HumanMessage(content=compact_json(payload)),
-        ],
-    )
+    token = set_llm_metrics_node("fitness_planner")
+    try:
+        return invoke_standard_structured_output(
+            StructuredWorkout,
+            [
+                SystemMessage(content=FITNESS_PLANNER_SYSTEM_PROMPT),
+                HumanMessage(content=compact_json(payload)),
+            ],
+        )
+    finally:
+        from core.llm.metrics import reset_llm_metrics_node
+
+        reset_llm_metrics_node(token)

@@ -1,8 +1,8 @@
 """Pydantic schemas for fitness profile extraction and orchestration validation."""
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Sex = Literal["male", "female"]
 FitnessGoal = Literal["fat_loss", "muscle_gain", "strength", "endurance", "general_fitness"]
@@ -113,3 +113,10 @@ class ExtractedProfile(BaseModel):
     profile: Profile = Field(default_factory=Profile)
     goal: Goal = Field(default_factory=Goal)
     constraints: Constraints = Field(default_factory=Constraints)
+
+    @field_validator("profile", "goal", "constraints", mode="before")
+    @classmethod
+    def coerce_null_nested_sections(cls, value: Any) -> Any:
+        if value is None:
+            return {}
+        return value

@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from core.config.settings import get_settings
+from core.llm.contracts import validate_research_context_payload
+from core.llm.serializers import compact_execution_plan_for_llm, compact_profile_for_llm
 from core.mcp.tavily_client import (
     TAVILY_EXTRACT_TOOL,
     TAVILY_SEARCH_TOOL,
@@ -14,7 +16,6 @@ from core.mcp.tavily_client import (
 from core.observability.tracing import traced_tavily_call
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.planning.utils import (
-    compact_profile_for_llm,
     execution_plan_to_todo_strings,
     has_execution_plan,
     load_execution_plan,
@@ -31,7 +32,15 @@ class ResearchTodosGateError(ValueError):
     """Raised when research is invoked before a planning execution plan exists."""
 
 
+def assert_execution_plan_gate(workspace_path: str) -> None:
+    if not has_execution_plan(workspace_path):
+        raise ResearchTodosGateError(
+            "Research blocked: plan/execution_plan.json is required before retrieval"
+        )
+
+
 def assert_todos_gate(todos: list[str]) -> None:
+    """Deprecated: prefer assert_execution_plan_gate."""
     if not todos:
         raise ResearchTodosGateError(
             "Research blocked: plan/execution_plan.json is required before retrieval"
@@ -76,10 +85,10 @@ def build_research_context_payload(
     if request_type:
         payload["request_type"] = request_type
     if execution_plan is not None:
-        payload["plan_rationale"] = execution_plan.plan_rationale
-        payload["tasks"] = [task.model_dump() for task in execution_plan.tasks]
+        payload.update(compact_execution_plan_for_llm(execution_plan))
     if extra:
         payload.update(extra)
+    validate_research_context_payload(payload)
     return payload
 
 

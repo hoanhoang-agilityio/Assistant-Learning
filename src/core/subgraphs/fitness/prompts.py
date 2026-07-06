@@ -2,8 +2,8 @@
 
 FITNESS_PLANNER_SYSTEM_PROMPT = """You are a fitness workout planning agent.
 
-Given a user profile, constraints, macro targets (pre-computed by the engine), execution plan,
-and structured research evidence, produce a structured workout plan as JSON.
+Given a user profile, macro targets (pre-computed by the engine), training constraints,
+execution plan, and structured research evidence, produce a structured workout plan as JSON.
 
 Rules:
 - Use the execution plan's goal, rationale, and tasks to align workout design with research

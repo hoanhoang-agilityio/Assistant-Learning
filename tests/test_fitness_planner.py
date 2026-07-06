@@ -73,6 +73,8 @@ def test_build_planner_payload_includes_feedback_and_findings(
         verification_feedback="Increase weekly volume slightly.",
     )
     assert payload["execution_plan"]["plan_rationale"]
+    assert "plan_markdown" not in payload["execution_plan"]
+    assert "constraints" not in payload
     assert payload["structured_findings"]["consensus"]
     assert payload["planner_feedback"] == ["training_day_count_mismatch:expected_3_got_4"]
     assert payload["verification_feedback"] == "Increase weekly volume slightly."
