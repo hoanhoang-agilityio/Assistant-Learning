@@ -11,6 +11,19 @@ def test_extracted_profile_defaults_to_empty_sections() -> None:
     assert extracted.constraints.days_per_week is None
 
 
+def test_extracted_profile_coerces_null_nested_sections() -> None:
+    extracted = ExtractedProfile.model_validate(
+        {
+            "profile": None,
+            "goal": {"goal": "muscle_gain"},
+            "constraints": None,
+        }
+    )
+    assert extracted.profile.age is None
+    assert extracted.goal.goal == "muscle_gain"
+    assert extracted.constraints.days_per_week is None
+
+
 def test_extracted_profile_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError):
         ExtractedProfile.model_validate({"profile": {"age": 30, "weight_lbs": 180}})

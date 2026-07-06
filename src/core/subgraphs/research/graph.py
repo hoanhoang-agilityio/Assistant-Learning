@@ -5,7 +5,6 @@ from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
 from core.subgraphs.planning.schema import ExecutionPlan
-from core.subgraphs.planning.utils import execution_plan_to_todo_strings
 from core.subgraphs.research.research_agent import run_research_agent
 from core.subgraphs.research.state import ResearchState
 from core.subgraphs.research.utils import (
@@ -20,7 +19,6 @@ def _todos_gate_node(state: ResearchState) -> dict:
     plan = load_execution_plan_for_research(state["workspace_path"])
     if plan is None:
         return {
-            "todos": [],
             "profile": {},
             "execution_plan": {},
             "blocked_by_todos": True,
@@ -29,10 +27,8 @@ def _todos_gate_node(state: ResearchState) -> dict:
             ),
         }
 
-    todos = execution_plan_to_todo_strings(plan)
     profile = load_profile_for_research(state["workspace_path"])
     return {
-        "todos": todos,
         "profile": profile,
         "execution_plan": plan.model_dump(),
         "blocked_by_todos": False,
@@ -114,7 +110,6 @@ def to_research_state(state: OrchestrationState) -> ResearchState:
         workspace_path=state["workspace_path"],
         profile={},
         execution_plan={},
-        todos=[],
         evidence=[],
         sources=[],
         structured_findings=None,

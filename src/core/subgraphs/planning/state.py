@@ -14,9 +14,6 @@ class PlanningState(TypedDict):
     route_decision: RouteDecision | None
     profile: dict
     missing_fields: list[str]
-    todos: list[str]
-    execution_plan: dict
-    planning_output: str | None
     requires_hitl: bool
     approved_tools: list[str]
     used_llm_extraction: bool

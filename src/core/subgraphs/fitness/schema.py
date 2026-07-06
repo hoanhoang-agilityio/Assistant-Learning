@@ -1,6 +1,6 @@
 """Pydantic schemas for Fitness Planner structured outputs."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class WorkoutExercise(BaseModel):
@@ -21,7 +21,14 @@ class WorkoutDay(BaseModel):
 
     name: str = Field(min_length=1)
     focus: str = Field(min_length=1)
-    exercises: list[WorkoutExercise] = Field(min_length=1)
+    exercises: list[WorkoutExercise]
+
+    @field_validator("exercises")
+    @classmethod
+    def validate_exercises(cls, exercises: list[WorkoutExercise]) -> list[WorkoutExercise]:
+        if not exercises:
+            raise ValueError("Each workout day must contain at least one exercise")
+        return exercises
 
 
 class StructuredWorkout(BaseModel):
@@ -31,12 +38,21 @@ class StructuredWorkout(BaseModel):
 
     split: str = Field(min_length=1)
     goal: str = Field(min_length=1)
-    days: list[WorkoutDay] = Field(min_length=1, max_length=6)
+    days: list[WorkoutDay]
     weekly_sets: int = Field(ge=1)
     progression: str | None = None
     substitutions: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
     evidence_applied: list[str] = Field(default_factory=list)
+
+    @field_validator("days")
+    @classmethod
+    def validate_days(cls, days: list[WorkoutDay]) -> list[WorkoutDay]:
+        if not days:
+            raise ValueError("Structured workout must contain at least one training day")
+        if len(days) > 6:
+            raise ValueError("Structured workout must contain at most 6 training days")
+        return days
 
 
 class SafetyResult(BaseModel):

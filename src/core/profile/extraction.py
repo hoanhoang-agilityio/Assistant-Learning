@@ -5,6 +5,7 @@ from collections.abc import Callable
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.llm.factory import invoke_standard_structured_output
+from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.profile.schema import ExtractedProfile
 
 ProfileExtractor = Callable[[str], ExtractedProfile]
@@ -19,6 +20,9 @@ Return ONLY a valid JSON object with exactly three top-level sections:
   "goal": {...},
   "constraints": {...}
 }
+
+Each section must be an object. Never return null for profile, goal, or constraints.
+Use null only for individual fields inside those sections when information is missing.
 
 Rules:
 
@@ -107,10 +111,14 @@ def extract_profile_from_query(query: str) -> ExtractedProfile:
     """Extract structured profile fields from a user query via LLM structured output."""
     if _EXTRACTOR_OVERRIDE is not None:
         return _EXTRACTOR_OVERRIDE(query)
-    return invoke_standard_structured_output(
-        ExtractedProfile,
-        [
-            SystemMessage(content=_EXTRACTION_SYSTEM_PROMPT),
-            HumanMessage(content=query),
-        ],
-    )
+    token = set_llm_metrics_node("profile_extraction")
+    try:
+        return invoke_standard_structured_output(
+            ExtractedProfile,
+            [
+                SystemMessage(content=_EXTRACTION_SYSTEM_PROMPT),
+                HumanMessage(content=query),
+            ],
+        )
+    finally:
+        reset_llm_metrics_node(token)

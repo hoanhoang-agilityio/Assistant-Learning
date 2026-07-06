@@ -21,6 +21,7 @@ skills-lock.json
 # Environment
 .env
 .env.local
+.cursor
 
 # IDE
 .idea/

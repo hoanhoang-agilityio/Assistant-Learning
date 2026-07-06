@@ -6,6 +6,7 @@ from typing import Any
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.llm.factory import invoke_xhigh_structured_output
+from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.payload import compact_json
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.planning.utils import build_planning_payload
@@ -27,6 +28,7 @@ Rules:
 - When request_type is macro_calculation, include macro-calculation research tasks.
 - Order tasks logically: foundational evidence first, verification last.
 - plan_markdown must summarize goal, constraints, ordered tasks, and overall rationale.
+- Keep plan_markdown concise (roughly 200-600 words); use bullet points, not long prose.
 - Do not invent profile fields not present in the input.
 - Return 3-10 distinct, non-overlapping tasks."""
 
@@ -72,11 +74,15 @@ def generate_execution_plan(
         request_type=request_type,
         constraints=constraints,
     )
-    plan = invoke_xhigh_structured_output(
-        ExecutionPlan,
-        [
-            SystemMessage(content=_PLANNING_SYSTEM_PROMPT),
-            HumanMessage(content=compact_json(payload)),
-        ],
-    )
+    token = set_llm_metrics_node("planning_agent")
+    try:
+        plan = invoke_xhigh_structured_output(
+            ExecutionPlan,
+            [
+                SystemMessage(content=_PLANNING_SYSTEM_PROMPT),
+                HumanMessage(content=compact_json(payload)),
+            ],
+        )
+    finally:
+        reset_llm_metrics_node(token)
     return normalize_execution_plan(plan)

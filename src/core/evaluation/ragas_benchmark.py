@@ -123,12 +123,14 @@ def run_golden_case(
             query=case.query,
             request_type=case.request_type,
             workspace_path=initial["workspace_path"],
-            todos=[],
-            research_questions=[],
+            profile={},
+            execution_plan={},
             evidence=[],
             sources=[],
+            structured_findings=None,
             evidence_summary=None,
             blocked_by_todos=False,
+            agent_iterations=0,
         )
         build_research_subgraph().invoke(research_state)
         fitness_state = FitnessState(

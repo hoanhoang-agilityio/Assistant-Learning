@@ -9,7 +9,6 @@ class ResearchState(TypedDict):
     workspace_path: str
     profile: dict[str, Any]
     execution_plan: dict[str, Any]
-    todos: list[str]
     evidence: list[dict]
     sources: list[dict]
     structured_findings: dict[str, Any] | None

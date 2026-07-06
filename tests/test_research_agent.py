@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.research_agent import configure_research_agent, run_research_agent
-from core.subgraphs.research.schema import SearchQueryBatch, TaskQueryPlan
+from core.subgraphs.research.schema import ResearchFindings, SearchQueryBatch, TaskQueryPlan
 from core.subgraphs.research.verification import verify_sources_data
 from tests.helpers.research import default_research_agent_result, research_agent_override
 
@@ -49,6 +49,13 @@ def test_task_query_plan_requires_two_to_five_queries() -> None:
     with pytest.raises(ValidationError):
         TaskQueryPlan(task_order=1, task="Research fat loss training", queries=["only one"])
 
+    with pytest.raises(ValidationError, match="at most 5"):
+        TaskQueryPlan(
+            task_order=1,
+            task="Research fat loss training",
+            queries=[f"query {index}" for index in range(6)],
+        )
+
     plan = TaskQueryPlan(
         task_order=1,
         task="Research fat loss training",
@@ -68,6 +75,30 @@ def test_search_query_batch_validation() -> None:
         ]
     )
     assert len(batch.task_plans) == 1
+
+
+def test_search_query_batch_json_schema_omits_min_items() -> None:
+    schema = SearchQueryBatch.model_json_schema()
+    assert "minItems" not in str(schema)
+
+
+def test_research_findings_coerces_numbered_string_lists() -> None:
+    findings = ResearchFindings(
+        consensus="Resistance training supports fat loss with adequate protein intake.",
+        key_findings="1. Higher protein preserves lean mass\n2. Strength training aids fat loss",
+        conflicting_evidence="",
+        limitations="Limited long-term RCTs in this population",
+        recommended_sources=(
+            "1. Comparison of concurrent training (https://example.com/study)\n"
+            "2. Protein during caloric deficit (https://pmc.ncbi.nlm.nih.gov/articles/PMC9285060)"
+        ),
+    )
+    assert len(findings.key_findings) == 2
+    assert findings.key_findings[0].startswith("Higher protein")
+    assert len(findings.recommended_sources) == 2
+    assert "PMC9285060" in findings.recommended_sources[1]
+    assert findings.conflicting_evidence == []
+    assert len(findings.limitations) == 1
 
 
 def test_hybrid_ranking_orders_by_composite_score() -> None:

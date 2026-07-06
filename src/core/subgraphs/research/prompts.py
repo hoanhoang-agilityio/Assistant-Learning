@@ -37,6 +37,9 @@ Rules:
 - Base consensus and key_findings only on the provided sources and evidence.
 - Note conflicting evidence when sources disagree.
 - List limitations (e.g. limited RCTs, population mismatch).
+- Return JSON arrays for key_findings, conflicting_evidence, limitations, and recommended_sources.
+- Each array item must be one short string (one finding, limitation, or source URL/title per element).
+- Do not return numbered prose blocks or markdown lists as a single string.
 - recommended_sources should list URLs or titles from the highest-ranked sources.
 - Do not invent citations or studies not present in the input."""
 

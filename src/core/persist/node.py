@@ -1,5 +1,6 @@
 from core.agents.state import OrchestrationState
 from core.agents.supervisor_log import load_verification_report
+from core.llm.metrics import write_pipeline_cost_log
 from core.persist.tools import save_artifacts, save_metrics, save_run
 from core.persist.utils import persist_trigger_data, write_metrics_artifact
 from core.subgraphs.wrapper import merge_subgraph_updates
@@ -42,6 +43,7 @@ def invoke_persist_node(state: OrchestrationState) -> dict:
         }
     )
     write_metrics_artifact(state["workspace_path"], metrics)
+    write_pipeline_cost_log(state["workspace_path"], run_id=state["run_id"])
 
     artifacts = save_artifacts.invoke(
         {

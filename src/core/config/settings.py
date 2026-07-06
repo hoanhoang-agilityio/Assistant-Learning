@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     openai_xhigh_model: str = "gpt-4o-mini"
     anthropic_api_key: str | None = None
     anthropic_xhigh_model: str = "claude-3-5-haiku-20241022"
+    openai_max_tokens: int = 4096
+    anthropic_max_tokens: int = 4096
+    llm_structured_output_max_tokens: int = 2048
 
     # LangFuse — prefer LANGFUSE_BASE_URL; LANGFUSE_HOST is a legacy alias
     langfuse_public_key: str | None = None
@@ -61,6 +64,9 @@ class Settings(BaseSettings):
     # Orchestration / Fitness retry budgets
     max_planner_attempts: int = 2
     fix_reasoning_planner_attempts: int = 1
+
+    # LLM payload observability (debug only; does not change business logic)
+    llm_payload_debug: bool = False
 
     # Per-user AI rate limits (UTC day buckets)
     rate_limit_enabled: bool = True

@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Any
 
 from core.agents.rerun import STRUCTURAL_ISSUE_MARKERS
+from core.llm.contracts import validate_planning_payload
+from core.llm.serializers import compact_profile_for_llm
 from core.profile.extraction import extract_profile_from_query
 from core.profile.normalize import merge_profile_sources
 from core.profile.schema import (
@@ -15,16 +17,29 @@ from core.profile.schema import (
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.vfs import VFS
 
-_PROFILE_LLM_FIELDS: tuple[str, ...] = (*PROFILE_FIELDS, *CONSTRAINT_FIELDS)
-
-
-def compact_profile_for_llm(profile: dict[str, Any]) -> dict[str, Any]:
-    """Return canonical profile fields for LLM payloads, excluding query and metadata."""
-    return {
-        field_name: profile[field_name]
-        for field_name in _PROFILE_LLM_FIELDS
-        if field_name in profile and profile.get(field_name) not in (None, "")
-    }
+# Re-export for backward compatibility with existing imports.
+__all__ = [
+    "build_default_execution_plan",
+    "build_planning_payload",
+    "build_profile",
+    "compact_profile_for_llm",
+    "execution_plan_covers_issues",
+    "execution_plan_to_todo_strings",
+    "has_execution_plan",
+    "has_planning_todos",
+    "load_execution_plan",
+    "load_execution_plan_from_vfs",
+    "load_planning_todos",
+    "load_stored_profile",
+    "persist_execution_plan",
+    "profile_matches_stored_profile",
+    "profile_to_orchestration_updates",
+    "resolve_extraction_query",
+    "seed_execution_plan",
+    "should_reuse_execution_plan",
+    "should_use_llm_profile_extraction",
+    "validate_profile_data",
+]
 
 
 def resolve_extraction_query(query: str, user_profile: dict[str, Any]) -> str:
@@ -60,6 +75,7 @@ def build_planning_payload(
     }
     if extra_constraints:
         payload["constraints"] = extra_constraints
+    validate_planning_payload(payload)
     return payload
 
 
@@ -198,15 +214,10 @@ def should_reuse_execution_plan(
 
 
 def load_execution_plan_from_vfs(workspace_path: str) -> dict[str, Any]:
-    """Load persisted execution plan fields without invoking the Planning Agent."""
-    plan = load_execution_plan(workspace_path)
-    todos = execution_plan_to_todo_strings(plan)
-    return {
-        "todos": todos,
-        "execution_plan": plan.model_dump(),
-        "planning_output": plan.plan_markdown,
-        "requires_hitl": False,
-    }
+    """Load persisted execution plan control flags without invoking the Planning Agent."""
+    if not has_execution_plan(workspace_path):
+        return {"requires_hitl": False}
+    return {"requires_hitl": False}
 
 
 def execution_plan_to_todo_strings(plan: ExecutionPlan) -> list[str]:
@@ -234,19 +245,14 @@ def persist_execution_plan(
     workspace_path: str,
 ) -> dict[str, Any]:
     """Persist execution plan artifacts to the run workspace VFS."""
-    todos = execution_plan_to_todo_strings(plan)
     vfs = VFS.for_run(Path(workspace_path))
     vfs.write("plan/execution_plan.json", plan.model_dump_json(indent=2))
     vfs.write("plan/plan.md", plan.plan_markdown)
-    vfs.write("plan/profile.json", json.dumps(profile, indent=2))
-    # Deprecated: derived compatibility shim; migrate consumers to execution_plan.json.
-    vfs.write("plan/todos.json", json.dumps(todos, indent=2))
-    return {
-        "todos": todos,
-        "execution_plan": plan.model_dump(),
-        "planning_output": plan.plan_markdown,
-        "requires_hitl": False,
-    }
+    vfs.write(
+        "plan/profile.json",
+        json.dumps(compact_profile_for_llm(profile), indent=2),
+    )
+    return {"requires_hitl": False}
 
 
 def build_default_execution_plan(profile: dict[str, Any] | None = None) -> ExecutionPlan:
