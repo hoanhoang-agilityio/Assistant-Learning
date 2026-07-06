@@ -17,6 +17,7 @@ from core.graph.builder import build_graph
 from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.run import create_initial_state
 from core.hitl.resume import create_approval_decision, decision_to_resume_update
+from core.llm.metrics import reset_llm_metrics, write_pipeline_cost_log
 from core.observability.langfuse import build_graph_invoke_config, flush_langfuse
 from core.profile.labels import format_missing_profile_prompt
 from core.rate_limit import (
@@ -91,6 +92,7 @@ class RunOrchestrator:
     ) -> RunStatus:
         resolved_run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
         self._rate_limiter.reserve_request(user_id)
+        reset_llm_metrics()
         state = create_initial_state(
             run_id=resolved_run_id,
             thread_id=resolved_run_id,
@@ -103,6 +105,7 @@ class RunOrchestrator:
         result = self._graph.invoke(state, config)
         flush_langfuse()
         snapshot = self._graph.get_state(config)
+        self._maybe_write_token_cost_log(snapshot.values, snapshot.next)
         return self._to_status(resolved_run_id, result, snapshot.next)
 
     def start_run(
@@ -117,6 +120,7 @@ class RunOrchestrator:
         """Start a run in a background thread and return immediately."""
         resolved_run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
         self._rate_limiter.reserve_request(user_id)
+        reset_llm_metrics()
         state = create_initial_state(
             run_id=resolved_run_id,
             thread_id=resolved_run_id,
@@ -263,6 +267,10 @@ class RunOrchestrator:
                     "query": str(snapshot.values.get("query", "")),
                 }
         finally:
+            snapshot = self._graph.get_state(config)
+            with self._lock:
+                failed = run_id in self._run_failures
+            self._maybe_write_token_cost_log(snapshot.values, snapshot.next, failed=failed)
             reset_rate_limit_user_id(context_token)
             with self._lock:
                 self._pending_runs.pop(run_id, None)
@@ -285,9 +293,32 @@ class RunOrchestrator:
                     "query": str(state.get("query", "")),
                 }
         finally:
+            snapshot = self._graph.get_state(config)
+            with self._lock:
+                failed = run_id in self._run_failures
+            self._maybe_write_token_cost_log(snapshot.values, snapshot.next, failed=failed)
             reset_rate_limit_user_id(context_token)
             with self._lock:
                 self._pending_runs.pop(run_id, None)
+
+    def _maybe_write_token_cost_log(
+        self,
+        state: dict[str, Any],
+        next_nodes: tuple[str, ...],
+        *,
+        failed: bool = False,
+    ) -> None:
+        if not state:
+            return
+        if not failed:
+            lifecycle = _resolve_lifecycle_status(state, next_nodes)
+            if lifecycle != "completed":
+                return
+        workspace_path = str(state.get("workspace_path", ""))
+        run_id = str(state.get("run_id", ""))
+        if not workspace_path or not run_id:
+            return
+        write_pipeline_cost_log(workspace_path, run_id=run_id)
 
     def _pending_status(self, run_id: str, state: dict[str, Any]) -> RunStatus:
         return RunStatus(
