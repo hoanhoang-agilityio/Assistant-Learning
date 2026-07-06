@@ -16,15 +16,16 @@ def persist_trigger_data(
     approval_status: str | None,
 ) -> dict[str, Any]:
     """Return whether PERSIST_RESULTS may run."""
+    if approval_status == "approved":
+        return {"can_persist": True, "persist_blocked_reasons": []}
     blocked_reasons: list[str] = []
     if not verification_passed:
         blocked_reasons.append("verification_not_passed")
     if faithfulness_score is None or faithfulness_score < FAITHFULNESS_PASS_THRESHOLD:
         blocked_reasons.append("faithfulness_below_threshold")
-    if approval_status != "approved":
-        blocked_reasons.append("approval_missing")
+    blocked_reasons.append("approval_missing")
     return {
-        "can_persist": not blocked_reasons,
+        "can_persist": False,
         "persist_blocked_reasons": blocked_reasons,
     }
 
