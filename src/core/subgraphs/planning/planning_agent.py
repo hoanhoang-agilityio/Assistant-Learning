@@ -30,7 +30,7 @@ Rules:
 - plan_markdown must summarize goal, constraints, ordered tasks, and overall rationale.
 - Keep plan_markdown concise (roughly 200-600 words); use bullet points, not long prose.
 - Do not invent profile fields not present in the input.
-- Return 3-10 distinct, non-overlapping tasks."""
+- Return 3 distinct, non-overlapping tasks."""
 
 
 def configure_planning_agent(override: PlanningAgentOverride | None) -> None:

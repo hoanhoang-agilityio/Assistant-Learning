@@ -27,6 +27,6 @@ class ExecutionPlan(BaseModel):
     def validate_tasks(cls, tasks: list[PlanTask]) -> list[PlanTask]:
         if len(tasks) < 3:
             raise ValueError("Execution plan must contain at least 3 tasks")
-        if len(tasks) > 10:
+        if len(tasks) > 5:
             raise ValueError("Execution plan must contain at most 10 tasks")
         return tasks
