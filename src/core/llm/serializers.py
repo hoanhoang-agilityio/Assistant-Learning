@@ -18,27 +18,44 @@ _MACRO_TARGET_LLM_FIELDS: tuple[str, ...] = (
 
 def compact_profile_for_llm(profile: dict[str, Any]) -> dict[str, Any]:
     """Return canonical profile fields for LLM payloads, excluding query and metadata."""
-    return {
+    compact = {
         field_name: profile[field_name]
         for field_name in _PROFILE_LLM_FIELDS
         if field_name in profile and profile.get(field_name) not in (None, "")
     }
+    if "days_per_week" in compact and "activity_level" in compact:
+        del compact["activity_level"]
+    return compact
 
 
-def compact_execution_plan_for_llm(plan: Any) -> dict[str, Any]:
+def compact_execution_plan_for_llm(
+    plan: Any,
+    *,
+    include_task_rationale: bool = True,
+) -> dict[str, Any]:
     """Return execution plan fields needed by downstream LLM calls (no plan_markdown)."""
     from core.subgraphs.planning.schema import ExecutionPlan
 
     if isinstance(plan, ExecutionPlan):
+        tasks = (
+            [task.model_dump() for task in plan.tasks]
+            if include_task_rationale
+            else [{"order": task.order, "task": task.task} for task in plan.tasks]
+        )
         return {
             "plan_rationale": plan.plan_rationale,
-            "tasks": [task.model_dump() for task in plan.tasks],
+            "tasks": tasks,
         }
     if not isinstance(plan, dict):
         raise TypeError("plan must be ExecutionPlan or dict")
+    raw_tasks = plan["tasks"]
+    if include_task_rationale:
+        tasks = raw_tasks
+    else:
+        tasks = [{"order": task["order"], "task": task["task"]} for task in raw_tasks]
     return {
         "plan_rationale": plan["plan_rationale"],
-        "tasks": plan["tasks"],
+        "tasks": tasks,
     }
 
 
