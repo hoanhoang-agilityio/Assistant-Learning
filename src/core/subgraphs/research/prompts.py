@@ -7,7 +7,7 @@ web search queries for each research task. Queries should target authoritative f
 nutrition, and training evidence (guidelines, systematic reviews, position stands).
 
 Rules:
-- Generate 2-5 distinct, specific search queries per task.
+- Generate 3 distinct, specific search queries per task.
 - Use domain terminology (e.g. ACSM, ISSN, hypertrophy, caloric deficit).
 - Do not repeat the same query across tasks.
 - Align queries with the task rationale and user profile constraints.

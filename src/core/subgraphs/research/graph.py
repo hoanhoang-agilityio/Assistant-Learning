@@ -4,7 +4,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
-from core.subgraphs.planning.schema import ExecutionPlan
+from core.llm.serializers import compact_execution_plan_for_llm
 from core.subgraphs.research.research_agent import run_research_agent
 from core.subgraphs.research.state import ResearchState
 from core.subgraphs.research.utils import (
@@ -30,13 +30,15 @@ def _todos_gate_node(state: ResearchState) -> dict:
     profile = load_profile_for_research(state["workspace_path"])
     return {
         "profile": profile,
-        "execution_plan": plan.model_dump(),
+        "execution_plan": compact_execution_plan_for_llm(plan),
         "blocked_by_todos": False,
     }
 
 
 def _research_agent_node(state: ResearchState) -> dict:
-    execution_plan = ExecutionPlan.model_validate(state["execution_plan"])
+    execution_plan = load_execution_plan_for_research(state["workspace_path"])
+    if execution_plan is None:
+        raise ValueError("Research agent invoked without execution plan")
     result = run_research_agent(
         query=state["query"],
         request_type=state["request_type"],

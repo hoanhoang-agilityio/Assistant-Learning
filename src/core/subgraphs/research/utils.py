@@ -69,12 +69,94 @@ def load_todos_for_research(workspace_path: str) -> list[str]:
     return execution_plan_to_todo_strings(plan)
 
 
+def compact_source_for_llm(
+    source: dict[str, Any],
+    *,
+    snippet_chars: int = 200,
+) -> dict[str, str]:
+    """Return minimal source fields for LLM payloads."""
+    snippet = str(source.get("snippet", ""))
+    return {
+        "title": str(source.get("title", "Untitled source")),
+        "url": str(source.get("url", "")),
+        "snippet": snippet[:snippet_chars],
+    }
+
+
+def compact_sources_for_llm(
+    sources: list[dict[str, Any]],
+    *,
+    limit: int | None = None,
+    snippet_chars: int = 200,
+) -> list[dict[str, str]]:
+    """Return compact source previews for LLM payloads."""
+    selected = sources if limit is None else sources[:limit]
+    return [compact_source_for_llm(source, snippet_chars=snippet_chars) for source in selected]
+
+
+def build_eval_llm_extra(
+    sources: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
+    *,
+    sources_limit: int = 10,
+    evidence_limit: int = 5,
+    snippet_chars: int = 200,
+    content_chars: int = 300,
+) -> dict[str, Any]:
+    """Build compact eval-phase extra fields without redundant metadata."""
+    return {
+        "sources_preview": compact_sources_for_llm(
+            sources,
+            limit=sources_limit,
+            snippet_chars=snippet_chars,
+        ),
+        "evidence_preview": [
+            {
+                "url": item.get("url"),
+                "content_preview": str(item.get("content", ""))[:content_chars],
+            }
+            for item in evidence[:evidence_limit]
+        ],
+    }
+
+
+def build_synthesis_llm_extra(
+    sources: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build synthesis extra fields with URL deduplication between sources and evidence."""
+    settings = get_settings()
+    evidence_limit = settings.research_synthesis_evidence_limit
+    content_chars = settings.research_synthesis_content_chars
+    evidence_docs = [
+        {
+            "url": item.get("url"),
+            "content": str(item.get("content", ""))[:content_chars],
+        }
+        for item in evidence[:evidence_limit]
+    ]
+    evidence_urls = {str(item.get("url", "")) for item in evidence_docs if item.get("url")}
+    source_catalog = compact_sources_for_llm(
+        [
+            source
+            for source in sources
+            if str(source.get("url", "")) and str(source.get("url", "")) not in evidence_urls
+        ],
+        limit=5,
+    )
+    return {
+        "evidence": evidence_docs,
+        "source_catalog": source_catalog,
+    }
+
+
 def build_research_context_payload(
     *,
     query: str,
     request_type: str | None,
     profile: dict[str, Any],
     execution_plan: ExecutionPlan | None = None,
+    include_task_rationale: bool = True,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a deduplicated payload for Research Agent LLM calls."""
@@ -82,10 +164,15 @@ def build_research_context_payload(
     stripped_query = query.strip()
     if stripped_query:
         payload["query"] = stripped_query
-    if request_type:
+    if request_type and request_type != profile.get("goal"):
         payload["request_type"] = request_type
     if execution_plan is not None:
-        payload.update(compact_execution_plan_for_llm(execution_plan))
+        payload.update(
+            compact_execution_plan_for_llm(
+                execution_plan,
+                include_task_rationale=include_task_rationale,
+            )
+        )
     if extra:
         payload.update(extra)
     validate_research_context_payload(payload)
