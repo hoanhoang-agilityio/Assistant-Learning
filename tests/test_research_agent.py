@@ -1,11 +1,17 @@
 """Unit tests for Research Agent schemas, ranking, verification, and override."""
 
+from unittest.mock import patch
+
 import pytest
 from pydantic import ValidationError
 
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.research.ranking import rank_sources_data
-from core.subgraphs.research.research_agent import configure_research_agent, run_research_agent
+from core.subgraphs.research.research_agent import (
+    _evaluate_evidence,
+    configure_research_agent,
+    run_research_agent,
+)
 from core.subgraphs.research.schema import ResearchFindings, SearchQueryBatch, TaskQueryPlan
 from core.subgraphs.research.verification import verify_sources_data
 from tests.helpers.research import default_research_agent_result, research_agent_override
@@ -45,16 +51,23 @@ def _sample_plan() -> ExecutionPlan:
     )
 
 
-def test_task_query_plan_requires_two_to_five_queries() -> None:
+def test_task_query_plan_requires_one_to_three_queries() -> None:
     with pytest.raises(ValidationError):
-        TaskQueryPlan(task_order=1, task="Research fat loss training", queries=["only one"])
+        TaskQueryPlan(task_order=1, task="Research fat loss training", queries=[])
 
-    with pytest.raises(ValidationError, match="at most 5"):
+    with pytest.raises(ValidationError, match="at most 3"):
         TaskQueryPlan(
             task_order=1,
             task="Research fat loss training",
-            queries=[f"query {index}" for index in range(6)],
+            queries=[f"query {index}" for index in range(4)],
         )
+
+    single = TaskQueryPlan(
+        task_order=1,
+        task="Research fat loss training",
+        queries=["ACSM fat loss guideline"],
+    )
+    assert len(single.queries) == 1
 
     plan = TaskQueryPlan(
         task_order=1,
@@ -62,6 +75,13 @@ def test_task_query_plan_requires_two_to_five_queries() -> None:
         queries=["ACSM fat loss guideline", "systematic review resistance training fat loss"],
     )
     assert len(plan.queries) == 2
+
+    triple = TaskQueryPlan(
+        task_order=1,
+        task="Research fat loss training",
+        queries=["query one", "query two", "query three"],
+    )
+    assert len(triple.queries) == 3
 
 
 def test_search_query_batch_validation() -> None:
@@ -175,3 +195,36 @@ def test_configure_research_agent_override() -> None:
         execution_plan=_sample_plan(),
     )
     assert result == custom
+
+
+def test_eval_skip_when_sufficient_verified_sources() -> None:
+    sources = [
+        {
+            "title": "NIH training study",
+            "url": "https://www.nih.gov/fitness",
+            "snippet": "training evidence",
+        },
+        {
+            "title": "PubMed review",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/study",
+            "snippet": "systematic review",
+        },
+    ]
+    evidence = [
+        {"url": "https://www.nih.gov/fitness", "content": "Document one"},
+        {"url": "https://pubmed.ncbi.nlm.nih.gov/study", "content": "Document two"},
+    ]
+    with patch(
+        "core.subgraphs.research.research_agent.invoke_standard_structured_output"
+    ) as mock_llm:
+        result = _evaluate_evidence(
+            query="lose weight",
+            profile={"goal": "fat_loss"},
+            execution_plan=_sample_plan(),
+            sources=sources,
+            evidence=evidence,
+        )
+    assert result.sufficient is True
+    assert result.gaps == []
+    assert result.refined_queries == []
+    mock_llm.assert_not_called()

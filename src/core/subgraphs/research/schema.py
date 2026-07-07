@@ -46,10 +46,10 @@ class TaskQueryPlan(BaseModel):
     @classmethod
     def validate_queries_non_empty(cls, queries: list[str]) -> list[str]:
         cleaned = [query.strip() for query in queries if query.strip()]
-        if len(cleaned) < 2:
-            raise ValueError("Each task must have at least 2 non-empty search queries")
-        if len(cleaned) > 5:
-            raise ValueError("Each task must have at most 5 non-empty search queries")
+        if len(cleaned) < 1:
+            raise ValueError("Each task must have at least 1 non-empty search queries")
+        if len(cleaned) > 3:
+            raise ValueError("Each task must have at most 3 non-empty search queries")
         return cleaned
 
 

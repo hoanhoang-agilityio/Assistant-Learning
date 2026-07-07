@@ -16,7 +16,10 @@ from core.subgraphs.research.prompts import (
     SYNTHESIS_SYSTEM_PROMPT,
 )
 from core.subgraphs.research.schema import ResearchFindings
-from core.subgraphs.research.utils import build_research_context_payload
+from core.subgraphs.research.utils import (
+    build_research_context_payload,
+    build_synthesis_llm_extra,
+)
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
 _MIN_PLAN_RATIONALE = "Test plan rationale with enough characters for validation."
@@ -92,10 +95,12 @@ def test_fixture_measurements_within_budgets() -> None:
                 query=query,
                 request_type=None,
                 profile=profile,
-                extra={
-                    "sources": [{"title": "Source", "url": "https://example.com"}],
-                    "evidence": [{"url": "https://example.com", "content": "Evidence snippet."}],
-                },
+                extra=build_synthesis_llm_extra(
+                    sources=[
+                        {"title": "Source", "url": "https://example.com/other", "snippet": "x"}
+                    ],
+                    evidence=[{"url": "https://example.com", "content": "Evidence snippet."}],
+                ),
             ),
         ),
         (

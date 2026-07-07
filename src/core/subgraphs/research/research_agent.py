@@ -28,12 +28,16 @@ from core.subgraphs.research.schema import (
 )
 from core.subgraphs.research.tools import RESEARCH_AGENT_TOOLS
 from core.subgraphs.research.utils import (
+    build_eval_llm_extra,
     build_research_context_payload,
+    build_synthesis_llm_extra,
+    compact_sources_for_llm,
     derive_evidence_summary,
     extract_tavily_data,
     post_process_sources,
     search_tavily_data,
 )
+from core.subgraphs.research.verification import verify_sources_data
 
 ResearchAgentOverride = Callable[..., ResearchAgentResult]
 
@@ -138,7 +142,7 @@ def _execute_tool_call(
             {
                 "query": search_query,
                 "source_count": len(result["sources"]),
-                "sources": result["sources"][:5],
+                "sources": compact_sources_for_llm(result["sources"][:5]),
             }
         )
     if tool_name == "tavily_extract":
@@ -183,10 +187,11 @@ def _has_sufficient_evidence_deterministic(
 ) -> bool:
     """Heuristic gate to skip the LLM evidence-evaluation call when coverage looks adequate."""
     settings = get_settings()
-    verified_sources = sum(1 for source in sources if source.get("verified"))
+    verified_sources = verify_sources_data(sources)["sources"]
+    verified_count = sum(1 for source in verified_sources if source.get("verified"))
     return (
         len(sources) >= settings.research_min_verified_sources_for_skip_eval
-        and verified_sources >= settings.research_min_verified_sources_for_skip_eval
+        and verified_count >= settings.research_min_verified_sources_for_skip_eval
         and len(evidence) >= settings.research_min_evidence_docs_for_skip_eval
     )
 
@@ -207,17 +212,8 @@ def _evaluate_evidence(
         request_type=None,
         profile=profile,
         execution_plan=execution_plan,
-        extra={
-            "source_count": len(sources),
-            "sources_preview": sources[:10],
-            "evidence_preview": [
-                {
-                    "url": item.get("url"),
-                    "content_preview": str(item.get("content", ""))[:300],
-                }
-                for item in evidence[:5]
-            ],
-        },
+        include_task_rationale=False,
+        extra=build_eval_llm_extra(sources, evidence),
     )
     return _invoke_with_node(
         "research_evidence_eval",
@@ -246,7 +242,6 @@ def _run_react_loop(
         query=query,
         request_type=request_type,
         profile=profile,
-        execution_plan=execution_plan,
     )
     messages: list = [
         SystemMessage(content=REACT_SYSTEM_PROMPT),
@@ -318,23 +313,11 @@ def _synthesize_findings(
     sources: list[dict[str, Any]],
     evidence: list[dict[str, Any]],
 ) -> ResearchFindings:
-    settings = get_settings()
     payload = build_research_context_payload(
         query=query,
         request_type=None,
         profile=profile,
-        extra={
-            "sources": sources[:15],
-            "evidence": [
-                {
-                    "url": item.get("url"),
-                    "content": str(item.get("content", ""))[
-                        : settings.research_synthesis_content_chars
-                    ],
-                }
-                for item in evidence[: settings.research_synthesis_evidence_limit]
-            ],
-        },
+        extra=build_synthesis_llm_extra(sources, evidence),
     )
     return _invoke_with_node(
         "research_synthesis",
