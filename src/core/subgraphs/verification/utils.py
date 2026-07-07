@@ -144,7 +144,7 @@ def safety_check_data(
 
 
 def heuristic_faithfulness_score(draft_plan: str, evidence: list[dict[str, Any]]) -> float:
-    """Evidence-grounding proxy used until full RAGAS batch evaluation (Day 9)."""
+    """Evidence-grounding proxy (Ragas SDK import blocked by optional Vertex dep)."""
     if not draft_plan.strip():
         return 0.0
     if not evidence:

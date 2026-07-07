@@ -16,8 +16,8 @@ Thread: thread_id
     ├── Supervisor
     ├── Planning (reasoning_tier=XHIGH)
     ├── Research
-    │   ├── tavily-search
-    │   └── tavily-extract
+    │   ├── tavily_search
+    │   └── tavily_extract
     ├── Fitness
     ├── Verification (reasoning_tier=XHIGH)
     ├── partial_rerun_FIX_REASONING | partial_rerun_REPLAN | partial_rerun_RERESEARCH (on failure loops only)
@@ -31,12 +31,13 @@ Thread: thread_id
 2. Open LangFuse → Traces → filter by tag `pt-ai-core` or session `thread_id`.
 3. Confirm root trace name/input includes the user query.
 4. Confirm child spans appear in execution order for a happy path:
-   - Supervisor → Planning → Supervisor → Research → (tavily-search/extract) → Supervisor → Fitness → Verification → Supervisor → HITL → Supervisor → PERSIST_RESULTS
+   - Supervisor → Planning → Supervisor → Research → (tavily_search/extract when agent calls MCP) → Supervisor → Fitness → Verification → Supervisor → HITL → Supervisor → PERSIST_RESULTS
 5. Trigger a verification failure (e.g. remove sources) and confirm a `partial_rerun_*` span appears on the next affected subgraph.
 6. Confirm `persist` span metadata includes `subgraph=persist` and final artifact path in node output.
 
 ## Automated coverage
 
 - `tests/test_langfuse_spans.py` — span naming and wrapper wiring
+- `tests/integration/test_langfuse_hierarchy.py` — subgraph + Tavily MCP span recording
 - `tests/integration/` — todos gate, Tavily path, partial rerun routing, happy path
 - `tests/test_ragas_benchmark.py` — golden faithfulness regression (≥ 0.90)

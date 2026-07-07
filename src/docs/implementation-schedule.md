@@ -12,24 +12,24 @@ Detailed task estimates for the Core Deep Researcher (Fitness AI).
 | Scope | Full Phase 1: graph, subgraphs, **Tavily MCP (pre-built)**, HITL, persist, **FastAPI**, **Streamlit**, **full LangFuse tracing**, **RAGAS benchmark**, tests, acceptance |
 | Reference docs | `implementation-specification.md`, `multi-agent-implementation-plan.md` |
 
-## Progress Snapshot (as of scaffold + state/tools PRs)
+## Progress Snapshot (as of Day 9)
 
 | Area | Status |
 | --- | --- |
 | Module scaffold (supervisor + 4 subgraphs) | Done |
 | `OrchestrationState` + subgraph `TypedDict` schemas | Done |
-| Supervisor / HITL / persist / subgraph tool stubs | Done (bodies are `...`) |
+| Supervisor / HITL / persist / subgraph tools | Done |
 | `Settings` (Postgres DSN, workspace root, LLM keys, LangFuse) | Done |
 | `docker-compose.yml` (Postgres 16) | Done |
-| Tavily MCP client wiring (pre-built server, no custom MCP) | Not started |
-| VFS module | Not started |
-| LangGraph `StateGraph` + checkpointer | Not started |
-| Subgraph graphs + real tool logic | Not started |
-| HITL interrupt + resume | Not started |
-| LangFuse full span hierarchy | Not started |
+| Tavily MCP client wiring (pre-built server, no custom MCP) | Done |
+| VFS module | Done |
+| LangGraph `StateGraph` + checkpointer | Done |
+| Subgraph graphs + real tool logic | Done |
+| HITL interrupt + resume | Done |
+| LangFuse full span hierarchy | Done |
+| Integration tests (`tests/integration/`) | Done |
+| RAGAS benchmark script + golden regression | Done |
 | FastAPI + Streamlit UI | Not started |
-| RAGAS benchmark script | Not started |
-| Integration / acceptance tests | Not started |
 
 ---
 
