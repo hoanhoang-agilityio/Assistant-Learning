@@ -120,7 +120,9 @@ def test_e2e_happy_path_persists_final_artifact(
     assert vfs.exists("logs/token_cost.md")
 
     persist_result = json.loads(vfs.read("logs/persist_result.json"))
-    assert persist_result["artifacts"] == ["final/final_plan.md"]
+    assert "final/final_plan.md" in persist_result["artifacts"]
+    assert "final/workout.json" in persist_result["artifacts"]
+    assert "final/blueprint.json" in persist_result["artifacts"]
 
     metrics = json.loads(vfs.read("logs/metrics.json"))
     assert metrics["faithfulness_score"] >= FAITHFULNESS_PASS_THRESHOLD

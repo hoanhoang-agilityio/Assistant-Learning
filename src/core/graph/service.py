@@ -16,7 +16,11 @@ from core.config.settings import get_settings
 from core.graph.builder import build_graph
 from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.run import create_initial_state
-from core.hitl.resume import create_approval_decision, decision_to_resume_update
+from core.hitl.resume import (
+    create_approval_decision,
+    decision_to_resume_update,
+    user_revision_to_replan_update,
+)
 from core.llm.metrics import reset_llm_metrics, write_pipeline_cost_log
 from core.observability.langfuse import build_graph_invoke_config, flush_langfuse
 from core.profile.labels import format_missing_profile_prompt
@@ -25,12 +29,41 @@ from core.rate_limit import (
     reset_rate_limit_user_id,
     set_rate_limit_user_id,
 )
-from core.subgraphs.planning.utils import build_profile, profile_to_orchestration_updates
+from core.subgraphs.planning.utils import (
+    build_profile,
+    persist_revision_feedback,
+    profile_to_orchestration_updates,
+)
 from core.vfs import VFS
 
 logger = logging.getLogger(__name__)
 
 RunLifecycleStatus = Literal["running", "waiting_hitl", "completed", "failed", "not_found"]
+
+
+def _cleared_user_profile(user_profile: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in user_profile.items() if key != "missing_fields"}
+
+
+def _build_replan_profile_updates(
+    *,
+    query: str,
+    user_profile: dict[str, Any],
+    constraints: dict[str, Any],
+    revision_feedback: str,
+) -> dict[str, Any]:
+    """Merge revision feedback into orchestration profile/constraints for a replan."""
+    profile = build_profile(
+        query=query,
+        user_profile=_cleared_user_profile(user_profile),
+        constraints=constraints,
+        revision_feedback=revision_feedback,
+    )
+    sync = profile_to_orchestration_updates(profile)
+    return {
+        "user_profile": sync["user_profile"],
+        "constraints": {**constraints, **sync["constraints"]},
+    }
 
 
 class RunNotFoundError(LookupError):
@@ -181,7 +214,10 @@ class RunOrchestrator:
                 pending_tool=pending_tool or snapshot.values.get("pending_tool"),
                 approved_tools=approved_tools or snapshot.values.get("approved_tools"),
             )
-            update = decision_to_resume_update(decision)
+            update = decision_to_resume_update(
+                decision,
+                replan_count=int(snapshot.values.get("replan_count") or 0),
+            )
         else:
             if not user_response:
                 raise ValueError("user_response or decision_type is required")
@@ -221,7 +257,129 @@ class RunOrchestrator:
                 **(snapshot.values.get("constraints") or {}),
                 **sync["constraints"],
             }
+            update.pop("route_decision", None)
+            update.pop("replan_count", None)
+            update.pop("revision_feedback", None)
+            update["approval_status"] = "pending"
+            update["verification_passed"] = snapshot.values.get("verification_passed", False)
+        elif resolved_status == "revision_requested" and not missing_fields:
+            feedback = update.get("user_response") or message or ""
+            update.update(user_revision_to_replan_update(feedback))
+            update.update(
+                _build_replan_profile_updates(
+                    query=str(snapshot.values.get("query", "")),
+                    user_profile=snapshot.values.get("user_profile") or {},
+                    constraints=snapshot.values.get("constraints") or {},
+                    revision_feedback=feedback,
+                )
+            )
+            workspace_path = snapshot.values.get("workspace_path")
+            if workspace_path and update.get("revision_feedback"):
+                persist_revision_feedback(str(workspace_path), str(update["revision_feedback"]))
+        elif update.get("route_decision") == "REPLAN" and update.get("revision_feedback"):
+            workspace_path = snapshot.values.get("workspace_path")
+            if workspace_path:
+                persist_revision_feedback(
+                    str(workspace_path),
+                    str(update["revision_feedback"]),
+                )
         return self.start_resume_run(run_id, update=update)
+
+    def continue_run(self, run_id: str, *, message: str) -> RunStatus:
+        """Replan from an existing conversation when the user changes plan preferences."""
+        feedback = message.strip()
+        if not feedback:
+            raise ValueError("message is required")
+
+        config = self._build_config(run_id)
+        snapshot = self._graph.get_state(config)
+        if not snapshot.values:
+            raise RunNotFoundError(f"Run not found: {run_id}")
+
+        lifecycle = _resolve_lifecycle_status(snapshot.values, snapshot.next)
+        if lifecycle not in {"completed", "waiting_hitl"}:
+            raise ValueError("Run cannot accept plan changes in its current state")
+
+        missing_fields = snapshot.values.get("user_profile", {}).get("missing_fields", [])
+        if missing_fields:
+            raise ValueError(
+                "Profile is incomplete; provide missing details before changing the plan"
+            )
+
+        self._rate_limiter.reserve_request(str(snapshot.values.get("user_id", "")) or None)
+        update = user_revision_to_replan_update(feedback)
+        update.update(
+            _build_replan_profile_updates(
+                query=str(snapshot.values.get("query", "")),
+                user_profile=snapshot.values.get("user_profile") or {},
+                constraints=snapshot.values.get("constraints") or {},
+                revision_feedback=feedback,
+            )
+        )
+        update["current_node"] = "hitl"
+        update["final_artifact_path"] = None
+        workspace_path = snapshot.values.get("workspace_path")
+        if workspace_path:
+            persist_revision_feedback(str(workspace_path), feedback)
+
+        if snapshot.next == ("hitl",) or snapshot.values.get("waiting_for_user"):
+            return self.start_resume_run(run_id, update=update)
+        return self.start_continue_run(run_id, update=update, config=config)
+
+    def start_continue_run(
+        self,
+        run_id: str,
+        *,
+        update: dict[str, Any],
+        config: dict[str, Any],
+    ) -> RunStatus:
+        """Resume a completed run into a replan without requiring an active HITL interrupt."""
+        snapshot = self._graph.get_state(config)
+        if not snapshot.values:
+            raise RunNotFoundError(f"Run not found: {run_id}")
+
+        with self._lock:
+            self._run_failures.pop(run_id, None)
+            self._pending_runs[run_id] = {**snapshot.values, **update}
+
+        thread = threading.Thread(
+            target=self._execute_continue_run,
+            args=(run_id, update, config),
+            daemon=True,
+            name=f"continue-{run_id}",
+        )
+        thread.start()
+        resumed_state = {**snapshot.values, **update, "waiting_for_user": False}
+        return self._to_status(run_id, resumed_state, ("supervisor",))
+
+    def _execute_continue_run(
+        self,
+        run_id: str,
+        update: dict[str, Any],
+        config: dict[str, Any],
+    ) -> None:
+        snapshot = self._graph.get_state(config)
+        user_id = str(snapshot.values.get("user_id", ""))
+        context_token = set_rate_limit_user_id(user_id or None)
+        try:
+            self._graph.invoke(Command(update=update, goto="supervisor"), config)
+            flush_langfuse()
+        except Exception as exc:
+            logger.exception("Continue for run %s failed", run_id)
+            with self._lock:
+                snapshot = self._graph.get_state(config)
+                self._run_failures[run_id] = {
+                    "error": str(exc),
+                    "query": str(snapshot.values.get("query", "")),
+                }
+        finally:
+            snapshot = self._graph.get_state(config)
+            with self._lock:
+                failed = run_id in self._run_failures
+            self._maybe_write_token_cost_log(snapshot.values, snapshot.next, failed=failed)
+            reset_rate_limit_user_id(context_token)
+            with self._lock:
+                self._pending_runs.pop(run_id, None)
 
     def start_resume_run(self, run_id: str, *, update: dict[str, Any]) -> RunStatus:
         """Resume a HITL-paused run in a background thread and return immediately."""
@@ -386,6 +544,7 @@ class RunOrchestrator:
                 waiting_for_user=False,
                 approval_status=None,
                 user_response=None,
+                revision_feedback=None,
                 workspace_path="",
                 final_artifact_path=None,
                 steps=[],
@@ -446,6 +605,16 @@ def _resolve_lifecycle_status(
     state: dict[str, Any],
     next_nodes: tuple[str, ...],
 ) -> RunLifecycleStatus:
+    if state.get("approval_status") == "rejected" and not next_nodes:
+        return "completed"
+    if state.get("approval_status") == "approved" and state.get("final_artifact_path"):
+        return "completed"
+    if (
+        state.get("approval_status") == "approved"
+        and not next_nodes
+        and state.get("current_node") == "persist"
+    ):
+        return "completed"
     if next_nodes == ("hitl",) or (
         state.get("waiting_for_user") and state.get("current_node") != "persist"
     ):
@@ -484,6 +653,8 @@ def _resolve_hitl_context(
     state: dict[str, Any],
     next_nodes: tuple[str, ...],
 ) -> tuple[str | None, str | None]:
+    if state.get("approval_status") in {"rejected", "approved"}:
+        return None, None
     if next_nodes != ("hitl",) and not state.get("waiting_for_user"):
         return None, None
 
@@ -495,20 +666,13 @@ def _resolve_hitl_context(
     if missing_fields:
         return "clarification", format_missing_profile_prompt(missing_fields)
 
-    pending_tool = state.get("pending_tool")
-    if pending_tool:
-        return (
-            "tool_approval",
-            state.get("hitl_message") or f"Approve sensitive tool execution: {pending_tool}",
-        )
-
     draft_plan = _read_final_plan(state)
     if draft_plan:
         preview = draft_plan[:500]
         if state.get("verification_passed") or state.get("route_decision") == "COMPLETE":
             return (
                 "approval",
-                f"Review the draft fitness plan and approve or reject. Preview:\n\n{preview}",
+                f"Review the draft fitness plan. Approve to save, or reject with feedback to replan.\n\n{preview}",
             )
         return (
             "approval",

@@ -37,6 +37,7 @@ def create_initial_state(
         waiting_for_user=False,
         approval_status=None,
         user_response=None,
+        revision_feedback=None,
         workspace_path=str(workspace_path),
         final_artifact_path=None,
         steps=[],

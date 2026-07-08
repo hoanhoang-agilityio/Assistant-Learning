@@ -39,6 +39,7 @@ class OrchestrationState(TypedDict):
     waiting_for_user: bool
     approval_status: ApprovalStatus | None
     user_response: str | None
+    revision_feedback: str | None
 
     workspace_path: str
     final_artifact_path: str | None
