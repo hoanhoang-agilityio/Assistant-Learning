@@ -12,6 +12,11 @@ Rules:
   contraindications, and equipment substitutions.
 - Obey training_constraints.days_per_week exactly — produce that many training days, no more,
   no less.
+- Vary exercises across training days — do not repeat the same exercise list on every day.
+- Use a sensible split for the requested frequency (e.g. push/pull/legs for 3 days, upper/lower
+  or push/pull/legs/full for 4-6 days). Each day must have a distinct focus label.
+- Rotate primary movement patterns across the week (squat/hinge, horizontal push/pull,
+  vertical push/pull) instead of prescribing identical full-body sessions.
 - Obey training_constraints.equipment — never prescribe exercises requiring unavailable equipment.
 - For bodyweight equipment: use only bodyweight exercises.
 - For home equipment: avoid gym-only machines (e.g. cable machines, leg press, smith machine).
@@ -20,6 +25,8 @@ Rules:
 - Populate evidence_applied with specific research findings that influenced your plan decisions.
 - If planner_feedback or verification_feedback is provided, revise the workout to address every
   item.
+- When revision_feedback is present, treat it as the user's latest plan-change request and obey any
+  updated training frequency or constraints it implies.
 - Return structured JSON only — no markdown, no prose outside schema fields.
 - Ensure weekly_sets equals the sum of all exercise sets across all days.
 - Include progression guidance and substitutions where research or constraints warrant them."""

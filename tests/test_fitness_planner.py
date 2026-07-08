@@ -101,6 +101,6 @@ def test_generate_structured_workout_uses_override(
         planner_feedback=[],
         verification_feedback=None,
     )
-    assert workout.split == "3-day"
+    assert workout.split.startswith("3-day")
     assert len(workout.days) == 3
     assert captured["structured_findings"] == sample_findings

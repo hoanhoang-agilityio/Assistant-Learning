@@ -75,6 +75,7 @@ def fitness_state(workspace_root: Path, complete_profile: dict[str, Any]) -> Fit
         structured_findings=None,
         evidence_summary=None,
         verification_feedback=None,
+        plan_blueprint={},
         macro_targets={},
         training_constraints={},
         structured_workout=None,
@@ -84,6 +85,9 @@ def fitness_state(workspace_root: Path, complete_profile: dict[str, Any]) -> Fit
         max_planner_attempts=get_settings().max_planner_attempts,
         is_verification_rerun=False,
         draft_plan=None,
+        template_fingerprint=None,
+        workout_source=None,
+        reused_workout=False,
     )
 
 
@@ -238,16 +242,25 @@ def test_fitness_subgraph_writes_vfs_artifacts(fitness_state: FitnessState) -> N
     assert "Fitness Plan Draft" in draft_plan
 
 
+def _unsafe_duplicate_exercise_workout(
+    profile: dict[str, Any],
+    constraints: dict[str, Any],
+) -> StructuredWorkout:
+    workout = default_structured_workout(profile, constraints)
+    duplicate = workout.days[0].exercises[0].model_copy()
+    first_day = workout.days[0].model_copy(
+        update={"exercises": [*workout.days[0].exercises, duplicate]}
+    )
+    return workout.model_copy(update={"days": [first_day, *workout.days[1:]]})
+
+
 def test_fitness_planner_retries_until_safe(fitness_state: FitnessState) -> None:
     attempts = {"count": 0}
 
     def flaky_planner(**kwargs: Any) -> StructuredWorkout:
         attempts["count"] += 1
         if attempts["count"] == 1:
-            return build_default_structured_workout(
-                kwargs["profile"],
-                {"days_per_week": 4},
-            )
+            return _unsafe_duplicate_exercise_workout(kwargs["profile"], kwargs["constraints"])
         return default_structured_workout(kwargs["profile"], kwargs["constraints"])
 
     configure_fitness_planner(flaky_planner)
@@ -260,9 +273,8 @@ def test_fitness_planner_retries_until_safe(fitness_state: FitnessState) -> None
 
 def test_fitness_planner_stops_after_max_attempts(fitness_state: FitnessState) -> None:
     configure_fitness_planner(
-        lambda **kwargs: build_default_structured_workout(
-            kwargs["profile"],
-            {"days_per_week": 4},
+        lambda **kwargs: _unsafe_duplicate_exercise_workout(
+            kwargs["profile"], kwargs["constraints"]
         )
     )
     graph = build_fitness_subgraph()
@@ -270,6 +282,24 @@ def test_fitness_planner_stops_after_max_attempts(fitness_state: FitnessState) -
     assert result["planner_attempts"] == get_settings().max_planner_attempts
     assert result["safety_result"]["passed"] is False
     assert result["draft_plan"]
+
+
+def test_fitness_planner_repairs_day_count_without_retry(fitness_state: FitnessState) -> None:
+    attempts = {"count": 0}
+
+    def wrong_day_count_planner(**kwargs: Any) -> StructuredWorkout:
+        attempts["count"] += 1
+        return build_default_structured_workout(
+            kwargs["profile"],
+            {"days_per_week": 1, "equipment": "gym"},
+        )
+
+    configure_fitness_planner(wrong_day_count_planner)
+    graph = build_fitness_subgraph()
+    result = graph.invoke(fitness_state)
+    assert attempts["count"] == 1
+    assert result["safety_result"]["passed"] is True
+    assert len(result["structured_workout"]["days"]) == 3
 
 
 def test_resolve_max_planner_attempts_limits_fix_reasoning_reruns() -> None:

@@ -12,11 +12,20 @@ from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.observability.langfuse import reset_langfuse_client
 from core.profile.extraction import configure_profile_extractor
 from core.subgraphs.fitness.planner import configure_fitness_planner
+from core.subgraphs.fitness.template_registry import configure_template_registry
 from core.subgraphs.planning.planning_agent import configure_planning_agent
 from core.subgraphs.planning.utils import build_default_execution_plan
 from core.subgraphs.research.research_agent import configure_research_agent
 from tests.helpers.fitness import default_structured_workout
 from tests.helpers.research import research_agent_override
+
+
+@pytest.fixture(autouse=True)
+def isolated_template_registry(tmp_path: Path) -> None:
+    """Keep workout template cache out of src/workspace/templates during tests."""
+    configure_template_registry(tmp_path / "template_registry")
+    yield
+    configure_template_registry(None)
 
 
 @pytest.fixture
