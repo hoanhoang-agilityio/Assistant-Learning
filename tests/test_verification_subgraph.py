@@ -166,6 +166,23 @@ def test_safety_check_fails_on_critical_flags() -> None:
     assert "calories_below_safe_minimum" in result["issues"]
 
 
+def test_safety_check_ignores_unsafe_word_in_evidence_sections() -> None:
+    from core.subgraphs.verification.utils import safety_check_data
+
+    draft = (
+        "# Fitness Plan Draft\n\n"
+        "## Macro Targets\n\n- Calories: 2200 kcal\n\n"
+        "## Training Plan\n\n### Day 1\n- Squat: 3 x 8\n\n"
+        "## Evidence Summary\n\n"
+        "Weight-loss targets above 1.0 kg/week are usually unrealistic or unsafe.\n\n"
+        "## Verification Feedback Applied\n\n"
+        "Safety issues: unsafe_language:unsafe\n"
+    )
+    result = safety_check_data(draft, {}, {}, [])
+    assert result["passed"] is True
+    assert "unsafe_language:unsafe" not in result["issues"]
+
+
 def test_ragas_faithfulness_meets_threshold(verification_state: VerificationState) -> None:
     vfs = VFS.for_run(Path(verification_state["workspace_path"]))
     draft_plan = vfs.read("fitness/final_plan.md")
