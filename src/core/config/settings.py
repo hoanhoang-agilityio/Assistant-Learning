@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     # Research Agent
     research_max_search_iterations: int = 2
     research_max_total_searches: int = 3
+    research_max_total_extracts: int = 5
     research_extract_top_k: int = 8
     research_trusted_domains: str = ""
     research_tool_content_preview_chars: int = 250
@@ -60,6 +61,13 @@ class Settings(BaseSettings):
     research_synthesis_content_chars: int = 800
     research_min_verified_sources_for_skip_eval: int = 2
     research_min_evidence_docs_for_skip_eval: int = 1
+
+    # Local fitness knowledge base
+    local_kb_enabled: bool = True
+    local_kb_path: str = ""
+    local_kb_top_k: int = 3
+    local_kb_min_documents: int = 1
+    local_kb_min_trust_score: float = 0.85
 
     # Orchestration / Fitness retry budgets
     max_planner_attempts: int = 2
