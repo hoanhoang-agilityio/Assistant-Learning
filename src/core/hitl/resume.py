@@ -1,5 +1,6 @@
 from typing import Any, Literal
 
+from core.agents.rerun import MAX_REPLAN_COUNT
 from core.agents.state import ApprovalStatus
 
 HitlDecisionType = Literal["approve", "reject", "revision"]
@@ -42,7 +43,45 @@ def create_approval_decision(
     return decision
 
 
-def decision_to_resume_update(decision: dict[str, Any]) -> dict[str, Any]:
+def revision_to_replan_update(
+    feedback: str,
+    replan_count: int,
+    *,
+    max_replan_count: int = MAX_REPLAN_COUNT,
+) -> dict[str, Any]:
+    """Build orchestration updates for verification-driven partial reruns (REPLAN)."""
+    if replan_count >= max_replan_count:
+        raise ValueError(f"Maximum replan attempts ({max_replan_count}) exceeded")
+    return {
+        "route_decision": "REPLAN",
+        "replan_count": replan_count + 1,
+        "revision_feedback": feedback,
+        "approval_status": "pending",
+        "verification_passed": False,
+        "waiting_for_user": False,
+    }
+
+
+def user_revision_to_replan_update(feedback: str) -> dict[str, Any]:
+    """Build orchestration updates for user-initiated plan changes in the same conversation."""
+    stripped = feedback.strip()
+    if not stripped:
+        raise ValueError("message is required")
+    return {
+        "route_decision": "REPLAN",
+        "revision_feedback": stripped,
+        "approval_status": "pending",
+        "verification_passed": False,
+        "waiting_for_user": False,
+    }
+
+
+def decision_to_resume_update(
+    decision: dict[str, Any],
+    *,
+    replan_count: int = 0,
+    max_replan_count: int = MAX_REPLAN_COUNT,
+) -> dict[str, Any]:
     """Map a create_approval_decision payload onto orchestration state updates."""
     approval_status: ApprovalStatus = decision["approval_status"]
     update: dict[str, Any] = {
@@ -57,4 +96,8 @@ def decision_to_resume_update(decision: dict[str, Any]) -> dict[str, Any]:
             approved_tools.append(pending_tool)
         update["approved_tools"] = approved_tools
         update["pending_tool"] = None
+    elif approval_status == "rejected":
+        update["pending_tool"] = None
+    elif approval_status == "revision_requested":
+        update.update(user_revision_to_replan_update(decision["user_response"]))
     return update

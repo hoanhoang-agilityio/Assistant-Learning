@@ -6,7 +6,9 @@ from langgraph.types import Command
 
 from core.agents.state import OrchestrationState
 from core.graph.builder import build_graph
+from core.graph.routing import route_from_supervisor
 from core.graph.run import create_initial_state
+from core.hitl.resume import create_approval_decision, decision_to_resume_update
 from core.hitl.tools import request_approval, request_clarification
 from core.vfs import VFS
 
@@ -90,6 +92,31 @@ def test_graph_interrupts_before_hitl_and_resumes_to_persist(
     assert resumed["final_artifact_path"] is not None
 
 
+def test_graph_reject_at_approval_ends_without_persist(
+    approval_state: OrchestrationState,
+) -> None:
+    graph = build_graph()
+    config = {"configurable": {"thread_id": approval_state["thread_id"]}}
+
+    paused = graph.invoke(approval_state, config)
+    assert paused["waiting_for_user"] is True
+
+    resumed = graph.invoke(
+        Command(
+            update={
+                "user_response": "Rejected the plan.",
+                "approval_status": "rejected",
+                "waiting_for_user": False,
+            }
+        ),
+        config,
+    )
+    assert resumed["approval_status"] == "rejected"
+    assert resumed.get("final_artifact_path") is None
+    snapshot = graph.get_state(config)
+    assert snapshot.next == ()
+
+
 def test_graph_interrupts_on_hitl_route_and_resumes_to_persist(
     approval_state: OrchestrationState,
 ) -> None:
@@ -125,3 +152,31 @@ def test_graph_interrupts_on_hitl_route_and_resumes_to_persist(
 
     final_snapshot = graph.get_state(config)
     assert final_snapshot.next == ()
+
+
+def test_graph_revision_at_approval_routes_to_replan(
+    approval_state: OrchestrationState,
+) -> None:
+    graph = build_graph()
+    config = {"configurable": {"thread_id": approval_state["thread_id"]}}
+
+    paused = graph.invoke(approval_state, config)
+    assert paused["waiting_for_user"] is True
+
+    update = decision_to_resume_update(
+        create_approval_decision(
+            "revision",
+            message="Reduce training volume and add more recovery days.",
+        ),
+        replan_count=0,
+    )
+    merged: OrchestrationState = {
+        **paused,
+        **update,
+        "current_node": "hitl",
+        "waiting_for_user": False,
+    }
+    assert merged["route_decision"] == "REPLAN"
+    assert merged.get("replan_count", 0) == 0
+    assert merged["revision_feedback"] == "Reduce training volume and add more recovery days."
+    assert route_from_supervisor(merged) == "planning"

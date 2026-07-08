@@ -150,6 +150,53 @@ section[data-testid="stSidebar"] hr {
     line-height: 1.5;
 }
 
+/* Compact HITL approve/reject — Cursor diff-bar scale */
+
+.pt-hitl-actions-marker {
+    display: none;
+}
+
+.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] {
+    gap: 0.35rem;
+    margin: 0.15rem 0 0.5rem;
+    align-items: center;
+}
+
+.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(-n+2) {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+}
+
+.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(-n+2) .stButton > button {
+    min-height: 1.5rem !important;
+    height: 1.5rem !important;
+    padding: 0 0.55rem !important;
+    font-size: 0.6875rem !important;
+    font-weight: 500 !important;
+    line-height: 1 !important;
+    border-radius: 4px !important;
+    white-space: nowrap;
+}
+
+.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(1) .stButton > button[kind="primary"],
+.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(1) .stButton > button[data-testid="baseButton-primary"] {
+    background-color: color-mix(in srgb, var(--pt-accent) 88%, #000) !important;
+    border-color: color-mix(in srgb, var(--pt-accent) 88%, #000) !important;
+}
+
+.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(2) .stButton > button {
+    background-color: transparent !important;
+    border-color: color-mix(in srgb, var(--text-color) 18%, transparent) !important;
+    color: color-mix(in srgb, var(--text-color) 72%, transparent) !important;
+}
+
+.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(2) .stButton > button:hover {
+    background-color: color-mix(in srgb, #e53935 10%, var(--secondary-background-color)) !important;
+    border-color: color-mix(in srgb, #e53935 35%, transparent) !important;
+    color: #e53935 !important;
+}
+
 /* Markdown in chat */
 
 [data-testid="stChatMessageContent"] h1,

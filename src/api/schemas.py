@@ -35,6 +35,13 @@ class ResumeRunRequest(BaseModel):
     )
 
 
+class ContinueRunRequest(BaseModel):
+    message: str = Field(
+        min_length=1,
+        description="Plan change request in an ongoing conversation (replan without re-asking profile).",
+    )
+
+
 class RunStatusResponse(BaseModel):
     run_id: str
     thread_id: str

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from api.deps import get_orchestrator
-from api.schemas import CreateRunRequest, ResumeRunRequest, RunStatusResponse
+from api.schemas import ContinueRunRequest, CreateRunRequest, ResumeRunRequest, RunStatusResponse
 from api.serializers import to_run_status_response
 from core.graph.service import RunNotFoundError, RunOrchestrator
 from core.rate_limit import RateLimitExceededError
@@ -72,6 +72,27 @@ def resume_run(
             message=payload.message,
             pending_tool=payload.pending_tool,
         )
+    except RunNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except RateLimitExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(exc),
+        ) from exc
+    return to_run_status_response(run_status)
+
+
+@router.post("/{run_id}/continue", response_model=RunStatusResponse)
+def continue_run(
+    run_id: str,
+    payload: ContinueRunRequest,
+    orchestrator: RunOrchestrator = Depends(get_orchestrator),
+) -> RunStatusResponse:
+    """Replan within an existing conversation when the user changes plan preferences."""
+    try:
+        run_status = orchestrator.continue_run(run_id, message=payload.message)
     except RunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:

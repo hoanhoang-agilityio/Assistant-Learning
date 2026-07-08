@@ -68,6 +68,32 @@ def poll_run_until_settled(
     )
 
 
+def continue_run(
+    client: httpx.Client,
+    run_id: str,
+    *,
+    message: str,
+    poll: bool = True,
+    timeout: float = DEFAULT_RUN_POLL_TIMEOUT,
+    interval: float = DEFAULT_POLL_INTERVAL,
+    on_progress: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    response = client.post(f"/runs/{run_id}/continue", json={"message": message})
+    response.raise_for_status()
+    continued = response.json()
+    if not poll:
+        return continued
+    if continued.get("status") != "running":
+        return continued
+    return poll_run_until_settled(
+        client,
+        run_id,
+        timeout=timeout,
+        interval=interval,
+        on_progress=on_progress,
+    )
+
+
 def resume_run(
     client: httpx.Client,
     run_id: str,

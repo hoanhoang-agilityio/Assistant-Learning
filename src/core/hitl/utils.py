@@ -22,7 +22,10 @@ def request_approval_data(draft_plan: str, verification_report: dict[str, Any]) 
         "waiting_for_user": True,
         "approval_status": "pending",
         "hitl_type": "approval",
-        "message": "Review the draft fitness plan and approve or reject before persistence.",
+        "message": (
+            "Review the draft fitness plan. Approve to save, reject to cancel, "
+            "or request changes with feedback to replan."
+        ),
         "verification_passed": passed,
         "draft_preview": draft_plan[:500],
     }
@@ -43,13 +46,13 @@ def hitl_control_data(
         }
 
     response_lower = user_response.strip().lower()
-    if response_lower in {"approve", "approved", "yes"}:
+    if response_lower in {"approve", "approved", "yes"} or response_lower.startswith("approve"):
         return {
             "waiting_for_user": False,
             "approval_status": "approved",
             "user_response": user_response,
         }
-    if response_lower in {"reject", "rejected", "no"}:
+    if response_lower in {"reject", "rejected", "no"} or response_lower.startswith("reject"):
         return {
             "waiting_for_user": False,
             "approval_status": "rejected",

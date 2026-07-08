@@ -76,13 +76,23 @@ def main() -> None:
 
         status = st.session_state.run_status
         run_id = st.session_state.run_id
-        if run_id and status and status.get("status") == "waiting_hitl":
-            hitl_type = status.get("hitl_type") or "approval"
-            if hitl_type in {"approval", "tool_approval"}:
-                render_hitl_actions(client, run_id, status)
+        waiting_for_approval = (
+            run_id
+            and status
+            and status.get("status") == "waiting_hitl"
+            and status.get("hitl_type", "approval") == "approval"
+            and status.get("approval_status") not in {"rejected", "approved"}
+        )
+        if waiting_for_approval:
+            render_hitl_actions(client, run_id, status)
 
+    chat_placeholder = (
+        "Describe changes to your plan (e.g. train 5 days per week)…"
+        if waiting_for_approval
+        else "Describe your goal, body stats, and training preferences…"
+    )
     query = st.chat_input(
-        "Describe your goal, body stats, and training preferences…",
+        chat_placeholder,
         disabled=is_processing,
     )
     pending_query = st.session_state.pending_query

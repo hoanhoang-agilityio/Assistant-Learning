@@ -38,7 +38,10 @@ def supervisor_node(state: OrchestrationState) -> dict:
     if updates.get("route_decision") is not None:
         route_decision = updates["route_decision"]
 
-    if route_decision == "COMPLETE" and merged_state["approval_status"] != "approved":
+    approval_status = merged_state["approval_status"]
+    if updates.get("approval_status") is not None:
+        approval_status = updates["approval_status"]
+    if route_decision == "COMPLETE" and approval_status not in {"approved", "rejected"}:
         updates["waiting_for_user"] = True
 
     return updates

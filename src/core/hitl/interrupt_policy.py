@@ -2,9 +2,9 @@
 
 from typing import Any
 
-# Tools that mutate user-derived state and should pause for approval when invoked.
+# Tools that mutate user-derived state and may pause for approval when invoked.
 TOOL_HITL_INTERRUPT_ON: dict[str, bool] = {
-    "extract_profile": True,
+    "extract_profile": False,
     "generate_plan": False,
     "validate_profile": False,
     "calculate_macros": False,
