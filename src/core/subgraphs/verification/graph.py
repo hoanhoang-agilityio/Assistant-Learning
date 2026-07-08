@@ -30,6 +30,7 @@ def _load_context_node(state: VerificationState) -> dict:
         "profile": context["profile"],
         "constraints": context["constraints"],
         "safety_flags": context["safety_flags"],
+        "plan_blueprint": context["plan_blueprint"],
     }
 
 
@@ -49,6 +50,7 @@ def _consistency_check_node(state: VerificationState) -> dict:
             "draft_plan": state["draft_plan"],
             "macro_targets": state["macro_targets"],
             "training_plan": state["training_plan"],
+            "plan_blueprint": state["plan_blueprint"],
         }
     )
     report = dict(state["verification_report"])
@@ -138,6 +140,7 @@ def to_verification_state(state: OrchestrationState) -> VerificationState:
         profile=state["user_profile"],
         constraints=state["constraints"],
         safety_flags=[],
+        plan_blueprint={},
         verification_report={},
         feedback=None,
         faithfulness_score=None,

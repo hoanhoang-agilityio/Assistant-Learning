@@ -19,9 +19,10 @@ def consistency_check(
     draft_plan: str,
     macro_targets: dict,
     training_plan: dict,
+    plan_blueprint: dict | None = None,
 ) -> dict:
     """Check internal consistency between macros, training plan, and draft."""
-    return consistency_check_data(draft_plan, macro_targets, training_plan)
+    return consistency_check_data(draft_plan, macro_targets, training_plan, plan_blueprint)
 
 
 @tool

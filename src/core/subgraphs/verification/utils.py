@@ -13,6 +13,31 @@ CRITICAL_SAFETY_FLAGS = {
     "training_frequency_too_high",
     "weekly_training_volume_too_high",
 }
+_SAFETY_SCAN_EXCLUDED_HEADERS = (
+    "## Evidence Summary",
+    "## Evidence Applied",
+    "## Verification Feedback Applied",
+    "## Safety Warnings",
+    "## Notes",
+    "## Program Blueprint",
+)
+
+
+def _draft_text_for_safety_scan(draft_plan: str) -> str:
+    """Scan only prescription sections; ignore evidence/feedback metadata in the draft."""
+    if not draft_plan.strip():
+        return ""
+    lines = draft_plan.splitlines()
+    scanned_lines: list[str] = []
+    include_section = False
+    for line in lines:
+        if line.startswith("## "):
+            include_section = line not in _SAFETY_SCAN_EXCLUDED_HEADERS
+        if include_section:
+            scanned_lines.append(line)
+    if scanned_lines:
+        return "\n".join(scanned_lines)
+    return draft_plan
 
 
 def load_verification_context(workspace_path: str) -> dict[str, Any]:
@@ -47,6 +72,9 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
         profile = json.loads(vfs.read("plan/profile.json"))
     if vfs.exists("fitness/safety_flags.json"):
         safety_flags = json.loads(vfs.read("fitness/safety_flags.json"))
+    blueprint: dict[str, Any] = {}
+    if vfs.exists("fitness/blueprint.json"):
+        blueprint = json.loads(vfs.read("fitness/blueprint.json"))
 
     return {
         "draft_plan": draft_plan,
@@ -57,6 +85,7 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
         "profile": profile,
         "constraints": constraints,
         "safety_flags": safety_flags,
+        "plan_blueprint": blueprint,
     }
 
 
@@ -73,7 +102,10 @@ def citation_check_data(draft_plan: str, sources: list[dict[str, Any]]) -> dict[
     for source in sources:
         url = str(source.get("url", ""))
         title = str(source.get("title", ""))
-        if url and url in draft_plan:
+        provider = str(source.get("provider", ""))
+        if url and (
+            url in draft_plan or (provider == "local_kb" and title.lower() in draft_plan.lower())
+        ):
             cited_source_count += 1
             continue
         if title and title.lower() in draft_plan.lower():
@@ -97,12 +129,15 @@ def consistency_check_data(
     draft_plan: str,
     macro_targets: dict[str, Any],
     training_plan: dict[str, Any],
+    plan_blueprint: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     issues: list[str] = []
     if not macro_targets:
         issues.append("missing_macro_targets")
     if not training_plan:
         issues.append("missing_training_plan_summary")
+    if plan_blueprint is not None and not plan_blueprint:
+        issues.append("missing_plan_blueprint")
 
     calories = macro_targets.get("calories")
     protein_g = macro_targets.get("protein_g")
@@ -132,7 +167,7 @@ def safety_check_data(
     del profile, constraints
     issues = [flag for flag in safety_flags if flag in CRITICAL_SAFETY_FLAGS]
     unsafe_terms = ("unsafe", "extreme deficit", "excessive volume")
-    draft_lower = draft_plan.lower()
+    draft_lower = _draft_text_for_safety_scan(draft_plan).lower()
     for term in unsafe_terms:
         if term in draft_lower:
             issues.append(f"unsafe_language:{term}")
