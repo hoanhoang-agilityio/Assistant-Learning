@@ -22,6 +22,7 @@ skills-lock.json
 .env
 .env.local
 .cursor
+.claude
 
 # IDE
 .idea/
@@ -32,6 +33,7 @@ skills-lock.json
 
 # Project artifacts (VFS runtime output)
 src/workspace/run_*/
+src/workspace/templates/*.json
 
 # Streamlit
 .streamlit/secrets.toml
