@@ -8,6 +8,7 @@ import httpx
 import streamlit as st
 
 from ui.api_client import (
+    continue_run,
     create_run,
     get_run,
     poll_run_until_settled,
@@ -52,17 +53,27 @@ def _write_pipeline_step(
 
 def _format_assistant_status_message(status: dict[str, Any]) -> str:
     run_status = status.get("status")
+    approval_status = status.get("approval_status")
+    if approval_status == "rejected":
+        return (
+            "Plan rejected. Nothing was saved. "
+            "Start a new chat message to generate a different plan."
+        )
+    if run_status == "running" and status.get("route_decision") == "REPLAN":
+        return "Replanning with your feedback. This may take a moment…"
+    if approval_status == "approved" and run_status == "completed":
+        final_plan = status.get("final_plan")
+        if final_plan:
+            return f"Plan approved and saved.\n\n{final_plan}"
+        return "Plan approved and saved."
+    if approval_status == "approved" and run_status == "running":
+        return "Plan approved. Saving final artifacts…"
     if run_status == "failed":
         return status.get("error_message") or "Run failed."
     if run_status == "waiting_hitl":
         hitl_type = status.get("hitl_type") or "approval"
         if hitl_type == "clarification":
             return _clarification_prompt(status)
-        if hitl_type == "tool_approval":
-            return (
-                status.get("hitl_message")
-                or "Review extracted profile data and approve to continue."
-            )
         draft = status.get("final_plan")
         if draft:
             return draft
@@ -167,59 +178,17 @@ def render_hitl_actions(
     run_id: str,
     status: dict[str, Any],
 ) -> None:
-    """HITL controls for approval and per-tool profile confirmation."""
-    hitl_type = status.get("hitl_type") or "approval"
-    if hitl_type == "tool_approval":
-        pending_tool = status.get("pending_tool") or "extract_profile"
-        st.markdown(
-            '<div class="pt-hitl-panel"><p>Review extracted profile fields before planning continues.</p></div>',
-            unsafe_allow_html=True,
-        )
-        action_cols = st.columns(2)
-        if action_cols[0].button("Approve profile", type="primary", key="approve_tool"):
-            updated = resume_run(
-                client,
-                run_id,
-                decision_type="approve",
-                pending_tool=pending_tool,
-            )
-            st.session_state.run_status = updated
-            st.session_state.messages.append(
-                {"role": "user", "content": "Approved extracted profile."}
-            )
-            st.session_state.messages.append(
-                {"role": "assistant", "content": _assistant_message_from_status(updated)},
-            )
-            _update_run_history_status(run_id, updated.get("status", "unknown"))
-            st.rerun()
-        if action_cols[1].button("Reject profile", key="reject_tool"):
-            updated = resume_run(
-                client,
-                run_id,
-                decision_type="reject",
-                message="Rejected extracted profile.",
-                pending_tool=pending_tool,
-            )
-            st.session_state.run_status = updated
-            st.session_state.messages.append(
-                {"role": "user", "content": "Rejected extracted profile."}
-            )
-            st.session_state.messages.append(
-                {"role": "assistant", "content": _assistant_message_from_status(updated)},
-            )
-            _update_run_history_status(run_id, updated.get("status", "unknown"))
-            st.rerun()
+    """HITL controls for final plan approval."""
+    if status.get("approval_status") in {"rejected", "approved"}:
         return
 
-    if not status.get("verification_passed"):
-        st.markdown(
-            '<div class="pt-hitl-panel"><p>Verification did not fully pass. '
-            "You can approve to save the plan or reject to start over.</p></div>",
-            unsafe_allow_html=True,
-        )
+    hitl_type = status.get("hitl_type") or "approval"
+    if hitl_type == "clarification":
+        return
 
-    action_cols = st.columns(2)
-    if action_cols[0].button("Approve plan", type="primary", key="approve_plan"):
+    st.markdown('<div class="pt-hitl-actions-marker"></div>', unsafe_allow_html=True)
+    action_cols = st.columns([1, 1, 8])
+    if action_cols[0].button("Approve", type="primary", key="approve_plan"):
         with st.status("Persisting approved plan…", expanded=True) as approve_status:
             last_step: str | None = None
 
@@ -249,13 +218,15 @@ def render_hitl_actions(
         )
         _update_run_history_status(run_id, updated.get("status", "unknown"))
         st.rerun()
-    if action_cols[1].button("Reject plan", key="reject_plan"):
-        updated = resume_run(
-            client,
-            run_id,
-            decision_type="reject",
-            message="Rejected the plan.",
-        )
+
+    if action_cols[1].button("Reject", key="reject_plan"):
+        with st.status("Rejecting plan…", expanded=False):
+            updated = resume_run(
+                client,
+                run_id,
+                decision_type="reject",
+                message="Rejected the plan.",
+            )
         st.session_state.run_status = updated
         st.session_state.messages.append(
             {"role": "user", "content": "Rejected the plan."},
@@ -268,6 +239,60 @@ def render_hitl_actions(
         )
         _update_run_history_status(run_id, updated.get("status", "unknown"))
         st.rerun()
+
+
+def _can_change_plan_in_conversation(status: dict[str, Any]) -> bool:
+    run_status = status.get("status")
+    if run_status == "completed":
+        return True
+    if run_status != "waiting_hitl":
+        return False
+    hitl_type = status.get("hitl_type") or "approval"
+    return hitl_type == "approval" and status.get("approval_status") not in {
+        "rejected",
+        "approved",
+    }
+
+
+def _handle_plan_change(client: httpx.Client, run_id: str, query: str) -> None:
+    st.session_state.messages.append({"role": "user", "content": query})
+    try:
+        with st.status("Replanning with your changes…", expanded=True) as revision_status:
+            last_step: str | None = None
+
+            def handle_revision_progress(status_update: dict[str, Any]) -> None:
+                nonlocal last_step
+                step = _pipeline_step(status_update)
+                revision_status.update(label=f"Replanning… — {step}")
+                if step != last_step:
+                    revision_status.write(f"Current step: **{step}**")
+                    last_step = step
+
+            updated = continue_run(
+                client,
+                run_id,
+                message=query,
+                on_progress=handle_revision_progress,
+            )
+        st.session_state.run_status = updated
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": _assistant_message_from_status(updated),
+            }
+        )
+        _update_run_history_status(run_id, updated.get("status", "unknown"))
+    except httpx.TimeoutException:
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": "Still replanning with your changes. Please wait a moment…",
+            },
+        )
+    except httpx.HTTPError as exc:
+        st.session_state.messages.append(
+            {"role": "assistant", "content": f"Failed to submit plan changes: {exc}"},
+        )
 
 
 def _handle_clarification(client: httpx.Client, run_id: str, query: str) -> None:
@@ -325,9 +350,23 @@ def handle_user_input(
         if hitl_type == "clarification" and run_id:
             _handle_clarification(client, run_id, query)
             return
+        if hitl_type == "approval" and run_id:
+            _handle_plan_change(client, run_id, query)
+            return
+
+    if run_id and status and _can_change_plan_in_conversation(status):
+        _handle_plan_change(client, run_id, query)
+        return
 
     if status and status.get("status") == "running" and run_id:
         sync_active_run_if_needed(client)
+        st.session_state.messages.append({"role": "user", "content": query})
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": "The plan is still being generated. Please wait until it finishes before requesting changes.",
+            },
+        )
         return
 
     st.session_state.messages = [{"role": "user", "content": query}]
