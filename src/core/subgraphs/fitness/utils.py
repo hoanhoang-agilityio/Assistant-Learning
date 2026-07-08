@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from core.profile.goal_spec import rate_to_calorie_adjustment
 from core.subgraphs.fitness.schema import (
     SafetyResult,
     StructuredWorkout,
@@ -124,14 +125,12 @@ def _activity_multiplier(activity_level: str) -> float:
     return ACTIVITY_MULTIPLIERS.get(activity_level, DEFAULT_ACTIVITY_MULTIPLIER)
 
 
-def _goal_calorie_adjustment(goal: str, tdee: float) -> float:
-    if goal == "fat_loss":
-        return tdee - 500
-    if goal == "muscle_gain":
-        return tdee + 300
-    if goal == "strength":
-        return tdee + 200
-    return tdee
+def _goal_calorie_adjustment(
+    goal: str,
+    tdee: float,
+    weekly_rate_kg: float | None = None,
+) -> float:
+    return rate_to_calorie_adjustment(goal, tdee, weekly_rate_kg)
 
 
 def _minimum_calories(profile: dict[str, Any]) -> float:
@@ -145,16 +144,21 @@ def calculate_macros_data(profile: dict[str, Any], constraints: dict[str, Any]) 
     goal = str(profile.get("goal", "general_fitness"))
     activity_level = str(profile.get("activity_level", "gym_3x_week"))
     weight_kg = float(profile["current_weight_kg"])
+    weekly_rate_kg = profile.get("weekly_rate_kg")
+    if weekly_rate_kg is not None:
+        weekly_rate_kg = float(weekly_rate_kg)
 
     bmr = _calculate_bmr(profile)
     tdee = bmr * _activity_multiplier(activity_level)
-    calories = _goal_calorie_adjustment(goal, tdee)
+    calories = _goal_calorie_adjustment(goal, tdee, weekly_rate_kg)
     calories = max(calories, _minimum_calories(profile))
     calories = min(calories, MAX_CALORIES)
 
-    protein_grams_per_kg = 2.2 if goal in {"muscle_gain", "strength"} else 1.8
+    protein_grams_per_kg = 2.2 if goal in {"muscle_gain", "strength", "recomposition"} else 1.8
     if constraints.get("high_protein"):
         protein_grams_per_kg = 2.4
+    if goal == "recomposition":
+        protein_grams_per_kg = max(protein_grams_per_kg, 2.2)
     protein_g = round(weight_kg * protein_grams_per_kg)
 
     fat_calories = calories * 0.25
@@ -303,6 +307,7 @@ def synthesize_plan_data(
     evidence_summary: str | None,
     verification_feedback: str | None,
     safety_result: dict[str, Any],
+    plan_blueprint: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if structured_workout is None:
         return {"draft_plan": "# Fitness Plan Draft\n\nWorkout plan unavailable.\n"}
@@ -354,8 +359,32 @@ def synthesize_plan_data(
         safety_lines = "\n".join(f"- {item}" for item in safety_feedback)
         safety_section = f"\n## Safety Warnings\n\n{safety_lines}\n"
 
+    blueprint_section = ""
+    if plan_blueprint:
+        horizon = plan_blueprint.get("horizon_weeks")
+        weekly_rate = plan_blueprint.get("weekly_rate_kg")
+        blueprint_lines = ["## Program Blueprint", ""]
+        if horizon:
+            blueprint_lines.append(f"- Horizon: {horizon} weeks")
+        if weekly_rate is not None:
+            blueprint_lines.append(f"- Target weekly rate: {weekly_rate} kg")
+        blueprint_lines.append(f"- Archetype: {plan_blueprint.get('goal_archetype', 'n/a')}")
+        phases = plan_blueprint.get("phases") or []
+        if phases:
+            blueprint_lines.append("- Phases:")
+            for phase in phases:
+                blueprint_lines.append(
+                    f"  - Weeks {phase['week_start']}-{phase['week_end']}: "
+                    f"{phase['training_emphasis']} (volume x{phase['volume_modifier']})"
+                )
+        progression_notes = plan_blueprint.get("progression_notes") or []
+        for note in progression_notes:
+            blueprint_lines.append(f"- {note}")
+        blueprint_section = "\n".join(blueprint_lines) + "\n\n"
+
     draft_plan = (
         "# Fitness Plan Draft\n\n"
+        f"{blueprint_section}"
         "## Macro Targets\n\n"
         f"- Calories: {macro_targets['calories']} kcal\n"
         f"- Protein: {macro_targets['protein_g']} g\n"
@@ -391,6 +420,9 @@ def write_fitness_artifacts(
     structured_workout: dict[str, Any],
     draft_plan: str,
     safety_result: dict[str, Any],
+    plan_blueprint: dict[str, Any] | None = None,
+    template_fingerprint: str | None = None,
+    workout_source: str | None = None,
 ) -> None:
     vfs = VFS.for_run(Path(workspace_path))
     workout_summary = build_workout_summary(structured_workout)
@@ -399,8 +431,23 @@ def write_fitness_artifacts(
         "workout_summary": workout_summary,
         "training_plan_summary": workout_summary,
     }
+    if plan_blueprint is not None:
+        calculations["plan_blueprint"] = plan_blueprint
     vfs.write("fitness/workout.json", json.dumps(structured_workout, indent=2))
     vfs.write("fitness/calculations.json", json.dumps(calculations, indent=2))
+    if plan_blueprint is not None:
+        vfs.write("fitness/blueprint.json", json.dumps(plan_blueprint, indent=2))
+    if template_fingerprint is not None:
+        vfs.write(
+            "fitness/template_fingerprint.json",
+            json.dumps(
+                {
+                    "fingerprint": template_fingerprint,
+                    "workout_source": workout_source,
+                },
+                indent=2,
+            ),
+        )
     safety_feedback = safety_result.get("feedback") or []
     vfs.write("fitness/safety_flags.json", json.dumps(safety_feedback, indent=2))
     vfs.write("fitness/final_plan.md", draft_plan)
@@ -415,6 +462,82 @@ def default_execution_plan_for_fitness(execution_plan: dict[str, Any]) -> Execut
     return build_default_execution_plan()
 
 
+BENCHMARK_WORKOUT_NOTE = "Default deterministic workout for tests and benchmarks."
+
+
+def is_cacheable_workout(workout: dict[str, Any]) -> bool:
+    """Return False for benchmark/fallback workouts that must not enter the registry."""
+    notes = workout.get("notes") or []
+    return not any(BENCHMARK_WORKOUT_NOTE in str(note) for note in notes)
+
+
+_DEFAULT_PUSH_EXERCISES = (
+    WorkoutExercise(name="Bench Press", sets=3, reps="6-10"),
+    WorkoutExercise(name="Overhead Press", sets=3, reps="8-10"),
+    WorkoutExercise(name="Triceps Pushdown", sets=3, reps="10-12"),
+)
+_DEFAULT_PULL_EXERCISES = (
+    WorkoutExercise(name="Barbell Row", sets=3, reps="6-10"),
+    WorkoutExercise(name="Lat Pulldown", sets=3, reps="8-12"),
+    WorkoutExercise(name="Face Pull", sets=3, reps="12-15"),
+)
+_DEFAULT_LEGS_EXERCISES = (
+    WorkoutExercise(name="Goblet Squat", sets=3, reps="8-10"),
+    WorkoutExercise(name="Romanian Deadlift", sets=3, reps="8-12"),
+    WorkoutExercise(name="Walking Lunge", sets=3, reps="10-12"),
+)
+_DEFAULT_FULL_BODY_EXERCISES = (
+    WorkoutExercise(name="Goblet Squat", sets=3, reps="8-10"),
+    WorkoutExercise(name="Push-up", sets=3, reps="8-12"),
+    WorkoutExercise(name="Romanian Deadlift", sets=3, reps="8-12"),
+    WorkoutExercise(name="Row", sets=3, reps="10-12"),
+)
+_DEFAULT_DAY_ROTATIONS: tuple[tuple[str, tuple[WorkoutExercise, ...]], ...] = (
+    ("push", _DEFAULT_PUSH_EXERCISES),
+    ("pull", _DEFAULT_PULL_EXERCISES),
+    ("legs", _DEFAULT_LEGS_EXERCISES),
+)
+
+
+def _default_day_templates(days_per_week: int) -> list[tuple[str, tuple[WorkoutExercise, ...]]]:
+    if days_per_week <= 1:
+        return [("full body", _DEFAULT_FULL_BODY_EXERCISES)]
+    return [
+        _DEFAULT_DAY_ROTATIONS[index % len(_DEFAULT_DAY_ROTATIONS)]
+        for index in range(days_per_week)
+    ]
+
+
+def ensure_training_day_count(
+    workout: StructuredWorkout,
+    training_constraints: dict[str, Any],
+    profile: dict[str, Any],
+) -> StructuredWorkout:
+    """Normalize LLM workouts so day count always matches training_constraints."""
+    expected_days = int(training_constraints["days_per_week"])
+    actual_days = len(workout.days)
+    if actual_days == expected_days:
+        return workout
+    if actual_days > expected_days:
+        trimmed_days = workout.days[:expected_days]
+        weekly_sets = sum(exercise.sets for day in trimmed_days for exercise in day.exercises)
+        return workout.model_copy(update={"days": trimmed_days, "weekly_sets": weekly_sets})
+    fallback = build_default_structured_workout(
+        profile,
+        {
+            "days_per_week": expected_days,
+            "equipment": training_constraints.get("equipment", "gym"),
+        },
+    )
+    return fallback.model_copy(
+        update={
+            "goal": workout.goal or fallback.goal,
+            "evidence_applied": workout.evidence_applied or fallback.evidence_applied,
+            "notes": list(dict.fromkeys([*workout.notes, *fallback.notes])),
+        }
+    )
+
+
 def build_default_structured_workout(
     profile: dict[str, Any] | None = None,
     constraints: dict[str, Any] | None = None,
@@ -426,28 +549,24 @@ def build_default_structured_workout(
     days_per_week = int(
         resolved_constraints.get("days_per_week") or resolved_profile.get("days_per_week") or 3
     )
-    exercise_models = [
-        WorkoutExercise(name="Goblet Squat", sets=3, reps="8-10"),
-        WorkoutExercise(name="Push-up", sets=3, reps="8-12"),
-        WorkoutExercise(name="Romanian Deadlift", sets=3, reps="8-12"),
-        WorkoutExercise(name="Row", sets=3, reps="10-12"),
-    ]
-    weekly_sets = days_per_week * sum(exercise.sets for exercise in exercise_models)
+    day_templates = _default_day_templates(days_per_week)
     days = [
         WorkoutDay(
             name=f"Day {index + 1}",
-            focus="full body",
-            exercises=exercise_models,
+            focus=focus,
+            exercises=[exercise.model_copy() for exercise in exercises],
         )
-        for index in range(days_per_week)
+        for index, (focus, exercises) in enumerate(day_templates)
     ]
+    weekly_sets = sum(exercise.sets for day in days for exercise in day.exercises)
+    split_label = "full body" if days_per_week <= 1 else "push/pull/legs rotation"
     return StructuredWorkout(
-        split=f"{days_per_week}-day",
+        split=f"{days_per_week}-day {split_label}",
         goal=goal,
         days=days,
         weekly_sets=weekly_sets,
         progression="Add 2.5-5 kg or 1-2 reps when all sets hit the top of the rep range.",
         substitutions=["Swap barbell movements for dumbbells when equipment is limited."],
-        notes=["Default deterministic workout for tests and benchmarks."],
+        notes=[BENCHMARK_WORKOUT_NOTE],
         evidence_applied=["Applied general hypertrophy volume guidance."],
     )

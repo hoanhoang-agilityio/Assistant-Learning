@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 
 class FitnessState(TypedDict):
@@ -11,6 +11,7 @@ class FitnessState(TypedDict):
     structured_findings: dict | None
     evidence_summary: str | None
     verification_feedback: str | None
+    plan_blueprint: dict
     macro_targets: dict
     training_constraints: dict
     structured_workout: dict | None
@@ -20,3 +21,6 @@ class FitnessState(TypedDict):
     max_planner_attempts: int
     is_verification_rerun: bool
     draft_plan: str | None
+    template_fingerprint: str | None
+    workout_source: Literal["llm", "registry", "run_reuse", "llm_required"] | None
+    reused_workout: bool

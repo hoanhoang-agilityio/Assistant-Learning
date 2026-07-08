@@ -19,6 +19,7 @@ def synthesize_plan(
     evidence_summary: str | None,
     verification_feedback: str | None,
     safety_result: dict,
+    plan_blueprint: dict | None = None,
 ) -> dict:
     """Synthesize draft fitness plan markdown from macros and structured workout."""
     return synthesize_plan_data(
@@ -27,6 +28,7 @@ def synthesize_plan(
         evidence_summary=evidence_summary,
         verification_feedback=verification_feedback,
         safety_result=safety_result,
+        plan_blueprint=plan_blueprint,
     )
 
 

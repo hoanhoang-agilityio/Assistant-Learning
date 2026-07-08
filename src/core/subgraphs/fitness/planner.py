@@ -53,6 +53,7 @@ def build_planner_payload(
     structured_findings: ResearchFindings | None,
     planner_feedback: list[str],
     verification_feedback: str | None,
+    revision_feedback: str | None = None,
 ) -> dict[str, Any]:
     """Build the human-message payload sent to the fitness planner."""
     del constraints
@@ -65,6 +66,9 @@ def build_planner_payload(
         "planner_feedback": limit_feedback_items(planner_feedback),
         "verification_feedback": verification_feedback,
     }
+    stripped_revision = (revision_feedback or "").strip()
+    if stripped_revision:
+        payload["revision_feedback"] = stripped_revision
     validate_fitness_planner_payload(payload)
     return payload
 
@@ -79,6 +83,7 @@ def generate_structured_workout(
     structured_findings: ResearchFindings | None,
     planner_feedback: list[str],
     verification_feedback: str | None,
+    revision_feedback: str | None = None,
 ) -> StructuredWorkout:
     """Generate a structured workout via LLM structured output."""
     if _AGENT_OVERRIDE is not None:
@@ -101,6 +106,7 @@ def generate_structured_workout(
         structured_findings=structured_findings,
         planner_feedback=planner_feedback,
         verification_feedback=verification_feedback,
+        revision_feedback=revision_feedback,
     )
     token = set_llm_metrics_node("fitness_planner")
     try:
