@@ -6,6 +6,9 @@ PROFILE_FIELD_LABELS: dict[str, str] = {
     "height_cm": "height (cm)",
     "current_weight_kg": "current weight (kg)",
     "target_weight_kg": "target weight (kg)",
+    "weight_delta_kg": "weight change target (kg)",
+    "horizon_weeks": "goal timeline (weeks)",
+    "weekly_rate_kg": "weekly rate target (kg)",
     "activity_level": "training frequency",
     "goal": "fitness goal",
 }
@@ -13,6 +16,8 @@ PROFILE_FIELD_LABELS: dict[str, str] = {
 GOAL_LABELS: dict[str, str] = {
     "fat_loss": "Fat loss",
     "muscle_gain": "Muscle gain",
+    "recomposition": "Body recomposition",
+    "maintenance": "Maintenance",
     "strength": "Strength",
     "endurance": "Endurance",
     "general_fitness": "General fitness",

@@ -5,7 +5,15 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Sex = Literal["male", "female"]
-FitnessGoal = Literal["fat_loss", "muscle_gain", "strength", "endurance", "general_fitness"]
+FitnessGoal = Literal[
+    "fat_loss",
+    "muscle_gain",
+    "recomposition",
+    "maintenance",
+    "strength",
+    "endurance",
+    "general_fitness",
+]
 ActivityLevel = Literal[
     "sedentary",
     "gym_1x_week",
@@ -16,6 +24,7 @@ ActivityLevel = Literal[
     "gym_6x_week",
 ]
 Equipment = Literal["gym", "home", "bodyweight"]
+FeasibilityLevel = Literal["safe", "aggressive", "unsafe"]
 
 # Orchestration-level required fields (post-merge flat profile dict).
 REQUIRED_PROFILE_FIELDS: tuple[str, ...] = (
@@ -27,7 +36,8 @@ REQUIRED_PROFILE_FIELDS: tuple[str, ...] = (
     "goal",
 )
 GOAL_REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
-    "fat_loss": ("target_weight_kg",),
+    "fat_loss": (),
+    "muscle_gain": (),
 }
 PROFILE_FIELDS: tuple[str, ...] = (
     "age",
@@ -35,6 +45,11 @@ PROFILE_FIELDS: tuple[str, ...] = (
     "height_cm",
     "current_weight_kg",
     "target_weight_kg",
+    "weight_delta_kg",
+    "horizon_weeks",
+    "weekly_rate_kg",
+    "goal_archetype",
+    "feasibility_level",
     "activity_level",
     "goal",
 )
@@ -47,11 +62,7 @@ CONSTRAINT_FIELDS: tuple[str, ...] = (
 
 
 class Profile(BaseModel):
-    """Biometric facts extracted from the user message.
-
-    The LLM must convert imperial or relative measurements to these canonical SI fields
-    before returning structured output.
-    """
+    """Biometric facts extracted from the user message."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -64,11 +75,7 @@ class Profile(BaseModel):
 
 
 class Goal(BaseModel):
-    """Fitness objective and goal-specific targets.
-
-    Relative weight intents (e.g. "lose 2 kg") must be resolved by the LLM into
-    ``target_weight_kg`` when current weight is known; otherwise leave null.
-    """
+    """Fitness objective and goal-specific targets."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -79,14 +86,22 @@ class Goal(BaseModel):
         le=300,
         description="Absolute target body weight in kilograms",
     )
+    weight_delta_kg: float | None = Field(
+        default=None,
+        ge=-100,
+        le=100,
+        description="Signed weight change in kilograms (negative=loss, positive=gain)",
+    )
+    horizon_weeks: int | None = Field(
+        default=None,
+        ge=1,
+        le=260,
+        description="Target timeline in weeks",
+    )
 
 
 class Constraints(BaseModel):
-    """Training preferences that cannot be inferred from biometrics alone.
-
-    ``activity_level`` is intentionally omitted; it is derived from ``days_per_week``
-    during merge (0 = sedentary, 1–6 = gym_Nx_week).
-    """
+    """Training preferences that cannot be inferred from biometrics alone."""
 
     model_config = ConfigDict(extra="forbid")
 
