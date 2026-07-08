@@ -4,6 +4,16 @@
    ============================================================================= */
 
 :root {
+    /* Streamlit (1.5x) no longer exposes --background-color / --text-color /
+       --secondary-background-color / --font as CSS custom properties, so every
+       rule below that reads them was silently no-op-ing. Define them ourselves,
+       matching Streamlit's own default light/dark palette, and adapt via
+       prefers-color-scheme (Streamlit's theme defaults to "Auto" = OS preference). */
+    --background-color: #ffffff;
+    --secondary-background-color: #f0f2f6;
+    --text-color: #31333f;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
     --pt-accent: #4CAF50;
     --pt-accent-hover: #43a047;
     --pt-accent-muted: color-mix(in srgb, var(--pt-accent) 12%, var(--secondary-background-color));
@@ -22,6 +32,14 @@
     --pt-transition: 0.16s ease;
 }
 
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background-color: #0e1117;
+        --secondary-background-color: #262730;
+        --text-color: #fafafa;
+    }
+}
+
 /* Layout */
 
 .stApp {
@@ -34,9 +52,12 @@
     background-color: var(--background-color);
 }
 
-[data-testid="stMain"] > div.block-container {
+[data-testid="stMainBlockContainer"] {
     max-width: 48rem;
-    padding-top: 1.25rem;
+    /* stHeader is a fixed/absolute 3.75rem bar (z-index 999990) sitting on top
+       of the scroll container, so the first message needs enough clearance to
+       not render underneath it — 1.25rem alone left it clipped. */
+    padding-top: calc(3.75rem + 1.25rem);
     padding-bottom: 5.5rem;
     padding-left: 1.25rem;
     padding-right: 1.25rem;
@@ -92,12 +113,77 @@ section[data-testid="stSidebar"] hr {
 
 /* Empty state */
 
+.pt-welcome {
+    margin: 0 0 1.25rem;
+    max-width: 34rem;
+}
+
+.pt-welcome__title {
+    font-size: 1.15rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--text-color);
+    margin: 0 0 0.4rem;
+}
+
 .pt-empty-state {
     font-size: 0.9375rem;
     color: var(--pt-text-muted);
     line-height: 1.6;
-    margin: 0 0 1.25rem;
+    margin: 0;
     max-width: 34rem;
+}
+
+/* Friendly pipeline step indicator (inside st.status) */
+
+.pt-step {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.4rem 0.7rem;
+    margin: 0.15rem 0 0.35rem;
+    border-radius: var(--pt-radius-md);
+    border-left: 3px solid var(--pt-step-color, var(--pt-accent));
+    background-color: color-mix(in srgb, var(--pt-step-color, var(--pt-accent)) 10%, var(--secondary-background-color));
+}
+
+.pt-step__icon {
+    font-size: 1.05rem;
+    line-height: 1;
+    animation: pt-pulse 1.6s ease-in-out infinite;
+}
+
+.pt-step__text {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+@keyframes pt-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.72; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pt-step__icon {
+        animation: none;
+    }
+}
+
+/* Friendly banner above HITL approve/reject actions */
+
+.pt-hitl-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.85rem;
+    margin: 0.35rem 0 0.55rem;
+    border-radius: var(--pt-radius-md);
+    background-color: color-mix(in srgb, #EC4899 12%, var(--secondary-background-color));
+    border: 1px solid color-mix(in srgb, #EC4899 32%, transparent);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-color);
 }
 
 /* Chat */
@@ -156,42 +242,45 @@ section[data-testid="stSidebar"] hr {
     display: none;
 }
 
-.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] {
+/* Scoped via :has() to the marker's enclosing block rather than a strict
+   adjacent-sibling selector — Streamlit adds/renames internal wrapper divs
+   between versions, so we only rely on ancestor/descendant containment. */
+
+[data-testid="stVerticalBlock"]:has(.pt-hitl-actions-marker) [data-testid="stHorizontalBlock"] {
     gap: 0.35rem;
     margin: 0.15rem 0 0.5rem;
     align-items: center;
 }
 
-.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(-n+2) {
+[data-testid="stVerticalBlock"]:has(.pt-hitl-actions-marker) [data-testid="stHorizontalBlock"] [data-testid="stColumn"]:nth-child(-n+2) {
     flex: 0 0 auto !important;
     width: auto !important;
     min-width: 0 !important;
 }
 
-.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(-n+2) .stButton > button {
-    min-height: 1.5rem !important;
-    height: 1.5rem !important;
-    padding: 0 0.55rem !important;
-    font-size: 0.6875rem !important;
+[data-testid="stVerticalBlock"]:has(.pt-hitl-actions-marker) [data-testid="stHorizontalBlock"] [data-testid="stColumn"]:nth-child(-n+2) .stButton > button {
+    min-height: 1.75rem !important;
+    height: 1.75rem !important;
+    padding: 0 0.65rem !important;
+    font-size: 0.75rem !important;
     font-weight: 500 !important;
     line-height: 1 !important;
     border-radius: 4px !important;
     white-space: nowrap;
 }
 
-.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(1) .stButton > button[kind="primary"],
-.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(1) .stButton > button[data-testid="baseButton-primary"] {
+[data-testid="stVerticalBlock"]:has(.pt-hitl-actions-marker) [data-testid="stHorizontalBlock"] [data-testid="stColumn"]:nth-child(1) .stButton > button[kind="primary"] {
     background-color: color-mix(in srgb, var(--pt-accent) 88%, #000) !important;
     border-color: color-mix(in srgb, var(--pt-accent) 88%, #000) !important;
 }
 
-.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(2) .stButton > button {
+[data-testid="stVerticalBlock"]:has(.pt-hitl-actions-marker) [data-testid="stHorizontalBlock"] [data-testid="stColumn"]:nth-child(2) .stButton > button {
     background-color: transparent !important;
     border-color: color-mix(in srgb, var(--text-color) 18%, transparent) !important;
     color: color-mix(in srgb, var(--text-color) 72%, transparent) !important;
 }
 
-.pt-hitl-actions-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(2) .stButton > button:hover {
+[data-testid="stVerticalBlock"]:has(.pt-hitl-actions-marker) [data-testid="stHorizontalBlock"] [data-testid="stColumn"]:nth-child(2) .stButton > button:hover {
     background-color: color-mix(in srgb, #e53935 10%, var(--secondary-background-color)) !important;
     border-color: color-mix(in srgb, #e53935 35%, transparent) !important;
     color: #e53935 !important;
@@ -296,7 +385,7 @@ section[data-testid="stSidebar"] hr {
 
 /* Sidebar history */
 
-section[data-testid="stSidebar"] .stButton > button {
+section[data-testid="stSidebar"] .stButton > button:not([kind="primary"]) {
     text-align: left !important;
     justify-content: flex-start !important;
     border-radius: var(--pt-radius-md) !important;
@@ -310,14 +399,28 @@ section[data-testid="stSidebar"] .stButton > button {
     min-height: 2rem !important;
 }
 
-section[data-testid="stSidebar"] .stButton > button:hover {
+/* Active conversation gets the same look as hover, permanently — no dot
+   prefix needed. The marker div (emitted just before the active row's
+   button) and the button's own container are adjacent siblings within the
+   sidebar's stVerticalBlock, so :has() + the adjacent-sibling combinator
+   picks out exactly that one row. */
+section[data-testid="stSidebar"] .stButton > button:not([kind="primary"]):hover,
+section[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(.pt-active-conv-marker)
+    + [data-testid="stElementContainer"] .stButton > button:not([kind="primary"]) {
     background-color: color-mix(in srgb, var(--text-color) 5%, var(--secondary-background-color)) !important;
     border-color: var(--pt-border) !important;
 }
 
+/* "New chat" primary button keeps the solid accent pill (not the transparent
+   sidebar-row treatment above, which previously left it white-on-transparent). */
+section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+    font-size: 0.875rem !important;
+    padding: 0.5rem 1rem !important;
+}
+
 /* Main-area suggestion chips */
 
-[data-testid="stMain"] [data-testid="stHorizontalBlock"] .stButton > button {
+[data-testid="stMainBlockContainer"] [data-testid="stHorizontalBlock"] .stButton > button {
     border-radius: var(--pt-radius-md) !important;
     padding: 0.75rem 0.9rem !important;
     min-height: 2.75rem !important;
@@ -329,7 +432,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
     line-height: 1.4 !important;
 }
 
-[data-testid="stMain"] [data-testid="stHorizontalBlock"] .stButton > button:hover {
+[data-testid="stMainBlockContainer"] [data-testid="stHorizontalBlock"] .stButton > button:hover {
     border-color: var(--pt-accent-border) !important;
     background-color: var(--pt-accent-muted) !important;
 }
@@ -345,11 +448,9 @@ section[data-testid="stSidebar"] .stButton > button:hover {
     transition: border-color var(--pt-transition), box-shadow var(--pt-transition);
 }
 
-[data-testid="stChatInput"]:focus-within {
-    border-color: var(--pt-accent);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--pt-accent) 18%, transparent),
-                var(--pt-shadow-md);
-}
+/* Streamlit's own inner input container already draws a focus border —
+   we used to add a second (green) ring around this outer wrapper on top of
+   it, producing a visible double outline. Keep only the native one. */
 
 [data-testid="stChatInput"] textarea {
     color: var(--text-color) !important;
@@ -414,18 +515,10 @@ section[data-testid="stSidebar"] .stButton > button:hover {
     border-top-color: var(--pt-accent) !important;
 }
 
-/* Motion */
-
-@media (prefers-reduced-motion: no-preference) {
-    [data-testid="stChatInput"]:focus-within {
-        transition: border-color var(--pt-transition), box-shadow var(--pt-transition);
-    }
-}
-
 /* Responsive */
 
 @media (max-width: 768px) {
-    [data-testid="stMain"] > div.block-container {
+    [data-testid="stMainBlockContainer"] {
         padding-left: 0.85rem;
         padding-right: 0.85rem;
         padding-bottom: 4.5rem;
@@ -438,13 +531,13 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 }
 
 @media (max-width: 480px) {
-    [data-testid="stMain"] > div.block-container {
+    [data-testid="stMainBlockContainer"] {
         max-width: 100%;
         padding-left: 0.65rem;
         padding-right: 0.65rem;
     }
 
-    [data-testid="stMain"] [data-testid="stHorizontalBlock"] .stButton > button {
+    [data-testid="stMainBlockContainer"] [data-testid="stHorizontalBlock"] .stButton > button {
         font-size: 0.8rem !important;
         padding: 0.65rem 0.75rem !important;
     }
@@ -453,23 +546,23 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 /* Scrollbar */
 
 [data-testid="stSidebar"] ::-webkit-scrollbar,
-[data-testid="stMain"] ::-webkit-scrollbar {
+[data-testid="stMainBlockContainer"] ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
 }
 
 [data-testid="stSidebar"] ::-webkit-scrollbar-track,
-[data-testid="stMain"] ::-webkit-scrollbar-track {
+[data-testid="stMainBlockContainer"] ::-webkit-scrollbar-track {
     background: transparent;
 }
 
 [data-testid="stSidebar"] ::-webkit-scrollbar-thumb,
-[data-testid="stMain"] ::-webkit-scrollbar-thumb {
+[data-testid="stMainBlockContainer"] ::-webkit-scrollbar-thumb {
     background: color-mix(in srgb, var(--text-color) 20%, transparent);
     border-radius: var(--pt-radius-pill);
 }
 
 [data-testid="stSidebar"] ::-webkit-scrollbar-thumb:hover,
-[data-testid="stMain"] ::-webkit-scrollbar-thumb:hover {
+[data-testid="stMainBlockContainer"] ::-webkit-scrollbar-thumb:hover {
     background: color-mix(in srgb, var(--text-color) 32%, transparent);
 }
