@@ -44,8 +44,19 @@ Only the following derivations are allowed:
     current_weight_kg = 75
     "lose 2 kg"
     -> target_weight_kg = 73
+- Resolve relative weight goals into weight_delta_kg when current_weight_kg is known.
+  Example:
+    current_weight_kg = 75
+    "lose 2 kg"
+    -> weight_delta_kg = -2
+- Convert explicit timelines into horizon_weeks.
+  Examples:
+    "1 year" -> horizon_weeks = 52
+    "1 month" -> horizon_weeks = 4
+    "8 weeks" -> horizon_weeks = 8
+    "6 months" -> horizon_weeks = 26
 
-Do NOT derive any other values.
+Do NOT derive weekly_rate_kg, BMR, TDEE, or calorie targets.
 
 4. Training frequency
 Map training frequency into:
@@ -72,6 +83,9 @@ goal.goal must be one of:
 - muscle_gain
 - recomposition
 - maintenance
+- strength
+- endurance
+- general_fitness
 
 constraints.equipment must be one of:
 - gym
