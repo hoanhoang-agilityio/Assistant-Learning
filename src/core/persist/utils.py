@@ -8,6 +8,13 @@ from core.vfs import VFS
 
 FINAL_PLAN_SOURCE = "fitness/final_plan.md"
 FINAL_PLAN_DEST = "final/final_plan.md"
+STRUCTURED_ARTIFACTS: tuple[tuple[str, str], ...] = (
+    ("fitness/workout.json", "final/workout.json"),
+    ("fitness/calculations.json", "final/calculations.json"),
+    ("fitness/blueprint.json", "final/blueprint.json"),
+    ("research/sources.json", "final/research_sources.json"),
+    ("verify/verification_v1.json", "final/verification_report.json"),
+)
 
 
 def persist_trigger_data(
@@ -80,10 +87,15 @@ def save_artifacts_data(workspace_path: str) -> dict[str, Any]:
 
     draft_plan = vfs.read(FINAL_PLAN_SOURCE)
     vfs.write(FINAL_PLAN_DEST, draft_plan)
+    artifacts = [FINAL_PLAN_DEST]
+    for source_path, dest_path in STRUCTURED_ARTIFACTS:
+        if vfs.exists(source_path):
+            vfs.write(dest_path, vfs.read(source_path))
+            artifacts.append(dest_path)
     final_artifact_path = str(Path(workspace_path) / FINAL_PLAN_DEST)
     result = {
         "persisted_at": datetime.now(UTC).isoformat(),
-        "artifacts": [FINAL_PLAN_DEST],
+        "artifacts": artifacts,
         "final_artifact_path": final_artifact_path,
     }
     vfs.write("logs/persist_result.json", json.dumps(result, indent=2))
