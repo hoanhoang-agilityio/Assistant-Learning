@@ -21,6 +21,7 @@ class ExecutionPlan(BaseModel):
     plan_rationale: str = Field(min_length=20, description="Overall plan rationale")
     tasks: list[PlanTask]
     plan_markdown: str = Field(min_length=50, description="Human-readable planning summary")
+    template_id: str | None = Field(default=None, description="Deterministic template identifier")
 
     @field_validator("tasks")
     @classmethod
