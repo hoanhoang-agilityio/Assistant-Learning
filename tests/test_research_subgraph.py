@@ -102,6 +102,7 @@ def research_state(
         evidence_summary=None,
         blocked_by_todos=False,
         agent_iterations=0,
+        is_reresearch=False,
     )
 
 

@@ -44,6 +44,8 @@ def _research_agent_node(state: ResearchState) -> dict:
         request_type=state["request_type"],
         profile=state["profile"],
         execution_plan=execution_plan,
+        workspace_path=state["workspace_path"],
+        is_reresearch=state.get("is_reresearch", False),
     )
     return {
         "sources": result.sources,
@@ -118,6 +120,7 @@ def to_research_state(state: OrchestrationState) -> ResearchState:
         evidence_summary=None,
         blocked_by_todos=False,
         agent_iterations=0,
+        is_reresearch=state.get("route_decision") == "RERESEARCH",
     )
 
 

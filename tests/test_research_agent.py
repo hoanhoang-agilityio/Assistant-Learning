@@ -9,6 +9,8 @@ from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.research_agent import (
     _evaluate_evidence,
+    _execute_tool_call,
+    _ResearchSession,
     configure_research_agent,
     run_research_agent,
 )
@@ -228,3 +230,88 @@ def test_eval_skip_when_sufficient_verified_sources() -> None:
     assert result.gaps == []
     assert result.refined_queries == []
     mock_llm.assert_not_called()
+
+
+def test_tavily_extract_respects_budget_and_failed_url_dedupe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _ResearchSession()
+    session.max_total_extracts = 2
+    calls: list[list[str]] = []
+
+    def fake_extract(urls: list[str]) -> dict:
+        calls.append(urls)
+        return {"evidence": []}
+
+    monkeypatch.setattr(
+        "core.subgraphs.research.research_agent.extract_tavily_data",
+        fake_extract,
+    )
+
+    first = _execute_tool_call(
+        "tavily_extract",
+        {"urls": ["https://pmc.ncbi.nlm.nih.gov/articles/PMC10620361"]},
+        session,
+    )
+    second = _execute_tool_call(
+        "tavily_extract",
+        {"urls": ["https://pmc.ncbi.nlm.nih.gov/articles/PMC10620361"]},
+        session,
+    )
+    third = _execute_tool_call(
+        "tavily_extract",
+        {"urls": ["https://pubmed.ncbi.nlm.nih.gov/123"]},
+        session,
+    )
+    fourth = _execute_tool_call(
+        "tavily_extract",
+        {"urls": ["https://pubmed.ncbi.nlm.nih.gov/456"]},
+        session,
+    )
+
+    assert len(calls) == 2
+    assert "no_new_urls" in second
+    assert "extract_budget_exhausted_or_duplicate" in fourth
+    assert first
+    assert third
+
+
+def test_post_process_skips_tavily_when_local_evidence_is_sufficient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core.subgraphs.research.utils import post_process_sources
+
+    extract_called = False
+
+    def fake_extract(urls: list[str]) -> dict:
+        nonlocal extract_called
+        extract_called = True
+        return {"evidence": []}
+
+    monkeypatch.setattr(
+        "core.subgraphs.research.utils.extract_tavily_data",
+        fake_extract,
+    )
+    sources = [
+        {
+            "title": "Lean bulk",
+            "url": "local-kb://lean-bulk-surplus",
+            "snippet": "lean bulk surplus",
+            "provider": "local_kb",
+            "verified": True,
+        },
+        {
+            "title": "Hypertrophy volume",
+            "url": "local-kb://hypertrophy-volume-guideline",
+            "snippet": "hypertrophy volume",
+            "provider": "local_kb",
+            "verified": True,
+        },
+    ]
+    evidence = [
+        {"url": "local-kb://lean-bulk-surplus", "content": "doc one", "provider": "local_kb"},
+    ]
+    ranked, merged = post_process_sources(sources, evidence)
+    assert extract_called is False
+    assert len(ranked) == 2
+    assert len(merged) == 1

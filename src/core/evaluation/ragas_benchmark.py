@@ -131,6 +131,7 @@ def run_golden_case(
             evidence_summary=None,
             blocked_by_todos=False,
             agent_iterations=0,
+            is_reresearch=False,
         )
         build_research_subgraph().invoke(research_state)
         fitness_state = FitnessState(
