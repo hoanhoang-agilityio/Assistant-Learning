@@ -12,6 +12,7 @@ class PlanningState(TypedDict):
     request_type: str | None
     workspace_path: str
     route_decision: RouteDecision | None
+    revision_feedback: str | None
     profile: dict
     missing_fields: list[str]
     requires_hitl: bool

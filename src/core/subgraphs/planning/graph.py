@@ -4,11 +4,11 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
-from core.hitl.tool_gate import evaluate_tool_interrupt
 from core.subgraphs.planning.state import PlanningState
 from core.subgraphs.planning.tools import extract_profile, generate_plan, validate_profile
 from core.subgraphs.planning.utils import (
     load_execution_plan_from_vfs,
+    load_revision_feedback,
     profile_to_orchestration_updates,
     should_reuse_execution_plan,
     should_use_llm_profile_extraction,
@@ -25,38 +25,15 @@ def _extract_profile_node(state: PlanningState) -> dict:
             "query": state["query"],
             "user_profile": state["user_profile"],
             "constraints": state["constraints"],
+            "revision_feedback": state.get("revision_feedback"),
         }
     )
-    profile = result["profile"]
-    interrupt = evaluate_tool_interrupt(
-        "extract_profile",
-        used_sensitive_write=used_llm_extraction,
-        approved_tools=state.get("approved_tools") or [],
-        preview={
-            key: profile.get(key)
-            for key in ("age", "sex", "goal", "activity_level", "height_cm", "current_weight_kg")
-            if profile.get(key) is not None
-        },
-    )
-    if interrupt is not None:
-        return {
-            "profile": profile,
-            "used_llm_extraction": used_llm_extraction,
-            "requires_tool_approval": True,
-        }
     return {
-        "profile": profile,
+        "profile": result["profile"],
         "user_profile": {},
         "constraints": {},
         "used_llm_extraction": used_llm_extraction,
         "requires_tool_approval": False,
-    }
-
-
-def _tool_approval_node(state: PlanningState) -> dict:
-    return {
-        "requires_hitl": True,
-        "requires_tool_approval": True,
     }
 
 
@@ -75,6 +52,7 @@ def _generate_plan_node(state: PlanningState) -> dict:
             "query": state["query"],
             "request_type": state["request_type"],
             "workspace_path": state["workspace_path"],
+            "revision_feedback": state.get("revision_feedback"),
         }
     )
 
@@ -92,14 +70,8 @@ def _planning_hitl_node(state: PlanningState) -> dict:
     }
 
 
-def _route_after_extract(state: PlanningState) -> str:
-    if state["requires_tool_approval"]:
-        return "tool_approval"
-    return "validate_profile"
-
-
 def _route_after_validate(state: PlanningState) -> str:
-    if state["missing_fields"]:
+    if state["requires_hitl"]:
         return "planning_hitl"
     if should_reuse_execution_plan(
         state.get("route_decision"),
@@ -114,21 +86,12 @@ def build_planning_subgraph() -> CompiledStateGraph:
     """Compile the Planning subgraph StateGraph."""
     graph = StateGraph(PlanningState)
     graph.add_node("extract_profile", _extract_profile_node)
-    graph.add_node("tool_approval", _tool_approval_node)
     graph.add_node("validate_profile", _validate_profile_node)
     graph.add_node("generate_plan", _generate_plan_node)
     graph.add_node("reuse_execution_plan", _reuse_execution_plan_node)
     graph.add_node("planning_hitl", _planning_hitl_node)
     graph.add_edge(START, "extract_profile")
-    graph.add_conditional_edges(
-        "extract_profile",
-        _route_after_extract,
-        {
-            "tool_approval": "tool_approval",
-            "validate_profile": "validate_profile",
-        },
-    )
-    graph.add_edge("tool_approval", END)
+    graph.add_edge("extract_profile", "validate_profile")
     graph.add_conditional_edges(
         "validate_profile",
         _route_after_validate,
@@ -150,13 +113,16 @@ def get_planning_subgraph() -> CompiledStateGraph:
 
 
 def to_planning_state(state: OrchestrationState) -> PlanningState:
+    workspace_path = state["workspace_path"]
+    revision_feedback = state.get("revision_feedback") or load_revision_feedback(workspace_path)
     return PlanningState(
         query=state["query"],
         user_profile=state["user_profile"],
         constraints=state["constraints"],
         request_type=state["request_type"],
-        workspace_path=state["workspace_path"],
+        workspace_path=workspace_path,
         route_decision=state.get("route_decision"),
+        revision_feedback=revision_feedback,
         profile={},
         missing_fields=[],
         requires_hitl=False,
@@ -168,11 +134,7 @@ def to_planning_state(state: OrchestrationState) -> PlanningState:
 
 
 def _planning_steps_from_result(result: dict) -> list[str]:
-    steps = ["extract_profile"]
-    if result.get("requires_tool_approval"):
-        steps.append("tool_approval")
-        return steps
-    steps.append("validate_profile")
+    steps = ["extract_profile", "validate_profile"]
     if result.get("requires_hitl"):
         steps.append("planning_hitl")
         return steps
@@ -196,14 +158,7 @@ def invoke_planning_subgraph(state: OrchestrationState) -> dict:
         "user_profile": sync["user_profile"],
         "constraints": {**state["constraints"], **sync["constraints"]},
     }
-    if result.get("requires_tool_approval"):
-        updates.update(
-            {
-                "waiting_for_user": True,
-                "pending_tool": "extract_profile",
-            }
-        )
-    elif result.get("requires_hitl"):
+    if result.get("requires_hitl"):
         updates["waiting_for_user"] = True
     return merge_subgraph_updates(
         state,

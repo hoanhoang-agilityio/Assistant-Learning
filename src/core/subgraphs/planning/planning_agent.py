@@ -30,13 +30,19 @@ Rules:
 - plan_markdown must summarize goal, constraints, ordered tasks, and overall rationale.
 - Keep plan_markdown concise (roughly 200-600 words); use bullet points, not long prose.
 - Do not invent profile fields not present in the input.
-- Return 3 distinct, non-overlapping tasks."""
+- Return 3 distinct, non-overlapping tasks.
+- When revision_feedback is present, address every user concern explicitly in tasks and rationale."""
 
 
 def configure_planning_agent(override: PlanningAgentOverride | None) -> None:
     """Override the planning agent (used in tests)."""
     global _AGENT_OVERRIDE
     _AGENT_OVERRIDE = override
+
+
+def is_planning_agent_overridden() -> bool:
+    """Return True when tests or callers have configured a planning agent override."""
+    return _AGENT_OVERRIDE is not None
 
 
 def normalize_execution_plan(plan: ExecutionPlan) -> ExecutionPlan:
@@ -57,6 +63,7 @@ def generate_execution_plan(
     query: str,
     request_type: str | None,
     constraints: dict[str, Any],
+    revision_feedback: str | None = None,
 ) -> ExecutionPlan:
     """Generate a structured execution plan via LLM structured output."""
     if _AGENT_OVERRIDE is not None:
@@ -73,6 +80,7 @@ def generate_execution_plan(
         query=query,
         request_type=request_type,
         constraints=constraints,
+        revision_feedback=revision_feedback,
     )
     token = set_llm_metrics_node("planning_agent")
     try:
