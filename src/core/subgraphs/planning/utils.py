@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -6,7 +7,8 @@ from core.agents.rerun import STRUCTURAL_ISSUE_MARKERS
 from core.llm.contracts import validate_planning_payload
 from core.llm.serializers import compact_profile_for_llm
 from core.profile.extraction import extract_profile_from_query
-from core.profile.normalize import merge_profile_sources
+from core.profile.goal_spec import assess_goal_feasibility, derive_goal_spec_fields
+from core.profile.normalize import _sync_activity_and_days, merge_profile_sources
 from core.profile.schema import (
     CONSTRAINT_FIELDS,
     GOAL_REQUIRED_FIELDS,
@@ -15,10 +17,21 @@ from core.profile.schema import (
     ExtractedProfile,
 )
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
+from core.subgraphs.planning.templates import build_template_execution_plan
 from core.vfs import VFS
 
 # Re-export for backward compatibility with existing imports.
+REVISION_OVERRIDE_FIELDS: tuple[str, ...] = (
+    *CONSTRAINT_FIELDS,
+    "goal",
+    "target_weight_kg",
+    "weight_delta_kg",
+    "horizon_weeks",
+)
+
 __all__ = [
+    "REVISION_OVERRIDE_FIELDS",
+    "apply_revision_overrides",
     "build_default_execution_plan",
     "build_planning_payload",
     "build_profile",
@@ -32,6 +45,8 @@ __all__ = [
     "load_planning_todos",
     "load_stored_profile",
     "persist_execution_plan",
+    "persist_revision_feedback",
+    "load_revision_feedback",
     "profile_matches_stored_profile",
     "profile_to_orchestration_updates",
     "resolve_extraction_query",
@@ -40,6 +55,48 @@ __all__ = [
     "should_use_llm_profile_extraction",
     "validate_profile_data",
 ]
+
+
+_DAYS_PER_WEEK_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b(\d+)\s*[- ]?\s*days?\s*(?:per|/|a)?\s*week\b", re.IGNORECASE),
+    re.compile(r"\btrain(?:ing)?\s+(\d+)\s+days?\b", re.IGNORECASE),
+    re.compile(r"\b(\d+)\s*[- ]day\s+(?:training|workout|plan)\b", re.IGNORECASE),
+)
+
+
+def _parse_days_per_week_from_text(text: str) -> int | None:
+    for pattern in _DAYS_PER_WEEK_PATTERNS:
+        match = pattern.search(text)
+        if not match:
+            continue
+        days = int(match.group(1))
+        return min(max(days, 0), 6)
+    return None
+
+
+def apply_revision_overrides(
+    profile: dict[str, Any],
+    revision_feedback: str,
+) -> dict[str, Any]:
+    """Re-extract plan-change fields from revision text and override the merged profile."""
+    stripped = revision_feedback.strip()
+    if not stripped:
+        return profile
+    from core.profile.normalize import normalize_extracted_profile
+
+    extracted = extract_profile_from_query(stripped)
+    overrides = normalize_extracted_profile(extracted)
+    updated = dict(profile)
+    for field_name in REVISION_OVERRIDE_FIELDS:
+        value = overrides.get(field_name)
+        if value is not None and value != "":
+            updated[field_name] = value
+    parsed_days = _parse_days_per_week_from_text(stripped)
+    if parsed_days is not None:
+        updated["days_per_week"] = parsed_days
+    _sync_activity_and_days(updated)
+    updated.update(derive_goal_spec_fields(updated))
+    return updated
 
 
 def resolve_extraction_query(query: str, user_profile: dict[str, Any]) -> str:
@@ -59,10 +116,19 @@ def build_planning_payload(
     query: str,
     request_type: str | None,
     constraints: dict[str, Any],
+    revision_feedback: str | None = None,
 ) -> dict[str, Any]:
     """Build a deduplicated payload for the Planning Agent LLM call."""
-    compact_profile = compact_profile_for_llm(profile)
+    enriched_profile = {**profile, **derive_goal_spec_fields(profile)}
+    compact_profile = compact_profile_for_llm(enriched_profile)
     payload: dict[str, Any] = {"profile": compact_profile}
+    goal_context = {
+        key: enriched_profile[key]
+        for key in ("goal_archetype", "horizon_weeks", "weekly_rate_kg", "feasibility_level")
+        if enriched_profile.get(key) not in (None, "")
+    }
+    if goal_context:
+        payload["goal_context"] = goal_context
     stripped_query = query.strip()
     if stripped_query:
         payload["query"] = stripped_query
@@ -75,6 +141,9 @@ def build_planning_payload(
     }
     if extra_constraints:
         payload["constraints"] = extra_constraints
+    stripped_feedback = (revision_feedback or "").strip()
+    if stripped_feedback:
+        payload["revision_feedback"] = stripped_feedback
     validate_planning_payload(payload)
     return payload
 
@@ -108,37 +177,55 @@ def should_use_llm_profile_extraction(
 
 
 def build_profile(
-    query: str, user_profile: dict[str, Any], constraints: dict[str, Any]
+    query: str,
+    user_profile: dict[str, Any],
+    constraints: dict[str, Any],
+    *,
+    revision_feedback: str | None = None,
 ) -> dict[str, Any]:
     if _should_skip_profile_extraction(user_profile, constraints):
         extracted = ExtractedProfile()
     else:
         extraction_query = resolve_extraction_query(query, user_profile)
         extracted = extract_profile_from_query(extraction_query)
-    return merge_profile_sources(
+    profile = merge_profile_sources(
         query=query,
         user_profile=user_profile,
         constraints=constraints,
         extracted=extracted,
     )
+    if revision_feedback:
+        profile = apply_revision_overrides(profile, revision_feedback)
+    return profile
 
 
 def validate_profile_data(profile: dict[str, Any]) -> dict[str, Any]:
+    enriched = {**profile, **derive_goal_spec_fields(profile)}
     missing_fields: list[str] = []
     for field_name in REQUIRED_PROFILE_FIELDS:
-        if profile.get(field_name) in (None, ""):
+        if enriched.get(field_name) in (None, ""):
             missing_fields.append(field_name)
 
-    goal = profile.get("goal")
+    goal = enriched.get("goal")
     if isinstance(goal, str):
         for field_name in GOAL_REQUIRED_FIELDS.get(goal, ()):
-            if profile.get(field_name) in (None, ""):
+            if enriched.get(field_name) in (None, ""):
                 missing_fields.append(field_name)
+        if goal in {"fat_loss", "muscle_gain"}:
+            has_target = enriched.get("target_weight_kg") not in (None, "")
+            has_delta = enriched.get("weight_delta_kg") not in (None, "")
+            if not has_target and not has_delta:
+                missing_fields.append("target_weight_kg")
 
+    feasibility = assess_goal_feasibility(enriched)
+    hitl_reason = feasibility.get("message")
+    requires_hitl = bool(missing_fields) or feasibility.get("requires_hitl", False)
     unique_missing_fields = sorted(set(missing_fields))
     return {
         "missing_fields": unique_missing_fields,
-        "requires_hitl": bool(unique_missing_fields),
+        "requires_hitl": requires_hitl,
+        "hitl_reason": hitl_reason,
+        "feasibility_issues": feasibility.get("issues", []),
     }
 
 
@@ -174,6 +261,25 @@ def load_structural_issues(workspace_path: str) -> list[str]:
     ]
 
 
+def persist_revision_feedback(workspace_path: str, feedback: str) -> None:
+    """Persist user revision feedback for downstream REPLAN runs."""
+    vfs = VFS.for_run(Path(workspace_path))
+    vfs.write("plan/revision_feedback.json", json.dumps({"feedback": feedback.strip()}, indent=2))
+
+
+def load_revision_feedback(workspace_path: str) -> str | None:
+    """Load user revision feedback from the run workspace VFS."""
+    vfs = VFS.for_run(Path(workspace_path))
+    if not vfs.exists("plan/revision_feedback.json"):
+        return None
+    payload = json.loads(vfs.read("plan/revision_feedback.json"))
+    feedback = payload.get("feedback")
+    if not isinstance(feedback, str):
+        return None
+    stripped = feedback.strip()
+    return stripped or None
+
+
 def execution_plan_covers_issues(plan: ExecutionPlan, issues: list[str]) -> bool:
     """Return True when every structural issue has a matching keyword in plan tasks."""
     if not issues:
@@ -203,6 +309,8 @@ def should_reuse_execution_plan(
 ) -> bool:
     """Skip XHIGH plan generation on REPLAN when the stored plan still fits the profile."""
     if route_decision != "REPLAN":
+        return False
+    if load_revision_feedback(workspace_path):
         return False
     if not has_execution_plan(workspace_path):
         return False
@@ -257,7 +365,11 @@ def persist_execution_plan(
 
 def build_default_execution_plan(profile: dict[str, Any] | None = None) -> ExecutionPlan:
     """Build a deterministic fallback execution plan for tests and benchmarks."""
-    goal = (profile or {}).get("goal", "general_fitness")
+    resolved_profile = {**(profile or {}), **derive_goal_spec_fields(profile or {})}
+    template_plan = build_template_execution_plan(resolved_profile)
+    if template_plan is not None:
+        return template_plan
+    goal = resolved_profile.get("goal", "general_fitness")
     return ExecutionPlan(
         plan_rationale=(
             f"Research plan tailored for {goal} with evidence gathering and source verification."

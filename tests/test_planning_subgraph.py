@@ -22,6 +22,7 @@ from core.subgraphs.planning.utils import (
     has_planning_todos,
     load_planning_todos,
     persist_execution_plan,
+    persist_revision_feedback,
     resolve_extraction_query,
     validate_profile_data,
 )
@@ -94,6 +95,7 @@ def planning_state(workspace_root: Path, complete_profile: dict) -> PlanningStat
         request_type="fat_loss",
         workspace_path=initial["workspace_path"],
         route_decision=None,
+        revision_feedback=None,
         profile={},
         missing_fields=[],
         requires_hitl=False,
@@ -327,22 +329,30 @@ def test_generate_plan_persists_vfs_artifacts(planning_state: PlanningState) -> 
     assert vfs.read("plan/plan.md") == execution_plan["plan_markdown"]
 
 
-def test_planning_subgraph_requires_tool_approval_without_complete_profile(
+def test_planning_subgraph_continues_without_tool_approval_after_llm_extract(
     workspace_root: Path,
 ) -> None:
     configure_profile_extractor(
         lambda _query: ExtractedProfile(
-            profile=Profile(age=28, sex="female", height_cm=165, current_weight_kg=70),
-            goal=Goal(goal="fat_loss"),
+            profile=Profile(
+                age=28,
+                sex="female",
+                height_cm=165,
+                current_weight_kg=70,
+            ),
+            goal=Goal(goal="fat_loss", target_weight_kg=65),
+            constraints=Constraints(days_per_week=3),
         )
     )
+    configure_planning_agent(_mock_fat_loss_execution_plan)
     state = PlanningState(
         query="Help me lose weight",
         user_profile={},
         constraints={},
         request_type="fat_loss",
-        workspace_path=str(workspace_root / "runs" / "tool-approval-run"),
+        workspace_path=str(workspace_root / "runs" / "no-tool-approval-run"),
         route_decision=None,
+        revision_feedback=None,
         profile={},
         missing_fields=[],
         requires_hitl=False,
@@ -353,8 +363,9 @@ def test_planning_subgraph_requires_tool_approval_without_complete_profile(
     )
     Path(state["workspace_path"]).mkdir(parents=True, exist_ok=True)
     result = build_planning_subgraph().invoke(state)
-    assert result["requires_tool_approval"] is True
-    assert result["requires_hitl"] is True
+    assert result["requires_tool_approval"] is False
+    assert result["requires_hitl"] is False
+    assert has_execution_plan(state["workspace_path"]) is True
 
 
 def test_planning_subgraph_writes_execution_plan_on_complete_profile(
@@ -546,3 +557,32 @@ def test_planning_agent_runs_from_orchestration(planning_state: PlanningState) -
     updates = agent.run(orchestration_state)
     assert updates["current_node"] == "planning"
     assert has_execution_plan(planning_state["workspace_path"]) is True
+
+
+def test_replan_skips_reuse_when_revision_feedback_present(
+    planning_state: PlanningState,
+    complete_profile: dict,
+) -> None:
+    configure_profile_extractor(lambda _query: ExtractedProfile())
+    configure_planning_agent(_mock_fat_loss_execution_plan)
+    profile = build_profile(
+        query=planning_state["query"],
+        user_profile=complete_profile,
+        constraints=planning_state["constraints"],
+    )
+    _seed_replan_workspace(
+        planning_state["workspace_path"],
+        profile,
+        _mock_fat_loss_execution_plan(),
+        issues=["missing_macro_targets"],
+    )
+    persist_revision_feedback(
+        planning_state["workspace_path"],
+        "User wants fewer training days.",
+    )
+    state = {
+        **planning_state,
+        "route_decision": "REPLAN",
+    }
+    result = build_planning_subgraph().invoke(state)
+    assert result.get("reused_execution_plan") is not True

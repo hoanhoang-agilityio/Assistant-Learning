@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from core.profile.goal_spec import derive_goal_spec_fields
 from core.profile.schema import ExtractedProfile
 
 GYM_ACTIVITY_PREFIX = "gym_"
@@ -51,6 +52,10 @@ def normalize_extracted_profile(extracted: ExtractedProfile) -> dict[str, Any]:
         profile["goal"] = goal_info.goal
     if goal_info.target_weight_kg is not None:
         profile["target_weight_kg"] = _round_measurement(goal_info.target_weight_kg)
+    if goal_info.weight_delta_kg is not None:
+        profile["weight_delta_kg"] = _round_measurement(goal_info.weight_delta_kg)
+    if goal_info.horizon_weeks is not None:
+        profile["horizon_weeks"] = int(goal_info.horizon_weeks)
 
     constraints = extracted.constraints
     if constraints.days_per_week is not None:
@@ -63,6 +68,8 @@ def normalize_extracted_profile(extracted: ExtractedProfile) -> dict[str, Any]:
         profile["session_duration_minutes"] = int(constraints.session_duration_minutes)
     if constraints.high_protein is not None:
         profile["high_protein"] = bool(constraints.high_protein)
+
+    profile.update(derive_goal_spec_fields(profile))
     return profile
 
 
@@ -104,4 +111,5 @@ def merge_profile_sources(
         if value is not None and value != "":
             profile[field_name] = value
     _sync_activity_and_days(profile)
+    profile.update(derive_goal_spec_fields(profile))
     return profile
