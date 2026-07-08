@@ -8,7 +8,7 @@ import httpx
 import streamlit as st
 
 from ui.api_client import DEFAULT_REQUEST_TIMEOUT
-from ui.components.chat import load_run_from_history
+from ui.components.chat import load_run_from_history, set_active_run
 
 
 def _truncate_query(query: str, max_length: int = 40) -> str:
@@ -19,24 +19,24 @@ def _truncate_query(query: str, max_length: int = 40) -> str:
 
 def _status_label(status: str) -> str:
     labels = {
-        "running": "running",
-        "waiting_hitl": "needs input",
-        "completed": "done",
-        "failed": "failed",
+        "running": "⏳ working",
+        "waiting_hitl": "🙋 needs you",
+        "completed": "✅ done",
+        "failed": "⚠️ failed",
     }
     return labels.get(status, status)
 
 
 def render_sidebar() -> None:
     with st.sidebar:
-        st.markdown('<div class="sidebar-brand">PT AI</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-brand">🏋️ PT AI</div>', unsafe_allow_html=True)
         st.markdown(
-            '<p class="pt-sidebar__tagline">Workout, nutrition, recovery</p>',
+            '<p class="pt-sidebar__tagline">Your friendly workout, nutrition &amp; recovery coach</p>',
             unsafe_allow_html=True,
         )
 
-        if st.button("New chat", type="primary", use_container_width=True, key="new_chat"):
-            st.session_state.run_id = None
+        if st.button("➕ New chat", type="primary", use_container_width=True, key="new_chat"):
+            set_active_run(None)
             st.session_state.run_status = None
             st.session_state.messages = []
             st.session_state.pending_query = None
@@ -54,8 +54,11 @@ def render_sidebar() -> None:
                 title = _truncate_query(item.get("query", run_id))
                 run_status = _status_label(item.get("status", "unknown"))
                 label = f"{title} · {run_status}"
-                if run_id == active_run_id:
-                    label = f"● {label}"
+                is_active = run_id == active_run_id
+                if is_active:
+                    # Marker read by CSS to give the active conversation the same
+                    # persistent background as the hover state (no dot prefix).
+                    st.markdown('<div class="pt-active-conv-marker"></div>', unsafe_allow_html=True)
                 if st.button(
                     label,
                     key=f"history_{run_id}_{index}",
