@@ -107,6 +107,8 @@ class ResearchFindings(BaseModel):
     conflicting_evidence: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     recommended_sources: list[str] = Field(default_factory=list)
+    goal_applicability: str | None = None
+    timeline_notes: list[str] = Field(default_factory=list)
 
     @field_validator(
         "key_findings",

@@ -61,6 +61,40 @@ def load_execution_plan_for_research(workspace_path: str) -> ExecutionPlan | Non
     return load_execution_plan(workspace_path)
 
 
+def load_existing_research(workspace_path: str) -> dict[str, Any] | None:
+    """Load prior research artifacts when a partial rerun re-enters Research."""
+    vfs = VFS.for_run(Path(workspace_path))
+    if not vfs.exists("research/sources.json"):
+        return None
+    sources = json.loads(vfs.read("research/sources.json"))
+    evidence: list[dict[str, Any]] = []
+    if vfs.exists("research/findings.json"):
+        findings_payload = json.loads(vfs.read("research/findings.json"))
+        evidence = findings_payload.get("evidence") or []
+    return {"sources": sources, "evidence": evidence}
+
+
+def is_local_kb_url(url: str) -> bool:
+    """Return True when a URL points at the local knowledge base."""
+    normalized = url.strip().lower()
+    return normalized.startswith("local-kb://")
+
+
+def has_sufficient_research_coverage(
+    sources: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
+) -> bool:
+    """Return True when gathered sources and evidence meet skip-eval thresholds."""
+    settings = get_settings()
+    verified_sources = verify_sources_data(sources)["sources"]
+    verified_count = sum(1 for source in verified_sources if source.get("verified"))
+    return (
+        len(sources) >= settings.research_min_verified_sources_for_skip_eval
+        and verified_count >= settings.research_min_verified_sources_for_skip_eval
+        and len(evidence) >= settings.research_min_evidence_docs_for_skip_eval
+    )
+
+
 def load_todos_for_research(workspace_path: str) -> list[str]:
     """Derive ordered task strings from the execution plan for legacy tool signatures."""
     plan = load_execution_plan_for_research(workspace_path)
@@ -150,6 +184,22 @@ def build_synthesis_llm_extra(
     }
 
 
+def build_goal_context(profile: dict[str, Any]) -> dict[str, Any]:
+    """Return compact goal/timeline context for research payloads."""
+    return {
+        key: profile[key]
+        for key in (
+            "goal",
+            "goal_archetype",
+            "horizon_weeks",
+            "weekly_rate_kg",
+            "weight_delta_kg",
+            "feasibility_level",
+        )
+        if profile.get(key) not in (None, "")
+    }
+
+
 def build_research_context_payload(
     *,
     query: str,
@@ -161,6 +211,9 @@ def build_research_context_payload(
 ) -> dict[str, Any]:
     """Build a deduplicated payload for Research Agent LLM calls."""
     payload: dict[str, Any] = {"profile": compact_profile_for_llm(profile)}
+    goal_context = build_goal_context(profile)
+    if goal_context:
+        payload["goal_context"] = goal_context
     stripped_query = query.strip()
     if stripped_query:
         payload["query"] = stripped_query
@@ -286,6 +339,8 @@ def post_process_sources(
     evidence: list[dict[str, Any]],
     *,
     extract_top_k: int | None = None,
+    max_extracts_remaining: int | None = None,
+    failed_extract_urls: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Dedupe, verify, rank, and extract top-K ranked URLs not yet in evidence."""
     settings = get_settings()
@@ -295,12 +350,27 @@ def post_process_sources(
     verified = verify_sources_data(deduped)["sources"]
     ranked = rank_sources_data(verified)["sources"]
 
-    extracted_urls = {str(item.get("url", "")) for item in evidence}
-    urls_to_extract = [
-        str(source.get("url", ""))
-        for source in ranked[:top_k]
-        if str(source.get("url", "")) and str(source.get("url", "")) not in extracted_urls
-    ]
+    if has_sufficient_research_coverage(ranked, evidence):
+        return ranked, _merge_evidence_by_url(evidence)
+
+    extracted_urls = {str(item.get("url", "")) for item in evidence if item.get("url")}
+    blocked_urls = failed_extract_urls or set()
+    remaining_extracts = (
+        max_extracts_remaining
+        if max_extracts_remaining is not None
+        else settings.research_max_total_extracts
+    )
+    urls_to_extract: list[str] = []
+    for source in ranked[:top_k]:
+        url = str(source.get("url", ""))
+        if not url or is_local_kb_url(url):
+            continue
+        if url in extracted_urls or url in blocked_urls:
+            continue
+        if remaining_extracts <= 0:
+            break
+        urls_to_extract.append(url)
+        remaining_extracts -= 1
 
     additional_evidence: list[dict[str, Any]] = []
     if urls_to_extract:
@@ -348,6 +418,9 @@ def write_research_artifacts(
                 "evidence": evidence,
                 "evidence_summary": evidence_summary,
                 "source_count": len(sources),
+                "local_source_count": sum(
+                    1 for source in sources if source.get("provider") == "local_kb"
+                ),
             },
             indent=2,
         ),

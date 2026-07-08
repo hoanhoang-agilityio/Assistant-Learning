@@ -10,7 +10,10 @@ Rules:
 - Generate 3 distinct, specific search queries per task.
 - Use domain terminology (e.g. ACSM, ISSN, hypertrophy, caloric deficit).
 - Do not repeat the same query across tasks.
-- Align queries with the task rationale and user profile constraints.
+- Align queries with the task rationale, goal_context, and user profile constraints.
+- For aggressive fat-loss goals, prioritize safe rate and recovery evidence.
+- For recomposition goals, prioritize concurrent fat-loss and hypertrophy evidence.
+- For long-horizon muscle gain, prioritize lean bulk and periodization evidence.
 - Prefer queries that return peer-reviewed or institutional sources."""
 
 REACT_SYSTEM_PROMPT = """You are a fitness evidence research agent.
@@ -24,7 +27,7 @@ You have two tools:
 Rules:
 - Start with the planned search queries provided in the user message.
 - After searching, extract content from the most promising URLs (prefer authoritative sources).
-- Focus on evidence relevant to the user's goal, activity level, and constraints.
+- Focus on evidence relevant to the user's goal, goal_context, activity level, and constraints.
 - Do not invent sources or fabricate study results.
 - When you have enough evidence, stop calling tools."""
 
