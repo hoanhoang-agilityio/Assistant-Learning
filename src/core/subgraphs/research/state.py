@@ -15,3 +15,4 @@ class ResearchState(TypedDict):
     evidence_summary: str | None
     blocked_by_todos: bool
     agent_iterations: int
+    is_reresearch: bool
