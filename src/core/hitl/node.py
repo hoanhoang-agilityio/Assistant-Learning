@@ -9,6 +9,28 @@ from core.vfs import VFS
 
 def invoke_hitl_node(state: OrchestrationState) -> dict:
     """Process HITL interrupt/resume for clarification or final approval."""
+    if state["approval_status"] == "rejected":
+        return {
+            "current_node": "hitl",
+            "waiting_for_user": False,
+            "approval_status": "rejected",
+            "hitl_type": None,
+        }
+
+    if state["approval_status"] == "approved":
+        return {
+            "current_node": "hitl",
+            "waiting_for_user": False,
+            "approval_status": "approved",
+            "hitl_type": None,
+        }
+
+    if not state["waiting_for_user"] and state.get("route_decision") == "REPLAN":
+        return {
+            "current_node": "hitl",
+            "waiting_for_user": False,
+        }
+
     control = hitl_control_data(
         waiting_for_user=state["waiting_for_user"],
         approval_status=state["approval_status"],
@@ -17,14 +39,6 @@ def invoke_hitl_node(state: OrchestrationState) -> dict:
     updates: dict = {"current_node": "hitl", **control}
 
     if control.get("waiting_for_user") is False:
-        return updates
-
-    pending_tool = state.get("pending_tool")
-    if pending_tool:
-        updates["hitl_type"] = "tool_approval"
-        updates["hitl_message"] = f"Approve sensitive tool execution: {pending_tool}"
-        updates["approval_status"] = state["approval_status"] or "pending"
-        updates["waiting_for_user"] = True
         return updates
 
     if state["route_decision"] == "COMPLETE" or state["verification_passed"]:
