@@ -62,6 +62,7 @@ def build_graph(
             "verification": "verification",
             "hitl": "hitl",
             "persist": "persist",
+            END: END,
         },
     )
     graph.add_edge("planning", "supervisor")

@@ -1,3 +1,5 @@
+from langgraph.graph import END
+
 from core.agents.rerun import MAX_REPLAN_COUNT, MAX_RETRY_COUNT
 from core.agents.state import OrchestrationState, RouteDecision
 
@@ -78,9 +80,16 @@ def route_from_supervisor(state: OrchestrationState) -> str:
         return "hitl"
 
     decision = state["route_decision"]
+    approval_status = state["approval_status"]
     if decision == "HITL":
-        if state["approval_status"] == "approved":
+        if approval_status == "approved":
             return "persist"
+        if approval_status == "rejected":
+            return END
+        if approval_status == "revision_requested" or state.get("route_decision") == "REPLAN":
+            if state["replan_count"] > MAX_REPLAN_COUNT:
+                return END
+            return "planning"
         return "hitl"
 
     partial_route = _resolve_partial_rerun_route(state)
@@ -88,8 +97,14 @@ def route_from_supervisor(state: OrchestrationState) -> str:
         return partial_route
 
     if decision == "COMPLETE":
-        if state["approval_status"] == "approved":
+        if approval_status == "approved":
             return "persist"
+        if approval_status == "rejected":
+            return END
+        if approval_status == "revision_requested" or state.get("route_decision") == "REPLAN":
+            if state["replan_count"] > MAX_REPLAN_COUNT:
+                return END
+            return "planning"
         return "hitl"
 
     return resolve_next_subgraph(state)

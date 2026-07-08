@@ -166,6 +166,43 @@ def test_route_from_supervisor_persists_after_hitl_approval() -> None:
     assert route_from_supervisor(hitl_state) == "persist"
 
 
+def test_route_from_supervisor_ends_when_plan_rejected() -> None:
+    from langgraph.graph import END
+
+    base = create_initial_state(
+        run_id="rejected-run",
+        thread_id="rejected-thread",
+        query="test",
+        workspace_root=Path("/tmp/rejected-workspace"),
+    )
+    rejected_state: OrchestrationState = {
+        **base,
+        "route_decision": "COMPLETE",
+        "approval_status": "rejected",
+        "waiting_for_user": False,
+    }
+    assert route_from_supervisor(rejected_state) == END
+
+
+def test_route_from_supervisor_replans_after_user_revision() -> None:
+    base = create_initial_state(
+        run_id="revision-run",
+        thread_id="revision-thread",
+        query="test",
+        workspace_root=Path("/tmp/revision-workspace"),
+    )
+    revision_state: OrchestrationState = {
+        **base,
+        "current_node": "hitl",
+        "route_decision": "REPLAN",
+        "replan_count": 1,
+        "approval_status": "pending",
+        "revision_feedback": "Add more recovery days.",
+        "waiting_for_user": False,
+    }
+    assert route_from_supervisor(revision_state) == "planning"
+
+
 def test_hitl_control_approve_and_reject() -> None:
     approved = hitl_control.invoke(
         {
@@ -185,6 +222,15 @@ def test_hitl_control_approve_and_reject() -> None:
         }
     )
     assert rejected["approval_status"] == "rejected"
+
+    rejected_message = hitl_control.invoke(
+        {
+            "waiting_for_user": True,
+            "approval_status": "pending",
+            "user_response": "Rejected the plan.",
+        }
+    )
+    assert rejected_message["approval_status"] == "rejected"
 
 
 @pytest.fixture
