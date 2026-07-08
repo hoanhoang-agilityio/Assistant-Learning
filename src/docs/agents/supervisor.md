@@ -102,9 +102,9 @@ Implementation: [`supervisor.py`](../../core/agents/supervisor.py)
 |------------------|-----------|-------|
 | *(none — default)* | Next domain in `affected_domains` order | — |
 | `HITL` | `hitl` | — |
-| `FIX_REASONING` | `fitness` | `retry_count < MAX_RETRY_COUNT` (3), else `hitl` |
-| `REPLAN` | `planning` | `replan_count < MAX_REPLAN_COUNT` (2), else `hitl` |
-| `RERESEARCH` | `research` | `retry_count < MAX_RETRY_COUNT` (3), else `hitl` |
+| `FIX_REASONING` | `fitness` | `retry_count < MAX_RETRY_COUNT` (2), else `hitl` |
+| `REPLAN` | `planning` | `replan_count < MAX_REPLAN_COUNT` (1), else `hitl` |
+| `RERESEARCH` | `research` | `retry_count < MAX_RETRY_COUNT` (2), else `hitl` |
 | `COMPLETE` | `persist` if `approval_status == "approved"`, else `hitl` | — |
 | `waiting_for_user` | `hitl` | Takes precedence over `route_decision` |
 
@@ -117,14 +117,14 @@ After a failed verification, `partial_rerun_decision_data()` in [`rerun.py`](../
 ```mermaid
 flowchart TD
     failed[Verification failed] --> structural{Structural consistency issues?}
-    structural -->|yes| replan{replan_count < 2?}
+    structural -->|yes| replan{replan_count < 1?}
     replan -->|yes| REPLAN[REPLAN → planning]
     replan -->|no| HITL[HITL]
-    structural -->|no| evidence{RAGAS fail or citation issues?}
-    evidence -->|yes| reresearch{retry_count < 3?}
+    structural -->|no| evidence{Faithfulness fail or citation issues?}
+    evidence -->|yes| reresearch{retry_count < 2?}
     reresearch -->|yes| RERESEARCH[RERESEARCH → research]
     reresearch -->|no| HITL
-    evidence -->|no| fix{retry_count < 3?}
+    evidence -->|no| fix{retry_count < 2?}
     fix -->|yes| FIX[FIX_REASONING → fitness]
     fix -->|no| HITL
 ```

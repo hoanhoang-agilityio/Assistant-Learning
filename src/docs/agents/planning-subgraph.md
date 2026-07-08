@@ -2,7 +2,7 @@
 
 > **Status:** Architecture reference  
 > **Scope:** `src/core/subgraphs/planning/` — profile extraction, validation, execution plan generation  
-> **Date:** 2026-07-01
+> **Date:** 2026-07-08
 
 **Related:** [Workflow](./workflow.md) · [Supervisor](./supervisor.md) · [Research](./research-subgraph.md) · [Fitness](./fitness-subgraph.md)
 
@@ -10,179 +10,408 @@
 
 ## Executive Summary
 
-The Planning subgraph is the **first domain stage** in the default pipeline. It extracts and validates the user fitness profile, then generates a structured **execution plan** of research-oriented tasks via an LLM Planning Agent (XHIGH tier).
+The Planning subgraph is the **first domain stage** in the default pipeline (`planning → research → fitness → verification`). It is **not a ReAct agent** — it is a **fixed-flow LangGraph StateGraph** that invokes three LangChain tools in sequence, with up to two LLM calls (profile extraction + execution plan generation).
 
-When required profile fields are missing, the subgraph routes to HITL and returns a user-friendly prompt — orchestration sets `waiting_for_user: true`. On success, artifacts are persisted to the VFS under `plan/` and downstream Research reads `plan/execution_plan.json` as its gate input.
+Responsibilities:
+
+1. Extract and merge the user fitness profile from `query`, `user_profile`, `constraints`, and optional `revision_feedback`
+2. Validate required profile fields; route to HITL when incomplete
+3. Generate a structured **execution plan** via deterministic templates or the LLM Planning Agent (XHIGH tier)
+4. Persist artifacts to the VFS under `plan/` — the **source of truth** for downstream subgraphs
+
+When required profile fields are missing, the subgraph routes to `planning_hitl` and orchestration sets `waiting_for_user: true`. On success, Research reads `plan/execution_plan.json` as its gate input.
 
 ---
 
-## 1. Graph Architecture
+## 1. Module Layout
 
-### 1.1 Nodes
+```
+src/core/subgraphs/planning/
+├── state.py            # PlanningState (scoped TypedDict)
+├── graph.py            # StateGraph (5 nodes) + orchestration bridge
+├── tools.py            # 3 LangChain @tool wrappers
+├── planning_agent.py   # LLM XHIGH → ExecutionPlan
+├── templates.py        # Deterministic execution plan templates
+├── schema.py           # Pydantic: PlanTask, ExecutionPlan
+├── utils.py            # Profile build/validate, VFS I/O, REPLAN reuse, revision feedback
+└── agent.py            # Facade: PlanningAgent.run()
+```
+
+### External dependencies
+
+| Module | Role in Planning |
+|--------|-----------------|
+| [`core/profile/extraction.py`](../../core/profile/extraction.py) | LLM standard-tier profile extraction from natural language |
+| [`core/profile/normalize.py`](../../core/profile/normalize.py) | Merge three sources → flat profile dict |
+| [`core/profile/schema.py`](../../core/profile/schema.py) | Required fields, enums, `ExtractedProfile` |
+| [`core/profile/goal_spec.py`](../../core/profile/goal_spec.py) | Goal archetype, horizon, feasibility fields |
+| [`core/profile/labels.py`](../../core/profile/labels.py) | User-facing missing-field prompts |
+| [`core/llm/contracts.py`](../../core/llm/contracts.py) | Validate LLM payloads (forbid duplicate keys) |
+| [`core/llm/serializers.py`](../../core/llm/serializers.py) | `compact_profile_for_llm()` |
+| [`core/graph/routing.py`](../../core/graph/routing.py) | When supervisor routes back to planning |
+| [`core/agents/rerun.py`](../../core/agents/rerun.py) | `REPLAN` decision + structural issue markers |
+| [`core/vfs/`](../../core/vfs/) | Persist run artifacts |
+
+---
+
+## 2. Position in Orchestration Graph
+
+```mermaid
+flowchart TB
+    subgraph orchestration [Orchestration Graph]
+        S[supervisor] --> P[planning]
+        P --> S
+        S --> R[research]
+        S --> H[hitl]
+        H --> S
+    end
+
+    subgraph planning_sg [Planning Subgraph]
+        EP[extract_profile] --> VP[validate_profile]
+        VP --> GP[generate_plan]
+        VP --> RP[reuse_execution_plan]
+        VP --> PH[planning_hitl]
+    end
+
+    P -.-> planning_sg
+```
+
+Planning is invoked when:
+
+- **First run:** `supervisor` → `resolve_next_subgraph()` → first domain in `DOMAIN_ORDER` = `"planning"`
+- **Partial rerun:** `route_decision = "REPLAN"` after verification fails with structural consistency issues
+- **User revision:** `approval_status = "revision_requested"` with `revision_feedback` persisted
+- **Not invoked** when `waiting_for_user = true` (supervisor routes directly to `hitl`)
+
+Entry point in the main graph: [`core/graph/builder.py`](../../core/graph/builder.py) wraps `invoke_planning_subgraph` as the `planning` node.
+
+---
+
+## 3. Graph Architecture
+
+### 3.1 Nodes
 
 | Node | Responsibility |
 |------|----------------|
-| `extract_profile` | Merge query, `user_profile`, and `constraints` into a unified profile |
+| `extract_profile` | Merge query, `user_profile`, `constraints`, and `revision_feedback` into a unified `profile` |
 | `validate_profile` | Check required fields; set `missing_fields` and `requires_hitl` |
-| `generate_plan` | Invoke Planning Agent; persist execution plan to VFS |
-| `planning_hitl` | Format missing-field prompt for user input |
+| `generate_plan` | Invoke template or Planning Agent (XHIGH); persist execution plan to VFS |
+| `reuse_execution_plan` | Skip XHIGH on REPLAN when stored plan still fits profile and covers structural issues |
+| `planning_hitl` | Flag missing-field HITL path (actual prompt rendered by orchestration `hitl` node) |
 
-### 1.2 Execution Flow
+### 3.2 Execution Flow
 
 ```mermaid
 flowchart TD
     START((START)) --> extract_profile
     extract_profile --> validate_profile
-    validate_profile -->|missing fields| planning_hitl
-    validate_profile -->|complete| generate_plan
-    generate_plan --> END((END))
-    planning_hitl --> END
+
+    validate_profile -->|"missing_fields ≠ []"| planning_hitl
+    validate_profile -->|"profile complete + REPLAN reuse OK"| reuse_execution_plan
+    validate_profile -->|"profile complete"| generate_plan
+
+    planning_hitl --> END1((END))
+    reuse_execution_plan --> END2((END))
+    generate_plan --> END3((END))
 ```
 
-### 1.3 State (`PlanningState`)
+### 3.3 Routing functions
 
-| Field | Set by |
-|-------|--------|
-| `profile` | `extract_profile` |
-| `missing_fields`, `requires_hitl` | `validate_profile` |
-| `todos`, `execution_plan`, `planning_output`, `requires_hitl: false` | `generate_plan` |
-| `planning_output`, `requires_hitl: true` | `planning_hitl` |
+**After `validate_profile`** (`_route_after_validate`):
 
-Input fields (`query`, `user_profile`, `constraints`, `request_type`, `workspace_path`) are seeded from `OrchestrationState` via `to_planning_state()`.
+- `requires_hitl` → `planning_hitl`
+- `should_reuse_execution_plan(...)` → `reuse_execution_plan`
+- otherwise → `generate_plan`
 
----
+### 3.4 Pipeline step tracking
 
-## 2. Profile Extraction & Validation
+Steps are appended to orchestration `steps` via `merge_subgraph_updates()`:
 
-### 2.1 Extraction — [`utils.py`](../../core/subgraphs/planning/utils.py)
-
-`build_profile()` merges three sources:
-
-1. Structured `user_profile` from orchestration state
-2. `constraints` (equipment, session duration, etc.)
-3. LLM/heuristic extraction from `query` via `extract_profile_from_query()`
-
-### 2.2 Validation
-
-`validate_profile_data()` checks:
-
-- **Required profile fields** — age, height, weight, sex, goal, activity level (`REQUIRED_PROFILE_FIELDS`)
-- **Goal-specific fields** — additional fields per goal type (`GOAL_REQUIRED_FIELDS`)
-
-When `missing_fields` is non-empty, routing goes to `planning_hitl`, which uses `format_missing_profile_prompt()` from [`labels.py`](../../core/profile/labels.py).
+```
+planning:extract_profile
+planning:validate_profile
+planning:generate_plan          # or reuse_execution_plan / planning_hitl
+```
 
 ---
 
-## 3. LLM Planning Agent
+## 4. State
+
+### 4.1 `PlanningState` (scoped subgraph state)
+
+Defined in [`state.py`](../../core/subgraphs/planning/state.py):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `query` | `str` | User query (input, seeded from orchestration) |
+| `user_profile` | `dict` | Structured profile from API/orchestration (input) |
+| `constraints` | `dict` | Equipment, session duration, etc. (input) |
+| `request_type` | `str \| None` | Classified request type (input) |
+| `workspace_path` | `str` | Run workspace VFS path (input) |
+| `route_decision` | `RouteDecision \| None` | Drives REPLAN reuse (input) |
+| `revision_feedback` | `str \| None` | User revision text from HITL resume (input) |
+| `profile` | `dict` | Merged flat profile (set by `extract_profile`) |
+| `missing_fields` | `list[str]` | Set by `validate_profile` |
+| `requires_hitl` | `bool` | Set by `validate_profile` or `planning_hitl` |
+| `reused_execution_plan` | `bool` | Whether plan was reused from VFS (set by `reuse_execution_plan`) |
+
+**Seeded from orchestration** via `to_planning_state()` — output/intermediate fields reset to defaults on each invocation. `revision_feedback` is loaded from orchestration state or `plan/revision_feedback.json` on VFS.
+
+### 4.2 What is NOT in state (intentional design)
+
+Execution plan data is **not duplicated in state**. VFS is the source of truth.
+
+| Deprecated / removed field | Current source of truth |
+|---------------------------|------------------------|
+| `execution_plan` | VFS: `plan/execution_plan.json` |
+| `todos` | Derived from execution plan via `execution_plan_to_todo_strings()` |
+| `planning_output` | Not used |
+| `plan_markdown` in downstream LLM payloads | VFS: `plan/plan.md` only |
+
+### 4.3 State updates per node
+
+| Node | Fields written to `PlanningState` | Side effects |
+|------|-----------------------------------|--------------|
+| `extract_profile` | `profile`; clears `user_profile`, `constraints` on success | May call LLM extraction; applies `revision_feedback` overrides |
+| `validate_profile` | `missing_fields`, `requires_hitl` | — |
+| `generate_plan` | (no plan fields in state) | Writes 3 VFS files |
+| `reuse_execution_plan` | `reused_execution_plan=true` | Reads VFS, no LLM |
+| `planning_hitl` | `requires_hitl=true` | Subgraph ends |
+
+### 4.4 Orchestration state mapping
+
+`invoke_planning_subgraph()` maps results back to `OrchestrationState`:
+
+| Orchestration update | Condition |
+|---------------------|-----------|
+| `current_node: "planning"` | Always |
+| `user_profile`, `constraints` | Synced from merged `profile` via `profile_to_orchestration_updates()` |
+| `user_profile.missing_fields` | When `requires_hitl=true` |
+| `waiting_for_user: true` | When `requires_hitl` |
+
+---
+
+## 5. Tools
+
+Three LangChain tools in [`tools.py`](../../core/subgraphs/planning/tools.py). Exported as `PLANNING_TOOLS`.
+
+| Tool | Input | Output | Calls LLM? | Writes VFS? |
+|------|-------|--------|------------|-------------|
+| `extract_profile` | `query`, `user_profile`, `constraints`, `revision_feedback?` | `{ "profile": dict }` | Yes (if profile incomplete) | No |
+| `validate_profile` | `profile` | `{ "missing_fields", "requires_hitl" }` | No | No |
+| `generate_plan` | `profile`, `query`, `request_type`, `workspace_path`, `revision_feedback?` | `{ "requires_hitl": false }` | Template or XHIGH | Yes (3 files) |
+
+Graph nodes call tools directly — there is no LLM-driven tool selection loop.
+
+---
+
+## 6. Node: `extract_profile`
+
+### 6.1 Node logic
+
+1. Determine `used_llm_extraction` via `should_use_llm_profile_extraction()`
+2. Invoke `extract_profile` tool → `build_profile()` (applies `revision_feedback` overrides when present)
+3. On success → clear `user_profile` and `constraints` in planning state (orchestration sync happens in bridge)
+
+### 6.2 When LLM extraction is skipped
+
+```python
+# utils.py — skip when orchestration profile is already complete
+candidate = {**user_profile, **constraints}
+skip = not validate_profile_data(candidate)["requires_hitl"]
+```
+
+If the API sends a complete `user_profile`, LLM extraction is **not called** — saving tokens and latency.
+
+### 6.3 Profile merge pipeline (`build_profile`)
+
+```
+1. If profile complete → ExtractedProfile() (empty)
+2. Else → extract_profile_from_query(resolve_extraction_query(query, user_profile))
+3. merge_profile_sources(query, user_profile, constraints, extracted)
+4. apply_revision_overrides(profile, revision_feedback) when feedback present
+```
+
+### 6.4 Merge priority (`merge_profile_sources`)
+
+Defined in [`core/profile/normalize.py`](../../core/profile/normalize.py):
+
+```
+1. query           → profile["query"] = raw query string
+2. constraints     → lowest conflict priority
+3. LLM extracted   → overwrites constraints
+4. user_profile    → WINS (highest priority)
+5. _sync_activity_and_days() → keep days_per_week ↔ activity_level consistent
+```
+
+### 6.5 HITL resume — latest query segment
+
+`resolve_extraction_query()` uses only the **last line** of a multi-line query when `user_profile` is non-empty. This avoids re-parsing the full conversation history on HITL clarification resume.
+
+---
+
+## 7. Node: `validate_profile`
+
+### 7.1 Required fields
+
+From [`core/profile/schema.py`](../../core/profile/schema.py):
+
+**`REQUIRED_PROFILE_FIELDS`:** `age`, `sex`, `height_cm`, `current_weight_kg`, `activity_level`, `goal`
+
+**`GOAL_REQUIRED_FIELDS`:**
+
+| Goal | Additional required fields |
+|------|---------------------------|
+| `fat_loss` | `target_weight_kg` |
+
+### 7.2 Missing-field prompt
+
+When routed to `planning_hitl`, orchestration `hitl` node calls `format_missing_profile_prompt()` from [`core/profile/labels.py`](../../core/profile/labels.py).
+
+---
+
+## 8. Node: `generate_plan`
+
+### 8.1 Tool flow
+
+```
+generate_plan tool
+  → enrich profile with GoalSpec fields (derive_goal_spec_fields)
+  → build_template_execution_plan() when archetype matches and no revision_feedback
+  → else generate_execution_plan()     # LLM XHIGH
+  → normalize_execution_plan()         # sort + re-index tasks
+  → persist_execution_plan()           # write VFS
+  → return { "requires_hitl": false }
+```
+
+### 8.2 Template shortcut
+
+[`templates.py`](../../core/subgraphs/planning/templates.py) provides deterministic `ExecutionPlan` objects for common goal archetypes (e.g. `fat_loss_moderate`). Used when:
+
+- A matching template exists for the enriched profile
+- `feasibility_level != "unsafe"`
+- Planning agent is not overridden in tests
+- No `revision_feedback` is present
+
+Template plans include a `template_id` field on `ExecutionPlan`.
+
+### 8.3 LLM call
 
 Implementation: [`planning_agent.py`](../../core/subgraphs/planning/planning_agent.py)
 
 | Aspect | Detail |
 |--------|--------|
 | Model tier | XHIGH (`invoke_xhigh_structured_output`) |
-| Output schema | `ExecutionPlan` — [`schema.py`](../../core/subgraphs/planning/schema.py) |
-| Task count | 3–10 distinct, non-overlapping research tasks |
+| Output schema | `ExecutionPlan` |
+| Messages | `SystemMessage(_PLANNING_SYSTEM_PROMPT)` + `HumanMessage(compact_json(payload))` |
+| Metrics node | `planning_agent` |
+| Langfuse span | `"Planning"` or `"partial_rerun_REPLAN"` |
 | Test override | `configure_planning_agent(override)` |
 
-### 3.1 ExecutionPlan Schema
+When `revision_feedback` is present, it is included in the LLM payload and the system prompt instructs the agent to address every user concern.
+
+### 8.4 `ExecutionPlan` schema
+
+Defined in [`schema.py`](../../core/subgraphs/planning/schema.py):
 
 ```python
-ExecutionPlan:
-  plan_rationale: str   # Overall rationale (min 20 chars)
-  tasks: list[PlanTask] # 3–10 tasks, ordered
-  plan_markdown: str    # Human-readable summary
+class PlanTask(BaseModel):
+    order: int          # ≥1, 1-based execution order
+    task: str           # ≥10 chars, actionable research task
+    rationale: str      # ≥10 chars, why this task matters
 
-PlanTask:
-  order: int            # 1-based execution order
-  task: str             # Actionable research task
-  rationale: str        # Why this task matters
+class ExecutionPlan(BaseModel):
+    plan_rationale: str       # ≥20 chars
+    tasks: list[PlanTask]     # 3–5 tasks (validated)
+    plan_markdown: str        # ≥50 chars, human-readable summary
+    template_id: str | None   # Set when generated from a deterministic template
 ```
-
-### 3.2 Agent Rules (system prompt)
-
-- Tailor every task to the user's goal, activity level, and constraints
-- Tasks must be **research-oriented** (evidence retrieval), not final coaching advice
-- Include source credibility / evidence-quality verification when relevant
-- For `macro_calculation` request type, include macro-calculation research tasks
-- Order tasks logically: foundational evidence first, verification last
-- Do not invent profile fields not present in the input
-
-`normalize_execution_plan()` sorts tasks by `order` and re-indexes to a contiguous 1..N sequence before persistence.
 
 ---
 
-## 4. VFS Artifacts
+## 9. Node: `reuse_execution_plan` — REPLAN optimization
+
+When verification fails with **structural consistency issues**, the supervisor sets `route_decision = "REPLAN"` (max `MAX_REPLAN_COUNT = 1`).
+
+### 9.1 Reuse conditions (`should_reuse_execution_plan`)
+
+All must be true:
+
+1. `route_decision == "REPLAN"`
+2. No `plan/revision_feedback.json` on VFS
+3. `plan/execution_plan.json` exists on VFS
+4. Current profile matches `plan/profile.json`
+5. `execution_plan_covers_issues(plan, structural_issues)` — every issue has keyword match in task text
+
+If profile changed, revision feedback exists, or plan lacks coverage → `generate_plan` runs (template or full XHIGH call).
+
+---
+
+## 10. HITL Path — Missing profile fields
+
+```
+validate_profile → missing_fields ≠ [] → planning_hitl
+→ orchestration: waiting_for_user=true, user_profile.missing_fields=[...]
+→ supervisor → hitl → request_clarification → format_missing_profile_prompt()
+```
+
+**Resume flow** (`RunOrchestrator.resume_run` in [`core/graph/service.py`](../../core/graph/service.py)):
+
+1. User sends clarification message
+2. `build_profile(query=message, ...)` merges clarification
+3. `profile_to_orchestration_updates()` syncs back to orchestration
+4. Graph resumes → supervisor → planning re-runs
+
+---
+
+## 11. VFS Artifacts
 
 Written by `persist_execution_plan()` in [`utils.py`](../../core/subgraphs/planning/utils.py):
 
-| Path | Content |
-|------|---------|
-| `plan/execution_plan.json` | Canonical `ExecutionPlan` JSON (primary downstream contract) |
-| `plan/plan.md` | `plan_markdown` human-readable summary |
-| `plan/profile.json` | Validated user profile snapshot |
-| `plan/todos.json` | Deprecated compatibility shim — derived task strings |
-
-`execution_plan_to_todo_strings()` extracts ordered `task` strings. Research subgraph's `todos_gate` reads `execution_plan.json` directly.
+| Path | Content | Consumers |
+|------|---------|-----------|
+| `plan/execution_plan.json` | Canonical `ExecutionPlan` JSON | Research `todos_gate`, Fitness |
+| `plan/plan.md` | `plan_markdown` human-readable summary | UI, debug |
+| `plan/profile.json` | Compact validated profile snapshot | Research, Fitness, Verification |
+| `plan/revision_feedback.json` | User revision text | Planning, Fitness (disables reuse shortcuts) |
 
 ---
 
-## 5. Orchestration Integration
+## 12. Downstream Consumers
 
-`invoke_planning_subgraph()` in [`graph.py`](../../core/subgraphs/planning/graph.py):
+### Research (`todos_gate`)
 
-1. Maps `OrchestrationState` → `PlanningState`
-2. Runs the subgraph
-3. Syncs profile back via `profile_to_orchestration_updates()`
-4. Sets `waiting_for_user: true` when `requires_hitl`
+Loads `plan/execution_plan.json` and `plan/profile.json`. Blocks when execution plan is missing.
 
-| Returned update | Condition |
-|-----------------|-----------|
-| `current_node: "planning"` | Always |
-| `user_profile`, `constraints` | Merged from extracted profile |
-| `waiting_for_user: true` | Profile incomplete (HITL path) |
+### Fitness (`load_fitness_context`)
+
+Reads `plan/profile.json`, optionally `plan/execution_plan.json`, and `plan/revision_feedback.json`.
+
+### Verification
+
+Loads `plan/profile.json` for consistency checks against the synthesized plan.
 
 ---
 
-## 6. Test & Benchmark Utilities
+## 13. Test & Benchmark Utilities
 
 | Function | Purpose |
 |----------|---------|
-| `build_default_execution_plan()` | Deterministic fallback plan (no LLM) |
-| `seed_execution_plan()` | Seed VFS artifacts for tests/benchmarks |
-| `has_execution_plan()` | Check if `plan/execution_plan.json` exists |
-| `load_execution_plan()` | Load canonical plan from VFS |
+| `build_default_execution_plan(profile?)` | Deterministic 4-task plan (no LLM) |
+| `seed_execution_plan(workspace, profile, plan?)` | Write VFS artifacts without LLM |
+| `configure_planning_agent(override)` | Mock LLM planning agent in tests |
+| `configure_profile_extractor(override)` | Mock LLM profile extraction in tests |
+
+Integration tests: [`tests/test_planning_subgraph.py`](../../../tests/test_planning_subgraph.py)
 
 ---
 
-## 7. Module Layout
-
-```
-src/core/subgraphs/planning/
-├── schema.py           # ExecutionPlan, PlanTask
-├── planning_agent.py   # LLM agent + configure override
-├── graph.py            # LangGraph (4 nodes)
-├── state.py            # PlanningState
-├── utils.py            # Profile build/validate, VFS persistence
-├── tools.py            # LangChain tool wrappers
-└── agent.py            # Facade for orchestration
-```
-
----
-
-## 8. Downstream Consumers
-
-| Consumer | Reads |
-|----------|-------|
-| Research (`todos_gate`) | `plan/execution_plan.json`, `plan/profile.json` |
-| Fitness (`load_context`) | `plan/profile.json`, `plan/execution_plan.json` (optional) |
-| Verification | `plan/profile.json` for consistency checks |
-
----
-
-## 9. Key File Reference
+## 14. Key File Reference
 
 | File | Role |
 |------|------|
-| `planning_agent.py` | Core LLM planning agent |
-| `graph.py` | Subgraph wiring + orchestration bridge |
-| `utils.py` | Profile logic and VFS writes |
+| [`planning_agent.py`](../../core/subgraphs/planning/planning_agent.py) | Core LLM planning agent + normalize |
+| [`templates.py`](../../core/subgraphs/planning/templates.py) | Deterministic execution plan templates |
+| [`graph.py`](../../core/subgraphs/planning/graph.py) | Subgraph wiring (5 nodes) + orchestration bridge |
+| [`utils.py`](../../core/subgraphs/planning/utils.py) | Profile logic, VFS I/O, REPLAN reuse, revision feedback |
+| [`schema.py`](../../core/subgraphs/planning/schema.py) | `ExecutionPlan`, `PlanTask` Pydantic models |

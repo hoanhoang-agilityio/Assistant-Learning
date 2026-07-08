@@ -2,9 +2,9 @@
 
 > **Status:** End-to-end workflow reference  
 > **Scope:** Supervisor orchestration + Planning, Research, Fitness, Verification, HITL, Persist  
-> **Date:** 2026-07-01
+> **Date:** 2026-07-08
 
-**Related:** [Supervisor](./supervisor.md) · [Planning](./planning-subgraph.md) · [Research](./research-subgraph.md) · [Fitness](./fitness-subgraph.md)
+**Related:** [Supervisor](./supervisor.md) · [Planning](./planning-subgraph.md) · [Research](./research-subgraph.md) · [Fitness](./fitness-subgraph.md) · [Verification](./verification-subgraph.md)
 
 ---
 
@@ -46,7 +46,7 @@ sequenceDiagram
 |------|------|------------|-------|
 | 0 | `supervisor` | — | Entry; classifies request |
 | 1 | `planning` | `supervisor` | Profile + execution plan |
-| 2 | `research` | `supervisor` | Evidence retrieval |
+| 2 | `research` | `supervisor` | Evidence retrieval (local KB first, Tavily fallback) |
 | 3 | `fitness` | `verification` | **Skips supervisor** |
 | 4 | `verification` | `supervisor` | Pass/fail + rerun decision |
 | — | `hitl` | `supervisor` | `interrupt_before` |
@@ -84,9 +84,9 @@ Canonical domain order: `planning → research → fitness → verify`.
 
 | Counter | Max | Triggers |
 |---------|-----|----------|
-| `retry_count` | 3 | `FIX_REASONING`, `RERESEARCH` |
-| `replan_count` | 2 | `REPLAN` |
-| `planner_attempts` (Fitness internal) | 3 | Safety check retry loop |
+| `retry_count` | 2 | `FIX_REASONING`, `RERESEARCH` |
+| `replan_count` | 1 | `REPLAN` |
+| `planner_attempts` (Fitness internal) | `max_planner_attempts` (default 2) or `fix_reasoning_planner_attempts` (default 1 on `FIX_REASONING`) | Safety check retry loop |
 
 Exceeded limits → `route_decision = "HITL"`, `waiting_for_user = true`.
 
@@ -101,7 +101,7 @@ Exceeded limits → `route_decision = "HITL"`, `waiting_for_user = true`.
 | `query`, `user_profile`, `constraints` | Every visit |
 | `request_type` | Classified on first visit if `None` |
 | `current_node`, `verification_passed` | Post-verification rerun |
-| `approval_status` | Completion gating |
+| `approval_status`, `revision_feedback` | Completion gating and user revisions |
 
 ### Output
 
@@ -125,8 +125,9 @@ Exceeded limits → `route_decision = "HITL"`, `waiting_for_user = true`.
 |----------|----------|
 | `waiting_for_user = true` | Route to `hitl` regardless of `route_decision` |
 | Verification passed, not approved | `COMPLETE` → `hitl` (not `persist`) |
-| `retry_count >= 3` on FIX/RERESEARCH | Force `hitl` |
-| `replan_count >= 2` on REPLAN | Force `hitl` |
+| `retry_count >= 2` on FIX/RERESEARCH | Force `hitl` |
+| `replan_count >= 1` on REPLAN | Force `hitl` |
+| User requests revision | `revision_requested` → `revision_feedback` persisted → `REPLAN` → planning |
 
 ---
 
@@ -134,7 +135,7 @@ Exceeded limits → `route_decision = "HITL"`, `waiting_for_user = true`.
 
 ### Input
 
-`query`, `user_profile`, `constraints`, `request_type`, `workspace_path` from orchestration.
+`query`, `user_profile`, `constraints`, `request_type`, `workspace_path`, `route_decision`, `revision_feedback` from orchestration.
 
 ### Output
 
@@ -143,6 +144,7 @@ Exceeded limits → `route_decision = "HITL"`, `waiting_for_user = true`.
 | `plan/execution_plan.json` | ✓ | ✗ |
 | `plan/profile.json` | ✓ | Partial |
 | `plan/plan.md` | ✓ | ✗ |
+| `plan/revision_feedback.json` | On user revision | — |
 | `waiting_for_user` | `false` | `true` |
 
 ### Happy Case
@@ -151,7 +153,7 @@ Exceeded limits → `route_decision = "HITL"`, `waiting_for_user = true`.
 extract_profile → validate_profile (complete) → generate_plan → END
 ```
 
-Profile complete → Planning Agent (XHIGH) produces 3–10 research tasks → VFS persisted.
+Profile complete → template or LLM Planning Agent (XHIGH) produces 3–5 research tasks → VFS persisted.
 
 ### Edge Cases
 
@@ -159,8 +161,9 @@ Profile complete → Planning Agent (XHIGH) produces 3–10 research tasks → V
 |----------|----------|
 | Missing required fields | `planning_hitl` → user prompt via `format_missing_profile_prompt()` |
 | User supplies fields on resume | Re-enter planning; re-validate |
-| `REPLAN` from supervisor | New `execution_plan.json`; Research re-reads plan |
-| `replan_count >= 2` | Escalate to HITL |
+| `REPLAN` from supervisor | New or reused `execution_plan.json`; Research re-reads plan |
+| `revision_feedback` present | Skips template/reuse shortcuts; profile overrides applied |
+| `replan_count >= 1` | Escalate to HITL |
 | No execution plan downstream | Research blocked at `todos_gate` |
 
 ---
@@ -172,14 +175,15 @@ Profile complete → Planning Agent (XHIGH) produces 3–10 research tasks → V
 | Source | Required |
 |--------|----------|
 | `plan/execution_plan.json` | Yes (gate) |
-| `plan/profile.json` | Yes |
+| `plan/profile.json` | No (fallback `{}`) |
 | `query`, `request_type` | From orchestration |
+| `is_reresearch` | Set when `route_decision = "RERESEARCH"` |
 
 ### Output
 
 | Artifact | Content |
 |----------|---------|
-| `research/sources.json` | Ranked, verified sources |
+| `research/sources.json` | Ranked, verified sources (local KB + Tavily) |
 | `research/findings.json` | `structured_findings`, `evidence`, `evidence_summary` |
 
 | Orchestration update | Condition |
@@ -192,17 +196,17 @@ Profile complete → Planning Agent (XHIGH) produces 3–10 research tasks → V
 todos_gate → research_agent → write_artifacts → END
 ```
 
-Query planning → Tavily search/extract → ReAct loop → post-process → `ResearchFindings`.
+Per execution-plan task: local KB retrieval first → Tavily fallback when coverage is insufficient → optional ReAct loop → post-process → `ResearchFindings`.
 
 ### Edge Cases
 
 | Scenario | Behavior |
 |----------|----------|
 | No `execution_plan.json` | `blocked` node; no VFS writes |
-| `RERESEARCH` rerun | Full agent re-run; overwrites `research/*` |
-| `retry_count >= 3` | Supervisor → HITL |
+| `RERESEARCH` rerun | Re-runs agent; may reuse existing VFS research when coverage is already sufficient |
+| `retry_count >= 2` | Supervisor → HITL |
 | `MOCK_RESEARCH` / test override | `configure_research_agent()` |
-| Search budget exhausted | `research_max_total_searches` (default 5) caps Tavily calls |
+| Search budget exhausted | `research_max_total_searches` (default 3) caps Tavily calls |
 
 ---
 
@@ -214,6 +218,7 @@ Query planning → Tavily search/extract → ReAct loop → post-process → `Re
 |-------------|--------|
 | `plan/profile.json` | Planning |
 | `plan/execution_plan.json` | Planning (fallback default if absent) |
+| `plan/revision_feedback.json` | User revision (optional) |
 | `research/findings.json` | Research |
 | `verify/verification_v1.json` | Prior verification (on rerun) |
 
@@ -221,6 +226,8 @@ Query planning → Tavily search/extract → ReAct loop → post-process → `Re
 
 | Artifact | Content |
 |----------|---------|
+| `fitness/blueprint.json` | Deterministic `PlanBlueprint` |
+| `fitness/template_fingerprint.json` | Workout template fingerprint + source |
 | `fitness/workout.json` | `StructuredWorkout` |
 | `fitness/calculations.json` | Macros + workout summary |
 | `fitness/safety_flags.json` | Safety feedback |
@@ -231,20 +238,23 @@ Routes directly to **Verification** (not Supervisor).
 ### Happy Case
 
 ```
-load_context → calculate_macros → fitness_planner → safety_check (pass) → synthesize_plan → write_artifacts
+load_context → build_blueprint → calculate_macros → resolve_workout_template
+  → fitness_planner (if no reusable template) → safety_check (pass) → synthesize_plan → write_artifacts
 ```
 
-Deterministic macros → LLM workout → safety pass → draft persisted.
+Deterministic blueprint + macros → template reuse or LLM workout → safety pass → draft persisted.
 
 ### Edge Cases
 
 | Scenario | Behavior |
 |----------|----------|
-| Safety fail, attempts < 3 | Re-run planner with `planner_feedback` |
-| Safety fail, attempts ≥ 3 | Synthesize with safety warnings in draft |
+| Reusable workout template found | Skip LLM planner; go straight to `safety_check` |
+| Safety fail, attempts < max | Re-run `fitness_planner` with `planner_feedback` |
+| Safety fail, attempts ≥ max | Synthesize with safety warnings in draft |
 | No research findings | Planner runs without `structured_findings` |
-| `FIX_REASONING` rerun | Reloads `verification_feedback` from VFS |
-| `retry_count >= 3` | Supervisor → HITL |
+| `FIX_REASONING` rerun | Reloads `verification_feedback`; lower planner attempt budget |
+| `revision_feedback` present | Disables template reuse |
+| `retry_count >= 2` | Supervisor → HITL |
 
 ---
 
@@ -255,8 +265,9 @@ Deterministic macros → LLM workout → safety pass → draft persisted.
 | Artifact | Used for |
 |----------|----------|
 | `fitness/final_plan.md` | All checks |
+| `fitness/blueprint.json` | Consistency |
 | `research/sources.json` | Citation |
-| `research/findings.json` | RAGAS faithfulness |
+| `research/findings.json` | Faithfulness (evidence) |
 | `fitness/calculations.json` | Consistency (macros) |
 | `fitness/workout.json` | Consistency (training) |
 | `fitness/safety_flags.json` | Safety |
@@ -275,9 +286,9 @@ All four checks pass:
 | Check | Pass condition |
 |-------|----------------|
 | Citation | Draft references sources or mentions evidence |
-| Consistency | Macros + sessions match draft |
-| Safety | No critical flags; no unsafe language |
-| RAGAS | `faithfulness_score >= 0.90` |
+| Consistency | Macros + sessions + blueprint match draft |
+| Safety | No critical flags; no unsafe language in prescription sections |
+| Faithfulness | `faithfulness_score >= 0.90` (heuristic evidence grounding) |
 
 → Supervisor: `route_decision = "COMPLETE"`, `waiting_for_user = true`.
 
@@ -287,7 +298,7 @@ All four checks pass:
 flowchart TD
     fail[verification_passed = false] --> structural{Structural issues?}
     structural -->|yes| replan[REPLAN → Planning]
-    structural -->|no| evidence{Evidence / RAGAS fail?}
+    structural -->|no| evidence{Evidence / faithfulness fail?}
     evidence -->|yes| reresearch[RERESEARCH → Research]
     evidence -->|no| fix[FIX_REASONING → Fitness]
 ```
@@ -295,7 +306,7 @@ flowchart TD
 | Failure type | Example issues | Target | Counter |
 |--------------|----------------|--------|---------|
 | Structural | `missing_macro_targets`, `training_day_count_mismatch` | Planning | `replan_count++` |
-| Evidence | RAGAS fail, citation `source` issues | Research | `retry_count++` |
+| Evidence | Faithfulness fail, citation `source` issues | Research | `retry_count++` |
 | Reasoning | Other failures | Fitness | `retry_count++` |
 | Limits exceeded | Any counter at max | HITL | — |
 
@@ -316,7 +327,7 @@ Graph compiled with `interrupt_before=["hitl"]`.
 |-------------------|-----------------|
 | `approved` | approve / approved / yes |
 | `rejected` | reject / rejected / no |
-| `revision_requested` | Any other text |
+| `revision_requested` | Any other text → `revision_feedback` persisted |
 
 ### Happy Cases
 
@@ -324,12 +335,14 @@ Graph compiled with `interrupt_before=["hitl"]`.
 
 **Approval:** Verification pass → interrupt → user approves → Persist.
 
+**Revision:** User sends free-text revision → `revision_feedback` → `REPLAN` → Planning (with feedback applied).
+
 ### Edge Cases
 
 | Scenario | Behavior |
 |----------|----------|
 | User rejects | `approval_status = "rejected"`; no persist |
-| Free-text revision | `revision_requested`; pipeline re-enters |
+| Free-text revision | `revision_requested`; pipeline re-enters planning |
 | Resume without response | Stays `waiting_for_user = true` |
 
 ---
@@ -369,21 +382,21 @@ Planning → Research → Fitness → Verification (missing_macro_targets)
 ### RERESEARCH — Evidence failure
 
 ```
-... → Verification (RAGAS fail)
+... → Verification (faithfulness fail)
   → Supervisor: RERESEARCH, retry_count=1 → Research → Fitness → Verification
 ```
 
 ### FIX_REASONING — Planner revision
 
 ```
-... → Verification (citation issues)
+... → Verification (non-structural, non-evidence issues)
   → Supervisor: FIX_REASONING, retry_count=1 → Fitness → Verification
 ```
 
 ### Fitness internal safety retry
 
 ```
-planner → safety_fail → planner (×3 max) → synthesize_plan (with warnings) → Verification
+planner → safety_fail → planner (×max_planner_attempts) → synthesize_plan (with warnings) → Verification
 ```
 
 Does **not** increment orchestration `retry_count`.
@@ -391,7 +404,7 @@ Does **not** increment orchestration `retry_count`.
 ### Escalation to HITL
 
 ```
-... → FIX_REASONING at retry_count=3 → HITL, waiting_for_user=true
+... → FIX_REASONING at retry_count=2 → HITL, waiting_for_user=true
 ```
 
 ---
@@ -403,7 +416,7 @@ Does **not** increment orchestration `retry_count`.
 | Bootstrap | Empty workspace scaffold |
 | Planning | `plan/*` |
 | Research | `research/sources.json`, `research/findings.json` |
-| Fitness | `fitness/workout.json`, `fitness/calculations.json`, `fitness/safety_flags.json`, `fitness/final_plan.md` |
+| Fitness | `fitness/blueprint.json`, `fitness/template_fingerprint.json`, `fitness/workout.json`, `fitness/calculations.json`, `fitness/safety_flags.json`, `fitness/final_plan.md` |
 | Verification | `verify/verification_v1.json`, `verify/ragas.json` |
 | Supervisor (fail) | `logs/supervisor_decisions.jsonl` (append) |
 | Persist | `final/final_plan.md`, `logs/run_snapshot.json`, `logs/metrics.json` |
@@ -431,5 +444,6 @@ Does **not** increment orchestration `retry_count`.
 | Planning Agent | `configure_planning_agent()` | Deterministic plans |
 | Research Agent | `configure_research_agent()` | Mock Tavily / fixed findings |
 | Fitness Planner | `configure_fitness_planner()` | Deterministic workouts |
+| Template Registry | `configure_template_registry()` | Isolated workout template store |
 | Tavily MCP | `configure_tavily_client()` | Mock search |
 | Planning seed | `seed_execution_plan()` | Skip LLM in benchmarks |
