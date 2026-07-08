@@ -6,6 +6,8 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from core.config.settings import get_settings
+from core.knowledge.ingest import seed_default_corpus
+from core.knowledge.retriever import LocalKnowledgeRetriever
 from core.llm.factory import (
     get_standard_llm,
     invoke_bound_llm,
@@ -34,10 +36,12 @@ from core.subgraphs.research.utils import (
     compact_sources_for_llm,
     derive_evidence_summary,
     extract_tavily_data,
+    has_sufficient_research_coverage,
+    is_local_kb_url,
+    load_existing_research,
     post_process_sources,
     search_tavily_data,
 )
-from core.subgraphs.research.verification import verify_sources_data
 
 ResearchAgentOverride = Callable[..., ResearchAgentResult]
 
@@ -60,8 +64,12 @@ class _ResearchSession:
         self.evidence: list[dict[str, Any]] = []
         self.iterations: int = 0
         self.search_count: int = 0
+        self.extract_count: int = 0
+        self.extracted_urls: set[str] = set()
+        self.failed_extract_urls: set[str] = set()
         settings = get_settings()
         self.max_total_searches: int = settings.research_max_total_searches
+        self.max_total_extracts: int = settings.research_max_total_extracts
         self.tool_content_preview_chars: int = settings.research_tool_content_preview_chars
 
     def add_sources(self, sources: list[dict[str, Any]]) -> None:
@@ -69,12 +77,33 @@ class _ResearchSession:
 
     def add_evidence(self, evidence: list[dict[str, Any]]) -> None:
         self.evidence.extend(evidence)
+        for item in evidence:
+            url = str(item.get("url", ""))
+            if url:
+                self.extracted_urls.add(url)
 
     def can_search(self) -> bool:
         return self.search_count < self.max_total_searches
 
     def record_search(self) -> None:
         self.search_count += 1
+
+    def can_extract(self, url_count: int = 1) -> bool:
+        return self.extract_count + url_count <= self.max_total_extracts
+
+    def remaining_extract_slots(self) -> int:
+        return max(self.max_total_extracts - self.extract_count, 0)
+
+    def record_extract_attempt(self, urls: list[str]) -> None:
+        self.extract_count += len(urls)
+
+    def mark_extract_results(self, urls: list[str], evidence: list[dict[str, Any]]) -> None:
+        evidence_urls = {str(item.get("url", "")) for item in evidence if item.get("url")}
+        for url in urls:
+            if url in evidence_urls:
+                self.extracted_urls.add(url)
+            else:
+                self.failed_extract_urls.add(url)
 
 
 def _invoke_with_node[T](node: str, schema: type[T], messages: list) -> T:
@@ -149,12 +178,39 @@ def _execute_tool_call(
         urls = tool_args.get("urls", [])
         if not isinstance(urls, list):
             urls = []
-        result = extract_tavily_data([str(url) for url in urls])
+        cleaned_urls = [str(url) for url in urls if url and not is_local_kb_url(str(url))]
+        urls_to_fetch: list[str] = []
+        skipped_urls: list[str] = []
+        for url in cleaned_urls:
+            if url in session.extracted_urls:
+                skipped_urls.append(url)
+                continue
+            if url in session.failed_extract_urls:
+                skipped_urls.append(url)
+                continue
+            if not session.can_extract():
+                break
+            urls_to_fetch.append(url)
+        if not urls_to_fetch:
+            return compact_json(
+                {
+                    "document_count": 0,
+                    "skipped_urls": skipped_urls,
+                    "error": "extract_budget_exhausted_or_duplicate"
+                    if not session.can_extract()
+                    else "no_new_urls",
+                    "source_count": len(session.sources),
+                }
+            )
+        session.record_extract_attempt(urls_to_fetch)
+        result = extract_tavily_data(urls_to_fetch)
+        session.mark_extract_results(urls_to_fetch, result["evidence"])
         session.add_evidence(result["evidence"])
         preview_limit = session.tool_content_preview_chars
         return compact_json(
             {
                 "document_count": len(result["evidence"]),
+                "failed_urls": [url for url in urls_to_fetch if url in session.failed_extract_urls],
                 "evidence": [
                     {
                         "url": item.get("url"),
@@ -170,15 +226,52 @@ def _execute_tool_call(
     return str(tool.invoke(tool_args))
 
 
-def _run_planned_searches(query_batch: SearchQueryBatch, session: _ResearchSession) -> None:
-    """Execute planned queries once, respecting the global search budget."""
+def _run_planned_searches(
+    query_batch: SearchQueryBatch,
+    session: _ResearchSession,
+    *,
+    profile: dict[str, Any],
+) -> bool:
+    """Execute planned queries, using local KB first and Tavily only for uncovered tasks.
+
+    Returns True when at least one task required Tavily fallback.
+    """
+    settings = get_settings()
+    seed_default_corpus()
+    retriever = LocalKnowledgeRetriever()
+    used_tavily = False
+
     for task_plan in query_batch.task_plans:
+        local_documents = retriever.retrieve_for_task(task=task_plan.task, profile=profile)
+        if retriever.has_sufficient_coverage(task=task_plan.task, profile=profile):
+            session.add_sources(
+                retriever.documents_to_sources(local_documents, task=task_plan.task)
+            )
+            session.add_evidence(retriever.documents_to_evidence(local_documents))
+            continue
+
+        used_tavily = True
+        if not settings.local_kb_enabled:
+            for search_query in task_plan.queries:
+                if not session.can_search():
+                    return used_tavily
+                session.record_search()
+                result = search_tavily_data(search_query)
+                session.add_sources(result["sources"])
+            continue
+
         for search_query in task_plan.queries:
             if not session.can_search():
-                return
+                return used_tavily
             session.record_search()
             result = search_tavily_data(search_query)
             session.add_sources(result["sources"])
+            if local_documents:
+                session.add_sources(
+                    retriever.documents_to_sources(local_documents, task=task_plan.task)
+                )
+                session.add_evidence(retriever.documents_to_evidence(local_documents))
+    return used_tavily
 
 
 def _has_sufficient_evidence_deterministic(
@@ -186,14 +279,7 @@ def _has_sufficient_evidence_deterministic(
     evidence: list[dict[str, Any]],
 ) -> bool:
     """Heuristic gate to skip the LLM evidence-evaluation call when coverage looks adequate."""
-    settings = get_settings()
-    verified_sources = verify_sources_data(sources)["sources"]
-    verified_count = sum(1 for source in verified_sources if source.get("verified"))
-    return (
-        len(sources) >= settings.research_min_verified_sources_for_skip_eval
-        and verified_count >= settings.research_min_verified_sources_for_skip_eval
-        and len(evidence) >= settings.research_min_evidence_docs_for_skip_eval
-    )
+    return has_sufficient_research_coverage(sources, evidence)
 
 
 def _evaluate_evidence(
@@ -335,6 +421,8 @@ def run_research_agent(
     request_type: str | None,
     profile: dict[str, Any],
     execution_plan: ExecutionPlan,
+    workspace_path: str | None = None,
+    is_reresearch: bool = False,
 ) -> ResearchAgentResult:
     """Execute the full Research Agent pipeline."""
     if _AGENT_OVERRIDE is not None:
@@ -346,6 +434,17 @@ def run_research_agent(
         )
 
     session = _ResearchSession()
+    skip_tavily = False
+    if is_reresearch and workspace_path:
+        existing = load_existing_research(workspace_path)
+        if existing and has_sufficient_research_coverage(
+            existing["sources"],
+            existing["evidence"],
+        ):
+            session.add_sources(existing["sources"])
+            session.add_evidence(existing["evidence"])
+            skip_tavily = True
+
     query_batch = _plan_search_queries(
         query=query,
         request_type=request_type,
@@ -353,18 +452,30 @@ def run_research_agent(
         execution_plan=execution_plan,
     )
 
-    _run_planned_searches(query_batch, session)
+    used_tavily = False
+    if not skip_tavily:
+        used_tavily = _run_planned_searches(query_batch, session, profile=profile)
 
-    _run_react_loop(
-        query=query,
-        request_type=request_type,
-        profile=profile,
-        execution_plan=execution_plan,
-        query_batch=query_batch,
-        session=session,
+    should_run_react = used_tavily and not has_sufficient_research_coverage(
+        session.sources,
+        session.evidence,
     )
+    if should_run_react:
+        _run_react_loop(
+            query=query,
+            request_type=request_type,
+            profile=profile,
+            execution_plan=execution_plan,
+            query_batch=query_batch,
+            session=session,
+        )
 
-    ranked_sources, merged_evidence = post_process_sources(session.sources, session.evidence)
+    ranked_sources, merged_evidence = post_process_sources(
+        session.sources,
+        session.evidence,
+        max_extracts_remaining=session.remaining_extract_slots(),
+        failed_extract_urls=session.failed_extract_urls,
+    )
     structured_findings = _synthesize_findings(
         query=query,
         profile=profile,
