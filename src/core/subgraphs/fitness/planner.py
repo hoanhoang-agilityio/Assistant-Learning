@@ -104,6 +104,7 @@ def generate_structured_workout(
                 SystemMessage(content=FITNESS_PLANNER_SYSTEM_PROMPT),
                 HumanMessage(content=compact_json(payload)),
             ],
+            prompt_cache_key="fitness_planner",
         )
     finally:
         from core.llm.metrics import reset_llm_metrics_node
