@@ -60,7 +60,7 @@ def test_invoke_xhigh_structured_output_uses_openai_first(
     mock_get_openai.return_value.bind.assert_called_once_with(max_tokens=2048)
     bound_llm.with_structured_output.assert_called_once_with(
         ExecutionPlan,
-        method="function_calling",
+        method="json_schema",
     )
     mock_get_anthropic.assert_not_called()
 
@@ -95,6 +95,10 @@ def test_invoke_xhigh_structured_output_falls_back_to_anthropic(
     assert result == expected
     mock_get_openai.assert_called_once()
     mock_get_anthropic.assert_called_once()
+    anthropic_bound.with_structured_output.assert_called_once_with(
+        ExecutionPlan,
+        method="function_calling",
+    )
 
 
 @patch("core.llm.factory.get_settings")
