@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     database_url: PostgresDsn | None = None
 
+    # Production API state — Postgres-backed by default so run checkpoints and
+    # per-user rate-limit counters survive restarts and are shared across
+    # horizontally scaled replicas. Set to false only for local/dev/CI runs
+    # without a reachable Postgres instance.
+    use_postgres_checkpointer: bool = True
+    use_postgres_rate_limit_store: bool = True
+
     # LLM — Reasoning Sandwich tiers (defaults favor lower-cost models)
     openai_api_key: str | None = None
     openai_standard_model: str = "gpt-5.4-mini"
@@ -64,6 +71,7 @@ class Settings(BaseSettings):
     research_synthesis_content_chars: int = 800
     research_min_verified_sources_for_skip_eval: int = 2
     research_min_evidence_docs_for_skip_eval: int = 1
+    research_query_cache_ttl_seconds: int = 3600
 
     # Local fitness knowledge base
     local_kb_enabled: bool = True
