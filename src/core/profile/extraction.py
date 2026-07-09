@@ -6,13 +6,15 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.llm.factory import invoke_standard_structured_output
 from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
+from core.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
 from core.profile.schema import ExtractedProfile
 
 ProfileExtractor = Callable[[str], ExtractedProfile]
 
 _EXTRACTOR_OVERRIDE: ProfileExtractor | None = None
 
-_EXTRACTION_SYSTEM_PROMPT = """You extract structured fitness profile information from a user's message.
+_EXTRACTION_SYSTEM_PROMPT = (
+    """You extract structured fitness profile information from a user's message.
 
 Return ONLY a valid JSON object with exactly three top-level sections:
 {
@@ -111,8 +113,10 @@ Do NOT infer or calculate:
 
 unless they are explicitly stated by the user.
 
-Return JSON only.
 """
+    + JSON_ONLY_INSTRUCTION
+    + "\n"
+)
 
 
 def configure_profile_extractor(extractor: ProfileExtractor | None) -> None:

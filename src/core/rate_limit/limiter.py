@@ -7,7 +7,7 @@ from core.config.settings import Settings, get_settings
 from core.rate_limit.context import get_rate_limit_user_id
 from core.rate_limit.errors import RateLimitExceededError
 from core.rate_limit.pricing import estimate_cost_usd
-from core.rate_limit.store import DailyUsage, InMemoryUsageStore
+from core.rate_limit.store import DailyUsage, InMemoryUsageStore, UsageStore
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class AIRateLimiter:
     def __init__(
         self,
         settings: Settings | None = None,
-        store: InMemoryUsageStore | None = None,
+        store: UsageStore | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._store = store or InMemoryUsageStore()

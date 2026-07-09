@@ -13,6 +13,7 @@ from core.llm.serializers import (
     compact_execution_plan_for_llm,
     compact_macro_targets_for_llm,
     compact_profile_for_llm,
+    compact_structured_findings,
 )
 from core.subgraphs.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
 from core.subgraphs.fitness.schema import StructuredWorkout
@@ -28,19 +29,6 @@ def configure_fitness_planner(override: PlannerOverride | None) -> None:
     """Override the fitness planner (used in tests)."""
     global _AGENT_OVERRIDE
     _AGENT_OVERRIDE = override
-
-
-def compact_structured_findings(
-    structured_findings: ResearchFindings | None,
-) -> dict[str, Any] | None:
-    """Return a compact findings payload for the fitness planner."""
-    if structured_findings is None:
-        return None
-    return {
-        "consensus": structured_findings.consensus,
-        "key_findings": structured_findings.key_findings[:3],
-        "limitations": structured_findings.limitations[:2],
-    }
 
 
 def build_planner_payload(

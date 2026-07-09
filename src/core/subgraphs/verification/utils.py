@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from core.llm.serializers import compact_evidence_for_llm
 from core.subgraphs.fitness.utils import build_workout_summary
 from core.vfs import VFS
 
@@ -57,7 +58,7 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
         sources = json.loads(vfs.read("research/sources.json"))
     if vfs.exists("research/findings.json"):
         findings = json.loads(vfs.read("research/findings.json"))
-        evidence = findings.get("evidence", [])
+        evidence = compact_evidence_for_llm(findings.get("evidence", []))
     if vfs.exists("fitness/workout.json"):
         structured_workout = json.loads(vfs.read("fitness/workout.json"))
         training_plan = build_workout_summary(structured_workout)

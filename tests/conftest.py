@@ -15,6 +15,7 @@ from core.subgraphs.fitness.planner import configure_fitness_planner
 from core.subgraphs.fitness.template_registry import configure_template_registry
 from core.subgraphs.planning.planning_agent import configure_planning_agent
 from core.subgraphs.planning.utils import build_default_execution_plan
+from core.subgraphs.research.query_cache import reset_tavily_search_cache
 from core.subgraphs.research.research_agent import configure_research_agent
 from tests.helpers.fitness import default_structured_workout
 from tests.helpers.research import research_agent_override
@@ -84,6 +85,13 @@ def reset_tavily_client() -> None:
     configure_tavily_client(None)
     yield
     configure_tavily_client(None)
+
+
+@pytest.fixture(autouse=True)
+def reset_tavily_search_cache_fixture() -> None:
+    reset_tavily_search_cache()
+    yield
+    reset_tavily_search_cache()
 
 
 @pytest.fixture
