@@ -1,3 +1,16 @@
+"""Local, approximate USD cost estimation.
+
+Two real consumers, kept separate: core.rate_limit.limiter uses this to
+enforce rate_limit_daily_max_cost_usd_per_user (functional — must stay in
+sync with whatever model is actually configured, or the cap silently stops
+meaning what its name says); core.llm.metrics uses it for the
+token_cost.log/.md pipeline report, which is a local sanity check, not an
+authoritative bill — see that module's docstring. Note this does not apply
+the cheaper cached-token rate (estimate_cost_usd charges input_tokens at the
+full base rate regardless of how many were cache reads); Langfuse's own cost
+tracking does account for that split correctly.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
