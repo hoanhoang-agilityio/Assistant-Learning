@@ -68,12 +68,36 @@ def _is_transient_llm_error(exc: Exception) -> bool:
     return any(marker in message for marker in _TRANSIENT_ERROR_MARKERS)
 
 
-def _structured_output_runnable(llm: BaseChatModel, output_schema: type[BaseModel]) -> Any:
-    """Bind a safe output token cap and use function-calling for reliable JSON parsing."""
+def _structured_output_runnable(
+    llm: BaseChatModel,
+    output_schema: type[BaseModel],
+    *,
+    prompt_cache_key: str | None = None,
+    method: str = "json_schema",
+) -> Any:
+    """Bind a safe output token cap and structured-output method.
+
+    method="json_schema" is the OpenAI path's default (also LangChain's own
+    current default) — verified live against this repo's actual schemas
+    (including StructuredWorkout, the most deeply nested one) before
+    switching from the older function_calling method. It shapes the response
+    directly rather than through a synthetic tool call, avoiding that
+    method's fixed tool-use system-prompt overhead. The Anthropic fallback
+    path passes method="function_calling" explicitly (its own safe default)
+    since json_schema support there hasn't been live-verified in this repo.
+
+    prompt_cache_key groups repeated calls from the same node under one
+    OpenAI cache-routing bucket (per-node, not per-run) so nodes with the
+    same static prefix get consistently routed to the same backend cache;
+    unused by the Anthropic path.
+    """
     settings = get_settings()
-    return llm.bind(max_tokens=settings.llm_structured_output_max_tokens).with_structured_output(
+    bind_kwargs: dict[str, Any] = {"max_tokens": settings.llm_structured_output_max_tokens}
+    if prompt_cache_key:
+        bind_kwargs["prompt_cache_key"] = prompt_cache_key
+    return llm.bind(**bind_kwargs).with_structured_output(
         output_schema,
-        method="function_calling",
+        method=method,
     )
 
 
@@ -219,6 +243,8 @@ def invoke_standard_llm(messages: list[BaseMessage]) -> Any:
 def invoke_standard_structured_output[T: BaseModel](
     output_schema: type[T],
     messages: list[BaseMessage],
+    *,
+    prompt_cache_key: str | None = None,
 ) -> T:
     """Invoke structured output using the standard-tier OpenAI model."""
     settings = get_settings()
@@ -226,7 +252,9 @@ def invoke_standard_structured_output[T: BaseModel](
         raise RuntimeError("OPENAI_API_KEY is required for STANDARD-tier structured output")
     estimated_tokens = estimate_message_tokens(messages)
     _rate_limiter.check_active_user_tokens(estimated_tokens=estimated_tokens)
-    structured_llm = _structured_output_runnable(get_standard_llm(), output_schema)
+    structured_llm = _structured_output_runnable(
+        get_standard_llm(), output_schema, prompt_cache_key=prompt_cache_key
+    )
     started = time.perf_counter()
     result = structured_llm.invoke(messages)
     latency_ms = (time.perf_counter() - started) * 1000
@@ -248,6 +276,8 @@ def invoke_standard_structured_output[T: BaseModel](
 def invoke_xhigh_structured_output[T: BaseModel](
     output_schema: type[T],
     messages: list[BaseMessage],
+    *,
+    prompt_cache_key: str | None = None,
 ) -> T:
     """Invoke structured output using OpenAI, falling back to Anthropic on transient failure."""
     settings = get_settings()
@@ -257,7 +287,9 @@ def invoke_xhigh_structured_output[T: BaseModel](
 
     if settings.openai_api_key:
         try:
-            structured_llm = _structured_output_runnable(get_xhigh_openai_llm(), output_schema)
+            structured_llm = _structured_output_runnable(
+                get_xhigh_openai_llm(), output_schema, prompt_cache_key=prompt_cache_key
+            )
             started = time.perf_counter()
             result = structured_llm.invoke(messages)
             latency_ms = (time.perf_counter() - started) * 1000
@@ -289,7 +321,9 @@ def invoke_xhigh_structured_output[T: BaseModel](
 
     if settings.anthropic_api_key and openai_error is not None:
         try:
-            structured_llm = _structured_output_runnable(get_xhigh_anthropic_llm(), output_schema)
+            structured_llm = _structured_output_runnable(
+                get_xhigh_anthropic_llm(), output_schema, method="function_calling"
+            )
             started = time.perf_counter()
             result = structured_llm.invoke(messages)
             latency_ms = (time.perf_counter() - started) * 1000

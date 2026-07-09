@@ -90,6 +90,7 @@ def generate_execution_plan(
                 SystemMessage(content=_PLANNING_SYSTEM_PROMPT),
                 HumanMessage(content=compact_json(payload)),
             ],
+            prompt_cache_key="planning_agent",
         )
     finally:
         reset_llm_metrics_node(token)

@@ -1,4 +1,16 @@
-"""Per-LLM-call metrics collection for payload audits and regression guardrails."""
+"""Per-LLM-call metrics collection for payload audits and regression guardrails.
+
+Two distinct roles, deliberately not merged:
+- Token counts and budget assertions (LLM_NODE_BUDGETS, check_payload_budget
+  in budgets.py) are authoritative here — they're fast, dependency-free, and
+  don't need a live trace backend.
+- Dollar cost in the pipeline_cost_table()/token_cost.log/.md output is an
+  approximation from a hardcoded local pricing table (rate_limit/pricing.py)
+  that must be kept in sync with the model actually configured — Langfuse
+  (wired via core.observability.langfuse) captures the same token usage from
+  the same LangChain calls and is the source of truth for actual per-run
+  cost. Treat the numbers here as a quick local sanity check, not a bill.
+"""
 
 from __future__ import annotations
 
@@ -290,7 +302,8 @@ def format_pipeline_cost_table_markdown(
                 f"Input tokens: {input_tokens:,}",
                 f"Output tokens: {total_row['output_tokens']:,}",
                 f"Cached input tokens: {cached_tokens:,} ({cache_hit_rate:.1f}% of input)",
-                f"Estimated cost (USD): ${total_row['cost_usd']:.6f}",
+                f"Estimated cost (USD, approximate — see Langfuse for actual per-run cost): "
+                f"${total_row['cost_usd']:.6f}",
                 f"LLM calls: {total_row['calls']}",
             ]
         )
@@ -324,7 +337,8 @@ def format_pipeline_cost_table_log(
                 f"Input tokens: {input_tokens:,}",
                 f"Output tokens: {total_row['output_tokens']:,}",
                 f"Cached input tokens: {cached_tokens:,} ({cache_hit_rate:.1f}% of input)",
-                f"Estimated cost (USD): ${total_row['cost_usd']:.6f}",
+                f"Estimated cost (USD, approximate — see Langfuse for actual per-run cost): "
+                f"${total_row['cost_usd']:.6f}",
                 f"LLM calls: {total_row['calls']}",
             ]
         )

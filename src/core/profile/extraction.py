@@ -137,6 +137,7 @@ def extract_profile_from_query(query: str) -> ExtractedProfile:
                 SystemMessage(content=_EXTRACTION_SYSTEM_PROMPT),
                 HumanMessage(content=query),
             ],
+            prompt_cache_key="profile_extraction",
         )
     finally:
         reset_llm_metrics_node(token)

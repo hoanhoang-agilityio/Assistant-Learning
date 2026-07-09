@@ -111,7 +111,7 @@ class _ResearchSession:
 def _invoke_with_node[T](node: str, schema: type[T], messages: list) -> T:
     token = set_llm_metrics_node(node)
     try:
-        return invoke_standard_structured_output(schema, messages)
+        return invoke_standard_structured_output(schema, messages, prompt_cache_key=node)
     finally:
         reset_llm_metrics_node(token)
 
@@ -374,7 +374,16 @@ def _run_react_loop(
 ) -> None:
     settings = get_settings()
     max_iterations = settings.research_max_search_iterations
-    llm = get_standard_llm().bind_tools(RESEARCH_AGENT_TOOLS)
+    # Every iteration resends the growing transcript (system + tools + prior
+    # turns) as a new request — the best-shaped automatic-caching candidate
+    # in this codebase, since the prefix is byte-identical up to each new
+    # turn. A stable prompt_cache_key keeps iterations routed to the same
+    # backend cache bucket.
+    llm = (
+        get_standard_llm()
+        .bind_tools(RESEARCH_AGENT_TOOLS)
+        .bind(prompt_cache_key="research_react_loop")
+    )
 
     context_payload = build_research_context_payload(
         query=query,
