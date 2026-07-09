@@ -62,8 +62,6 @@ def _safety_check_node(state: VerificationState) -> dict:
     safety = safety_check.invoke(
         {
             "draft_plan": state["draft_plan"],
-            "profile": state["profile"],
-            "constraints": state["constraints"],
             "safety_flags": state["safety_flags"],
         }
     )

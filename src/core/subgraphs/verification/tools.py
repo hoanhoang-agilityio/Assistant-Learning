@@ -28,12 +28,10 @@ def consistency_check(
 @tool
 def safety_check(
     draft_plan: str,
-    profile: dict,
-    constraints: dict,
     safety_flags: list[str],
 ) -> dict:
     """Flag unsafe training volume, macro targets, or constraint conflicts."""
-    return safety_check_data(draft_plan, profile, constraints, safety_flags)
+    return safety_check_data(draft_plan, safety_flags)
 
 
 @tool
