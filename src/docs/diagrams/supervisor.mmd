@@ -1,0 +1,32 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	supervisor(supervisor)
+	planning(planning)
+	research(research)
+	fitness(fitness)
+	verification(verification)
+	hitl(hitl<hr/><small><em>__interrupt = before</em></small>)
+	persist(persist)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> supervisor;
+	fitness --> verification;
+	hitl --> supervisor;
+	planning --> supervisor;
+	research --> supervisor;
+	supervisor -.-> __end__;
+	supervisor -.-> fitness;
+	supervisor -.-> hitl;
+	supervisor -.-> persist;
+	supervisor -.-> planning;
+	supervisor -.-> research;
+	supervisor -.-> verification;
+	verification --> supervisor;
+	persist --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

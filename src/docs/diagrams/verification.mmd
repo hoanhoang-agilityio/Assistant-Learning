@@ -1,0 +1,24 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	load_context(load_context)
+	citation_check(citation_check)
+	consistency_check(consistency_check)
+	safety_check(safety_check)
+	ragas_faithfulness(ragas_faithfulness)
+	write_artifacts(write_artifacts)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> load_context;
+	citation_check --> consistency_check;
+	consistency_check --> safety_check;
+	load_context --> citation_check;
+	ragas_faithfulness --> write_artifacts;
+	safety_check --> ragas_faithfulness;
+	write_artifacts --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
