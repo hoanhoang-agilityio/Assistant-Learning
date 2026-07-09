@@ -14,6 +14,8 @@ class ModelPricing:
 MODEL_PRICING_USD: dict[str, ModelPricing] = {
     "gpt-4o-mini": ModelPricing(input_per_million=0.15, output_per_million=0.60),
     "gpt-4o": ModelPricing(input_per_million=2.50, output_per_million=10.00),
+    "gpt-5.4-mini": ModelPricing(input_per_million=0.75, output_per_million=4.50),
+    "gpt-5.4": ModelPricing(input_per_million=2.50, output_per_million=15.00),
     "claude-3-5-haiku-20241022": ModelPricing(input_per_million=0.80, output_per_million=4.00),
     "claude-sonnet-4-20250514": ModelPricing(input_per_million=3.00, output_per_million=15.00),
 }

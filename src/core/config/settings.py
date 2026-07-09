@@ -28,8 +28,11 @@ class Settings(BaseSettings):
 
     # LLM — Reasoning Sandwich tiers (defaults favor lower-cost models)
     openai_api_key: str | None = None
-    openai_standard_model: str = "gpt-4o-mini"
-    openai_xhigh_model: str = "gpt-4o-mini"
+    openai_standard_model: str = "gpt-5.4-mini"
+    openai_xhigh_model: str = "gpt-5.4"
+    openai_standard_reasoning_effort: str | None = "none"
+    openai_xhigh_reasoning_effort: str | None = "low"
+    openai_verbosity: str | None = "low"
     anthropic_api_key: str | None = None
     anthropic_xhigh_model: str = "claude-3-5-haiku-20241022"
     openai_max_tokens: int = 4096
