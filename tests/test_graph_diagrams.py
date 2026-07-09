@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -10,6 +11,15 @@ from core.graph.diagrams import (
     export_graph_diagram,
     get_graph_mermaid,
 )
+
+_FAKE_PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+
+
+def _mock_mermaid_ink_response() -> MagicMock:
+    response = MagicMock()
+    response.status_code = 200
+    response.content = _FAKE_PNG_BYTES
+    return response
 
 
 def test_graph_builders_include_supervisor_and_subgraphs() -> None:
@@ -43,12 +53,17 @@ def test_export_all_graph_diagrams_writes_mermaid_for_every_graph(tmp_path: Path
         assert paths["mmd"].exists()
 
 
-def test_draw_graph_mermaid_png_returns_png_bytes() -> None:
+@patch("langchain_core.runnables.graph_mermaid.requests.get")
+def test_draw_graph_mermaid_png_returns_png_bytes(mock_get: MagicMock) -> None:
+    mock_get.return_value = _mock_mermaid_ink_response()
     png_bytes = draw_graph_mermaid_png(build_graph())
     assert png_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+    mock_get.assert_called_once()
 
 
-def test_export_graph_diagram_writes_png(tmp_path: Path) -> None:
+@patch("langchain_core.runnables.graph_mermaid.requests.get")
+def test_export_graph_diagram_writes_png(mock_get: MagicMock, tmp_path: Path) -> None:
+    mock_get.return_value = _mock_mermaid_ink_response()
     written = export_graph_diagram("planning", tmp_path, formats=("png",))
     png_path = written["png"]
     assert png_path.exists()
