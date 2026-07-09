@@ -16,6 +16,7 @@ import streamlit as st
 from ui.api_client import DEFAULT_REQUEST_TIMEOUT, get_api_base_url
 from ui.components.chat import (
     handle_user_input,
+    load_run_from_history,
     render_hitl_actions,
     render_messages,
     sync_active_run_if_needed,
@@ -54,8 +55,33 @@ def _build_profile_from_form() -> dict[str, Any]:
     return {}
 
 
+def _restore_run_from_query_params() -> None:
+    """Restore the active conversation from the URL after a page refresh.
+
+    Only the single active run_id round-trips through the URL today, so this
+    brings back the conversation you were last in — not the full sidebar
+    history, and there's no way to switch to a different stored conversation
+    from a fresh browser session yet.
+    """
+    if st.session_state.run_id is not None:
+        return
+    query_run_id = st.query_params.get("run_id")
+    if not query_run_id:
+        return
+    with httpx.Client(
+        base_url=st.session_state.api_base_url,
+        timeout=DEFAULT_REQUEST_TIMEOUT,
+    ) as client:
+        try:
+            load_run_from_history(client, query_run_id)
+        except httpx.HTTPError:
+            # Backend no longer knows this run (e.g. it restarted) - drop the stale link.
+            st.query_params.pop("run_id", None)
+
+
 def main() -> None:
     _init_session_state()
+    _restore_run_from_query_params()
     inject_css()
     render_sidebar()
 
@@ -87,9 +113,9 @@ def main() -> None:
             render_hitl_actions(client, run_id, status)
 
     chat_placeholder = (
-        "Describe changes to your plan (e.g. train 5 days per week)…"
+        "Want any changes? (e.g. train 5 days per week)…"
         if waiting_for_approval
-        else "Describe your goal, body stats, and training preferences…"
+        else "Tell me your goal, body stats, and training preferences…"
     )
     query = st.chat_input(
         chat_placeholder,

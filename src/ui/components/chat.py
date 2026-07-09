@@ -14,10 +14,21 @@ from ui.api_client import (
     poll_run_until_settled,
     resume_run,
 )
+from ui.copy import (
+    APPROVAL_STATUS_COPY,
+    HITL_TYPE_COPY,
+    PHASE_ICONS,
+    PHASE_LABELS,
+    ROUTE_DECISION_COPY,
+    STATUS_COPY,
+    phase_color,
+    phase_of,
+    step_display,
+)
 
 
 def _clarification_prompt(status: dict[str, Any]) -> str:
-    return status.get("hitl_message") or "Please share a few more details about yourself."
+    return status.get("hitl_message") or "Mind sharing a few more details about yourself?"
 
 
 def _pipeline_step(status: dict[str, Any]) -> str:
@@ -28,10 +39,17 @@ def _pipeline_step(status: dict[str, Any]) -> str:
 
 
 def _format_steps_trail(status: dict[str, Any]) -> str | None:
+    """Friendly, deduped phase trail, e.g. '🗺️ Planning → 🔎 Researching → 🏋️ Building your plan'."""
     steps = status.get("steps") or []
     if not steps:
         return None
-    return " → ".join(steps[-6:])
+    phases: list[str] = []
+    for step in steps:
+        phase = phase_of(step)
+        if not phases or phases[-1] != phase:
+            phases.append(phase)
+    trail = phases[-6:]
+    return " → ".join(f"{PHASE_ICONS.get(p, '⚙️')} {PHASE_LABELS.get(p, p.title())}" for p in trail)
 
 
 def _write_pipeline_step(
@@ -40,14 +58,24 @@ def _write_pipeline_step(
     *,
     last_step: str | None,
 ) -> str:
-    """Write a pipeline step line only when the active step changes."""
+    """Write a friendly pipeline step line only when the active step changes."""
     step = _pipeline_step(status)
+    icon, message = step_display(step)
     trail = _format_steps_trail(status)
-    status_container.update(label=f"Running pipeline… — {step}")
+    # expanded=True must be re-asserted on every update(), otherwise Streamlit
+    # silently collapses the box back down on the very next label change —
+    # which previously made the whole step trail invisible during a live run.
+    status_container.update(label=f"{icon} {message}", expanded=True)
     if step != last_step:
-        status_container.write(f"Current step: **{step}**")
+        color = phase_color(step)
+        status_container.markdown(
+            f'<div class="pt-step" style="--pt-step-color:{color}">'
+            f'<span class="pt-step__icon">{icon}</span>'
+            f'<span class="pt-step__text">{message}</span></div>',
+            unsafe_allow_html=True,
+        )
         if trail:
-            status_container.caption(f"Progress: {trail}")
+            status_container.caption(f"Progress so far: {trail}")
     return step
 
 
@@ -56,34 +84,54 @@ def _format_assistant_status_message(status: dict[str, Any]) -> str:
     approval_status = status.get("approval_status")
     if approval_status == "rejected":
         return (
-            "Plan rejected. Nothing was saved. "
-            "Start a new chat message to generate a different plan."
+            f"🙅 {APPROVAL_STATUS_COPY['rejected']} "
+            "Send a new message whenever you're ready for a different plan."
         )
     if run_status == "running" and status.get("route_decision") == "REPLAN":
-        return "Replanning with your feedback. This may take a moment…"
+        return f"🔄 {ROUTE_DECISION_COPY['REPLAN']}"
     if approval_status == "approved" and run_status == "completed":
         final_plan = status.get("final_plan")
         if final_plan:
-            return f"Plan approved and saved.\n\n{final_plan}"
-        return "Plan approved and saved."
+            return f"✅ Your plan is approved and saved. Here it is:\n\n{final_plan}"
+        return "✅ Your plan is approved and saved."
     if approval_status == "approved" and run_status == "running":
-        return "Plan approved. Saving final artifacts…"
+        return f"💾 {APPROVAL_STATUS_COPY['approved']}"
     if run_status == "failed":
-        return status.get("error_message") or "Run failed."
+        icon, _ = STATUS_COPY["failed"]
+        error = status.get("error_message") or "The run hit a snag. Please try again."
+        return f"{icon} {error}"
     if run_status == "waiting_hitl":
         hitl_type = status.get("hitl_type") or "approval"
         if hitl_type == "clarification":
-            return _clarification_prompt(status)
+            return f"🙋 {_clarification_prompt(status)}"
         draft = status.get("final_plan")
         if draft:
             return draft
-        return status.get("hitl_message") or ""
+        return status.get("hitl_message") or HITL_TYPE_COPY.get(hitl_type, "")
     if run_status == "completed":
         final_plan = status.get("final_plan")
         if final_plan:
             return final_plan
-        return "Run completed but no final plan artifact was found."
-    return "The plan is still being generated. Please wait a moment…"
+        return "✅ All done, but I couldn't find the final plan artifact."
+    _, message = STATUS_COPY.get(
+        run_status, ("⏳", "The plan is still being generated. Please wait a moment…")
+    )
+    return message
+
+
+def set_active_run(run_id: str | None) -> None:
+    """Track which conversation is active, including in the URL.
+
+    Only the single active run_id is persisted (as a query param) so a page
+    refresh can restore it via ``load_run_from_history``. This does not persist
+    the full run_history list, so switching between multiple past
+    conversations after a refresh isn't supported yet.
+    """
+    st.session_state.run_id = run_id
+    if run_id:
+        st.query_params["run_id"] = run_id
+    else:
+        st.query_params.pop("run_id", None)
 
 
 def sync_active_run_if_needed(client: httpx.Client) -> bool:
@@ -97,7 +145,7 @@ def sync_active_run_if_needed(client: httpx.Client) -> bool:
 
     st.session_state.is_processing = True
     try:
-        with st.status("Running pipeline…", expanded=True) as pipeline_status:
+        with st.status("🧭 Picking up where we left off…", expanded=True) as pipeline_status:
             last_step = _write_pipeline_step(
                 pipeline_status,
                 status,
@@ -117,7 +165,7 @@ def sync_active_run_if_needed(client: httpx.Client) -> bool:
                 run_id,
                 on_progress=handle_poll_progress,
             )
-            pipeline_status.update(label="Pipeline finished", state="complete")
+            pipeline_status.update(label="✅ All set!", state="complete")
 
         st.session_state.run_status = settled
         st.session_state.messages = _rebuild_messages_from_run(settled)
@@ -167,9 +215,12 @@ def _update_run_history_status(run_id: str, status: str) -> None:
             return
 
 
+_AVATARS = {"user": "🙂", "assistant": "🏋️"}
+
+
 def render_messages(messages: list[dict[str, str]]) -> None:
     for message in messages:
-        with st.chat_message(message["role"]):
+        with st.chat_message(message["role"], avatar=_AVATARS.get(message["role"])):
             st.markdown(message["content"])
 
 
@@ -186,19 +237,23 @@ def render_hitl_actions(
     if hitl_type == "clarification":
         return
 
+    st.markdown(
+        f'<div class="pt-hitl-banner">🙋 <span>{HITL_TYPE_COPY.get(hitl_type, "Your plan is ready for review.")}</span></div>',
+        unsafe_allow_html=True,
+    )
     st.markdown('<div class="pt-hitl-actions-marker"></div>', unsafe_allow_html=True)
     action_cols = st.columns([1, 1, 8])
-    if action_cols[0].button("Approve", type="primary", key="approve_plan"):
-        with st.status("Persisting approved plan…", expanded=True) as approve_status:
-            last_step: str | None = None
+    if action_cols[0].button("✅ Approve", type="primary", key="approve_plan"):
+        with st.status("💾 Saving your approved plan…", expanded=True) as approve_status:
+            last_step = _write_pipeline_step(approve_status, status, last_step=None)
 
             def handle_approve_progress(status_update: dict[str, Any]) -> None:
                 nonlocal last_step
-                step = _pipeline_step(status_update)
-                approve_status.update(label=f"Finalizing run… — {step}")
-                if step != last_step:
-                    approve_status.write(f"Current step: **{step}**")
-                    last_step = step
+                last_step = _write_pipeline_step(
+                    approve_status,
+                    status_update,
+                    last_step=last_step,
+                )
 
             updated = resume_run(
                 client,
@@ -206,6 +261,7 @@ def render_hitl_actions(
                 decision_type="approve",
                 on_progress=handle_approve_progress,
             )
+            approve_status.update(label="✅ Saved!", state="complete")
         st.session_state.run_status = updated
         st.session_state.messages.append(
             {"role": "user", "content": "Approved the plan."},
@@ -219,14 +275,15 @@ def render_hitl_actions(
         _update_run_history_status(run_id, updated.get("status", "unknown"))
         st.rerun()
 
-    if action_cols[1].button("Reject", key="reject_plan"):
-        with st.status("Rejecting plan…", expanded=False):
+    if action_cols[1].button("✋ Reject", key="reject_plan"):
+        with st.status("🙅 Rejecting the plan…", expanded=False) as reject_status:
             updated = resume_run(
                 client,
                 run_id,
                 decision_type="reject",
                 message="Rejected the plan.",
             )
+            reject_status.update(label="🙅 Plan rejected", state="complete")
         st.session_state.run_status = updated
         st.session_state.messages.append(
             {"role": "user", "content": "Rejected the plan."},
@@ -257,16 +314,18 @@ def _can_change_plan_in_conversation(status: dict[str, Any]) -> bool:
 def _handle_plan_change(client: httpx.Client, run_id: str, query: str) -> None:
     st.session_state.messages.append({"role": "user", "content": query})
     try:
-        with st.status("Replanning with your changes…", expanded=True) as revision_status:
+        with st.status(
+            "🔄 Reworking your plan with your feedback…", expanded=True
+        ) as revision_status:
             last_step: str | None = None
 
             def handle_revision_progress(status_update: dict[str, Any]) -> None:
                 nonlocal last_step
-                step = _pipeline_step(status_update)
-                revision_status.update(label=f"Replanning… — {step}")
-                if step != last_step:
-                    revision_status.write(f"Current step: **{step}**")
-                    last_step = step
+                last_step = _write_pipeline_step(
+                    revision_status,
+                    status_update,
+                    last_step=last_step,
+                )
 
             updated = continue_run(
                 client,
@@ -274,6 +333,7 @@ def _handle_plan_change(client: httpx.Client, run_id: str, query: str) -> None:
                 message=query,
                 on_progress=handle_revision_progress,
             )
+            revision_status.update(label="✅ Updated!", state="complete")
         st.session_state.run_status = updated
         st.session_state.messages.append(
             {
@@ -286,28 +346,28 @@ def _handle_plan_change(client: httpx.Client, run_id: str, query: str) -> None:
         st.session_state.messages.append(
             {
                 "role": "assistant",
-                "content": "Still replanning with your changes. Please wait a moment…",
+                "content": "⏳ Still reworking your plan — this is taking a little longer than usual. Please wait a moment…",
             },
         )
     except httpx.HTTPError as exc:
         st.session_state.messages.append(
-            {"role": "assistant", "content": f"Failed to submit plan changes: {exc}"},
+            {"role": "assistant", "content": f"⚠️ Couldn't submit your plan changes: {exc}"},
         )
 
 
 def _handle_clarification(client: httpx.Client, run_id: str, query: str) -> None:
     st.session_state.messages.append({"role": "user", "content": query})
     try:
-        with st.status("Resuming run after clarification…", expanded=True) as resume_status:
+        with st.status("🙋 Thanks! Picking up where we left off…", expanded=True) as resume_status:
             last_step: str | None = None
 
             def handle_resume_progress(status_update: dict[str, Any]) -> None:
                 nonlocal last_step
-                step = _pipeline_step(status_update)
-                resume_status.update(label=f"Resuming run… — {step}")
-                if step != last_step:
-                    resume_status.write(f"Current step: **{step}**")
-                    last_step = step
+                last_step = _write_pipeline_step(
+                    resume_status,
+                    status_update,
+                    last_step=last_step,
+                )
 
             updated = resume_run(
                 client,
@@ -315,6 +375,7 @@ def _handle_clarification(client: httpx.Client, run_id: str, query: str) -> None
                 user_response=query,
                 on_progress=handle_resume_progress,
             )
+            resume_status.update(label="✅ Got it!", state="complete")
         st.session_state.run_status = updated
         st.session_state.messages.append(
             {
@@ -327,12 +388,12 @@ def _handle_clarification(client: httpx.Client, run_id: str, query: str) -> None
         st.session_state.messages.append(
             {
                 "role": "assistant",
-                "content": "Still processing your clarification. Please wait a moment…",
+                "content": "⏳ Still working through your answer. Please wait a moment…",
             },
         )
     except httpx.HTTPError as exc:
         st.session_state.messages.append(
-            {"role": "assistant", "content": f"Failed to submit clarification: {exc}"},
+            {"role": "assistant", "content": f"⚠️ Couldn't submit your answer: {exc}"},
         )
 
 
@@ -364,7 +425,7 @@ def handle_user_input(
         st.session_state.messages.append(
             {
                 "role": "assistant",
-                "content": "The plan is still being generated. Please wait until it finishes before requesting changes.",
+                "content": "⏳ Still putting your plan together — I'll be ready for changes as soon as it's done.",
             },
         )
         return
@@ -385,10 +446,10 @@ def handle_user_input(
             constraints=constraints,
         )
         new_run_id = created["run_id"]
-        st.session_state.run_id = new_run_id
+        set_active_run(new_run_id)
         poll_status = created
 
-        with st.status("Running pipeline…", expanded=True) as pipeline_status:
+        with st.status("👋 Got it — let's build your plan…", expanded=True) as pipeline_status:
             last_step = _write_pipeline_step(
                 pipeline_status,
                 created,
@@ -409,7 +470,7 @@ def handle_user_input(
                 new_run_id,
                 on_progress=handle_poll_progress,
             )
-            pipeline_status.update(label="Pipeline finished", state="complete")
+            pipeline_status.update(label="✅ All set!", state="complete")
 
         st.session_state.run_status = settled
         assistant_content = _assistant_message_from_status(settled)
@@ -440,7 +501,7 @@ def handle_user_input(
         st.session_state.pending_query = None
     except httpx.HTTPError as exc:
         st.session_state.messages.append(
-            {"role": "assistant", "content": f"Failed to start run: {exc}"},
+            {"role": "assistant", "content": f"⚠️ Couldn't start your plan: {exc}"},
         )
     finally:
         st.session_state.is_processing = False
@@ -448,7 +509,7 @@ def handle_user_input(
 
 def load_run_from_history(client: httpx.Client, run_id: str) -> None:
     status = get_run(client, run_id)
-    st.session_state.run_id = run_id
+    set_active_run(run_id)
     st.session_state.run_status = status
     st.session_state.messages = _rebuild_messages_from_run(status)
     if status.get("status") == "running":
