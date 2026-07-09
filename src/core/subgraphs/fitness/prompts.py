@@ -1,6 +1,8 @@
 """System prompt for the Fitness Planner LLM."""
 
-FITNESS_PLANNER_SYSTEM_PROMPT = """You are a fitness workout planning agent.
+from core.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
+
+FITNESS_PLANNER_SYSTEM_PROMPT = f"""You are a fitness workout planning agent.
 
 Given a user profile, macro targets (pre-computed by the engine), training constraints,
 execution plan, and structured research evidence, produce a structured workout plan as JSON.
@@ -27,6 +29,6 @@ Rules:
   item.
 - When revision_feedback is present, treat it as the user's latest plan-change request and obey any
   updated training frequency or constraints it implies.
-- Return structured JSON only — no markdown, no prose outside schema fields.
+- {JSON_ONLY_INSTRUCTION}
 - Ensure weekly_sets equals the sum of all exercise sets across all days.
 - Include progression guidance and substitutions where research or constraints warrant them."""
