@@ -107,6 +107,19 @@ def _maybe_record_metric(
     )
 
 
+def _temperature_kwargs(reasoning_effort: str | None) -> dict[str, Any]:
+    """Only send temperature when reasoning is off.
+
+    OpenAI's GPT-5 reasoning family does not reliably honor a custom
+    `temperature` alongside active reasoning (reasoning_effort not in
+    (None, "none")) — some client/library combinations drop or reject it.
+    temperature=0 is only safe to send when reasoning is disabled.
+    """
+    if reasoning_effort in (None, "none"):
+        return {"temperature": 0}
+    return {}
+
+
 @lru_cache
 def get_standard_llm() -> BaseChatModel:
     """Return the configured standard-tier chat model for structured extraction."""
@@ -116,8 +129,10 @@ def get_standard_llm() -> BaseChatModel:
     return ChatOpenAI(
         model=settings.openai_standard_model,
         api_key=settings.openai_api_key,
-        temperature=0,
         max_tokens=settings.openai_max_tokens,
+        reasoning_effort=settings.openai_standard_reasoning_effort,
+        verbosity=settings.openai_verbosity,
+        **_temperature_kwargs(settings.openai_standard_reasoning_effort),
     )
 
 
@@ -130,8 +145,10 @@ def get_xhigh_openai_llm() -> BaseChatModel:
     return ChatOpenAI(
         model=settings.openai_xhigh_model,
         api_key=settings.openai_api_key,
-        temperature=0,
         max_tokens=settings.openai_max_tokens,
+        reasoning_effort=settings.openai_xhigh_reasoning_effort,
+        verbosity=settings.openai_verbosity,
+        **_temperature_kwargs(settings.openai_xhigh_reasoning_effort),
     )
 
 
