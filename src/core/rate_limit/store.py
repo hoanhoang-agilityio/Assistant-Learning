@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Protocol, runtime_checkable
 
 
 @dataclass
@@ -17,6 +18,30 @@ class DailyUsage:
     @property
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
+
+
+@runtime_checkable
+class UsageStore(Protocol):
+    """Interface shared by InMemoryUsageStore and PostgresUsageStore."""
+
+    def get_usage(self, user_id: str, *, day_key: str | None = None) -> DailyUsage: ...
+
+    def increment_requests(self, user_id: str, *, day_key: str | None = None) -> DailyUsage: ...
+
+    def record_tokens(
+        self,
+        user_id: str,
+        *,
+        input_tokens: int,
+        output_tokens: int,
+        cost_usd: float,
+        day_key: str | None = None,
+    ) -> DailyUsage: ...
+
+    def reset(self) -> None: ...
+
+    @staticmethod
+    def day_key(at: datetime | None = None) -> str: ...
 
 
 class InMemoryUsageStore:
