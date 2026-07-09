@@ -226,3 +226,15 @@ def extract_token_usage(
     output_text = getattr(response, "content", "")
     output_tokens = max(len(str(output_text)) // 4, 0)
     return max(estimated_input_tokens, 0), output_tokens
+
+
+def extract_cached_tokens(response: Any) -> int:
+    """Return OpenAI/Anthropic prompt-cache read tokens from a response, if reported.
+
+    LangChain surfaces this as `usage_metadata.input_token_details.cache_read`
+    (mapped from OpenAI's `usage.prompt_tokens_details.cached_tokens`). Absent
+    for providers/responses that don't report cache usage.
+    """
+    usage_metadata = getattr(response, "usage_metadata", None) or {}
+    input_token_details = usage_metadata.get("input_token_details") or {}
+    return int(input_token_details.get("cache_read", 0) or 0)

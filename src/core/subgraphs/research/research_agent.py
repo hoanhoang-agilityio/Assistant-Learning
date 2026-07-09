@@ -445,30 +445,27 @@ def run_research_agent(
             session.add_evidence(existing["evidence"])
             skip_tavily = True
 
-    query_batch = _plan_search_queries(
-        query=query,
-        request_type=request_type,
-        profile=profile,
-        execution_plan=execution_plan,
-    )
-
-    used_tavily = False
     if not skip_tavily:
-        used_tavily = _run_planned_searches(query_batch, session, profile=profile)
-
-    should_run_react = used_tavily and not has_sufficient_research_coverage(
-        session.sources,
-        session.evidence,
-    )
-    if should_run_react:
-        _run_react_loop(
+        query_batch = _plan_search_queries(
             query=query,
             request_type=request_type,
             profile=profile,
             execution_plan=execution_plan,
-            query_batch=query_batch,
-            session=session,
         )
+        used_tavily = _run_planned_searches(query_batch, session, profile=profile)
+        should_run_react = used_tavily and not has_sufficient_research_coverage(
+            session.sources,
+            session.evidence,
+        )
+        if should_run_react:
+            _run_react_loop(
+                query=query,
+                request_type=request_type,
+                profile=profile,
+                execution_plan=execution_plan,
+                query_batch=query_batch,
+                session=session,
+            )
 
     ranked_sources, merged_evidence = post_process_sources(
         session.sources,

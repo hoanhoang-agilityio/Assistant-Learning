@@ -8,9 +8,9 @@ class PlanTask(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    order: int = Field(ge=1, description="Execution order (1-based)")
-    task: str = Field(min_length=10, description="Actionable research task")
-    rationale: str = Field(min_length=10, description="Why this task matters for this user")
+    order: int = Field(ge=1)
+    task: str = Field(min_length=10)
+    rationale: str = Field(min_length=10)
 
 
 class ExecutionPlan(BaseModel):
@@ -18,10 +18,10 @@ class ExecutionPlan(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    plan_rationale: str = Field(min_length=20, description="Overall plan rationale")
+    plan_rationale: str = Field(min_length=20)
     tasks: list[PlanTask]
-    plan_markdown: str = Field(min_length=50, description="Human-readable planning summary")
-    template_id: str | None = Field(default=None, description="Deterministic template identifier")
+    plan_markdown: str = Field(min_length=50)
+    template_id: str | None = None
 
     @field_validator("tasks")
     @classmethod

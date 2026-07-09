@@ -160,11 +160,8 @@ def consistency_check_data(
 
 def safety_check_data(
     draft_plan: str,
-    profile: dict[str, Any],
-    constraints: dict[str, Any],
     safety_flags: list[str],
 ) -> dict[str, Any]:
-    del profile, constraints
     issues = [flag for flag in safety_flags if flag in CRITICAL_SAFETY_FLAGS]
     unsafe_terms = ("unsafe", "extreme deficit", "excessive volume")
     draft_lower = _draft_text_for_safety_scan(draft_plan).lower()

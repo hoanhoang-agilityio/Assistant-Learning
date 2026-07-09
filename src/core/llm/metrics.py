@@ -13,7 +13,11 @@ from typing import Any
 from langchain_core.messages import BaseMessage
 
 from core.llm.payload import compact_json
-from core.rate_limit.limiter import estimate_message_tokens, extract_token_usage
+from core.rate_limit.limiter import (
+    estimate_message_tokens,
+    extract_cached_tokens,
+    extract_token_usage,
+)
 from core.rate_limit.pricing import estimate_cost_usd
 
 logger = logging.getLogger(__name__)
@@ -50,6 +54,7 @@ class LlmCallMetric:
     estimated_input_tokens: int
     input_tokens: int
     output_tokens: int
+    cached_tokens: int
     latency_ms: float
     payload_chars: int
     largest_payload_keys: list[str]
@@ -79,6 +84,7 @@ class LlmMetricsCollector:
                 "calls": len(items),
                 "input_tokens": sum(item.input_tokens for item in items),
                 "output_tokens": sum(item.output_tokens for item in items),
+                "cached_tokens": sum(item.cached_tokens for item in items),
                 "estimated_input_tokens": sum(item.estimated_input_tokens for item in items),
                 "latency_ms": round(sum(item.latency_ms for item in items), 2),
                 "source": items[-1].source,
@@ -92,6 +98,7 @@ class LlmMetricsCollector:
                 "model": metric.model,
                 "input_tokens": metric.input_tokens,
                 "output_tokens": metric.output_tokens,
+                "cached_tokens": metric.cached_tokens,
                 "latency_ms": round(metric.latency_ms, 2),
                 "calls": 1,
                 "source": metric.source,
@@ -106,6 +113,7 @@ class LlmMetricsCollector:
                 "tokens": 0,
                 "input_tokens": 0,
                 "output_tokens": 0,
+                "cached_tokens": 0,
                 "cost_usd": 0.0,
                 "calls": 0,
             }
@@ -118,6 +126,7 @@ class LlmMetricsCollector:
             bucket = grouped[pipeline_node]
             bucket["input_tokens"] += metric.input_tokens
             bucket["output_tokens"] += metric.output_tokens
+            bucket["cached_tokens"] += metric.cached_tokens
             bucket["tokens"] += metric.input_tokens + metric.output_tokens
             bucket["cost_usd"] = round(
                 bucket["cost_usd"]
@@ -146,6 +155,7 @@ class LlmMetricsCollector:
                     "tokens": tokens,
                     "input_tokens": int(item["input_tokens"]),
                     "output_tokens": int(item["output_tokens"]),
+                    "cached_tokens": int(item["cached_tokens"]),
                     "cost_usd": float(item["cost_usd"]),
                     "percent": percent,
                     "calls": int(item["calls"]),
@@ -157,6 +167,7 @@ class LlmMetricsCollector:
                 "tokens": total_tokens,
                 "input_tokens": sum(row["input_tokens"] for row in rows),
                 "output_tokens": sum(row["output_tokens"] for row in rows),
+                "cached_tokens": sum(row["cached_tokens"] for row in rows),
                 "cost_usd": round(sum(row["cost_usd"] for row in rows), 8),
                 "percent": 100.0 if total_tokens else 0.0,
                 "calls": sum(row["calls"] for row in rows),
@@ -220,6 +231,7 @@ def record_llm_call_metric(
         response,
         estimated_input_tokens=estimated_input_tokens,
     )
+    cached_tokens = extract_cached_tokens(response)
     payload_chars = sum(
         len(str(getattr(message, "content", "")))
         for message in messages
@@ -231,6 +243,7 @@ def record_llm_call_metric(
         estimated_input_tokens=estimated_input_tokens,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        cached_tokens=cached_tokens,
         latency_ms=latency_ms,
         payload_chars=payload_chars,
         largest_payload_keys=_largest_payload_keys(messages),
@@ -268,11 +281,15 @@ def format_pipeline_cost_table_markdown(
         lines.append(f"| {node} | {row['tokens']:,} | {row['percent']:.1f} |")
     total_row = next((row for row in rows if row["node"] == "Total"), None)
     if total_row is not None:
+        input_tokens = total_row["input_tokens"]
+        cached_tokens = total_row.get("cached_tokens", 0)
+        cache_hit_rate = (cached_tokens / input_tokens * 100) if input_tokens else 0.0
         lines.extend(
             [
                 "",
-                f"Input tokens: {total_row['input_tokens']:,}",
+                f"Input tokens: {input_tokens:,}",
                 f"Output tokens: {total_row['output_tokens']:,}",
+                f"Cached input tokens: {cached_tokens:,} ({cache_hit_rate:.1f}% of input)",
                 f"Estimated cost (USD): ${total_row['cost_usd']:.6f}",
                 f"LLM calls: {total_row['calls']}",
             ]
@@ -298,11 +315,15 @@ def format_pipeline_cost_table_log(
         lines.append(f"{node:<14} {int(row['tokens']):>10,} {float(row['percent']):>5.1f}")
     total_row = next((row for row in rows if row["node"] == "Total"), None)
     if total_row is not None:
+        input_tokens = total_row["input_tokens"]
+        cached_tokens = total_row.get("cached_tokens", 0)
+        cache_hit_rate = (cached_tokens / input_tokens * 100) if input_tokens else 0.0
         lines.extend(
             [
                 "",
-                f"Input tokens: {total_row['input_tokens']:,}",
+                f"Input tokens: {input_tokens:,}",
                 f"Output tokens: {total_row['output_tokens']:,}",
+                f"Cached input tokens: {cached_tokens:,} ({cache_hit_rate:.1f}% of input)",
                 f"Estimated cost (USD): ${total_row['cost_usd']:.6f}",
                 f"LLM calls: {total_row['calls']}",
             ]

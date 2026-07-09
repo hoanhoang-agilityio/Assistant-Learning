@@ -157,8 +157,6 @@ def test_safety_check_fails_on_critical_flags() -> None:
     result = safety_check.invoke(
         {
             "draft_plan": "Plan draft",
-            "profile": {},
-            "constraints": {},
             "safety_flags": ["calories_below_safe_minimum"],
         }
     )
@@ -178,7 +176,7 @@ def test_safety_check_ignores_unsafe_word_in_evidence_sections() -> None:
         "## Verification Feedback Applied\n\n"
         "Safety issues: unsafe_language:unsafe\n"
     )
-    result = safety_check_data(draft, {}, {}, [])
+    result = safety_check_data(draft, [])
     assert result["passed"] is True
     assert "unsafe_language:unsafe" not in result["issues"]
 
