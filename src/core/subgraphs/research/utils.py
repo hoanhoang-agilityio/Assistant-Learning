@@ -20,6 +20,7 @@ from core.subgraphs.planning.utils import (
     has_execution_plan,
     load_execution_plan,
 )
+from core.subgraphs.research.query_cache import get_cached_search_result, store_search_result
 from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.schema import ResearchFindings
 from core.subgraphs.research.verification import verify_sources_data
@@ -257,7 +258,15 @@ def normalize_search_results(raw_result: dict[str, Any], query: str) -> list[dic
 
 
 def search_tavily_data(query: str) -> dict[str, Any]:
-    """Run a single Tavily search query and return normalized sources."""
+    """Run a single Tavily search query and return normalized sources.
+
+    Cached by normalized query text for a short TTL — catches identical
+    queries issued from different execution-plan tasks or different runs.
+    """
+    cached = get_cached_search_result(query)
+    if cached is not None:
+        return cached
+
     client = get_tavily_client()
     with traced_tavily_call(TAVILY_SEARCH_TOOL, input_data={"query": query}) as span:
         search_result = client.search(query)
@@ -273,7 +282,9 @@ def search_tavily_data(query: str) -> dict[str, Any]:
             )
         if not sources:
             logger.warning("Tavily search returned no sources for query: %s", query[:120])
-    return {"sources": sources, "query": query}
+    result = {"sources": sources, "query": query}
+    store_search_result(query, result)
+    return result
 
 
 def normalize_extract_results(raw_result: dict[str, Any]) -> list[dict[str, Any]]:
