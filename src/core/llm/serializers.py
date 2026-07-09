@@ -66,3 +66,41 @@ def compact_macro_targets_for_llm(macro_targets: dict[str, Any]) -> dict[str, An
         for field_name in _MACRO_TARGET_LLM_FIELDS
         if field_name in macro_targets and macro_targets.get(field_name) not in (None, "")
     }
+
+
+def compact_structured_findings(structured_findings: Any) -> dict[str, Any] | None:
+    """Return a compact research-findings payload for the fitness planner."""
+    from core.subgraphs.research.schema import ResearchFindings
+
+    if structured_findings is None:
+        return None
+    if not isinstance(structured_findings, ResearchFindings):
+        raise TypeError("structured_findings must be ResearchFindings or None")
+    return {
+        "consensus": structured_findings.consensus,
+        "key_findings": structured_findings.key_findings[:3],
+        "limitations": structured_findings.limitations[:2],
+    }
+
+
+def compact_evidence_for_llm(
+    evidence: list[dict[str, Any]],
+    *,
+    limit: int = 5,
+    content_chars: int = 800,
+) -> list[dict[str, Any]]:
+    """Truncate raw evidence docs before they can reach any LLM payload.
+
+    research/findings.json stores evidence content untruncated (it's an
+    archival artifact, not itself a prompt). Any code path that hands that
+    evidence to an LLM call — today or in the future — must go through this
+    first, matching the truncation research_agent.py's own synthesis/eval
+    calls already apply (see build_synthesis_llm_extra/build_eval_llm_extra).
+    """
+    return [
+        {
+            "url": item.get("url"),
+            "content": str(item.get("content", ""))[:content_chars],
+        }
+        for item in evidence[:limit]
+    ]
