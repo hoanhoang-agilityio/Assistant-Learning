@@ -1,6 +1,8 @@
 """LLM-driven Research Agent with custom ReAct loop and structured outputs."""
 
+import contextvars
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -226,20 +228,26 @@ def _execute_tool_call(
     return str(tool.invoke(tool_args))
 
 
-def _run_planned_searches(
+def _plan_tavily_calls(
     query_batch: SearchQueryBatch,
     session: _ResearchSession,
     *,
     profile: dict[str, Any],
-) -> bool:
-    """Execute planned queries, using local KB first and Tavily only for uncovered tasks.
+    retriever: LocalKnowledgeRetriever,
+) -> tuple[bool, list[tuple[str, str, list[dict[str, Any]]]]]:
+    """Decide which Tavily queries to run, reserving the search budget sequentially.
 
-    Returns True when at least one task required Tavily fallback.
+    session.can_search()/record_search() is a check-then-increment against a
+    shared counter and must stay sequential — only the network calls
+    themselves (fetched afterward) are safe to parallelize. Returns
+    (used_tavily, planned): an ordered list of (query, task, local_documents)
+    to fetch. local_documents is attached per query to preserve the existing
+    multiplicity (added once per executed query, same as before this
+    refactor — post_process_sources dedupes by URL downstream).
     """
     settings = get_settings()
-    seed_default_corpus()
-    retriever = LocalKnowledgeRetriever()
     used_tavily = False
+    planned: list[tuple[str, str, list[dict[str, Any]]]] = []
 
     for task_plan in query_batch.task_plans:
         local_documents = retriever.retrieve_for_task(task=task_plan.task, profile=profile)
@@ -251,26 +259,70 @@ def _run_planned_searches(
             continue
 
         used_tavily = True
-        if not settings.local_kb_enabled:
-            for search_query in task_plan.queries:
-                if not session.can_search():
-                    return used_tavily
-                session.record_search()
-                result = search_tavily_data(search_query)
-                session.add_sources(result["sources"])
-            continue
-
+        attach_local = local_documents if settings.local_kb_enabled else []
         for search_query in task_plan.queries:
             if not session.can_search():
-                return used_tavily
+                return used_tavily, planned
             session.record_search()
-            result = search_tavily_data(search_query)
-            session.add_sources(result["sources"])
-            if local_documents:
-                session.add_sources(
-                    retriever.documents_to_sources(local_documents, task=task_plan.task)
-                )
-                session.add_evidence(retriever.documents_to_evidence(local_documents))
+            planned.append((search_query, task_plan.task, attach_local))
+
+    return used_tavily, planned
+
+
+def _fetch_planned_tavily_calls(
+    planned: list[tuple[str, str, list[dict[str, Any]]]],
+    session: _ResearchSession,
+    retriever: LocalKnowledgeRetriever,
+) -> None:
+    """Run planned Tavily searches concurrently; merge results back in order.
+
+    Each submission gets its own contextvars.Context copy: a bare
+    ThreadPoolExecutor does not propagate contextvars (Langfuse's trace-id)
+    into worker threads on its own, and a single Context object cannot be
+    entered from more than one thread at a time, so each call needs its own
+    copy rather than sharing one. Merging into `session` happens back on the
+    calling thread after every future resolves, so the mutable session
+    accumulator is never touched concurrently.
+    """
+    if not planned:
+        return
+    with ThreadPoolExecutor(max_workers=len(planned)) as executor:
+        futures = [
+            executor.submit(contextvars.copy_context().run, search_tavily_data, search_query)
+            for search_query, _task, _local_documents in planned
+        ]
+        results = [future.result() for future in futures]
+
+    for (_search_query, task_description, local_documents), result in zip(
+        planned, results, strict=True
+    ):
+        session.add_sources(result["sources"])
+        if local_documents:
+            session.add_sources(
+                retriever.documents_to_sources(local_documents, task=task_description)
+            )
+            session.add_evidence(retriever.documents_to_evidence(local_documents))
+
+
+def _run_planned_searches(
+    query_batch: SearchQueryBatch,
+    session: _ResearchSession,
+    *,
+    profile: dict[str, Any],
+) -> bool:
+    """Execute planned queries, using local KB first and Tavily only for uncovered tasks.
+
+    Tavily calls within the budget-bounded batch run concurrently — they are
+    independent network I/O with no data dependency on each other.
+
+    Returns True when at least one task required Tavily fallback.
+    """
+    seed_default_corpus()
+    retriever = LocalKnowledgeRetriever()
+    used_tavily, planned = _plan_tavily_calls(
+        query_batch, session, profile=profile, retriever=retriever
+    )
+    _fetch_planned_tavily_calls(planned, session, retriever)
     return used_tavily
 
 
