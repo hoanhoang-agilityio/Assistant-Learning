@@ -2,6 +2,7 @@ from langchain_core.tools import BaseTool, tool
 
 from core.agents.rerun import partial_rerun_decision_data
 from core.agents.state import AffectedDomain, OrchestrationState, RequestType
+from core.config.settings import get_settings
 from core.hitl.utils import hitl_control_data
 from core.persist.utils import persist_trigger_data
 
@@ -20,6 +21,15 @@ DEFAULT_AFFECTED_DOMAINS: list[AffectedDomain] = [
     "fitness",
     "verify",
 ]
+
+# Per-request_type narrower domain set, used only when
+# settings.classify_request_narrows_domains is true. Empty by construction:
+# no request_type is currently known to be safe to narrow (e.g.
+# macro_calculation still needs "research" per planning_agent.py's prompt),
+# so populating this without also updating that prompt would cause the
+# planning agent to plan work the pipeline then never runs. See
+# docs/reports/known_limitations_remediation_plan.md, "Issue 2 (part 2)".
+REQUEST_TYPE_DOMAIN_OVERRIDES: dict[RequestType, list[AffectedDomain]] = {}
 
 
 @tool
@@ -58,9 +68,15 @@ def classify_request(query: str) -> dict:
             request_type = candidate_type
             break
 
+    affected_domains = list(DEFAULT_AFFECTED_DOMAINS)
+    if get_settings().classify_request_narrows_domains:
+        override = REQUEST_TYPE_DOMAIN_OVERRIDES.get(request_type)
+        if override is not None:
+            affected_domains = list(override)
+
     return {
         "request_type": request_type,
-        "affected_domains": list(DEFAULT_AFFECTED_DOMAINS),
+        "affected_domains": affected_domains,
     }
 
 

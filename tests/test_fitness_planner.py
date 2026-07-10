@@ -2,7 +2,11 @@ from typing import Any
 
 import pytest
 
+from core.llm.payload import compact_json
+from core.subgraphs.fitness import planner as planner_module
 from core.subgraphs.fitness.planner import (
+    build_planner_context_payload,
+    build_planner_feedback_payload,
     build_planner_payload,
     configure_fitness_planner,
     generate_structured_workout,
@@ -104,3 +108,77 @@ def test_generate_structured_workout_uses_override(
     assert workout.split.startswith("3-day")
     assert len(workout.days) == 3
     assert captured["structured_findings"] == sample_findings
+
+
+def test_planner_context_payload_excludes_feedback_keys(
+    sample_execution_plan: ExecutionPlan,
+    sample_findings: ResearchFindings,
+) -> None:
+    context = build_planner_context_payload(
+        profile={"goal": "fat_loss"},
+        macro_targets={"calories": 2200},
+        training_constraints={"days_per_week": 3, "equipment": "gym", "goal": "fat_loss"},
+        execution_plan=sample_execution_plan,
+        structured_findings=sample_findings,
+    )
+    assert "planner_feedback" not in context
+    assert "verification_feedback" not in context
+
+
+def test_generate_structured_workout_reuses_stable_prefix_across_retry(
+    sample_execution_plan: ExecutionPlan,
+    sample_findings: ResearchFindings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retry (feedback changes, context doesn't) must send a byte-identical
+    leading JSON block so OpenAI's prompt caching has a real prefix to hit."""
+    captured_contents: list[str] = []
+
+    def fake_invoke(_schema, messages, **_kwargs):
+        captured_contents.append(messages[-1].content)
+        return default_structured_workout({"goal": "fat_loss"}, {"days_per_week": 3})
+
+    monkeypatch.setattr(planner_module, "invoke_standard_structured_output", fake_invoke)
+
+    common_kwargs = dict(
+        profile={"goal": "fat_loss"},
+        constraints={"days_per_week": 3, "equipment": "gym"},
+        macro_targets={"calories": 2200},
+        training_constraints={"days_per_week": 3, "equipment": "gym", "goal": "fat_loss"},
+        execution_plan=sample_execution_plan,
+        structured_findings=sample_findings,
+    )
+    generate_structured_workout(**common_kwargs, planner_feedback=[], verification_feedback=None)
+    generate_structured_workout(
+        **common_kwargs,
+        planner_feedback=["training_day_count_mismatch:expected_3_got_4"],
+        verification_feedback="Increase weekly volume slightly.",
+    )
+
+    assert len(captured_contents) == 2
+    first_context_block, _, _ = captured_contents[0].partition("\n")
+    second_context_block, _, _ = captured_contents[1].partition("\n")
+    assert first_context_block == second_context_block
+    assert captured_contents[0] != captured_contents[1]
+
+    expected_context_block = compact_json(
+        build_planner_context_payload(
+            profile=common_kwargs["profile"],
+            macro_targets=common_kwargs["macro_targets"],
+            training_constraints=common_kwargs["training_constraints"],
+            execution_plan=common_kwargs["execution_plan"],
+            structured_findings=common_kwargs["structured_findings"],
+        )
+    )
+    assert first_context_block == expected_context_block
+
+
+def test_build_planner_feedback_payload_includes_revision_feedback_when_present() -> None:
+    payload = build_planner_feedback_payload(
+        planner_feedback=["dup", "dup", "real issue"],
+        verification_feedback=None,
+        revision_feedback="  tighten the split  ",
+    )
+    assert payload["planner_feedback"] == ["dup", "real issue"]
+    assert payload["revision_feedback"] == "tighten the split"
+    assert "verification_feedback" not in payload or payload["verification_feedback"] is None

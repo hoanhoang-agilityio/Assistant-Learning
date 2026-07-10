@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     anthropic_max_tokens: int = 4096
     llm_structured_output_max_tokens: int = 2048
 
+    # Off by default: when true, core.evaluation.ragas_benchmark's
+    # evaluate_draft_faithfulness scores drafts with the real Ragas SDK
+    # (core.evaluation.ragas) instead of the heuristic proxy
+    # (verification.utils.heuristic_faithfulness_data). Benchmark-only --
+    # production's _ragas_faithfulness_node always uses the heuristic
+    # regardless of this flag. See known_limitations_remediation_plan.md, L1.
+    verification_use_real_ragas: bool = False
+
     # LangFuse — prefer LANGFUSE_BASE_URL; LANGFUSE_HOST is a legacy alias
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
@@ -83,6 +91,12 @@ class Settings(BaseSettings):
     # Orchestration / Fitness retry budgets
     max_planner_attempts: int = 2
     fix_reasoning_planner_attempts: int = 1
+
+    # Off by default: when true, classify_request narrows affected_domains per
+    # request_type via REQUEST_TYPE_DOMAIN_OVERRIDES (core/agents/tools.py)
+    # instead of always returning all 4 domains. The override map is empty
+    # today, so this flag is inert until a mapping is actually populated.
+    classify_request_narrows_domains: bool = False
 
     # LLM payload observability (debug only; does not change business logic)
     llm_payload_debug: bool = False

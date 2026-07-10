@@ -180,7 +180,7 @@ Structural issues in this list trigger **REPLAN** routing in the Supervisor.
 
 ### 5.4 Faithfulness Check
 
-`ragas_faithfulness_data(draft_plan, evidence)`:
+`heuristic_faithfulness_data(draft_plan, evidence)`:
 
 | Aspect | Detail |
 |--------|--------|

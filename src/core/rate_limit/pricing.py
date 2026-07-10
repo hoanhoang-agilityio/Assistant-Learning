@@ -67,6 +67,30 @@ def resolve_model_pricing(model_name: str) -> ModelPricing:
     return MODEL_PRICING_USD.get(model_name, DEFAULT_MODEL_PRICING)
 
 
+def validate_model_pricing_coverage(configured_models: dict[str, str]) -> None:
+    """Fail loudly if a configured model has no explicit MODEL_PRICING_USD entry.
+
+    Without this, resolve_model_pricing() silently falls back to
+    DEFAULT_MODEL_PRICING (a placeholder rate) for any model-name change —
+    both token_cost.md's reporting and the per-user daily cost cap
+    (rate_limit.limiter.AIRateLimiter) would misreport/mis-enforce with no
+    warning. Call this once at process startup with the models actually
+    configured (see api/main.py's lifespan).
+    """
+    missing = {
+        setting_name: model_name
+        for setting_name, model_name in configured_models.items()
+        if model_name not in MODEL_PRICING_USD
+    }
+    if missing:
+        details = ", ".join(f"{setting}={model!r}" for setting, model in missing.items())
+        raise ValueError(
+            f"Missing MODEL_PRICING_USD entry for configured model(s): {details}. "
+            "Add pricing before deploying, or cost reporting/enforcement will "
+            "silently fall back to DEFAULT_MODEL_PRICING."
+        )
+
+
 def estimate_cost_usd(
     model_name: str,
     *,

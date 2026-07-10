@@ -1,0 +1,64 @@
+{
+  "cases": [
+    {
+      "id": "sets_per_exercise_inflated",
+      "query": "How many sets per exercise should I do for hypertrophy?",
+      "evidence": [
+        {
+          "url": "https://example.edu/hypertrophy-volume",
+          "content": "Systematic reviews of resistance training volume indicate 3-4 sets per exercise per session is sufficient to drive hypertrophy adaptations in intermediate lifters, with diminishing returns for additional sets within the same session."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nBased on the evidence summary on hypertrophy volume, macro targets, and training plan research, perform 8-10 sets per exercise every session to maximize muscle growth and hypertrophy adaptations for intermediate lifters.",
+      "planted_issue": "Evidence says 3-4 sets per exercise per session; draft asserts 8-10 sets, more than double, attributed to the same evidence."
+    },
+    {
+      "id": "protein_target_reversed",
+      "query": "How much protein should I eat during a fat loss phase?",
+      "evidence": [
+        {
+          "url": "https://example.edu/protein-fatloss",
+          "content": "Position stands on protein intake during caloric restriction recommend 1.6-2.2 grams of protein per kilogram of bodyweight to preserve lean mass. Macro targets research supports this evidence-based training plan range for fat loss."
+        }
+      ],
+      "draft_plan": "## Macro Targets\n\nPer the evidence summary and macro targets training plan research, reduce protein intake to 0.5 grams per kilogram of bodyweight to save calories during the fat loss phase.",
+      "planted_issue": "Evidence recommends 1.6-2.2 g/kg protein to preserve lean mass; draft reverses this to 0.5 g/kg, the opposite of what the cited research supports."
+    },
+    {
+      "id": "fabricated_supplement_claim",
+      "query": "What training plan supports strength and hypertrophy?",
+      "evidence": [
+        {
+          "url": "https://example.edu/strength-programming",
+          "content": "Strength programming evidence summary: progressive overload with periodized training plan structure supports both strength and hypertrophy outcomes over a training block."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nFollowing the strength programming evidence summary, this training plan uses progressive overload and periodization. Additionally, take 5 grams of creatine and 2 grams of beta-alanine daily for a 3x faster strength result.",
+      "planted_issue": "The specific supplement dosing and '3x faster result' claim do not appear anywhere in the evidence -- fabricated addition riding on real shared vocabulary."
+    },
+    {
+      "id": "fabricated_study_citation",
+      "query": "Is daily maximal training effective for hypertrophy?",
+      "evidence": [
+        {
+          "url": "https://example.edu/training-frequency",
+          "content": "Training frequency evidence summary: training each muscle group twice per week is sufficient for hypertrophy training plan outcomes in most lifters, per current research."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nPer the training frequency evidence summary, a 2024 Stanford study found that daily maximal-intensity training produces 3x faster hypertrophy training plan results than twice-weekly training.",
+      "planted_issue": "The 'Stanford study' and '3x faster' claim is fabricated -- not present in, and contradicted by, the actual evidence (which supports twice-weekly, not daily maximal training)."
+    },
+    {
+      "id": "training_frequency_inflated",
+      "query": "How often should each muscle group be trained per week?",
+      "evidence": [
+        {
+          "url": "https://example.edu/training-plan-frequency",
+          "content": "Evidence summary on training plan frequency: current research supports training each muscle group 2 times per week for optimal hypertrophy and macro targets recovery balance."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nPer the training plan frequency evidence summary and macro targets research, train each muscle group 6 times per week for optimal hypertrophy results.",
+      "planted_issue": "Evidence supports training each muscle group 2x per week; draft triples this to 6x per week, attributed to the same evidence."
+    }
+  ]
+}

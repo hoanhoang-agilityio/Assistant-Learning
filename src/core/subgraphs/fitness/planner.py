@@ -31,6 +31,47 @@ def configure_fitness_planner(override: PlannerOverride | None) -> None:
     _AGENT_OVERRIDE = override
 
 
+def build_planner_context_payload(
+    *,
+    profile: dict[str, Any],
+    macro_targets: dict[str, Any],
+    training_constraints: dict[str, Any],
+    execution_plan: ExecutionPlan,
+    structured_findings: ResearchFindings | None,
+) -> dict[str, Any]:
+    """Build the stable part of the planner payload (identical across retries).
+
+    Kept as its own serialized block so a first-attempt-vs-retry call pair
+    shares a byte-identical leading prefix for OpenAI's prompt caching to
+    match against (see build_planner_feedback_payload for the part that
+    actually changes on retry).
+    """
+    return {
+        "profile": compact_profile_for_llm(profile),
+        "macro_targets": compact_macro_targets_for_llm(macro_targets),
+        "training_constraints": training_constraints,
+        "execution_plan": compact_execution_plan_for_llm(execution_plan),
+        "structured_findings": compact_structured_findings(structured_findings),
+    }
+
+
+def build_planner_feedback_payload(
+    *,
+    planner_feedback: list[str],
+    verification_feedback: str | None,
+    revision_feedback: str | None = None,
+) -> dict[str, Any]:
+    """Build the variable part of the planner payload (the only part a retry changes)."""
+    payload: dict[str, Any] = {
+        "planner_feedback": limit_feedback_items(planner_feedback),
+        "verification_feedback": verification_feedback,
+    }
+    stripped_revision = (revision_feedback or "").strip()
+    if stripped_revision:
+        payload["revision_feedback"] = stripped_revision
+    return payload
+
+
 def build_planner_payload(
     *,
     profile: dict[str, Any],
@@ -43,20 +84,22 @@ def build_planner_payload(
     verification_feedback: str | None,
     revision_feedback: str | None = None,
 ) -> dict[str, Any]:
-    """Build the human-message payload sent to the fitness planner."""
+    """Build the full planner payload dict (validation and payload-budget checks)."""
     del constraints
     payload = {
-        "profile": compact_profile_for_llm(profile),
-        "macro_targets": compact_macro_targets_for_llm(macro_targets),
-        "training_constraints": training_constraints,
-        "execution_plan": compact_execution_plan_for_llm(execution_plan),
-        "structured_findings": compact_structured_findings(structured_findings),
-        "planner_feedback": limit_feedback_items(planner_feedback),
-        "verification_feedback": verification_feedback,
+        **build_planner_context_payload(
+            profile=profile,
+            macro_targets=macro_targets,
+            training_constraints=training_constraints,
+            execution_plan=execution_plan,
+            structured_findings=structured_findings,
+        ),
+        **build_planner_feedback_payload(
+            planner_feedback=planner_feedback,
+            verification_feedback=verification_feedback,
+            revision_feedback=revision_feedback,
+        ),
     }
-    stripped_revision = (revision_feedback or "").strip()
-    if stripped_revision:
-        payload["revision_feedback"] = stripped_revision
     validate_fitness_planner_payload(payload)
     return payload
 
@@ -85,24 +128,32 @@ def generate_structured_workout(
             planner_feedback=planner_feedback,
             verification_feedback=verification_feedback,
         )
-    payload = build_planner_payload(
+    del constraints
+    context_payload = build_planner_context_payload(
         profile=profile,
-        constraints=constraints,
         macro_targets=macro_targets,
         training_constraints=training_constraints,
         execution_plan=execution_plan,
         structured_findings=structured_findings,
+    )
+    feedback_payload = build_planner_feedback_payload(
         planner_feedback=planner_feedback,
         verification_feedback=verification_feedback,
         revision_feedback=revision_feedback,
     )
+    validate_fitness_planner_payload({**context_payload, **feedback_payload})
+    # Two separate compact_json blocks, not one merged dict: this keeps the
+    # context block's serialized bytes identical between a first attempt and
+    # a safety-check retry (only feedback_payload differs), giving OpenAI's
+    # prompt caching a real repeated prefix to match against on retry.
+    message_content = compact_json(context_payload) + "\n" + compact_json(feedback_payload)
     token = set_llm_metrics_node("fitness_planner")
     try:
         return invoke_standard_structured_output(
             StructuredWorkout,
             [
                 SystemMessage(content=FITNESS_PLANNER_SYSTEM_PROMPT),
-                HumanMessage(content=compact_json(payload)),
+                HumanMessage(content=message_content),
             ],
             prompt_cache_key="fitness_planner",
         )

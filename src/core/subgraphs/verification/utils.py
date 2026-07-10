@@ -177,7 +177,13 @@ def safety_check_data(
 
 
 def heuristic_faithfulness_score(draft_plan: str, evidence: list[dict[str, Any]]) -> float:
-    """Evidence-grounding proxy (Ragas SDK import blocked by optional Vertex dep)."""
+    """Zero-cost, zero-latency evidence-grounding proxy (token overlap, not entailment).
+
+    Deliberately not Ragas-backed -- see core.evaluation.ragas for the real
+    Ragas SDK faithfulness scorer, gated behind
+    settings.verification_use_real_ragas and wired only into the benchmark
+    script so far (docs/reports/known_limitations_remediation_plan.md, L1).
+    """
     if not draft_plan.strip():
         return 0.0
     if not evidence:
@@ -203,7 +209,9 @@ def heuristic_faithfulness_score(draft_plan: str, evidence: list[dict[str, Any]]
     return round(score, 2)
 
 
-def ragas_faithfulness_data(draft_plan: str, evidence: list[dict[str, Any]]) -> dict[str, Any]:
+def heuristic_faithfulness_data(draft_plan: str, evidence: list[dict[str, Any]]) -> dict[str, Any]:
+    """Faithfulness result shaped like core.evaluation.ragas.ragas_faithfulness_data's
+    output, but scored by the heuristic above, not the real Ragas SDK."""
     score = heuristic_faithfulness_score(draft_plan, evidence)
     pass_fail = score >= FAITHFULNESS_PASS_THRESHOLD
     return {
