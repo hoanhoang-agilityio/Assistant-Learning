@@ -1,10 +1,17 @@
 """Lexical retrieval over the local fitness knowledge base."""
 
+import logging
+import threading
 from typing import Any
 
 from core.config.settings import get_settings
 from core.knowledge.schema import KnowledgeDocument
 from core.knowledge.store import KnowledgeStore
+
+logger = logging.getLogger(__name__)
+
+_lock = threading.Lock()
+_zero_hit_count = 0
 
 
 class LocalKnowledgeRetriever:
@@ -32,6 +39,8 @@ class LocalKnowledgeRetriever:
                 continue
             scored.append((score, document))
         scored.sort(key=lambda item: item[0], reverse=True)
+        if not scored:
+            _record_zero_hit_query(task=task, goal=goal, equipment=equipment)
         return [document for _, document in scored[:resolved_limit]]
 
     def has_sufficient_coverage(
@@ -118,3 +127,36 @@ def _score_document(
     if equipment and equipment in document.equipment_applicability:
         score += 0.5
     return score
+
+
+def _record_zero_hit_query(*, task: str, goal: str, equipment: str) -> None:
+    """Log and count a lexical-scoring miss (zero documents matched).
+
+    Measurement-only signal for the L3/N5 decision in
+    docs/reports/known_limitations_remediation_plan.md: whether real
+    zero-hit-rate evidence justifies moving the local KB off lexical
+    scoring onto embeddings. Does not change retrieval behavior.
+    """
+    global _zero_hit_count
+    with _lock:
+        _zero_hit_count += 1
+    logger.info(
+        "Local KB zero-hit query: task=%r goal=%r equipment=%r — no lexical match "
+        "in the local corpus",
+        task[:160],
+        goal,
+        equipment,
+    )
+
+
+def get_zero_hit_query_count() -> int:
+    """Return the number of zero-hit local KB queries seen (measurement only)."""
+    with _lock:
+        return _zero_hit_count
+
+
+def reset_zero_hit_query_count() -> None:
+    """Clear the zero-hit counter — used in tests."""
+    global _zero_hit_count
+    with _lock:
+        _zero_hit_count = 0
