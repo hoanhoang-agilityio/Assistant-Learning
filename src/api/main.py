@@ -7,6 +7,7 @@ from api.deps import close_orchestrator_resources, get_orchestrator
 from api.routes.runs import router as runs_router
 from core.config.settings import get_settings
 from core.graph.service import RunOrchestrator
+from core.rate_limit.pricing import validate_model_pricing_coverage
 
 
 def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
@@ -15,6 +16,15 @@ def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        # Fail fast on bad DB config and on unpriced models (silent cost
+        # mis-reporting/mis-enforcement is worse than a startup crash).
+        validate_model_pricing_coverage(
+            {
+                "openai_standard_model": settings.openai_standard_model,
+                "openai_xhigh_model": settings.openai_xhigh_model,
+                "anthropic_xhigh_model": settings.anthropic_xhigh_model,
+            }
+        )
         # Skip real Postgres wiring when a caller injected its own orchestrator
         # (tests) — dependency_overrides bypasses get_orchestrator() for
         # request handling, but the lifespan runs independently of that.
