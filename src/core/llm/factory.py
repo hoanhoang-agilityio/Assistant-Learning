@@ -73,6 +73,7 @@ def _structured_output_runnable(
     output_schema: type[BaseModel],
     *,
     prompt_cache_key: str | None = None,
+    reasoning_effort_override: str | None = None,
     method: str = "json_schema",
 ) -> Any:
     """Bind a safe output token cap and structured-output method.
@@ -90,11 +91,19 @@ def _structured_output_runnable(
     OpenAI cache-routing bucket (per-node, not per-run) so nodes with the
     same static prefix get consistently routed to the same backend cache;
     unused by the Anthropic path.
+
+    reasoning_effort_override lets a specific node ask for more/less
+    reasoning than its tier's global default (get_standard_llm()/
+    get_xhigh_openai_llm() bake one reasoning_effort into the whole tier).
+    Binding it here overrides the constructor value for this call only,
+    the same way prompt_cache_key already does; unused by the Anthropic path.
     """
     settings = get_settings()
     bind_kwargs: dict[str, Any] = {"max_tokens": settings.llm_structured_output_max_tokens}
     if prompt_cache_key:
         bind_kwargs["prompt_cache_key"] = prompt_cache_key
+    if reasoning_effort_override:
+        bind_kwargs["reasoning_effort"] = reasoning_effort_override
     return llm.bind(**bind_kwargs).with_structured_output(
         output_schema,
         method=method,
@@ -245,15 +254,24 @@ def invoke_standard_structured_output[T: BaseModel](
     messages: list[BaseMessage],
     *,
     prompt_cache_key: str | None = None,
+    reasoning_effort_override: str | None = None,
 ) -> T:
-    """Invoke structured output using the standard-tier OpenAI model."""
+    """Invoke structured output using the standard-tier OpenAI model.
+
+    reasoning_effort_override lets a specific node opt into more reasoning
+    than the STANDARD tier's global default (settings.openai_standard_reasoning_effort)
+    without promoting the call to the XHIGH tier/model.
+    """
     settings = get_settings()
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY is required for STANDARD-tier structured output")
     estimated_tokens = estimate_message_tokens(messages)
     _rate_limiter.check_active_user_tokens(estimated_tokens=estimated_tokens)
     structured_llm = _structured_output_runnable(
-        get_standard_llm(), output_schema, prompt_cache_key=prompt_cache_key
+        get_standard_llm(),
+        output_schema,
+        prompt_cache_key=prompt_cache_key,
+        reasoning_effort_override=reasoning_effort_override,
     )
     started = time.perf_counter()
     result = structured_llm.invoke(messages)
@@ -278,8 +296,15 @@ def invoke_xhigh_structured_output[T: BaseModel](
     messages: list[BaseMessage],
     *,
     prompt_cache_key: str | None = None,
+    reasoning_effort_override: str | None = None,
 ) -> T:
-    """Invoke structured output using OpenAI, falling back to Anthropic on transient failure."""
+    """Invoke structured output using OpenAI, falling back to Anthropic on transient failure.
+
+    reasoning_effort_override lets a specific node opt into a different
+    reasoning_effort than the XHIGH tier's global default
+    (settings.openai_xhigh_reasoning_effort) for the OpenAI leg only — the
+    Anthropic fallback has no equivalent parameter.
+    """
     settings = get_settings()
     estimated_tokens = estimate_message_tokens(messages)
     _rate_limiter.check_active_user_tokens(estimated_tokens=estimated_tokens)
@@ -288,7 +313,10 @@ def invoke_xhigh_structured_output[T: BaseModel](
     if settings.openai_api_key:
         try:
             structured_llm = _structured_output_runnable(
-                get_xhigh_openai_llm(), output_schema, prompt_cache_key=prompt_cache_key
+                get_xhigh_openai_llm(),
+                output_schema,
+                prompt_cache_key=prompt_cache_key,
+                reasoning_effort_override=reasoning_effort_override,
             )
             started = time.perf_counter()
             result = structured_llm.invoke(messages)
