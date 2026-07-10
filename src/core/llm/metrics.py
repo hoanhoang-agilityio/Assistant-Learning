@@ -146,6 +146,7 @@ class LlmMetricsCollector:
                     metric.model,
                     input_tokens=metric.input_tokens,
                     output_tokens=metric.output_tokens,
+                    cached_tokens=metric.cached_tokens,
                 ),
                 8,
             )
