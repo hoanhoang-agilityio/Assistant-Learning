@@ -45,6 +45,7 @@ PIPELINE_NODE_ORDER: tuple[str, ...] = (
 
 _PIPELINE_NODE_ALIASES: dict[str, str] = {
     "profile_extraction": "Extract",
+    "topic_scope_judge": "Extract",
     "planning_agent": "Planning",
     "research_query_planning": "Research",
     "research_react_loop": "Research",

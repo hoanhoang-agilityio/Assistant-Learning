@@ -98,6 +98,15 @@ class Settings(BaseSettings):
     # today, so this flag is inert until a mapping is actually populated.
     classify_request_narrows_domains: bool = False
 
+    # Off by default: when true, check_topic_scope (core/agents/tools.py) falls
+    # back to an LLM judge (core/agents/topic_scope_judge.py) before refusing a
+    # query that missed the FITNESS_TOPIC_KEYWORDS allowlist, to rescue
+    # legitimate fitness queries phrased without an obvious keyword. Adds one
+    # extra LLM call (STANDARD tier) on the critical path for every query that
+    # misses the keyword allowlist, so it's opt-in until that latency/cost
+    # tradeoff is validated against real off-topic-refusal false-positive rates.
+    topic_scope_llm_fallback_enabled: bool = False
+
     # LLM payload observability (debug only; does not change business logic)
     llm_payload_debug: bool = False
 
