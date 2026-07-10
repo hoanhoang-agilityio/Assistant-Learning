@@ -3,7 +3,8 @@ from pathlib import Path
 import pytest
 
 from core.agents.state import OrchestrationState
-from core.agents.tools import classify_request, read_global_state
+from core.agents.tools import REQUEST_TYPE_DOMAIN_OVERRIDES, classify_request, read_global_state
+from core.config.settings import get_settings
 from core.graph.builder import build_graph
 from core.graph.routing import resolve_next_subgraph, route_from_supervisor
 from core.graph.run import create_initial_state
@@ -31,6 +32,31 @@ def test_classify_request_detects_training_plan() -> None:
     )
     assert result["request_type"] == "training_plan"
     assert result["affected_domains"] == ["planning", "research", "fitness", "verify"]
+
+
+def test_request_type_domain_overrides_is_empty_by_construction() -> None:
+    # No request_type is currently known to be safe to narrow (see Issue 2
+    # part 2 in the remediation plan) -- populating this without also
+    # updating planning_agent.py's prompt would be a correctness regression.
+    assert REQUEST_TYPE_DOMAIN_OVERRIDES == {}
+
+
+def test_classify_request_narrows_domains_flag_defaults_off() -> None:
+    assert get_settings().classify_request_narrows_domains is False
+
+
+def test_classify_request_ignores_override_map_when_flag_off(monkeypatch) -> None:
+    monkeypatch.setitem(REQUEST_TYPE_DOMAIN_OVERRIDES, "macro_calculation", ["planning"])
+    result = classify_request.invoke({"query": "Calculate my macros"})
+    assert result["affected_domains"] == ["planning", "research", "fitness", "verify"]
+
+
+def test_classify_request_applies_override_map_when_flag_on(monkeypatch) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "classify_request_narrows_domains", True)
+    monkeypatch.setitem(REQUEST_TYPE_DOMAIN_OVERRIDES, "macro_calculation", ["planning"])
+    result = classify_request.invoke({"query": "Calculate my macros"})
+    assert result["affected_domains"] == ["planning"]
 
 
 def test_read_global_state_returns_orchestration_fields(initial_state: OrchestrationState) -> None:
