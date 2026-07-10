@@ -10,6 +10,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from core.config.settings import get_settings
 from core.knowledge.ingest import seed_default_corpus
 from core.knowledge.retriever import LocalKnowledgeRetriever
+from core.llm.budgets import LLM_NODE_BUDGETS
 from core.llm.factory import (
     get_standard_llm,
     invoke_bound_llm,
@@ -110,8 +111,15 @@ class _ResearchSession:
 
 def _invoke_with_node[T](node: str, schema: type[T], messages: list) -> T:
     token = set_llm_metrics_node(node)
+    budget = LLM_NODE_BUDGETS.get(node)
+    reasoning_effort_override = budget.reasoning_effort_override if budget else None
     try:
-        return invoke_standard_structured_output(schema, messages, prompt_cache_key=node)
+        return invoke_standard_structured_output(
+            schema,
+            messages,
+            prompt_cache_key=node,
+            reasoning_effort_override=reasoning_effort_override,
+        )
     finally:
         reset_llm_metrics_node(token)
 

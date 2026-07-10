@@ -19,6 +19,10 @@ class LlmNodeBudget:
     max_output_tokens: int
     max_latency_ms: float | None = None
     exception_note: str | None = None
+    # Per-node override of the node's tier-level reasoning_effort default
+    # (settings.openai_standard_reasoning_effort / openai_xhigh_reasoning_effort).
+    # None means "use the tier default" — most nodes don't need this.
+    reasoning_effort_override: str | None = None
 
 
 # Baselines measured from representative fixture payloads via estimate_message_tokens.
@@ -58,6 +62,11 @@ LLM_NODE_BUDGETS: dict[str, LlmNodeBudget] = {
         max_input_tokens=2600,
         max_output_tokens=500,
         exception_note="Evidence snippet settings drive budget.",
+        # Heaviest STANDARD-tier call (largest input, must reconcile
+        # potentially conflicting sources into structured findings) — bump
+        # above the STANDARD tier's global "none" default instead of
+        # promoting the whole node to the XHIGH tier/model.
+        reasoning_effort_override="low",
     ),
     "fitness_planner": LlmNodeBudget(
         node="fitness_planner",

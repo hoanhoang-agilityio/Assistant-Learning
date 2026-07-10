@@ -72,6 +72,9 @@ def build_graph(
     graph.add_edge("hitl", "supervisor")
     graph.add_edge("persist", END)
 
+    # See RunOrchestrator.__init__ (graph/service.py) for why this falls back to
+    # an in-memory checkpointer rather than Postgres: production always passes
+    # one in explicitly via api/deps.py:get_orchestrator.
     saver = checkpointer or create_memory_checkpointer()
     return graph.compile(
         checkpointer=saver,

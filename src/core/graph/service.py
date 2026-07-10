@@ -103,6 +103,11 @@ class RunOrchestrator:
         checkpointer: BaseCheckpointSaver | None = None,
         rate_limiter: AIRateLimiter | None = None,
     ) -> None:
+        # Production wiring (Postgres-backed, per settings.use_postgres_checkpointer)
+        # lives in api/deps.py:get_orchestrator, the only call site that constructs
+        # this class for the running API. The in-memory fallback below is
+        # intentional for tests and scripts (e.g. ragas_benchmark.py) that build
+        # subgraphs/orchestrators directly without going through deps.py.
         self._checkpointer = checkpointer or create_memory_checkpointer()
         self._graph: CompiledStateGraph = build_graph(checkpointer=self._checkpointer)
         self._rate_limiter = rate_limiter or AIRateLimiter()

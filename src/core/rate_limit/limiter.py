@@ -115,6 +115,7 @@ class AIRateLimiter:
         input_tokens: int,
         output_tokens: int,
         model_name: str,
+        cached_tokens: int = 0,
     ) -> DailyUsage:
         if not self.enabled:
             return DailyUsage()
@@ -123,6 +124,7 @@ class AIRateLimiter:
             model_name,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            cached_tokens=cached_tokens,
         )
         usage = self._store.record_tokens(
             resolved_user,
@@ -165,6 +167,7 @@ class AIRateLimiter:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             model_name=model_name,
+            cached_tokens=extract_cached_tokens(response),
         )
 
     def check_active_user_tokens(self, *, estimated_tokens: int = 0) -> None:
