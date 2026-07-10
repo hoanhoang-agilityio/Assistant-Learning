@@ -45,7 +45,7 @@ class ContinueRunRequest(BaseModel):
 class RunStatusResponse(BaseModel):
     run_id: str
     thread_id: str
-    status: Literal["running", "waiting_hitl", "completed", "failed", "not_found"]
+    status: Literal["running", "waiting_hitl", "completed", "failed", "refused", "not_found"]
     current_node: str
     query: str
     waiting_for_user: bool
@@ -58,6 +58,7 @@ class RunStatusResponse(BaseModel):
     final_plan: str | None
     hitl_type: str | None
     hitl_message: str | None
+    refusal_message: str | None
     steps: list[str]
     pending_tool: str | None
     next_nodes: list[str]

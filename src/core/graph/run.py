@@ -40,6 +40,7 @@ def create_initial_state(
         revision_feedback=None,
         workspace_path=str(workspace_path),
         final_artifact_path=None,
+        refusal_message=None,
         steps=[],
         approved_tools=[],
         pending_tool=None,

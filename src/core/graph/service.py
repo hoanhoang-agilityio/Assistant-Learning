@@ -38,7 +38,9 @@ from core.vfs import VFS
 
 logger = logging.getLogger(__name__)
 
-RunLifecycleStatus = Literal["running", "waiting_hitl", "completed", "failed", "not_found"]
+RunLifecycleStatus = Literal[
+    "running", "waiting_hitl", "completed", "failed", "refused", "not_found"
+]
 
 
 def _cleared_user_profile(user_profile: dict[str, Any]) -> dict[str, Any]:
@@ -89,6 +91,7 @@ class RunStatus:
     final_plan: str | None
     hitl_type: str | None
     hitl_message: str | None
+    refusal_message: str | None
     steps: tuple[str, ...]
     pending_tool: str | None
     next_nodes: tuple[str, ...]
@@ -500,6 +503,7 @@ class RunOrchestrator:
             final_plan=None,
             hitl_type=None,
             hitl_message=None,
+            refusal_message=None,
             steps=(),
             pending_tool=None,
             next_nodes=("supervisor",),
@@ -523,6 +527,7 @@ class RunOrchestrator:
             final_plan=None,
             hitl_type=None,
             hitl_message=failure.get("error"),
+            refusal_message=None,
             steps=(),
             pending_tool=None,
             next_nodes=(),
@@ -552,6 +557,7 @@ class RunOrchestrator:
                 revision_feedback=None,
                 workspace_path="",
                 final_artifact_path=None,
+                refusal_message=None,
                 steps=[],
                 approved_tools=[],
                 pending_tool=None,
@@ -583,6 +589,7 @@ class RunOrchestrator:
             final_plan=final_plan,
             hitl_type=hitl_type,
             hitl_message=hitl_message,
+            refusal_message=state.get("refusal_message"),
             steps=tuple(state.get("steps") or ()),
             pending_tool=state.get("pending_tool"),
             next_nodes=next_nodes,
@@ -610,6 +617,8 @@ def _resolve_lifecycle_status(
     state: dict[str, Any],
     next_nodes: tuple[str, ...],
 ) -> RunLifecycleStatus:
+    if state.get("route_decision") == "REFUSED":
+        return "refused"
     if state.get("approval_status") == "rejected" and not next_nodes:
         return "completed"
     if state.get("approval_status") == "approved" and state.get("final_artifact_path"):
