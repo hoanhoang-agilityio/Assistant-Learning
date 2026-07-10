@@ -3,7 +3,7 @@ from langchain_core.tools import BaseTool, tool
 from core.subgraphs.verification.utils import (
     citation_check_data,
     consistency_check_data,
-    ragas_faithfulness_data,
+    heuristic_faithfulness_data,
     safety_check_data,
 )
 
@@ -36,8 +36,9 @@ def safety_check(
 
 @tool
 def ragas_faithfulness(draft_plan: str, evidence: list[dict]) -> dict:
-    """Run RAGAS faithfulness evaluation against retrieved evidence."""
-    return ragas_faithfulness_data(draft_plan, evidence)
+    """Score faithfulness against retrieved evidence (heuristic proxy; see
+    core.evaluation.ragas for the real Ragas SDK scorer, not yet wired here)."""
+    return heuristic_faithfulness_data(draft_plan, evidence)
 
 
 VERIFICATION_TOOLS: list[BaseTool] = [

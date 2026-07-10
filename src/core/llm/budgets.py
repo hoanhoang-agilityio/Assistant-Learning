@@ -74,6 +74,18 @@ LLM_NODE_BUDGETS: dict[str, LlmNodeBudget] = {
         max_output_tokens=900,
         exception_note="Safety retry counts separately.",
     ),
+    "ragas_judge": LlmNodeBudget(
+        node="ragas_judge",
+        max_input_tokens=3500,
+        max_output_tokens=800,
+        exception_note=(
+            "Benchmark-only (core.evaluation.ragas). Two sequential Ragas SDK "
+            "calls (statement generation, then NLI verdict) -- cumulative budget, "
+            "not enforced via check_payload_budget since Ragas builds its own "
+            "prompts internally. Estimate, not measured; see L1 step 5 in "
+            "known_limitations_remediation_plan.md."
+        ),
+    ),
 }
 
 

@@ -51,27 +51,39 @@ uv run pytest -q tests/integration/test_todos_gate.py -v
 uv run pytest -q tests/integration/test_tavily_research_path.py -v
 ```
 
-## Optional: “real Ragas” metric smoke test
+## Real Ragas SDK scoring
 
-The benchmark script in this repo currently uses the same faithfulness scoring function as production verification. If you want to directly smoke-test the Ragas SDK, you can run a minimal `faithfulness` evaluation.
+Production's `_ragas_faithfulness_node` always uses the heuristic proxy (`verification/utils.py:heuristic_faithfulness_data`) — zero cost, zero latency, deterministic. The real Ragas SDK scorer lives in `src/core/evaluation/ragas.py` (`ragas_faithfulness_data`) and is wired only into the benchmark script's `evaluate_draft_faithfulness`/`run_golden_case`, gated behind `settings.verification_use_real_ragas` (off by default). See `docs/reports/known_limitations_remediation_plan.md`, L1, for the full design.
 
-Prereqs:
+Prereqs to run it:
 
 - Configure your model provider env (e.g. `OPENAI_API_KEY` if using OpenAI).
-- Ensure `import ragas` works in your environment.
+- Set `VERIFICATION_USE_REAL_RAGAS=true` in your environment/`.env`.
+
+```bash
+VERIFICATION_USE_REAL_RAGAS=true uv run python scripts/ragas_benchmark.py --limit 1
+```
+
+The JSON/CSV report gains `real_faithfulness_score`/`real_pass_fail` columns alongside the heuristic's `faithfulness_score`/`pass_fail` — the real score is comparison data only; it does not change the benchmark's pass/fail verdict or exit code in this scope.
+
+### Smoke-testing the SDK directly
+
+If you just want to confirm `ragas.evaluate()` works in your environment without going through the benchmark script, note that Ragas 0.4.x's `faithfulness` metric expects `user_input`/`response`/`retrieved_contexts` columns (not the older `question`/`answer`/`contexts` naming):
 
 ```bash
 uv run python - <<'PY'
-from datasets import Dataset
 from ragas import evaluate
+from ragas.dataset_schema import EvaluationDataset
 from ragas.metrics import faithfulness
 
-dataset = Dataset.from_dict(
-    {
-        "question": ["What is 2+2?"],
-        "answer": ["2+2 equals 4."],
-        "contexts": [["A basic arithmetic fact: 2 + 2 = 4."]],
-    }
+dataset = EvaluationDataset.from_list(
+    [
+        {
+            "user_input": "What is 2+2?",
+            "response": "2+2 equals 4.",
+            "retrieved_contexts": ["A basic arithmetic fact: 2 + 2 = 4."],
+        }
+    ]
 )
 
 result = evaluate(dataset, metrics=[faithfulness])

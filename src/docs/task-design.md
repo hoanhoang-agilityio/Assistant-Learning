@@ -235,7 +235,7 @@ def invoke_persist_node(state: OrchestrationState) -> dict:
 | **LLM (XHIGH)** | Transient error → Anthropic fallback; non-transient → raise | `invoke_xhigh_structured_output()` in `src/core/llm/factory.py` |
 | **LLM (STANDARD)** | Provider invoke; rate limiter records usage | `invoke_standard_structured_output()` |
 | **Tavily MCP** | JSON parse fallback; `RuntimeError` on MCP connection failure | `src/core/mcp/tavily_client.py` — no exponential backoff |
-| **RAGAS** | Deterministic heuristic; **no retry** | `ragas_faithfulness_data()` — single pass |
+| **RAGAS** | Deterministic heuristic; **no retry** | `heuristic_faithfulness_data()` — single pass |
 | **HITL** | Guard checks before persist; blocked persist returns state update, not exception | `persist_trigger_data()` |
 | **VFS** | Path-safe reads; missing file → empty default in node logic | Per subgraph `load_context` nodes |
 
