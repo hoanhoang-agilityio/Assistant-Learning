@@ -1,6 +1,6 @@
 from typing import Literal, TypedDict
 
-RouteDecision = Literal["FIX_REASONING", "REPLAN", "RERESEARCH", "HITL", "COMPLETE"]
+RouteDecision = Literal["FIX_REASONING", "REPLAN", "RERESEARCH", "HITL", "COMPLETE", "REFUSED"]
 RequestType = Literal[
     "training_plan",
     "macro_calculation",
@@ -43,6 +43,7 @@ class OrchestrationState(TypedDict):
 
     workspace_path: str
     final_artifact_path: str | None
+    refusal_message: str | None
 
     steps: list[str]
     approved_tools: list[str]

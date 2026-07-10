@@ -85,6 +85,7 @@ STATUS_COPY: dict[str, tuple[str, str]] = {
     "waiting_hitl": ("🙋", "Waiting for your response…"),
     "completed": ("✅", "Done!"),
     "failed": ("⚠️", "Something went wrong."),
+    "refused": ("🚫", "That's outside what I can help with."),
 }
 
 HITL_TYPE_COPY: dict[str, str] = {

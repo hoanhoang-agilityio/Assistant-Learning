@@ -81,6 +81,9 @@ def route_from_supervisor(state: OrchestrationState) -> str:
 
     decision = state["route_decision"]
     approval_status = state["approval_status"]
+    if decision == "REFUSED":
+        return END
+
     if decision == "HITL":
         if approval_status == "approved":
             return "persist"

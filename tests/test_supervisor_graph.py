@@ -1,9 +1,17 @@
 from pathlib import Path
 
 import pytest
+from langgraph.graph import END
 
 from core.agents.state import OrchestrationState
-from core.agents.tools import REQUEST_TYPE_DOMAIN_OVERRIDES, classify_request, read_global_state
+from core.agents.supervisor import supervisor_node
+from core.agents.tools import (
+    REQUEST_TYPE_DOMAIN_OVERRIDES,
+    check_topic_scope,
+    classify_request,
+    read_global_state,
+)
+from core.agents.topic_scope_judge import TopicScopeJudgement, configure_topic_scope_judge
 from core.config.settings import get_settings
 from core.graph.builder import build_graph
 from core.graph.routing import resolve_next_subgraph, route_from_supervisor
@@ -22,6 +30,103 @@ def initial_state(tmp_path: Path) -> OrchestrationState:
         query="I want a 4-day training plan",
         workspace_root=tmp_path / "workspace",
     )
+
+
+def test_check_topic_scope_allows_fitness_query() -> None:
+    result = check_topic_scope.invoke({"query": "Create a 4-day training plan"})
+    assert result["is_off_topic"] is False
+    assert result["refusal_message"] is None
+
+
+def test_check_topic_scope_flags_off_topic_query() -> None:
+    result = check_topic_scope.invoke({"query": "What's the capital of France?"})
+    assert result["is_off_topic"] is True
+    assert result["refusal_message"]
+
+
+def test_topic_scope_llm_fallback_flag_defaults_off() -> None:
+    assert get_settings().topic_scope_llm_fallback_enabled is False
+
+
+def test_check_topic_scope_ignores_judge_when_flag_off(monkeypatch) -> None:
+    def _fail_if_called(_query: str) -> TopicScopeJudgement:
+        raise AssertionError("judge should not be called when the flag is off")
+
+    configure_topic_scope_judge(_fail_if_called)
+    result = check_topic_scope.invoke({"query": "What's the capital of France?"})
+    assert result["is_off_topic"] is True
+
+
+def test_check_topic_scope_llm_fallback_rescues_off_topic_query(monkeypatch) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "topic_scope_llm_fallback_enabled", True)
+    configure_topic_scope_judge(
+        lambda _query: TopicScopeJudgement(
+            is_fitness_related=True, reason="Asking about post-workout recovery."
+        )
+    )
+    result = check_topic_scope.invoke({"query": "Why am I always sore afterwards?"})
+    assert result["is_off_topic"] is False
+    assert result["refusal_message"] is None
+
+
+def test_check_topic_scope_llm_fallback_confirms_off_topic_query(monkeypatch) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "topic_scope_llm_fallback_enabled", True)
+    configure_topic_scope_judge(
+        lambda _query: TopicScopeJudgement(is_fitness_related=False, reason="Trivia question.")
+    )
+    result = check_topic_scope.invoke({"query": "What's the capital of France?"})
+    assert result["is_off_topic"] is True
+    assert result["refusal_message"]
+
+
+def test_check_topic_scope_llm_fallback_fails_safe_to_keyword_verdict(monkeypatch) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "topic_scope_llm_fallback_enabled", True)
+
+    def _raise(_query: str) -> TopicScopeJudgement:
+        raise RuntimeError("LLM outage")
+
+    configure_topic_scope_judge(_raise)
+    result = check_topic_scope.invoke({"query": "What's the capital of France?"})
+    assert result["is_off_topic"] is True
+    assert result["refusal_message"]
+
+
+def test_supervisor_node_refuses_off_topic_query(initial_state: OrchestrationState) -> None:
+    state = {**initial_state, "query": "Write me a poem about the ocean"}
+    updates = supervisor_node(state)
+    assert updates["route_decision"] == "REFUSED"
+    assert updates["refusal_message"]
+    assert "request_type" not in updates
+
+
+def test_supervisor_node_does_not_refuse_fitness_query(
+    initial_state: OrchestrationState,
+) -> None:
+    updates = supervisor_node(initial_state)
+    assert updates.get("route_decision") != "REFUSED"
+    assert updates["request_type"] == "training_plan"
+
+
+def test_route_from_supervisor_ends_on_refused(initial_state: OrchestrationState) -> None:
+    state = {
+        **initial_state,
+        "route_decision": "REFUSED",
+        "refusal_message": "off-topic",
+    }
+    assert route_from_supervisor(state) == END
+
+
+def test_first_invoke_refuses_off_topic_query(initial_state: OrchestrationState) -> None:
+    state = {**initial_state, "query": "What's the weather like tomorrow?"}
+    graph = build_graph()
+    config = {"configurable": {"thread_id": state["thread_id"]}}
+    result = graph.invoke(state, config)
+    assert result["route_decision"] == "REFUSED"
+    assert result["refusal_message"]
+    assert result["request_type"] is None
 
 
 def test_classify_request_detects_training_plan() -> None:

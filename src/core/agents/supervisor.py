@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from core.agents.state import OrchestrationState
 from core.agents.supervisor_log import append_supervisor_decision, load_verification_report
-from core.agents.tools import classify_request, partial_rerun_decision
+from core.agents.tools import check_topic_scope, classify_request, partial_rerun_decision
 
 
 def supervisor_node(state: OrchestrationState) -> dict:
@@ -10,6 +10,13 @@ def supervisor_node(state: OrchestrationState) -> dict:
     updates: dict = {}
 
     if state["request_type"] is None:
+        scope = check_topic_scope.invoke({"query": state["query"]})
+        if scope["is_off_topic"]:
+            return {
+                "route_decision": "REFUSED",
+                "refusal_message": scope["refusal_message"],
+            }
+
         classification = classify_request.invoke(
             {
                 "query": state["query"],

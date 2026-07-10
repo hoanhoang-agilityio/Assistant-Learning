@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 
 from core.agents.state import OrchestrationState
+from core.agents.topic_scope_judge import configure_topic_scope_judge
 from core.config.settings import get_settings
 from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.run import create_initial_state
@@ -52,6 +53,13 @@ def reset_profile_extractor() -> None:
     configure_profile_extractor(None)
     yield
     configure_profile_extractor(None)
+
+
+@pytest.fixture(autouse=True)
+def reset_topic_scope_judge() -> None:
+    configure_topic_scope_judge(None)
+    yield
+    configure_topic_scope_judge(None)
 
 
 @pytest.fixture(autouse=True)

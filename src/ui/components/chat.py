@@ -100,6 +100,9 @@ def _format_assistant_status_message(status: dict[str, Any]) -> str:
         icon, _ = STATUS_COPY["failed"]
         error = status.get("error_message") or "The run hit a snag. Please try again."
         return f"{icon} {error}"
+    if run_status == "refused":
+        icon, fallback = STATUS_COPY["refused"]
+        return f"{icon} {status.get('refusal_message') or fallback}"
     if run_status == "waiting_hitl":
         hitl_type = status.get("hitl_type") or "approval"
         if hitl_type == "clarification":
@@ -187,7 +190,7 @@ def _rebuild_messages_from_run(status: dict[str, Any]) -> list[dict[str, str]]:
         messages.append({"role": "user", "content": query})
 
     run_status = status.get("status")
-    if run_status in {"failed", "waiting_hitl", "completed", "running"}:
+    if run_status in {"failed", "waiting_hitl", "completed", "running", "refused"}:
         content = _format_assistant_status_message(status)
         if content:
             messages.append({"role": "assistant", "content": content})

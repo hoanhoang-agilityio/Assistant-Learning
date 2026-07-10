@@ -23,6 +23,7 @@ def _status_label(status: str) -> str:
         "waiting_hitl": "🙋 needs you",
         "completed": "✅ done",
         "failed": "⚠️ failed",
+        "refused": "🚫 off-topic",
     }
     return labels.get(status, status)
 
