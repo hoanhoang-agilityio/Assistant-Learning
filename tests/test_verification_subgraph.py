@@ -119,8 +119,6 @@ def verification_state(
         evidence=[],
         macro_targets={},
         training_plan={},
-        profile=complete_profile,
-        constraints={"days_per_week": 3},
         safety_flags=[],
         verification_report={},
         feedback=None,
@@ -210,14 +208,15 @@ def test_verification_subgraph_writes_vfs_artifacts(verification_state: Verifica
 
 def test_verification_agent_returns_structured_report(
     verification_state: VerificationState,
+    complete_profile: dict[str, Any],
 ) -> None:
     orchestration_state: OrchestrationState = {
         "run_id": "verify-run",
         "thread_id": "verify-thread",
         "current_node": "fitness",
         "query": "lose weight",
-        "user_profile": verification_state["profile"],
-        "constraints": verification_state["constraints"],
+        "user_profile": complete_profile,
+        "constraints": {"days_per_week": 3},
         "request_type": "fat_loss",
         "affected_domains": ["planning", "research", "fitness", "verify"],
         "route_decision": None,

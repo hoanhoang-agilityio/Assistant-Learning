@@ -6,6 +6,7 @@ from contextvars import ContextVar, Token
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
+from langgraph.errors import GraphInterrupt
 
 from core.agents.state import OrchestrationState, RouteDecision
 
@@ -73,7 +74,18 @@ def _run_traced_node(
             subgraph=node_key,
             is_partial_rerun=is_partial_rerun,
         ) as span:
-            result = invoke_fn(state, *invoke_args)
+            try:
+                result = invoke_fn(state, *invoke_args)
+            except GraphInterrupt:
+                # A node (currently only "user") can pause mid-execution via LangGraph's
+                # dynamic interrupt(), which raises rather than returning. Left uncaught,
+                # this would unwind through the span's own exception handling and get
+                # logged as an error -- misleading, since a pause is expected, benign
+                # control flow, not a failure. Record it as paused and let it keep
+                # propagating so the graph actually pauses.
+                if span is not None:
+                    span.update(output={"paused": True, "reason": "interrupt"})
+                raise
             if span is not None:
                 span.update(output=result)
             return result

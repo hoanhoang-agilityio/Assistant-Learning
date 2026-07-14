@@ -690,11 +690,17 @@ def _resolve_hitl_context(
     interrupts: tuple[Any, ...] = (),
 ) -> tuple[str | None, str | None]:
     if next_nodes == ("user",):
+        # Same ambiguity as _resolve_lifecycle_status: next_nodes == ("user",) alone
+        # doesn't mean paused -- it can also be a transient "about to run" read, since
+        # "user" is a regular node, not a static interrupt_before gate. Only report
+        # "profile_form" when there's an actual recorded interrupt.
         payload = _extract_profile_form_payload(interrupts)
-        missing_fields = (payload or {}).get("missing_fields") or []
-        if missing_fields:
-            return "profile_form", format_missing_profile_prompt(missing_fields)
-        return "profile_form", "Please review and submit your profile."
+        if payload is not None:
+            missing_fields = payload.get("missing_fields") or []
+            if missing_fields:
+                return "profile_form", format_missing_profile_prompt(missing_fields)
+            return "profile_form", "Please review and submit your profile."
+        return None, None
 
     if state.get("approval_status") in {"rejected", "approved"}:
         return None, None

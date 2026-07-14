@@ -48,8 +48,6 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
     evidence: list[dict[str, Any]] = []
     macro_targets: dict[str, Any] = {}
     training_plan: dict[str, Any] = {}
-    profile: dict[str, Any] = {}
-    constraints: dict[str, Any] = {}
     safety_flags: list[str] = []
 
     if vfs.exists("fitness/final_plan.md"):
@@ -69,8 +67,6 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
             training_plan = calculations.get("workout_summary") or calculations.get(
                 "training_plan_summary", {}
             )
-    if vfs.exists("plan/profile.json"):
-        profile = json.loads(vfs.read("plan/profile.json"))
     if vfs.exists("fitness/safety_flags.json"):
         safety_flags = json.loads(vfs.read("fitness/safety_flags.json"))
     blueprint: dict[str, Any] = {}
@@ -83,8 +79,6 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
         "evidence": evidence,
         "macro_targets": macro_targets,
         "training_plan": training_plan,
-        "profile": profile,
-        "constraints": constraints,
         "safety_flags": safety_flags,
         "plan_blueprint": blueprint,
     }
