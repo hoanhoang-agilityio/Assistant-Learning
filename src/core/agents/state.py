@@ -25,6 +25,8 @@ class OrchestrationState(TypedDict):
     query: str
     user_profile: dict
     constraints: dict
+    profile_complete: bool
+    profile_valid: bool
 
     request_type: RequestType | None
     affected_domains: list[AffectedDomain]

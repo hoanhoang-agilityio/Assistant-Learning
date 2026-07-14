@@ -27,6 +27,8 @@ def create_initial_state(
         query=query,
         user_profile=user_profile or {},
         constraints=constraints or {},
+        profile_complete=False,
+        profile_valid=False,
         request_type=None,
         affected_domains=[],
         route_decision=None,
