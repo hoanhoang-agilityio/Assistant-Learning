@@ -10,8 +10,6 @@ class VerificationState(TypedDict):
     evidence: list[dict]
     macro_targets: dict
     training_plan: dict
-    profile: dict
-    constraints: dict
     safety_flags: list[str]
     plan_blueprint: dict
     verification_report: dict

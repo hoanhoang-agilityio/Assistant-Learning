@@ -27,8 +27,6 @@ def _load_context_node(state: VerificationState) -> dict:
         "evidence": context["evidence"],
         "macro_targets": context["macro_targets"],
         "training_plan": context["training_plan"],
-        "profile": context["profile"],
-        "constraints": context["constraints"],
         "safety_flags": context["safety_flags"],
         "plan_blueprint": context["plan_blueprint"],
     }
@@ -135,8 +133,6 @@ def to_verification_state(state: OrchestrationState) -> VerificationState:
         evidence=[],
         macro_targets={},
         training_plan={},
-        profile=state["user_profile"],
-        constraints=state["constraints"],
         safety_flags=[],
         plan_blueprint={},
         verification_report={},
