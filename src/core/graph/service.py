@@ -29,11 +29,7 @@ from core.rate_limit import (
     reset_rate_limit_user_id,
     set_rate_limit_user_id,
 )
-from core.subgraphs.planning.utils import (
-    persist_revision_feedback,
-    profile_to_orchestration_updates,
-)
-from core.subgraphs.user.utils import extract_profile
+from core.subgraphs.planning.utils import persist_revision_feedback
 from core.vfs import VFS
 
 logger = logging.getLogger(__name__)
@@ -41,31 +37,6 @@ logger = logging.getLogger(__name__)
 RunLifecycleStatus = Literal[
     "running", "waiting_hitl", "completed", "failed", "refused", "not_found"
 ]
-
-
-def _cleared_user_profile(user_profile: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in user_profile.items() if key != "missing_fields"}
-
-
-def _build_replan_profile_updates(
-    *,
-    query: str,
-    user_profile: dict[str, Any],
-    constraints: dict[str, Any],
-    revision_feedback: str,
-) -> dict[str, Any]:
-    """Merge revision feedback into orchestration profile/constraints for a replan."""
-    profile = extract_profile(
-        query=query,
-        user_profile=_cleared_user_profile(user_profile),
-        constraints=constraints,
-        revision_feedback=revision_feedback,
-    )
-    sync = profile_to_orchestration_updates(profile)
-    return {
-        "user_profile": sync["user_profile"],
-        "constraints": {**constraints, **sync["constraints"]},
-    }
 
 
 class RunNotFoundError(LookupError):
@@ -143,11 +114,16 @@ class RunOrchestrator:
             user_id=user_id,
         )
         config = build_graph_invoke_config(state)
-        result = self._graph.invoke(state, config)
+        self._graph.invoke(state, config)
         flush_langfuse()
         snapshot = self._graph.get_state(config)
         self._maybe_write_token_cost_log(snapshot.values, snapshot.next)
-        return self._to_status(resolved_run_id, result, snapshot.next)
+        return self._to_status(
+            resolved_run_id,
+            snapshot.values,
+            snapshot.next,
+            interrupts=_collect_interrupts(snapshot),
+        )
 
     def start_run(
         self,
@@ -192,7 +168,9 @@ class RunOrchestrator:
         config = self._build_config(run_id)
         snapshot = self._graph.get_state(config)
         if snapshot.values:
-            return self._to_status(run_id, snapshot.values, snapshot.next)
+            return self._to_status(
+                run_id, snapshot.values, snapshot.next, interrupts=_collect_interrupts(snapshot)
+            )
         if pending is not None:
             return self._pending_status(run_id, pending)
         raise RunNotFoundError(f"Run not found: {run_id}")
@@ -207,11 +185,18 @@ class RunOrchestrator:
         message: str | None = None,
         pending_tool: str | None = None,
         approved_tools: list[str] | None = None,
+        form_data: dict[str, Any] | None = None,
     ) -> RunStatus:
         config = self._build_config(run_id)
         snapshot = self._graph.get_state(config)
         if not snapshot.values:
             raise RunNotFoundError(f"Run not found: {run_id}")
+
+        if snapshot.next == ("user",):
+            if form_data is None:
+                raise ValueError("form_data is required to resume the profile form")
+            return self.start_profile_form_resume(run_id, form_data=form_data)
+
         if snapshot.next != ("hitl",) and not snapshot.values.get("waiting_for_user"):
             raise ValueError("Run is not waiting for HITL input")
 
@@ -242,56 +227,77 @@ class RunOrchestrator:
                 update["approved_tools"] = merged_tools
                 update["pending_tool"] = None
 
-        missing_fields = snapshot.values.get("user_profile", {}).get("missing_fields", [])
         resolved_status = update.get("approval_status")
-        if (
-            missing_fields
-            and resolved_status == "revision_requested"
-            and update.get("user_response")
-        ):
-            cleared_profile = {
-                key: value
-                for key, value in snapshot.values.get("user_profile", {}).items()
-                if key != "missing_fields"
-            }
-            clarification = extract_profile(
-                query=update["user_response"],
-                user_profile=cleared_profile,
-                constraints=snapshot.values.get("constraints") or {},
-            )
-            sync = profile_to_orchestration_updates(clarification)
-            update["user_profile"] = sync["user_profile"]
-            update["constraints"] = {
-                **(snapshot.values.get("constraints") or {}),
-                **sync["constraints"],
-            }
-            update.pop("route_decision", None)
-            update.pop("replan_count", None)
-            update.pop("revision_feedback", None)
-            update["approval_status"] = "pending"
-            update["verification_passed"] = snapshot.values.get("verification_passed", False)
-        elif resolved_status == "revision_requested" and not missing_fields:
+        if resolved_status == "revision_requested":
+            # Profile-relevant revisions are no longer reconstructed here -- the routing
+            # guard (route_from_supervisor) sends REPLAN runs back into the User subgraph
+            # when profile_complete/profile_valid is False, and the User subgraph's own
+            # extract/validate loop decides whether that revision text actually touched the
+            # profile (looping into its form) or can pass straight through.
             feedback = update.get("user_response") or message or ""
             update.update(user_revision_to_replan_update(feedback))
-            update.update(
-                _build_replan_profile_updates(
-                    query=str(snapshot.values.get("query", "")),
-                    user_profile=snapshot.values.get("user_profile") or {},
-                    constraints=snapshot.values.get("constraints") or {},
-                    revision_feedback=feedback,
-                )
-            )
+            update["profile_complete"] = False
+            update["profile_valid"] = False
             workspace_path = snapshot.values.get("workspace_path")
             if workspace_path and update.get("revision_feedback"):
                 persist_revision_feedback(str(workspace_path), str(update["revision_feedback"]))
-        elif update.get("route_decision") == "REPLAN" and update.get("revision_feedback"):
-            workspace_path = snapshot.values.get("workspace_path")
-            if workspace_path:
-                persist_revision_feedback(
-                    str(workspace_path),
-                    str(update["revision_feedback"]),
-                )
         return self.start_resume_run(run_id, update=update)
+
+    def start_profile_form_resume(self, run_id: str, *, form_data: dict[str, Any]) -> RunStatus:
+        """Resume a run paused at the profile form (dynamic `interrupt()`) with submitted data.
+
+        Distinct from `start_resume_run` because the User subgraph pauses via `interrupt()`
+        rather than the top-level `interrupt_before=["hitl"]` boundary, so resuming it means
+        `Command(resume=form_data)`, not `Command(update=...)`.
+        """
+        config = self._build_config(run_id)
+        snapshot = self._graph.get_state(config)
+        if not snapshot.values:
+            raise RunNotFoundError(f"Run not found: {run_id}")
+        if snapshot.next != ("user",):
+            raise ValueError("Run is not waiting for the profile form")
+
+        with self._lock:
+            self._run_failures.pop(run_id, None)
+            self._pending_runs[run_id] = snapshot.values
+
+        thread = threading.Thread(
+            target=self._execute_profile_form_resume,
+            args=(run_id, form_data, config),
+            daemon=True,
+            name=f"profile-form-resume-{run_id}",
+        )
+        thread.start()
+        return self._to_status(run_id, snapshot.values, ("user",))
+
+    def _execute_profile_form_resume(
+        self,
+        run_id: str,
+        form_data: dict[str, Any],
+        config: dict[str, Any],
+    ) -> None:
+        snapshot = self._graph.get_state(config)
+        user_id = str(snapshot.values.get("user_id", ""))
+        context_token = set_rate_limit_user_id(user_id or None)
+        try:
+            self._graph.invoke(Command(resume=form_data), config)
+            flush_langfuse()
+        except Exception as exc:
+            logger.exception("Profile form resume for run %s failed", run_id)
+            with self._lock:
+                snapshot = self._graph.get_state(config)
+                self._run_failures[run_id] = {
+                    "error": str(exc),
+                    "query": str(snapshot.values.get("query", "")),
+                }
+        finally:
+            snapshot = self._graph.get_state(config)
+            with self._lock:
+                failed = run_id in self._run_failures
+            self._maybe_write_token_cost_log(snapshot.values, snapshot.next, failed=failed)
+            reset_rate_limit_user_id(context_token)
+            with self._lock:
+                self._pending_runs.pop(run_id, None)
 
     def continue_run(self, run_id: str, *, message: str) -> RunStatus:
         """Replan from an existing conversation when the user changes plan preferences."""
@@ -308,22 +314,13 @@ class RunOrchestrator:
         if lifecycle not in {"completed", "waiting_hitl"}:
             raise ValueError("Run cannot accept plan changes in its current state")
 
-        missing_fields = snapshot.values.get("user_profile", {}).get("missing_fields", [])
-        if missing_fields:
-            raise ValueError(
-                "Profile is incomplete; provide missing details before changing the plan"
-            )
-
         self._rate_limiter.reserve_request(str(snapshot.values.get("user_id", "")) or None)
         update = user_revision_to_replan_update(feedback)
-        update.update(
-            _build_replan_profile_updates(
-                query=str(snapshot.values.get("query", "")),
-                user_profile=snapshot.values.get("user_profile") or {},
-                constraints=snapshot.values.get("constraints") or {},
-                revision_feedback=feedback,
-            )
-        )
+        # The routing guard (route_from_supervisor) re-enters the User subgraph for this
+        # REPLAN since profile_complete/profile_valid is now False -- see resume_run's
+        # revision_requested branch for the same pattern.
+        update["profile_complete"] = False
+        update["profile_valid"] = False
         update["current_node"] = "hitl"
         update["final_artifact_path"] = None
         workspace_path = snapshot.values.get("workspace_path")
@@ -571,10 +568,12 @@ class RunOrchestrator:
         run_id: str,
         state: dict[str, Any],
         next_nodes: tuple[str, ...],
+        *,
+        interrupts: tuple[Any, ...] = (),
     ) -> RunStatus:
-        lifecycle = _resolve_lifecycle_status(state, next_nodes)
+        lifecycle = _resolve_lifecycle_status(state, next_nodes, interrupts)
         final_plan = _read_final_plan(state)
-        hitl_type, hitl_message = _resolve_hitl_context(state, next_nodes)
+        hitl_type, hitl_message = _resolve_hitl_context(state, next_nodes, interrupts)
         return RunStatus(
             run_id=run_id,
             thread_id=str(state.get("thread_id", run_id)),
@@ -618,6 +617,7 @@ def _resolve_display_node(
 def _resolve_lifecycle_status(
     state: dict[str, Any],
     next_nodes: tuple[str, ...],
+    interrupts: tuple[Any, ...] = (),
 ) -> RunLifecycleStatus:
     if state.get("route_decision") == "REFUSED":
         return "refused"
@@ -631,8 +631,14 @@ def _resolve_lifecycle_status(
         and state.get("current_node") == "persist"
     ):
         return "completed"
-    if next_nodes == ("hitl",) or (
-        state.get("waiting_for_user") and state.get("current_node") != "persist"
+    # `next_nodes == ("user",)` is ambiguous on its own: LangGraph reports it both when the
+    # User subgraph is genuinely paused mid-interrupt() *and*, transiently, the instant
+    # before "user" starts executing (it's a regular node, not a static interrupt_before
+    # gate like "hitl"). Only a populated `interrupts` list means it's durably paused.
+    if (
+        next_nodes == ("hitl",)
+        or (next_nodes == ("user",) and interrupts)
+        or (state.get("waiting_for_user") and state.get("current_node") != "persist")
     ):
         return "waiting_hitl"
     if state.get("current_node") == "persist" and not next_nodes:
@@ -642,6 +648,11 @@ def _resolve_lifecycle_status(
     if state.get("final_artifact_path"):
         return "completed"
     return "running"
+
+
+def _collect_interrupts(snapshot: Any) -> tuple[Any, ...]:
+    """Flatten every pending interrupt across a graph snapshot's tasks."""
+    return tuple(interrupt for task in snapshot.tasks for interrupt in (task.interrupts or ()))
 
 
 def _approval_from_response(user_response: str) -> ApprovalStatus:
@@ -665,10 +676,26 @@ def _read_final_plan(state: dict[str, Any]) -> str | None:
     return None
 
 
+def _extract_profile_form_payload(interrupts: tuple[Any, ...]) -> dict[str, Any] | None:
+    for item in interrupts:
+        value = getattr(item, "value", None)
+        if isinstance(value, dict) and value.get("type") == "profile_form":
+            return value
+    return None
+
+
 def _resolve_hitl_context(
     state: dict[str, Any],
     next_nodes: tuple[str, ...],
+    interrupts: tuple[Any, ...] = (),
 ) -> tuple[str | None, str | None]:
+    if next_nodes == ("user",):
+        payload = _extract_profile_form_payload(interrupts)
+        missing_fields = (payload or {}).get("missing_fields") or []
+        if missing_fields:
+            return "profile_form", format_missing_profile_prompt(missing_fields)
+        return "profile_form", "Please review and submit your profile."
+
     if state.get("approval_status") in {"rejected", "approved"}:
         return None, None
     if next_nodes != ("hitl",) and not state.get("waiting_for_user"):
@@ -677,10 +704,6 @@ def _resolve_hitl_context(
     workspace_path = state.get("workspace_path")
     if not workspace_path:
         return None, "Waiting for user input."
-
-    missing_fields = state.get("user_profile", {}).get("missing_fields", [])
-    if missing_fields:
-        return "clarification", format_missing_profile_prompt(missing_fields)
 
     draft_plan = _read_final_plan(state)
     if draft_plan:

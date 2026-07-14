@@ -5,6 +5,8 @@ from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar, Token
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
 from core.agents.state import OrchestrationState, RouteDecision
 
 _trace_run_id: ContextVar[str | None] = ContextVar("langfuse_trace_run_id", default=None)
@@ -51,32 +53,58 @@ def resolve_subgraph_span_name(node_key: str, route_decision: RouteDecision | No
     return SUBGRAPH_SPAN_NAMES.get(node_key, node_key)
 
 
-def wrap_traced_subgraph_node(
+def _run_traced_node(
     node_key: str,
-    invoke_fn: Callable[[OrchestrationState], dict],
-) -> Callable[[OrchestrationState], dict]:
-    """Wrap a graph node with run-scoped Langfuse subgraph spans."""
+    state: OrchestrationState,
+    invoke_fn: Callable[..., dict],
+    *invoke_args: Any,
+) -> dict:
     from core.observability.langfuse import subgraph_span_context
 
+    token = set_trace_run_id(state["run_id"])
+    span_name = resolve_subgraph_span_name(node_key, state.get("route_decision"))
+    tier = SUBGRAPH_TIERS.get(node_key)
+    is_partial_rerun = span_name.startswith("partial_rerun_")
+    try:
+        with subgraph_span_context(
+            state,
+            span_name,
+            tier=tier,
+            subgraph=node_key,
+            is_partial_rerun=is_partial_rerun,
+        ) as span:
+            result = invoke_fn(state, *invoke_args)
+            if span is not None:
+                span.update(output=result)
+            return result
+    finally:
+        reset_trace_run_id(token)
+
+
+def wrap_traced_subgraph_node(
+    node_key: str,
+    invoke_fn: Callable[..., dict],
+    *,
+    needs_config: bool = False,
+) -> Callable[..., dict]:
+    """Wrap a graph node with run-scoped Langfuse subgraph spans.
+
+    Set `needs_config=True` for a node whose `invoke_fn` takes `(state, config)` -- e.g. the
+    User subgraph, which needs the parent's config forwarded through for its `interrupt()`/
+    resume support (see `core.subgraphs.user.graph.invoke_user_subgraph`). LangGraph decides
+    whether to pass a config based on the wrapped node function's own signature, so the two
+    cases need genuinely different closures here, not just a runtime branch.
+    """
+    if needs_config:
+
+        def traced_node_with_config(state: OrchestrationState, config: RunnableConfig) -> dict:
+            return _run_traced_node(node_key, state, invoke_fn, config)
+
+        traced_node_with_config.__name__ = f"traced_{node_key}_node"
+        return traced_node_with_config
+
     def traced_node(state: OrchestrationState) -> dict:
-        token = set_trace_run_id(state["run_id"])
-        span_name = resolve_subgraph_span_name(node_key, state.get("route_decision"))
-        tier = SUBGRAPH_TIERS.get(node_key)
-        is_partial_rerun = span_name.startswith("partial_rerun_")
-        try:
-            with subgraph_span_context(
-                state,
-                span_name,
-                tier=tier,
-                subgraph=node_key,
-                is_partial_rerun=is_partial_rerun,
-            ) as span:
-                result = invoke_fn(state)
-                if span is not None:
-                    span.update(output=result)
-                return result
-        finally:
-            reset_trace_run_id(token)
+        return _run_traced_node(node_key, state, invoke_fn)
 
     traced_node.__name__ = f"traced_{node_key}_node"
     return traced_node

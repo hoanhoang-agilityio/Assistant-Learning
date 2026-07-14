@@ -38,6 +38,8 @@ def failed_verification_state(workspace_root: Path, complete_profile: dict) -> O
         "faithfulness_score": 0.95,
         "retry_count": 0,
         "replan_count": 0,
+        "profile_complete": True,
+        "profile_valid": True,
     }
 
 

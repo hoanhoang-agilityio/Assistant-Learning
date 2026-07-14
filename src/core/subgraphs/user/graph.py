@@ -160,9 +160,11 @@ def invoke_user_subgraph(state: OrchestrationState, config: RunnableConfig) -> d
         "constraints": profile_result["constraints"],
         "profile_complete": profile_result["complete"],
         "profile_valid": profile_result["valid"],
-        "revision_feedback": None,
         "waiting_for_user": False,
     }
+    # NOTE: revision_feedback is intentionally left untouched -- Planning also reads it
+    # (to inform the plan-regeneration prompt), so it must survive past this subgraph even
+    # though the profile-relevant parts of it have already been applied above.
     return merge_subgraph_updates(
         state,
         updates,

@@ -14,6 +14,21 @@ NODE_TO_DOMAIN = {node: domain for domain, node in DOMAIN_TO_NODE.items()}
 
 _PARTIAL_RERUN_ENTRY_NODES = frozenset({"supervisor", "verification"})
 
+# Nodes that assume a complete, valid user profile -- gated by the User subgraph.
+_PROFILE_GATED_NODES = frozenset({"planning", "research", "fitness"})
+
+# NOTE on the "guard at START" requirement: there is deliberately no separate conditional
+# edge on START routing straight into "user". Off-topic queries must be classified and
+# refused by `supervisor_node` (check_topic_scope/classify_request) before any profile
+# gating applies -- a query that's off-topic should never be forced through profile intake.
+# Since START always goes to "supervisor" first, and `route_from_supervisor`'s REFUSED
+# check runs before its profile-gate check, one guard (below) correctly covers both the
+# first pass through supervisor and every later one, without ever bypassing classification.
+
+
+def _profile_ready(state: OrchestrationState) -> bool:
+    return bool(state["profile_complete"] and state["profile_valid"])
+
 
 def resolve_next_subgraph(state: OrchestrationState) -> str:
     """Select the next subgraph in the default pipeline order."""
@@ -74,40 +89,47 @@ def _resolve_partial_rerun_route(state: OrchestrationState) -> str | None:
     return None
 
 
+def _route_terminal_decision(state: OrchestrationState) -> str:
+    """Shared HITL/COMPLETE routing: approved -> persist, rejected -> END, a revision
+    request -> planning (bounded by MAX_REPLAN_COUNT), otherwise -> hitl.
+
+    Collapses what used to be two structurally-identical branches (one per decision value)
+    in `route_from_supervisor`.
+    """
+    approval_status = state["approval_status"]
+    if approval_status == "approved":
+        return "persist"
+    if approval_status == "rejected":
+        return END
+    if approval_status == "revision_requested":
+        if state["replan_count"] > MAX_REPLAN_COUNT:
+            return END
+        return "planning"
+    return "hitl"
+
+
 def route_from_supervisor(state: OrchestrationState) -> str:
-    """Route from supervisor to the next graph node."""
+    """Route from supervisor to the next graph node.
+
+    Defensive guard: whatever target the decision logic below picks, if it's a
+    profile-gated node (planning/research/fitness) and the profile isn't complete & valid,
+    redirect into the User subgraph first -- covers both the first pass through supervisor
+    for a brand new run and a later mid-conversation revision that may have touched the
+    profile (see `core.graph.service` setting `profile_complete=False` on revision).
+    """
     if state["waiting_for_user"]:
         return "hitl"
 
     decision = state["route_decision"]
-    approval_status = state["approval_status"]
     if decision == "REFUSED":
         return END
 
-    if decision == "HITL":
-        if approval_status == "approved":
-            return "persist"
-        if approval_status == "rejected":
-            return END
-        if approval_status == "revision_requested" or state.get("route_decision") == "REPLAN":
-            if state["replan_count"] > MAX_REPLAN_COUNT:
-                return END
-            return "planning"
-        return "hitl"
+    if decision in ("HITL", "COMPLETE"):
+        target = _route_terminal_decision(state)
+    else:
+        partial_route = _resolve_partial_rerun_route(state)
+        target = partial_route if partial_route is not None else resolve_next_subgraph(state)
 
-    partial_route = _resolve_partial_rerun_route(state)
-    if partial_route is not None:
-        return partial_route
-
-    if decision == "COMPLETE":
-        if approval_status == "approved":
-            return "persist"
-        if approval_status == "rejected":
-            return END
-        if approval_status == "revision_requested" or state.get("route_decision") == "REPLAN":
-            if state["replan_count"] > MAX_REPLAN_COUNT:
-                return END
-            return "planning"
-        return "hitl"
-
-    return resolve_next_subgraph(state)
+    if target in _PROFILE_GATED_NODES and not _profile_ready(state):
+        return "user"
+    return target

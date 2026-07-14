@@ -71,6 +71,7 @@ def resume_run(
             decision_type=payload.decision_type,
             message=payload.message,
             pending_tool=payload.pending_tool,
+            form_data=payload.form_data,
         )
     except RunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

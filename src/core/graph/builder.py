@@ -13,6 +13,7 @@ from core.persist.node import invoke_persist_node
 from core.subgraphs.fitness.graph import invoke_fitness_subgraph
 from core.subgraphs.planning.graph import invoke_planning_subgraph
 from core.subgraphs.research.graph import invoke_research_subgraph
+from core.subgraphs.user.graph import invoke_user_subgraph
 from core.subgraphs.verification.graph import invoke_verification_subgraph
 from core.subgraphs.wrapper import append_pipeline_steps
 
@@ -35,6 +36,10 @@ fitness_node = wrap_traced_subgraph_node("fitness", invoke_fitness_subgraph)
 verification_node = wrap_traced_subgraph_node("verification", invoke_verification_subgraph)
 hitl_node = wrap_traced_subgraph_node("hitl", invoke_hitl_node)
 persist_node = wrap_traced_subgraph_node("persist", invoke_persist_node)
+# The User subgraph pauses via interrupt() (see core.subgraphs.user.graph) and needs the
+# parent's checkpointer/config forwarded through to support that -- see wrap_traced_subgraph_node's
+# `needs_config` parameter and invoke_user_subgraph's docstring.
+user_node = wrap_traced_subgraph_node("user", invoke_user_subgraph, needs_config=True)
 
 
 def build_graph(
@@ -44,6 +49,7 @@ def build_graph(
     graph = StateGraph(OrchestrationState)
 
     graph.add_node("supervisor", traced_supervisor_node)
+    graph.add_node("user", user_node)
     graph.add_node("planning", planning_node)
     graph.add_node("research", research_node)
     graph.add_node("fitness", fitness_node)
@@ -56,6 +62,7 @@ def build_graph(
         "supervisor",
         route_from_supervisor,
         {
+            "user": "user",
             "planning": "planning",
             "research": "research",
             "fitness": "fitness",
@@ -65,6 +72,7 @@ def build_graph(
             END: END,
         },
     )
+    graph.add_edge("user", "supervisor")
     graph.add_edge("planning", "supervisor")
     graph.add_edge("research", "supervisor")
     graph.add_edge("fitness", "verification")

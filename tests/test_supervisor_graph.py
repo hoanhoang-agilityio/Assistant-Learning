@@ -24,12 +24,24 @@ from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 
 @pytest.fixture
 def initial_state(tmp_path: Path) -> OrchestrationState:
-    return create_initial_state(
+    state = create_initial_state(
         run_id="run-day2",
         thread_id="thread-day2",
         query="I want a 4-day training plan",
+        user_profile={
+            "age": 30,
+            "sex": "male",
+            "height_cm": 175,
+            "current_weight_kg": 80.0,
+            "activity_level": "gym_4x_week",
+            "goal": "general_fitness",
+        },
         workspace_root=tmp_path / "workspace",
     )
+    # Most tests in this file exercise supervisor/routing logic downstream of profile
+    # intake (now owned by the User subgraph, see tests/test_user_subgraph.py) -- simulate
+    # that it already ran and validated the profile above.
+    return {**state, "profile_complete": True, "profile_valid": True}
 
 
 def test_check_topic_scope_allows_fitness_query() -> None:
@@ -185,6 +197,55 @@ def test_resolve_next_subgraph_routes_to_planning(initial_state: OrchestrationSt
 def test_graph_compiles() -> None:
     graph = build_graph()
     assert graph is not None
+
+
+def test_route_from_supervisor_redirects_to_user_when_profile_incomplete(
+    initial_state: OrchestrationState,
+) -> None:
+    """The defensive guard: a target of planning/research/fitness with no ready profile
+    redirects into the User subgraph instead."""
+    classified = classify_request.invoke({"query": initial_state["query"]})
+    state = {
+        **initial_state,
+        **classified,
+        "profile_complete": False,
+        "profile_valid": False,
+    }
+    assert resolve_next_subgraph(state) == "planning"
+    assert route_from_supervisor(state) == "user"
+
+
+def test_route_from_supervisor_refuses_before_profile_gate(
+    initial_state: OrchestrationState,
+) -> None:
+    """REFUSED must short-circuit before the profile guard -- an off-topic query should
+    never be redirected into profile intake."""
+    state = {
+        **initial_state,
+        "route_decision": "REFUSED",
+        "refusal_message": "off-topic",
+        "profile_complete": False,
+        "profile_valid": False,
+    }
+    assert route_from_supervisor(state) == END
+
+
+def test_full_graph_pauses_at_user_node_for_incomplete_profile(tmp_path: Path) -> None:
+    """A brand new run with no profile at all pauses inside the User subgraph before ever
+    reaching planning -- exercised end-to-end through the compiled supervisor graph."""
+    state = create_initial_state(
+        run_id="run-no-profile",
+        thread_id="thread-no-profile",
+        query="I want a 4-day training plan",
+        workspace_root=tmp_path / "workspace",
+    )
+    configure_profile_extractor(lambda _query: ExtractedProfile())
+    graph = build_graph()
+    config = {"configurable": {"thread_id": state["thread_id"]}}
+    result = graph.invoke(state, config)
+    assert "__interrupt__" in result
+    snapshot = graph.get_state(config)
+    assert snapshot.next == ("user",)
 
 
 def test_first_invoke_routes_to_planning(initial_state: OrchestrationState) -> None:

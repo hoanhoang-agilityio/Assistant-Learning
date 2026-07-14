@@ -1,3 +1,5 @@
+import time
+
 from core.graph.run import create_initial_state
 from core.graph.service import RunOrchestrator
 from core.profile.extraction import configure_profile_extractor
@@ -70,3 +72,46 @@ def test_resume_clarification_merges_user_response_into_profile(
     assert values["user_profile"]["age"] == 28
     assert values["user_profile"]["target_weight_kg"] == 75.0
     assert not values["user_profile"].get("missing_fields")
+
+
+def test_resume_run_profile_form_via_command_resume(
+    memory_checkpointer,
+    tmp_path,
+) -> None:
+    """A run with an incomplete profile pauses inside the User subgraph (interrupt());
+    resume_run's new form_data path resumes it via Command(resume=...), not
+    Command(update=...), and the profile ends up complete/valid."""
+    configure_profile_extractor(lambda _query: ExtractedProfile())
+    orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
+    run_status = orchestrator.create_run(
+        query="I want a 4-day training plan to lose weight.",
+        user_profile={"age": 30, "height_cm": 175},
+        constraints={"days_per_week": 4, "equipment": "gym"},
+    )
+    assert run_status.status == "waiting_hitl"
+    assert run_status.hitl_type == "profile_form"
+
+    orchestrator.resume_run(
+        run_status.run_id,
+        form_data={
+            "sex": "male",
+            "current_weight_kg": 85.0,
+            "target_weight_kg": 75.0,
+            "goal": "fat_loss",
+        },
+    )
+
+    config = {"configurable": {"thread_id": run_status.run_id}}
+    snapshot = orchestrator.graph.get_state(config)
+    for _ in range(100):
+        if snapshot.next != ("user",):
+            break
+        time.sleep(0.02)
+        snapshot = orchestrator.graph.get_state(config)
+    else:
+        raise AssertionError("profile form resume did not complete in time")
+
+    assert snapshot.values["profile_complete"] is True
+    assert snapshot.values["profile_valid"] is True
+    assert snapshot.values["user_profile"]["sex"] == "male"
+    assert snapshot.values["user_profile"]["current_weight_kg"] == 85.0
