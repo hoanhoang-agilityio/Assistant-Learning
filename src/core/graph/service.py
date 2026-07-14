@@ -544,6 +544,8 @@ class RunOrchestrator:
                 query="",
                 user_profile={},
                 constraints={},
+                profile_complete=False,
+                profile_valid=False,
                 request_type=None,
                 affected_domains=[],
                 route_decision=None,
