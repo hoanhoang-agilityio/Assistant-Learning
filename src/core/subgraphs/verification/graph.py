@@ -5,15 +5,13 @@ from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
 from core.subgraphs.verification.state import VerificationState
-from core.subgraphs.verification.tools import (
-    citation_check,
-    consistency_check,
-    ragas_faithfulness,
-    safety_check,
-)
 from core.subgraphs.verification.utils import (
     build_verification_report,
+    citation_check_data,
+    consistency_check_data,
+    heuristic_faithfulness_data,
     load_verification_context,
+    safety_check_data,
     write_verification_artifacts,
 )
 from core.subgraphs.wrapper import merge_subgraph_updates
@@ -33,23 +31,16 @@ def _load_context_node(state: VerificationState) -> dict:
 
 
 def _citation_check_node(state: VerificationState) -> dict:
-    citation = citation_check.invoke(
-        {
-            "draft_plan": state["draft_plan"],
-            "sources": state["sources"],
-        }
-    )
+    citation = citation_check_data(state["draft_plan"], state["sources"])
     return {"verification_report": {"citation": citation}}
 
 
 def _consistency_check_node(state: VerificationState) -> dict:
-    consistency = consistency_check.invoke(
-        {
-            "draft_plan": state["draft_plan"],
-            "macro_targets": state["macro_targets"],
-            "training_plan": state["training_plan"],
-            "plan_blueprint": state["plan_blueprint"],
-        }
+    consistency = consistency_check_data(
+        state["draft_plan"],
+        state["macro_targets"],
+        state["training_plan"],
+        state["plan_blueprint"],
     )
     report = dict(state["verification_report"])
     report["consistency"] = consistency
@@ -57,24 +48,14 @@ def _consistency_check_node(state: VerificationState) -> dict:
 
 
 def _safety_check_node(state: VerificationState) -> dict:
-    safety = safety_check.invoke(
-        {
-            "draft_plan": state["draft_plan"],
-            "safety_flags": state["safety_flags"],
-        }
-    )
+    safety = safety_check_data(state["draft_plan"], state["safety_flags"])
     report = dict(state["verification_report"])
     report["safety"] = safety
     return {"verification_report": report}
 
 
 def _ragas_faithfulness_node(state: VerificationState) -> dict:
-    ragas = ragas_faithfulness.invoke(
-        {
-            "draft_plan": state["draft_plan"],
-            "evidence": state["evidence"],
-        }
-    )
+    ragas = heuristic_faithfulness_data(state["draft_plan"], state["evidence"])
     report = dict(state["verification_report"])
     report["ragas"] = ragas
     final_report = build_verification_report(

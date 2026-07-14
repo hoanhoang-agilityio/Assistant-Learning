@@ -15,13 +15,13 @@ from core.subgraphs.verification.graph import (
     invoke_verification_subgraph,
 )
 from core.subgraphs.verification.state import VerificationState
-from core.subgraphs.verification.tools import (
-    citation_check,
-    consistency_check,
-    ragas_faithfulness,
-    safety_check,
+from core.subgraphs.verification.utils import (
+    FAITHFULNESS_PASS_THRESHOLD,
+    citation_check_data,
+    consistency_check_data,
+    heuristic_faithfulness_data,
+    safety_check_data,
 )
-from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.vfs import VFS
 from tests.helpers.planning import seed_execution_plan
 
@@ -131,7 +131,7 @@ def test_citation_check_passes_with_evidence_section(verification_state: Verific
     vfs = VFS.for_run(Path(verification_state["workspace_path"]))
     draft_plan = vfs.read("fitness/final_plan.md")
     sources = json.loads(vfs.read("research/sources.json"))
-    result = citation_check.invoke({"draft_plan": draft_plan, "sources": sources})
+    result = citation_check_data(draft_plan, sources)
     assert result["passed"] is True
 
 
@@ -141,30 +141,21 @@ def test_consistency_check_validates_macro_and_day_count(
     vfs = VFS.for_run(Path(verification_state["workspace_path"]))
     draft_plan = vfs.read("fitness/final_plan.md")
     calculations = json.loads(vfs.read("fitness/calculations.json"))
-    result = consistency_check.invoke(
-        {
-            "draft_plan": draft_plan,
-            "macro_targets": calculations["macro_targets"],
-            "training_plan": calculations["training_plan_summary"],
-        }
+    result = consistency_check_data(
+        draft_plan,
+        calculations["macro_targets"],
+        calculations["training_plan_summary"],
     )
     assert result["passed"] is True
 
 
 def test_safety_check_fails_on_critical_flags() -> None:
-    result = safety_check.invoke(
-        {
-            "draft_plan": "Plan draft",
-            "safety_flags": ["calories_below_safe_minimum"],
-        }
-    )
+    result = safety_check_data("Plan draft", ["calories_below_safe_minimum"])
     assert result["passed"] is False
     assert "calories_below_safe_minimum" in result["issues"]
 
 
 def test_safety_check_ignores_unsafe_word_in_evidence_sections() -> None:
-    from core.subgraphs.verification.utils import safety_check_data
-
     draft = (
         "# Fitness Plan Draft\n\n"
         "## Macro Targets\n\n- Calories: 2200 kcal\n\n"
@@ -183,12 +174,7 @@ def test_ragas_faithfulness_meets_threshold(verification_state: VerificationStat
     vfs = VFS.for_run(Path(verification_state["workspace_path"]))
     draft_plan = vfs.read("fitness/final_plan.md")
     findings = json.loads(vfs.read("research/findings.json"))
-    result = ragas_faithfulness.invoke(
-        {
-            "draft_plan": draft_plan,
-            "evidence": findings["evidence"],
-        }
-    )
+    result = heuristic_faithfulness_data(draft_plan, findings["evidence"])
     assert result["faithfulness_score"] >= FAITHFULNESS_PASS_THRESHOLD
     assert result["pass_fail"] is True
 

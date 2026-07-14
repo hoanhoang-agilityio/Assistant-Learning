@@ -125,14 +125,6 @@ def _activity_multiplier(activity_level: str) -> float:
     return ACTIVITY_MULTIPLIERS.get(activity_level, DEFAULT_ACTIVITY_MULTIPLIER)
 
 
-def _goal_calorie_adjustment(
-    goal: str,
-    tdee: float,
-    weekly_rate_kg: float | None = None,
-) -> float:
-    return rate_to_calorie_adjustment(goal, tdee, weekly_rate_kg)
-
-
 def _minimum_calories(profile: dict[str, Any]) -> float:
     sex = str(profile.get("sex", "male")).lower()
     if sex == "female":
@@ -150,7 +142,7 @@ def calculate_macros_data(profile: dict[str, Any], constraints: dict[str, Any]) 
 
     bmr = _calculate_bmr(profile)
     tdee = bmr * _activity_multiplier(activity_level)
-    calories = _goal_calorie_adjustment(goal, tdee, weekly_rate_kg)
+    calories = rate_to_calorie_adjustment(goal, tdee, weekly_rate_kg)
     calories = max(calories, _minimum_calories(profile))
     calories = min(calories, MAX_CALORIES)
 

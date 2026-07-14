@@ -13,12 +13,13 @@ from core.subgraphs.fitness.template_registry import (
     resolve_workout_template,
     store_workout_template,
 )
-from core.subgraphs.fitness.tools import calculate_macros, synthesize_plan
 from core.subgraphs.fitness.utils import (
+    calculate_macros_data,
     default_execution_plan_for_fitness,
     ensure_training_day_count,
     load_fitness_context,
     load_prior_safety_feedback,
+    synthesize_plan_data,
     validate_workout_safety_data,
     write_fitness_artifacts,
 )
@@ -48,12 +49,7 @@ def _build_blueprint_node(state: FitnessState) -> dict:
 
 
 def _calculate_macros_node(state: FitnessState) -> dict:
-    return calculate_macros.invoke(
-        {
-            "profile": state["profile"],
-            "constraints": state["constraints"],
-        }
-    )
+    return calculate_macros_data(state["profile"], state["constraints"])
 
 
 def _resolve_workout_template_node(state: FitnessState) -> dict:
@@ -155,15 +151,13 @@ def _route_after_safety(state: FitnessState) -> str:
 
 
 def _synthesize_plan_node(state: FitnessState) -> dict:
-    return synthesize_plan.invoke(
-        {
-            "macro_targets": state["macro_targets"],
-            "structured_workout": state["structured_workout"],
-            "evidence_summary": state["evidence_summary"],
-            "verification_feedback": state["verification_feedback"],
-            "safety_result": state["safety_result"],
-            "plan_blueprint": state["plan_blueprint"],
-        }
+    return synthesize_plan_data(
+        macro_targets=state["macro_targets"],
+        structured_workout=state["structured_workout"],
+        evidence_summary=state["evidence_summary"],
+        verification_feedback=state["verification_feedback"],
+        safety_result=state["safety_result"],
+        plan_blueprint=state["plan_blueprint"],
     )
 
 

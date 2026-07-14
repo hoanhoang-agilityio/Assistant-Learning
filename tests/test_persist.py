@@ -3,8 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from core.persist.tools import save_artifacts, save_metrics, save_run
-from core.persist.utils import persist_trigger_data
+from core.persist.utils import (
+    persist_trigger_data,
+    save_artifacts_data,
+    save_metrics_data,
+    save_run_data,
+)
 from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.vfs import VFS
 
@@ -64,13 +68,7 @@ def test_save_run_writes_snapshot(tmp_path: Path) -> None:
         "faithfulness_score": 0.95,
         "approval_status": "approved",
     }
-    result = save_run.invoke(
-        {
-            "run_id": "run-1",
-            "thread_id": "thread-1",
-            "orchestration_state": orchestration_state,
-        }
-    )
+    result = save_run_data("run-1", "thread-1", orchestration_state)
     vfs = VFS.for_run(workspace_path)
     assert result["snapshot_path"] == "logs/run_snapshot.json"
     snapshot = json.loads(vfs.read("logs/run_snapshot.json"))
@@ -80,13 +78,7 @@ def test_save_run_writes_snapshot(tmp_path: Path) -> None:
 
 def test_save_metrics_returns_structured_payload() -> None:
     report = {"passed": True, "ragas": {"faithfulness_score": 0.95, "pass_fail": True}}
-    metrics = save_metrics.invoke(
-        {
-            "run_id": "run-1",
-            "faithfulness_score": 0.95,
-            "verification_report": report,
-        }
-    )
+    metrics = save_metrics_data("run-1", 0.95, report)
     assert metrics["faithfulness_score"] == 0.95
     assert metrics["verification_passed"] is True
 
@@ -97,12 +89,7 @@ def test_save_artifacts_copies_final_plan(tmp_path: Path) -> None:
     vfs = VFS.for_run(workspace_path)
     vfs.write("fitness/final_plan.md", "# Final draft plan")
 
-    result = save_artifacts.invoke(
-        {
-            "run_id": "run-1",
-            "workspace_path": str(workspace_path),
-        }
-    )
+    result = save_artifacts_data(str(workspace_path))
 
     assert vfs.exists("final/final_plan.md")
     assert vfs.exists("logs/persist_result.json")
@@ -114,9 +101,4 @@ def test_save_artifacts_raises_when_draft_missing(tmp_path: Path) -> None:
     workspace_path = tmp_path / "run_missing"
     workspace_path.mkdir()
     with pytest.raises(FileNotFoundError):
-        save_artifacts.invoke(
-            {
-                "run_id": "run-1",
-                "workspace_path": str(workspace_path),
-            }
-        )
+        save_artifacts_data(str(workspace_path))
