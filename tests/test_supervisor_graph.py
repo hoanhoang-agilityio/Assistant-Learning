@@ -9,7 +9,6 @@ from core.agents.tools import (
     REQUEST_TYPE_DOMAIN_OVERRIDES,
     check_topic_scope,
     classify_request,
-    read_global_state,
 )
 from core.agents.topic_scope_judge import TopicScopeJudgement, configure_topic_scope_judge
 from core.config.settings import get_settings
@@ -45,13 +44,13 @@ def initial_state(tmp_path: Path) -> OrchestrationState:
 
 
 def test_check_topic_scope_allows_fitness_query() -> None:
-    result = check_topic_scope.invoke({"query": "Create a 4-day training plan"})
+    result = check_topic_scope("Create a 4-day training plan")
     assert result["is_off_topic"] is False
     assert result["refusal_message"] is None
 
 
 def test_check_topic_scope_flags_off_topic_query() -> None:
-    result = check_topic_scope.invoke({"query": "What's the capital of France?"})
+    result = check_topic_scope("What's the capital of France?")
     assert result["is_off_topic"] is True
     assert result["refusal_message"]
 
@@ -65,7 +64,7 @@ def test_check_topic_scope_ignores_judge_when_flag_off(monkeypatch) -> None:
         raise AssertionError("judge should not be called when the flag is off")
 
     configure_topic_scope_judge(_fail_if_called)
-    result = check_topic_scope.invoke({"query": "What's the capital of France?"})
+    result = check_topic_scope("What's the capital of France?")
     assert result["is_off_topic"] is True
 
 
@@ -77,7 +76,7 @@ def test_check_topic_scope_llm_fallback_rescues_off_topic_query(monkeypatch) -> 
             is_fitness_related=True, reason="Asking about post-workout recovery."
         )
     )
-    result = check_topic_scope.invoke({"query": "Why am I always sore afterwards?"})
+    result = check_topic_scope("Why am I always sore afterwards?")
     assert result["is_off_topic"] is False
     assert result["refusal_message"] is None
 
@@ -88,7 +87,7 @@ def test_check_topic_scope_llm_fallback_confirms_off_topic_query(monkeypatch) ->
     configure_topic_scope_judge(
         lambda _query: TopicScopeJudgement(is_fitness_related=False, reason="Trivia question.")
     )
-    result = check_topic_scope.invoke({"query": "What's the capital of France?"})
+    result = check_topic_scope("What's the capital of France?")
     assert result["is_off_topic"] is True
     assert result["refusal_message"]
 
@@ -101,7 +100,7 @@ def test_check_topic_scope_llm_fallback_fails_safe_to_keyword_verdict(monkeypatc
         raise RuntimeError("LLM outage")
 
     configure_topic_scope_judge(_raise)
-    result = check_topic_scope.invoke({"query": "What's the capital of France?"})
+    result = check_topic_scope("What's the capital of France?")
     assert result["is_off_topic"] is True
     assert result["refusal_message"]
 
@@ -142,11 +141,7 @@ def test_first_invoke_refuses_off_topic_query(initial_state: OrchestrationState)
 
 
 def test_classify_request_detects_training_plan() -> None:
-    result = classify_request.invoke(
-        {
-            "query": "Create a 4-day training plan",
-        }
-    )
+    result = classify_request("Create a 4-day training plan")
     assert result["request_type"] == "training_plan"
     assert result["affected_domains"] == ["planning", "research", "fitness", "verify"]
 
@@ -164,7 +159,7 @@ def test_classify_request_narrows_domains_flag_defaults_off() -> None:
 
 def test_classify_request_ignores_override_map_when_flag_off(monkeypatch) -> None:
     monkeypatch.setitem(REQUEST_TYPE_DOMAIN_OVERRIDES, "macro_calculation", ["planning"])
-    result = classify_request.invoke({"query": "Calculate my macros"})
+    result = classify_request("Calculate my macros")
     assert result["affected_domains"] == ["planning", "research", "fitness", "verify"]
 
 
@@ -172,23 +167,12 @@ def test_classify_request_applies_override_map_when_flag_on(monkeypatch) -> None
     settings = get_settings()
     monkeypatch.setattr(settings, "classify_request_narrows_domains", True)
     monkeypatch.setitem(REQUEST_TYPE_DOMAIN_OVERRIDES, "macro_calculation", ["planning"])
-    result = classify_request.invoke({"query": "Calculate my macros"})
+    result = classify_request("Calculate my macros")
     assert result["affected_domains"] == ["planning"]
 
 
-def test_read_global_state_returns_orchestration_fields(initial_state: OrchestrationState) -> None:
-    result = read_global_state.invoke({"state": initial_state})
-    assert result["run_id"] == "run-day2"
-    assert result["current_node"] == "supervisor"
-    assert result["workspace_path"] == initial_state["workspace_path"]
-
-
 def test_resolve_next_subgraph_routes_to_planning(initial_state: OrchestrationState) -> None:
-    classified = classify_request.invoke(
-        {
-            "query": initial_state["query"],
-        }
-    )
+    classified = classify_request(initial_state["query"])
     state = {**initial_state, **classified}
     assert resolve_next_subgraph(state) == "planning"
     assert route_from_supervisor(state) == "planning"
@@ -204,7 +188,7 @@ def test_route_from_supervisor_redirects_to_user_when_profile_incomplete(
 ) -> None:
     """The defensive guard: a target of planning/research/fitness with no ready profile
     redirects into the User subgraph instead."""
-    classified = classify_request.invoke({"query": initial_state["query"]})
+    classified = classify_request(initial_state["query"])
     state = {
         **initial_state,
         **classified,
