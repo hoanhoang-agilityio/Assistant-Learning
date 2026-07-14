@@ -6,7 +6,6 @@ import pytest
 from core.agents.rerun import MAX_REPLAN_COUNT, MAX_RETRY_COUNT, partial_rerun_decision_data
 from core.agents.state import OrchestrationState
 from core.agents.supervisor import supervisor_node
-from core.agents.tools import partial_rerun_decision
 from core.graph.routing import route_from_supervisor
 from core.graph.run import create_initial_state
 from core.hitl.utils import hitl_control_data
@@ -32,27 +31,21 @@ def _failed_report(
 
 def test_partial_rerun_replan_for_structural_issues() -> None:
     report = _failed_report(consistency_issues=["missing_macro_targets"])
-    result = partial_rerun_decision.invoke(
-        {"verification_report": report, "retry_count": 0, "replan_count": 0}
-    )
+    result = partial_rerun_decision_data(report, 0, 0)
     assert result["route_decision"] == "REPLAN"
     assert result["replan_count"] == 1
 
 
 def test_partial_rerun_reresearch_for_evidence_issues() -> None:
     report = _failed_report(citation_issues=["no_sources_referenced_in_draft"])
-    result = partial_rerun_decision.invoke(
-        {"verification_report": report, "retry_count": 0, "replan_count": 0}
-    )
+    result = partial_rerun_decision_data(report, 0, 0)
     assert result["route_decision"] == "RERESEARCH"
     assert result["retry_count"] == 1
 
 
 def test_partial_rerun_fix_reasoning_for_minor_issues() -> None:
     report = _failed_report(safety_issues=["aggressive_calorie_deficit"])
-    result = partial_rerun_decision.invoke(
-        {"verification_report": report, "retry_count": 0, "replan_count": 0}
-    )
+    result = partial_rerun_decision_data(report, 0, 0)
     assert result["route_decision"] == "FIX_REASONING"
     assert result["retry_count"] == 1
 

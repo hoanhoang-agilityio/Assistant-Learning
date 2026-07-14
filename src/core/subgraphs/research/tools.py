@@ -1,12 +1,10 @@
-"""LangChain tools for the Research Agent and legacy unit-test wrappers."""
+"""LangChain tools bound to the Research Agent's ReAct loop."""
 
 import json
 
 from langchain_core.tools import BaseTool, tool
 
-from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.utils import extract_tavily_data, search_tavily_data
-from core.subgraphs.research.verification import verify_sources_data
 
 
 @tool
@@ -40,24 +38,4 @@ def tavily_extract(urls: list[str]) -> str:
     )
 
 
-@tool
-def rank_sources(sources: list[dict]) -> dict:
-    """Rank retrieved sources by hybrid relevance and evidence quality."""
-    return rank_sources_data(sources)
-
-
-@tool
-def verify_sources(sources: list[dict]) -> dict:
-    """Verify source credibility and fitness-domain relevance."""
-    return verify_sources_data(sources)
-
-
 RESEARCH_AGENT_TOOLS: list[BaseTool] = [tavily_search, tavily_extract]
-
-# Legacy export name for graph/orchestration imports
-RESEARCH_TOOLS: list[BaseTool] = [
-    tavily_search,
-    tavily_extract,
-    rank_sources,
-    verify_sources,
-]

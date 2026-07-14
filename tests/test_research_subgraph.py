@@ -9,13 +9,15 @@ from core.graph.run import create_initial_state
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.subgraphs.research.agent import ResearchAgent
 from core.subgraphs.research.graph import build_research_subgraph, invoke_research_subgraph
+from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.state import ResearchState
-from core.subgraphs.research.tools import rank_sources, tavily_search, verify_sources
+from core.subgraphs.research.tools import tavily_search
 from core.subgraphs.research.utils import (
     ResearchTodosGateError,
     assert_todos_gate,
     search_tavily_data,
 )
+from core.subgraphs.research.verification import verify_sources_data
 from core.vfs import VFS
 from tests.helpers.planning import seed_execution_plan
 
@@ -144,8 +146,8 @@ def test_rank_sources_orders_by_composite_score() -> None:
             "authority_score": 1.0,
         },
     ]
-    verified = verify_sources.invoke({"sources": sources})
-    result = rank_sources.invoke({"sources": verified["sources"]})
+    verified = verify_sources_data(sources)
+    result = rank_sources_data(verified["sources"])
     assert result["sources"][0]["source_id"] == "b"
     assert result["sources"][0]["rank"] == 1
 
@@ -155,7 +157,7 @@ def test_verify_sources_marks_fitness_relevance() -> None:
         {"title": "Training study", "url": "https://example.com", "snippet": "hypertrophy"},
         {"title": "Other", "url": "https://example.com/other", "snippet": "finance"},
     ]
-    result = verify_sources.invoke({"sources": sources})
+    result = verify_sources_data(sources)
     assert result["sources"][0]["verified"] is True
     assert result["sources"][1]["verified"] is False
 

@@ -1,8 +1,9 @@
 from datetime import UTC, datetime
 
+from core.agents.rerun import partial_rerun_decision_data
 from core.agents.state import OrchestrationState
 from core.agents.supervisor_log import append_supervisor_decision, load_verification_report
-from core.agents.tools import check_topic_scope, classify_request, partial_rerun_decision
+from core.agents.tools import check_topic_scope, classify_request
 
 
 def supervisor_node(state: OrchestrationState) -> dict:
@@ -10,18 +11,14 @@ def supervisor_node(state: OrchestrationState) -> dict:
     updates: dict = {}
 
     if state["request_type"] is None:
-        scope = check_topic_scope.invoke({"query": state["query"]})
+        scope = check_topic_scope(state["query"])
         if scope["is_off_topic"]:
             return {
                 "route_decision": "REFUSED",
                 "refusal_message": scope["refusal_message"],
             }
 
-        classification = classify_request.invoke(
-            {
-                "query": state["query"],
-            }
-        )
+        classification = classify_request(state["query"])
         updates.update(classification)
 
     merged_state: OrchestrationState = {**state, **updates}  # type: ignore[typeddict-item]
@@ -31,12 +28,10 @@ def supervisor_node(state: OrchestrationState) -> dict:
             updates["route_decision"] = "COMPLETE"
         else:
             report = load_verification_report(merged_state["workspace_path"])
-            rerun = partial_rerun_decision.invoke(
-                {
-                    "verification_report": report,
-                    "retry_count": merged_state["retry_count"],
-                    "replan_count": merged_state["replan_count"],
-                }
+            rerun = partial_rerun_decision_data(
+                report,
+                merged_state["retry_count"],
+                merged_state["replan_count"],
             )
             updates.update(rerun)
             _log_supervisor_decision(merged_state, report, rerun)

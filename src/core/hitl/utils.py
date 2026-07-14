@@ -1,19 +1,6 @@
 from typing import Any
 
-from core.profile.labels import format_missing_profile_prompt
-
-
-def request_clarification_data(missing_fields: list[str], context: str) -> dict[str, Any]:
-    message = format_missing_profile_prompt(missing_fields)
-    if context:
-        message = f"{message} Context: {context}"
-    return {
-        "waiting_for_user": True,
-        "approval_status": "pending",
-        "hitl_type": "clarification",
-        "message": message,
-        "missing_fields": missing_fields,
-    }
+from core.agents.state import ApprovalStatus
 
 
 def request_approval_data(draft_plan: str, verification_report: dict[str, Any]) -> dict[str, Any]:
@@ -31,6 +18,26 @@ def request_approval_data(draft_plan: str, verification_report: dict[str, Any]) 
     }
 
 
+def classify_approval_response(user_response: str, *, strict: bool) -> ApprovalStatus:
+    """Classify free-text approve/reject/revision phrasing.
+
+    `strict=False` (used by `hitl_control_data`, the live tool-approval flow) also matches
+    any `startswith("approve")`/`startswith("reject")` prefix. `strict=True` (used by
+    `resume_run`'s free-text path) only matches the exact phrase sets -- kept separate rather
+    than unified so each call site's existing, independently-verified behavior is preserved.
+    """
+    normalized = user_response.strip().lower()
+    if normalized in {"approve", "approved", "yes"} or (
+        not strict and normalized.startswith("approve")
+    ):
+        return "approved"
+    if normalized in {"reject", "rejected", "no"} or (
+        not strict and normalized.startswith("reject")
+    ):
+        return "rejected"
+    return "revision_requested"
+
+
 def hitl_control_data(
     waiting_for_user: bool,
     approval_status: str | None,
@@ -45,21 +52,8 @@ def hitl_control_data(
             "approval_status": approval_status or "pending",
         }
 
-    response_lower = user_response.strip().lower()
-    if response_lower in {"approve", "approved", "yes"} or response_lower.startswith("approve"):
-        return {
-            "waiting_for_user": False,
-            "approval_status": "approved",
-            "user_response": user_response,
-        }
-    if response_lower in {"reject", "rejected", "no"} or response_lower.startswith("reject"):
-        return {
-            "waiting_for_user": False,
-            "approval_status": "rejected",
-            "user_response": user_response,
-        }
     return {
         "waiting_for_user": False,
-        "approval_status": "revision_requested",
+        "approval_status": classify_approval_response(user_response, strict=False),
         "user_response": user_response,
     }

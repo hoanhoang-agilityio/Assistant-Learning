@@ -1,7 +1,6 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
 
 from core.config.settings import Settings, get_settings
@@ -14,8 +13,3 @@ def postgres_checkpointer(settings: Settings | None = None) -> Iterator[Postgres
     with PostgresSaver.from_conn_string(resolved_settings.checkpointer_dsn) as checkpointer:
         checkpointer.setup()
         yield checkpointer
-
-
-def create_memory_checkpointer() -> MemorySaver:
-    """In-memory checkpointer for tests and local development without Postgres."""
-    return MemorySaver()

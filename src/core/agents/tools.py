@@ -1,9 +1,6 @@
 import logging
 
-from langchain_core.tools import BaseTool, tool
-
-from core.agents.rerun import partial_rerun_decision_data
-from core.agents.state import AffectedDomain, OrchestrationState, RequestType
+from core.agents.state import AffectedDomain, RequestType
 from core.agents.topic_scope_judge import judge_topic_scope
 from core.config.settings import get_settings
 
@@ -107,32 +104,6 @@ DEFAULT_AFFECTED_DOMAINS: list[AffectedDomain] = [
 REQUEST_TYPE_DOMAIN_OVERRIDES: dict[RequestType, list[AffectedDomain]] = {}
 
 
-@tool
-def read_global_state(state: OrchestrationState) -> dict:
-    """Read current orchestration state."""
-    return {
-        "run_id": state["run_id"],
-        "thread_id": state["thread_id"],
-        "current_node": state["current_node"],
-        "query": state["query"],
-        "request_type": state["request_type"],
-        "affected_domains": state["affected_domains"],
-        "route_decision": state["route_decision"],
-        "retry_count": state["retry_count"],
-        "replan_count": state["replan_count"],
-        "verification_passed": state["verification_passed"],
-        "faithfulness_score": state["faithfulness_score"],
-        "waiting_for_user": state["waiting_for_user"],
-        "approval_status": state["approval_status"],
-        "workspace_path": state["workspace_path"],
-        "final_artifact_path": state["final_artifact_path"],
-        "steps": state.get("steps") or [],
-        "approved_tools": state.get("approved_tools") or [],
-        "pending_tool": state.get("pending_tool"),
-    }
-
-
-@tool
 def check_topic_scope(query: str) -> dict:
     """Flag queries outside the fitness/nutrition domain (keyword pre-check + optional LLM fallback)."""
     query_lower = query.lower()
@@ -156,7 +127,6 @@ def check_topic_scope(query: str) -> dict:
     }
 
 
-@tool
 def classify_request(query: str) -> dict:
     """Classify request into request_type and affected_domains."""
     query_lower = query.lower()
@@ -177,21 +147,3 @@ def classify_request(query: str) -> dict:
         "request_type": request_type,
         "affected_domains": affected_domains,
     }
-
-
-@tool
-def partial_rerun_decision(
-    verification_report: dict,
-    retry_count: int,
-    replan_count: int,
-) -> dict:
-    """Select FIX_REASONING, REPLAN, or RERESEARCH target for partial rerun."""
-    return partial_rerun_decision_data(verification_report, retry_count, replan_count)
-
-
-SUPERVISOR_TOOLS: list[BaseTool] = [
-    read_global_state,
-    check_topic_scope,
-    classify_request,
-    partial_rerun_decision,
-]

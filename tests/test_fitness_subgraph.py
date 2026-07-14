@@ -12,9 +12,10 @@ from core.subgraphs.fitness.graph import build_fitness_subgraph, resolve_max_pla
 from core.subgraphs.fitness.planner import configure_fitness_planner
 from core.subgraphs.fitness.schema import StructuredWorkout, WorkoutDay, WorkoutExercise
 from core.subgraphs.fitness.state import FitnessState
-from core.subgraphs.fitness.tools import calculate_macros, synthesize_plan
 from core.subgraphs.fitness.utils import (
     build_default_structured_workout,
+    calculate_macros_data,
+    synthesize_plan_data,
     validate_workout_safety_data,
     write_fitness_artifacts,
 )
@@ -92,12 +93,7 @@ def fitness_state(workspace_root: Path, complete_profile: dict[str, Any]) -> Fit
 
 
 def test_calculate_macros_returns_targets(complete_profile: dict[str, Any]) -> None:
-    result = calculate_macros.invoke(
-        {
-            "profile": complete_profile,
-            "constraints": {},
-        }
-    )
+    result = calculate_macros_data(complete_profile, {})
     macros = result["macro_targets"]
     assert macros["calories"] > 0
     assert macros["protein_g"] > 0
@@ -116,12 +112,7 @@ def test_calculate_macros_prefers_profile_training_days_over_constraints() -> No
         "goal": "muscle_gain",
         "days_per_week": 5,
     }
-    result = calculate_macros.invoke(
-        {
-            "profile": profile,
-            "constraints": {"days_per_week": 4, "equipment": "gym"},
-        }
-    )
+    result = calculate_macros_data(profile, {"days_per_week": 4, "equipment": "gym"})
     assert result["training_constraints"]["days_per_week"] == 5
     assert result["macro_targets"]["activity_level"] == "gym_5x_week"
 
@@ -211,14 +202,12 @@ def test_synthesize_plan_includes_macros_and_feedback() -> None:
         {"goal": "fat_loss"},
         {"days_per_week": 1},
     ).model_dump()
-    result = synthesize_plan.invoke(
-        {
-            "macro_targets": macro_targets,
-            "structured_workout": structured_workout,
-            "evidence_summary": "Evidence summary text",
-            "verification_feedback": "Increase weekly volume slightly.",
-            "safety_result": {"passed": False, "feedback": ["aggressive_calorie_deficit"]},
-        }
+    result = synthesize_plan_data(
+        macro_targets=macro_targets,
+        structured_workout=structured_workout,
+        evidence_summary="Evidence summary text",
+        verification_feedback="Increase weekly volume slightly.",
+        safety_result={"passed": False, "feedback": ["aggressive_calorie_deficit"]},
     )
     draft_plan = result["draft_plan"]
     assert "Macro Targets" in draft_plan
@@ -366,7 +355,7 @@ def test_write_fitness_artifacts_persists_expected_files(
     fitness_state: FitnessState,
     complete_profile: dict[str, Any],
 ) -> None:
-    macro_result = calculate_macros.invoke({"profile": complete_profile, "constraints": {}})
+    macro_result = calculate_macros_data(complete_profile, {})
     structured_workout = default_structured_workout(
         complete_profile,
         {"days_per_week": 3},

@@ -2,11 +2,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from langgraph.checkpoint.memory import MemorySaver
 
 from core.agents.state import OrchestrationState
 from core.agents.topic_scope_judge import configure_topic_scope_judge
 from core.config.settings import get_settings
-from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.run import create_initial_state
 from core.mcp.mock_tavily import build_mock_tavily_client
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
@@ -139,4 +139,4 @@ def disable_langfuse_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def memory_checkpointer():
-    return create_memory_checkpointer()
+    return MemorySaver()
