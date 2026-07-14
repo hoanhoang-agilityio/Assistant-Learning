@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
 
+from core.agents.request_type_judge import configure_request_type_judge
 from core.agents.state import OrchestrationState
 from core.agents.topic_scope_judge import configure_topic_scope_judge
 from core.config.settings import get_settings
@@ -18,6 +19,7 @@ from core.subgraphs.planning.planning_agent import configure_planning_agent
 from core.subgraphs.planning.utils import build_default_execution_plan
 from core.subgraphs.research.query_cache import reset_tavily_search_cache
 from core.subgraphs.research.research_agent import configure_research_agent
+from tests.helpers.classification import default_request_type_judge, default_topic_scope_judge
 from tests.helpers.fitness import default_structured_workout
 from tests.helpers.research import research_agent_override
 
@@ -57,9 +59,16 @@ def reset_profile_extractor() -> None:
 
 @pytest.fixture(autouse=True)
 def reset_topic_scope_judge() -> None:
-    configure_topic_scope_judge(None)
+    configure_topic_scope_judge(default_topic_scope_judge)
     yield
     configure_topic_scope_judge(None)
+
+
+@pytest.fixture(autouse=True)
+def reset_request_type_judge() -> None:
+    configure_request_type_judge(default_request_type_judge)
+    yield
+    configure_request_type_judge(None)
 
 
 @pytest.fixture(autouse=True)

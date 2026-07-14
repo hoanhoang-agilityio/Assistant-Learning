@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from langgraph.graph import END
 
+from core.agents.request_type_judge import RequestTypeJudgement, configure_request_type_judge
 from core.agents.state import OrchestrationState
 from core.agents.supervisor import supervisor_node
 from core.agents.tools import (
@@ -44,46 +45,15 @@ def initial_state(tmp_path: Path) -> OrchestrationState:
 
 
 def test_check_topic_scope_allows_fitness_query() -> None:
+    configure_topic_scope_judge(
+        lambda _query: TopicScopeJudgement(is_fitness_related=True, reason="Training request.")
+    )
     result = check_topic_scope("Create a 4-day training plan")
     assert result["is_off_topic"] is False
     assert result["refusal_message"] is None
 
 
 def test_check_topic_scope_flags_off_topic_query() -> None:
-    result = check_topic_scope("What's the capital of France?")
-    assert result["is_off_topic"] is True
-    assert result["refusal_message"]
-
-
-def test_topic_scope_llm_fallback_flag_defaults_off() -> None:
-    assert get_settings().topic_scope_llm_fallback_enabled is False
-
-
-def test_check_topic_scope_ignores_judge_when_flag_off(monkeypatch) -> None:
-    def _fail_if_called(_query: str) -> TopicScopeJudgement:
-        raise AssertionError("judge should not be called when the flag is off")
-
-    configure_topic_scope_judge(_fail_if_called)
-    result = check_topic_scope("What's the capital of France?")
-    assert result["is_off_topic"] is True
-
-
-def test_check_topic_scope_llm_fallback_rescues_off_topic_query(monkeypatch) -> None:
-    settings = get_settings()
-    monkeypatch.setattr(settings, "topic_scope_llm_fallback_enabled", True)
-    configure_topic_scope_judge(
-        lambda _query: TopicScopeJudgement(
-            is_fitness_related=True, reason="Asking about post-workout recovery."
-        )
-    )
-    result = check_topic_scope("Why am I always sore afterwards?")
-    assert result["is_off_topic"] is False
-    assert result["refusal_message"] is None
-
-
-def test_check_topic_scope_llm_fallback_confirms_off_topic_query(monkeypatch) -> None:
-    settings = get_settings()
-    monkeypatch.setattr(settings, "topic_scope_llm_fallback_enabled", True)
     configure_topic_scope_judge(
         lambda _query: TopicScopeJudgement(is_fitness_related=False, reason="Trivia question.")
     )
@@ -92,17 +62,15 @@ def test_check_topic_scope_llm_fallback_confirms_off_topic_query(monkeypatch) ->
     assert result["refusal_message"]
 
 
-def test_check_topic_scope_llm_fallback_fails_safe_to_keyword_verdict(monkeypatch) -> None:
-    settings = get_settings()
-    monkeypatch.setattr(settings, "topic_scope_llm_fallback_enabled", True)
-
-    def _raise(_query: str) -> TopicScopeJudgement:
-        raise RuntimeError("LLM outage")
-
-    configure_topic_scope_judge(_raise)
-    result = check_topic_scope("What's the capital of France?")
-    assert result["is_off_topic"] is True
-    assert result["refusal_message"]
+def test_check_topic_scope_rescues_query_without_obvious_keyword() -> None:
+    configure_topic_scope_judge(
+        lambda _query: TopicScopeJudgement(
+            is_fitness_related=True, reason="Asking about post-workout recovery."
+        )
+    )
+    result = check_topic_scope("Why am I always sore afterwards?")
+    assert result["is_off_topic"] is False
+    assert result["refusal_message"] is None
 
 
 def test_supervisor_node_refuses_off_topic_query(initial_state: OrchestrationState) -> None:
@@ -144,6 +112,16 @@ def test_classify_request_detects_training_plan() -> None:
     result = classify_request("Create a 4-day training plan")
     assert result["request_type"] == "training_plan"
     assert result["affected_domains"] == ["planning", "research", "fitness", "verify"]
+
+
+def test_classify_request_uses_judge_verdict_directly() -> None:
+    configure_request_type_judge(
+        lambda _query: RequestTypeJudgement(
+            request_type="endurance", reason="Asking about race pacing."
+        )
+    )
+    result = classify_request("How should I pace my next race?")
+    assert result["request_type"] == "endurance"
 
 
 def test_request_type_domain_overrides_is_empty_by_construction() -> None:

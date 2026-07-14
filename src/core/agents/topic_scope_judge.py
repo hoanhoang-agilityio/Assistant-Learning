@@ -1,13 +1,11 @@
-"""LLM fallback judge for the topic-scope guardrail.
+"""LLM judge for the topic-scope guardrail.
 
-Only consulted by check_topic_scope (core/agents/tools.py) when the keyword
-allowlist finds no match and settings.topic_scope_llm_fallback_enabled is on
--- it exists to rescue legitimate fitness queries phrased without an obvious
-keyword (e.g. "how do I recover faster" or "help me get shredded"), not to
-re-decide queries the keyword check already allowed.
+Consulted by check_topic_scope (core/agents/tools.py) for every query -- there
+is no keyword pre-check, this judge is the sole decision-maker for whether a
+query is in-scope (e.g. "how do I recover faster" or "help me get shredded"
+are in-scope despite not having an obvious fitness keyword).
 """
 
-import logging
 from collections.abc import Callable
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -16,8 +14,6 @@ from pydantic import BaseModel, Field
 from core.llm.factory import invoke_standard_structured_output
 from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
-
-logger = logging.getLogger(__name__)
 
 
 class TopicScopeJudgement(BaseModel):
