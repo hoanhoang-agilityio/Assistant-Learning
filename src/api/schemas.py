@@ -33,6 +33,10 @@ class ResumeRunRequest(BaseModel):
         default=None,
         description="Tool name when resuming a per-tool approval interrupt.",
     )
+    form_data: dict[str, Any] | None = Field(
+        default=None,
+        description="Submitted profile form fields, required when hitl_type is 'profile_form'.",
+    )
 
 
 class ContinueRunRequest(BaseModel):
