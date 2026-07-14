@@ -1,13 +1,10 @@
-from core.graph.run import create_initial_state
 from core.profile.extraction import configure_profile_extractor
 from core.profile.schema import Constraints, ExtractedProfile
 from core.subgraphs.fitness.schema import StructuredWorkout, WorkoutDay, WorkoutExercise
 from core.subgraphs.fitness.utils import (
     ensure_training_day_count,
 )
-from core.subgraphs.planning.graph import build_planning_subgraph
-from core.subgraphs.planning.state import PlanningState
-from core.subgraphs.planning.utils import apply_revision_overrides, build_profile
+from core.subgraphs.user.utils import apply_revision_overrides, extract_profile
 
 
 def test_apply_revision_overrides_updates_days_per_week() -> None:
@@ -32,7 +29,11 @@ def test_apply_revision_overrides_updates_days_per_week() -> None:
     assert updated["goal"] == "fat_loss"
 
 
-def test_build_profile_applies_revision_without_reasking_profile(complete_profile: dict) -> None:
+def test_extract_profile_applies_revision_without_reasking_profile(complete_profile: dict) -> None:
+    """Relocated from planning: revision-feedback re-extraction is now owned by the User
+    subgraph (core.subgraphs.user.utils.extract_profile). End-to-end pause/resume/REPLAN
+    coverage for this behavior lives in tests/test_user_subgraph.py.
+    """
     configure_profile_extractor(
         lambda query: (
             ExtractedProfile(constraints=Constraints(days_per_week=5))
@@ -40,7 +41,7 @@ def test_build_profile_applies_revision_without_reasking_profile(complete_profil
             else ExtractedProfile()
         )
     )
-    profile = build_profile(
+    profile = extract_profile(
         query="I want a 4-day training plan to lose weight.",
         user_profile=complete_profile,
         constraints={"days_per_week": 4, "equipment": "gym"},
@@ -48,51 +49,6 @@ def test_build_profile_applies_revision_without_reasking_profile(complete_profil
     )
     assert profile["days_per_week"] == 5
     assert profile["activity_level"] == "gym_5x_week"
-
-
-def test_replan_subgraph_updates_days_per_week_from_revision_feedback(
-    complete_profile: dict,
-    workspace_root,
-) -> None:
-    configure_profile_extractor(
-        lambda query: (
-            ExtractedProfile(
-                constraints=Constraints(days_per_week=5),
-            )
-            if "5 days" in query.lower()
-            else ExtractedProfile()
-        )
-    )
-    initial = create_initial_state(
-        run_id="revision-run",
-        thread_id="revision-thread",
-        query="I want a 4-day training plan to lose weight.",
-        user_profile=complete_profile,
-        workspace_root=workspace_root,
-    )
-    state: PlanningState = {
-        "query": initial["query"],
-        "user_profile": {
-            **complete_profile,
-            "days_per_week": 4,
-            "activity_level": "gym_4x_week",
-        },
-        "constraints": {"days_per_week": 4, "equipment": "gym"},
-        "request_type": "fat_loss",
-        "workspace_path": initial["workspace_path"],
-        "route_decision": "REPLAN",
-        "revision_feedback": "i want to change to train 5 days per week",
-        "profile": {},
-        "missing_fields": [],
-        "requires_hitl": False,
-        "approved_tools": [],
-        "used_llm_extraction": False,
-        "requires_tool_approval": False,
-        "reused_execution_plan": False,
-    }
-    result = build_planning_subgraph().invoke(state)
-    assert result["profile"]["days_per_week"] == 5
-    assert result["profile"]["activity_level"] == "gym_5x_week"
 
 
 def test_apply_revision_overrides_parses_days_from_natural_language() -> None:

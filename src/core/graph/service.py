@@ -30,10 +30,10 @@ from core.rate_limit import (
     set_rate_limit_user_id,
 )
 from core.subgraphs.planning.utils import (
-    build_profile,
     persist_revision_feedback,
     profile_to_orchestration_updates,
 )
+from core.subgraphs.user.utils import extract_profile
 from core.vfs import VFS
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def _build_replan_profile_updates(
     revision_feedback: str,
 ) -> dict[str, Any]:
     """Merge revision feedback into orchestration profile/constraints for a replan."""
-    profile = build_profile(
+    profile = extract_profile(
         query=query,
         user_profile=_cleared_user_profile(user_profile),
         constraints=constraints,
@@ -254,7 +254,7 @@ class RunOrchestrator:
                 for key, value in snapshot.values.get("user_profile", {}).items()
                 if key != "missing_fields"
             }
-            clarification = build_profile(
+            clarification = extract_profile(
                 query=update["user_response"],
                 user_profile=cleared_profile,
                 constraints=snapshot.values.get("constraints") or {},

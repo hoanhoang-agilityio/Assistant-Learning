@@ -2,7 +2,8 @@ from core.graph.run import create_initial_state
 from core.graph.service import RunOrchestrator
 from core.profile.extraction import configure_profile_extractor
 from core.profile.schema import ExtractedProfile, Goal, Profile
-from core.subgraphs.planning.utils import build_profile, profile_to_orchestration_updates
+from core.subgraphs.planning.utils import profile_to_orchestration_updates
+from core.subgraphs.user.utils import extract_profile
 
 
 def test_resume_clarification_merges_user_response_into_profile(
@@ -45,7 +46,7 @@ def test_resume_clarification_merges_user_response_into_profile(
         for key, value in snapshot.values.get("user_profile", {}).items()
         if key != "missing_fields"
     }
-    clarification = build_profile(
+    clarification = extract_profile(
         query=user_response,
         user_profile=cleared_profile,
         constraints={"days_per_week": 3},
