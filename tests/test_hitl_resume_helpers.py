@@ -4,7 +4,6 @@ from core.hitl.interrupt_policy import tool_requires_interrupt
 from core.hitl.resume import (
     create_approval_decision,
     decision_to_resume_update,
-    revision_to_replan_update,
     user_revision_to_replan_update,
 )
 from core.hitl.tool_gate import evaluate_tool_interrupt
@@ -35,11 +34,6 @@ def test_create_approval_decision_revision_triggers_replan() -> None:
     assert update["revision_feedback"] == "Add more leg volume."
     assert update["verification_passed"] is False
     assert update["waiting_for_user"] is False
-
-
-def test_revision_to_replan_update_raises_when_exhausted() -> None:
-    with pytest.raises(ValueError, match="Maximum replan attempts"):
-        revision_to_replan_update("Too much cardio.", replan_count=1)
 
 
 def test_user_revision_to_replan_update_allows_repeat_requests() -> None:

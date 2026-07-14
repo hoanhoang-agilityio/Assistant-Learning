@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from core.agents.state import OrchestrationState
-from core.hitl.tools import request_approval, request_clarification
+from core.hitl.tools import request_approval
 from core.hitl.utils import hitl_control_data
 from core.vfs import VFS
 
@@ -58,16 +58,11 @@ def invoke_hitl_node(state: OrchestrationState) -> dict:
         updates.update(approval)
         return updates
 
-    missing_fields = state.get("user_profile", {}).get("missing_fields", [])
-    if missing_fields:
-        clarification = request_clarification.invoke(
-            {
-                "missing_fields": missing_fields,
-                "context": state["query"],
-            }
-        )
-        updates.update(clarification)
-        return updates
+    # NOTE: there used to be a branch here checking state["user_profile"]["missing_fields"]
+    # to trigger a "clarification" HITL prompt via request_clarification. Profile
+    # completeness is now handled entirely by the User subgraph (interrupt()-based form)
+    # before this node is ever reached -- user_profile never carries a missing_fields key
+    # anymore, so that branch was unreachable dead code. See core.subgraphs.user.
 
     updates["approval_status"] = state["approval_status"] or "pending"
     updates["waiting_for_user"] = True

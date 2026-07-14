@@ -3,55 +3,50 @@ from pathlib import Path
 
 import pytest
 
-from core.agents.tools import persist_trigger
 from core.persist.tools import save_artifacts, save_metrics, save_run
+from core.persist.utils import persist_trigger_data
 from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.vfs import VFS
 
 
 def test_persist_trigger_blocks_without_approval() -> None:
-    result = persist_trigger.invoke(
-        {
-            "verification_passed": True,
-            "faithfulness_score": 0.95,
-            "approval_status": "pending",
-        }
+    # persist_trigger_data called directly -- the @tool wrapper (agents.tools.persist_trigger)
+    # was removed in the User Subgraph refactor's cleanup pass since it was never bound to an
+    # LLM/agent; persist/node.py already called persist_trigger_data directly in production.
+    result = persist_trigger_data(
+        verification_passed=True,
+        faithfulness_score=0.95,
+        approval_status="pending",
     )
     assert result["can_persist"] is False
     assert "approval_missing" in result["persist_blocked_reasons"]
 
 
 def test_persist_trigger_blocks_low_faithfulness() -> None:
-    result = persist_trigger.invoke(
-        {
-            "verification_passed": True,
-            "faithfulness_score": 0.5,
-            "approval_status": "pending",
-        }
+    result = persist_trigger_data(
+        verification_passed=True,
+        faithfulness_score=0.5,
+        approval_status="pending",
     )
     assert result["can_persist"] is False
     assert "faithfulness_below_threshold" in result["persist_blocked_reasons"]
 
 
 def test_persist_trigger_allows_approved_despite_failed_verification() -> None:
-    result = persist_trigger.invoke(
-        {
-            "verification_passed": False,
-            "faithfulness_score": 0.5,
-            "approval_status": "approved",
-        }
+    result = persist_trigger_data(
+        verification_passed=False,
+        faithfulness_score=0.5,
+        approval_status="approved",
     )
     assert result["can_persist"] is True
     assert result["persist_blocked_reasons"] == []
 
 
 def test_persist_trigger_allows_happy_path() -> None:
-    result = persist_trigger.invoke(
-        {
-            "verification_passed": True,
-            "faithfulness_score": FAITHFULNESS_PASS_THRESHOLD,
-            "approval_status": "approved",
-        }
+    result = persist_trigger_data(
+        verification_passed=True,
+        faithfulness_score=FAITHFULNESS_PASS_THRESHOLD,
+        approval_status="approved",
     )
     assert result["can_persist"] is True
     assert result["persist_blocked_reasons"] == []

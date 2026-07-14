@@ -6,9 +6,10 @@ import pytest
 from core.agents.rerun import MAX_REPLAN_COUNT, MAX_RETRY_COUNT, partial_rerun_decision_data
 from core.agents.state import OrchestrationState
 from core.agents.supervisor import supervisor_node
-from core.agents.tools import hitl_control, partial_rerun_decision
+from core.agents.tools import partial_rerun_decision
 from core.graph.routing import route_from_supervisor
 from core.graph.run import create_initial_state
+from core.hitl.utils import hitl_control_data
 from core.vfs import VFS
 
 
@@ -212,31 +213,28 @@ def test_route_from_supervisor_replans_after_user_revision() -> None:
 
 
 def test_hitl_control_approve_and_reject() -> None:
-    approved = hitl_control.invoke(
-        {
-            "waiting_for_user": True,
-            "approval_status": "pending",
-            "user_response": "approve",
-        }
+    # hitl_control_data called directly -- the @tool wrapper (agents.tools.hitl_control) was
+    # removed in the User Subgraph refactor's cleanup pass since it was never bound to an
+    # LLM/agent; hitl/node.py already called hitl_control_data directly in production.
+    approved = hitl_control_data(
+        waiting_for_user=True,
+        approval_status="pending",
+        user_response="approve",
     )
     assert approved["approval_status"] == "approved"
     assert approved["waiting_for_user"] is False
 
-    rejected = hitl_control.invoke(
-        {
-            "waiting_for_user": True,
-            "approval_status": "pending",
-            "user_response": "reject",
-        }
+    rejected = hitl_control_data(
+        waiting_for_user=True,
+        approval_status="pending",
+        user_response="reject",
     )
     assert rejected["approval_status"] == "rejected"
 
-    rejected_message = hitl_control.invoke(
-        {
-            "waiting_for_user": True,
-            "approval_status": "pending",
-            "user_response": "Rejected the plan.",
-        }
+    rejected_message = hitl_control_data(
+        waiting_for_user=True,
+        approval_status="pending",
+        user_response="Rejected the plan.",
     )
     assert rejected_message["approval_status"] == "rejected"
 

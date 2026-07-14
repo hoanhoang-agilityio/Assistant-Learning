@@ -6,8 +6,6 @@ from core.agents.rerun import partial_rerun_decision_data
 from core.agents.state import AffectedDomain, OrchestrationState, RequestType
 from core.agents.topic_scope_judge import judge_topic_scope
 from core.config.settings import get_settings
-from core.hitl.utils import hitl_control_data
-from core.persist.utils import persist_trigger_data
 
 logger = logging.getLogger(__name__)
 
@@ -191,31 +189,9 @@ def partial_rerun_decision(
     return partial_rerun_decision_data(verification_report, retry_count, replan_count)
 
 
-@tool
-def hitl_control(
-    waiting_for_user: bool,
-    approval_status: str | None,
-    user_response: str | None,
-) -> dict:
-    """Pause, resume, or reject workflow based on HITL status."""
-    return hitl_control_data(waiting_for_user, approval_status, user_response)
-
-
-@tool
-def persist_trigger(
-    verification_passed: bool,
-    faithfulness_score: float | None,
-    approval_status: str | None,
-) -> dict:
-    """Trigger PERSIST_RESULTS after COMPLETE and user approval."""
-    return persist_trigger_data(verification_passed, faithfulness_score, approval_status)
-
-
 SUPERVISOR_TOOLS: list[BaseTool] = [
     read_global_state,
     check_topic_scope,
     classify_request,
     partial_rerun_decision,
-    hitl_control,
-    persist_trigger,
 ]
