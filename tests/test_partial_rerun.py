@@ -76,6 +76,9 @@ def test_route_from_supervisor_rerun_targets() -> None:
         query="test",
         workspace_root=Path("/tmp/rerun-workspace"),
     )
+    # These assert routing to planning/research/fitness, which the profile guard only
+    # allows once the User subgraph has validated the profile -- simulate that here.
+    base = {**base, "profile_complete": True, "profile_valid": True}
     fix_state: OrchestrationState = {**base, "route_decision": "FIX_REASONING", "retry_count": 1}
     assert route_from_supervisor(fix_state) == "fitness"
 
@@ -119,6 +122,7 @@ def test_route_from_supervisor_replan_continues_to_fitness_after_research() -> N
         query="test",
         workspace_root=Path("/tmp/rerun-workspace"),
     )
+    base = {**base, "profile_complete": True, "profile_valid": True}
     state: OrchestrationState = {
         **base,
         "route_decision": "REPLAN",
@@ -191,6 +195,10 @@ def test_route_from_supervisor_replans_after_user_revision() -> None:
         query="test",
         workspace_root=Path("/tmp/revision-workspace"),
     )
+    # revision_feedback + REPLAN here represents the *result* of the profile guard's
+    # redirect through the User subgraph already having happened for this revision --
+    # i.e. profile_complete/profile_valid are back to True by the time this fires again.
+    base = {**base, "profile_complete": True, "profile_valid": True}
     revision_state: OrchestrationState = {
         **base,
         "current_node": "hitl",

@@ -37,6 +37,10 @@ def approval_state(tmp_path: Path) -> OrchestrationState:
         "route_decision": "COMPLETE",
         "waiting_for_user": True,
         "approval_status": "pending",
+        # This fixture represents a run already past profile intake/planning/research/
+        # fitness/verification, waiting on final approval -- profile was validated earlier.
+        "profile_complete": True,
+        "profile_valid": True,
     }
 
 
