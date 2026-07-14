@@ -1,10 +1,10 @@
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
 from core.agents.supervisor import supervisor_node
-from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.routing import route_from_supervisor
 from core.hitl.node import invoke_hitl_node
 from core.observability.langfuse import supervisor_span_context
@@ -83,7 +83,7 @@ def build_graph(
     # See RunOrchestrator.__init__ (graph/service.py) for why this falls back to
     # an in-memory checkpointer rather than Postgres: production always passes
     # one in explicitly via api/deps.py:get_orchestrator.
-    saver = checkpointer or create_memory_checkpointer()
+    saver = checkpointer or MemorySaver()
     return graph.compile(
         checkpointer=saver,
         interrupt_before=["hitl"],

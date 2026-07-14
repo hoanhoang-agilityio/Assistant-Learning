@@ -1,5 +1,5 @@
 from core.graph.builder import build_graph
-from core.graph.checkpointer import create_memory_checkpointer, postgres_checkpointer
+from core.graph.checkpointer import postgres_checkpointer
 from core.graph.diagrams import (
     GRAPH_BUILDERS,
     draw_graph_mermaid_png,
@@ -14,7 +14,6 @@ __all__ = [
     "GRAPH_BUILDERS",
     "build_graph",
     "create_initial_state",
-    "create_memory_checkpointer",
     "draw_graph_mermaid_png",
     "export_all_graph_diagrams",
     "export_graph_diagram",
