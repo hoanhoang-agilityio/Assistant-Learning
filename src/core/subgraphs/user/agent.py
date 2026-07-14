@@ -5,7 +5,6 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, StateSnapshot
 
 from core.agents.state import OrchestrationState
-from core.graph.checkpointer import create_memory_checkpointer
 from core.subgraphs.user.graph import invoke_user_subgraph
 
 
@@ -17,7 +16,15 @@ def _build_standalone_wrapper() -> CompiledStateGraph:
     checkpointer -- it cannot be invoked as a root graph on its own. This wrapper exists so
     ``UserAgent`` can run/resume the subgraph standalone (tests, tooling), matching how the
     other four subgraphs' ``XAgent`` facades work, without requiring the full supervisor graph.
+
+    `create_memory_checkpointer` is imported here (not at module scope) because
+    `core.graph`'s package __init__ eagerly imports the full top-level graph builder, which
+    transitively imports every subgraph including this one -- a module-level import here would
+    create a circular import (core.graph -> ... -> planning -> core.subgraphs.user -> agent.py
+    -> core.graph).
     """
+    from core.graph.checkpointer import create_memory_checkpointer
+
     graph = StateGraph(OrchestrationState)
     graph.add_node("user", invoke_user_subgraph)
     graph.add_edge(START, "user")
