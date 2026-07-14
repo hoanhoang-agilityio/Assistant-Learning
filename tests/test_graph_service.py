@@ -115,3 +115,56 @@ def test_resume_run_profile_form_via_command_resume(
     assert snapshot.values["profile_valid"] is True
     assert snapshot.values["user_profile"]["sex"] == "male"
     assert snapshot.values["user_profile"]["current_weight_kg"] == 85.0
+
+
+def _waiting_for_approval_state(run_id: str, tmp_path) -> dict:
+    initial = create_initial_state(
+        run_id=run_id,
+        thread_id=run_id,
+        query="Approve my plan",
+        workspace_root=tmp_path / run_id,
+    )
+    return {
+        **initial,
+        "request_type": "training_plan",
+        "affected_domains": ["planning", "research", "fitness", "verify"],
+        "current_node": "supervisor",
+        "verification_passed": True,
+        "route_decision": "COMPLETE",
+        "waiting_for_user": True,
+        "approval_status": "pending",
+        "profile_complete": True,
+        "profile_valid": True,
+    }
+
+
+def test_resume_run_free_text_approval_uses_strict_classification(
+    memory_checkpointer,
+    tmp_path,
+) -> None:
+    """resume_run's free-text approval path (no decision_type) classifies user_response with
+    classify_approval_response(strict=True) -- only exact "approve"/"approved"/"yes" (and
+    reject equivalents) match; prefix phrasing like "approving this" does not. This is the
+    pre-existing behavior of the now-deleted `_approval_from_response`, preserved by the
+    `strict` parameter rather than unified with hitl_control_data's permissive prefix-matching
+    rule (which stays exercised separately by tests/test_partial_rerun.py)."""
+    orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
+
+    exact_config = {"configurable": {"thread_id": "approve-exact"}}
+    orchestrator.graph.invoke(_waiting_for_approval_state("approve-exact", tmp_path), exact_config)
+    exact_status = orchestrator.resume_run("approve-exact", user_response="approve")
+    assert exact_status.approval_status == "approved"
+
+    # Under strict=True, "approving this plan" doesn't match the exact "approve"/"approved"/
+    # "yes" set, so it's classified "revision_requested" -- which resume_run's revision branch
+    # then normalizes to route_decision="REPLAN"/approval_status="pending" (see
+    # core.hitl.resume.user_revision_to_replan_update). If strict matching regressed to the
+    # permissive prefix rule, this input would instead be classified "approved" and skip the
+    # revision branch entirely, leaving route_decision untouched at "COMPLETE".
+    prefix_config = {"configurable": {"thread_id": "approve-prefix"}}
+    orchestrator.graph.invoke(
+        _waiting_for_approval_state("approve-prefix", tmp_path), prefix_config
+    )
+    prefix_status = orchestrator.resume_run("approve-prefix", user_response="approving this plan")
+    assert prefix_status.approval_status == "pending"
+    assert prefix_status.route_decision == "REPLAN"

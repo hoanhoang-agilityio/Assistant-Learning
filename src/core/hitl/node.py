@@ -2,8 +2,7 @@ import json
 from pathlib import Path
 
 from core.agents.state import OrchestrationState
-from core.hitl.tools import request_approval
-from core.hitl.utils import hitl_control_data
+from core.hitl.utils import hitl_control_data, request_approval_data
 from core.vfs import VFS
 
 
@@ -49,12 +48,7 @@ def invoke_hitl_node(state: OrchestrationState) -> dict:
             draft_plan = vfs.read("fitness/final_plan.md")
         if vfs.exists("verify/verification_v1.json"):
             verification_report = json.loads(vfs.read("verify/verification_v1.json"))
-        approval = request_approval.invoke(
-            {
-                "draft_plan": draft_plan,
-                "verification_report": verification_report,
-            }
-        )
+        approval = request_approval_data(draft_plan, verification_report)
         updates.update(approval)
         return updates
 

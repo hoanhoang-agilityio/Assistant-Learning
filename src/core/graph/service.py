@@ -8,19 +8,19 @@ from pathlib import Path
 from typing import Any, Literal
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
-from core.agents.state import ApprovalStatus, OrchestrationState
-from core.config.settings import get_settings
+from core.agents.state import ApprovalStatus
 from core.graph.builder import build_graph
-from core.graph.checkpointer import create_memory_checkpointer
 from core.graph.run import create_initial_state
 from core.hitl.resume import (
     create_approval_decision,
     decision_to_resume_update,
     user_revision_to_replan_update,
 )
+from core.hitl.utils import classify_approval_response
 from core.llm.metrics import reset_llm_metrics, write_pipeline_cost_log
 from core.observability.langfuse import build_graph_invoke_config, flush_langfuse
 from core.profile.labels import format_missing_profile_prompt
@@ -82,7 +82,7 @@ class RunOrchestrator:
         # this class for the running API. The in-memory fallback below is
         # intentional for tests and scripts (e.g. ragas_benchmark.py) that build
         # subgraphs/orchestrators directly without going through deps.py.
-        self._checkpointer = checkpointer or create_memory_checkpointer()
+        self._checkpointer = checkpointer or MemorySaver()
         self._graph: CompiledStateGraph = build_graph(checkpointer=self._checkpointer)
         self._rate_limiter = rate_limiter or AIRateLimiter()
         self._lock = threading.Lock()
@@ -214,7 +214,9 @@ class RunOrchestrator:
         else:
             if not user_response:
                 raise ValueError("user_response or decision_type is required")
-            resolved_status = approval_status or _approval_from_response(user_response)
+            resolved_status = approval_status or classify_approval_response(
+                user_response, strict=True
+            )
             update = {
                 "user_response": user_response,
                 "approval_status": resolved_status,
@@ -532,35 +534,11 @@ class RunOrchestrator:
         )
 
     def _build_config(self, run_id: str) -> dict[str, Any]:
+        # build_graph_invoke_config only reads state["thread_id"]/state["run_id"] (both equal
+        # to run_id for every _build_config caller), so a full OrchestrationState literal isn't
+        # needed here -- mirrors the narrowing precedent in agents/supervisor.py.
         return build_graph_invoke_config(
-            OrchestrationState(
-                run_id=run_id,
-                thread_id=run_id,
-                user_id=get_settings().rate_limit_default_user_id,
-                current_node="supervisor",
-                query="",
-                user_profile={},
-                constraints={},
-                profile_complete=False,
-                profile_valid=False,
-                request_type=None,
-                affected_domains=[],
-                route_decision=None,
-                retry_count=0,
-                replan_count=0,
-                verification_passed=False,
-                faithfulness_score=None,
-                waiting_for_user=False,
-                approval_status=None,
-                user_response=None,
-                revision_feedback=None,
-                workspace_path="",
-                final_artifact_path=None,
-                refusal_message=None,
-                steps=[],
-                approved_tools=[],
-                pending_tool=None,
-            )
+            {"run_id": run_id, "thread_id": run_id}  # type: ignore[typeddict-item]
         )
 
     def _to_status(
@@ -653,15 +631,6 @@ def _resolve_lifecycle_status(
 def _collect_interrupts(snapshot: Any) -> tuple[Any, ...]:
     """Flatten every pending interrupt across a graph snapshot's tasks."""
     return tuple(interrupt for task in snapshot.tasks for interrupt in (task.interrupts or ()))
-
-
-def _approval_from_response(user_response: str) -> ApprovalStatus:
-    normalized = user_response.strip().lower()
-    if normalized in {"approve", "approved", "yes"}:
-        return "approved"
-    if normalized in {"reject", "rejected", "no"}:
-        return "rejected"
-    return "revision_requested"
 
 
 def _read_final_plan(state: dict[str, Any]) -> str | None:

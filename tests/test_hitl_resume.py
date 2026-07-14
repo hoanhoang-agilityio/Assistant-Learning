@@ -9,7 +9,7 @@ from core.graph.builder import build_graph
 from core.graph.routing import route_from_supervisor
 from core.graph.run import create_initial_state
 from core.hitl.resume import create_approval_decision, decision_to_resume_update
-from core.hitl.tools import request_approval, request_clarification
+from core.hitl.utils import request_approval_data
 from core.vfs import VFS
 
 
@@ -44,26 +44,8 @@ def approval_state(tmp_path: Path) -> OrchestrationState:
     }
 
 
-def test_request_clarification_sets_waiting_state() -> None:
-    result = request_clarification.invoke(
-        {
-            "missing_fields": ["age", "goal"],
-            "context": "Need profile details",
-        }
-    )
-    assert result["waiting_for_user"] is True
-    assert result["hitl_type"] == "clarification"
-    assert "age" in result["message"]
-    assert "fitness goal" in result["message"]
-
-
 def test_request_approval_sets_waiting_state() -> None:
-    result = request_approval.invoke(
-        {
-            "draft_plan": "# Draft plan content",
-            "verification_report": {"passed": True},
-        }
-    )
+    result = request_approval_data("# Draft plan content", {"passed": True})
     assert result["waiting_for_user"] is True
     assert result["hitl_type"] == "approval"
     assert result["verification_passed"] is True
