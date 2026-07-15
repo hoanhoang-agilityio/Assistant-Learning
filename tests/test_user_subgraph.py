@@ -76,7 +76,7 @@ def test_missing_fields_pause_at_form_then_resume_completes(workspace_root: Path
     interrupt_payload = result["__interrupt__"][0].value
     assert interrupt_payload["type"] == "profile_form"
     missing = set(interrupt_payload["missing_fields"])
-    assert {"sex", "current_weight_kg", "activity_level", "goal"} <= missing
+    assert {"sex", "current_weight_kg", "target_weight_kg"} <= missing
 
     snapshot = agent.get_state(state)
     assert snapshot.next == ("user",)
@@ -85,8 +85,7 @@ def test_missing_fields_pause_at_form_then_resume_completes(workspace_root: Path
     form_data = {
         "sex": "male",
         "current_weight_kg": 80.0,
-        "activity_level": "gym_3x_week",
-        "goal": "maintenance",
+        "target_weight_kg": 75.0,
     }
     resumed = agent.resume(state, form_data)
 
@@ -125,7 +124,7 @@ def test_still_incomplete_resubmission_loops_back_to_form(workspace_root: Path) 
     # Complete the remaining fields.
     final = agent.resume(
         state,
-        {"current_weight_kg": 60.0, "activity_level": "sedentary", "goal": "maintenance"},
+        {"current_weight_kg": 60.0, "target_weight_kg": 55.0},
     )
     assert "__interrupt__" not in final
     assert final["profile_complete"] is True

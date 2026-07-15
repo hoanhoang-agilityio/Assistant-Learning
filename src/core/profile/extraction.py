@@ -14,105 +14,18 @@ ProfileExtractor = Callable[[str], ExtractedProfile]
 _EXTRACTOR_OVERRIDE: ProfileExtractor | None = None
 
 _EXTRACTION_SYSTEM_PROMPT = (
-    """You extract structured fitness profile information from a user's message.
+    """You extract structured fitness profile information from a user's message
+into the given schema. Follow the `description` on each field for what to extract
+and how to derive it.
 
-Return ONLY a valid JSON object with exactly three top-level sections:
-{
-  "profile": {...},
-  "goal": {...},
-  "constraints": {...}
-}
+General policy:
+- Extract only information explicitly stated or clearly implied. Never hallucinate or guess.
+- Leave a field null if not mentioned or not derivable from stated facts.
+- All three sections (profile, goal, constraints) must be objects, never null themselves.
 
-Each section must be an object. Never return null for profile, goal, or constraints.
-Use null only for individual fields inside those sections when information is missing.
-
-Rules:
-
-1. Extraction
-- Extract only information explicitly stated or clearly implied by the user.
-- If a field is missing or uncertain, return null.
-- Never hallucinate or guess missing values.
-
-2. Canonical units
-Convert measurements before returning:
-- height -> height_cm (integer, centimeters)
-- weight -> current_weight_kg / target_weight_kg (number, kilograms)
-
-3. Allowed derivations
-Only the following derivations are allowed:
-- Convert measurement units.
-- Resolve relative weight goals into target_weight_kg when current_weight_kg is known.
-  Example:
-    current_weight_kg = 75
-    "lose 2 kg"
-    -> target_weight_kg = 73
-- Resolve relative weight goals into weight_delta_kg when current_weight_kg is known.
-  Example:
-    current_weight_kg = 75
-    "lose 2 kg"
-    -> weight_delta_kg = -2
-- Convert explicit timelines into horizon_weeks.
-  Examples:
-    "1 year" -> horizon_weeks = 52
-    "1 month" -> horizon_weeks = 4
-    "8 weeks" -> horizon_weeks = 8
-    "6 months" -> horizon_weeks = 26
-
-Do NOT derive weekly_rate_kg, BMR, TDEE, or calorie targets.
-
-4. Training frequency
-Map training frequency into:
-constraints.days_per_week
-
-Examples:
-- "4-day workout"
-- "train 4 times a week"
-- "work out four days weekly"
--> days_per_week = 4
-
-Use:
-- 0 if the user explicitly says they are sedentary or do not exercise.
-- 1–6 when explicitly stated.
-- null if not mentioned.
-
-Do NOT populate activity_level.
-It will be derived downstream.
-
-5. Canonical enums
-
-goal.goal must be one of:
-- fat_loss
-- muscle_gain
-- recomposition
-- maintenance
-- strength
-- endurance
-- general_fitness
-
-constraints.equipment must be one of:
-- gym
-- home
-- bodyweight
-
-If equipment is not mentioned, return null.
-
-6. Never infer
-Do NOT infer or calculate:
-- activity_level
-- BMI
-- BMR
-- TDEE
-- calorie targets
-- macro targets
-- body fat percentage
-- fitness experience
-- medical conditions
-- training intensity
-- session duration
-- high_protein
-
-unless they are explicitly stated by the user.
-
+Do NOT populate or infer the following — they are computed downstream from other data,
+not extracted from text: activity_level, BMI, BMR, TDEE, calorie targets, macro targets,
+body fat percentage, fitness experience, medical conditions, training intensity.
 """
     + JSON_ONLY_INSTRUCTION
     + "\n"
