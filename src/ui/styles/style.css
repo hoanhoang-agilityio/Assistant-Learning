@@ -30,6 +30,8 @@
     --pt-radius-pill: 999px;
     --pt-font: var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
     --pt-transition: 0.16s ease;
+    --pt-danger: #e53935;
+    --pt-warning: #F59E0B;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -184,6 +186,70 @@ section[data-testid="stSidebar"] hr {
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--text-color);
+}
+
+/* Feasibility warning banner above the profile form */
+
+.pt-feasibility-banner {
+    padding: 0.6rem 0.85rem;
+    margin: 0.35rem 0 0.55rem;
+    border-radius: var(--pt-radius-md);
+    background-color: color-mix(in srgb, var(--pt-warning) 12%, var(--secondary-background-color));
+    border: 1px solid color-mix(in srgb, var(--pt-warning) 32%, transparent);
+    font-size: 0.875rem;
+    color: var(--text-color);
+}
+
+.pt-feasibility-banner p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.pt-feasibility-banner p + p {
+    margin-top: 0.35rem;
+}
+
+/* Structured profile form */
+
+[data-testid="stForm"] {
+    border-radius: var(--pt-radius-lg) !important;
+    border: 1px solid var(--pt-border) !important;
+    background-color: var(--secondary-background-color) !important;
+    padding: 1rem 1.1rem 0.5rem !important;
+}
+
+.pt-profile-form__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-color);
+    margin: 0.1rem 0 0.25rem;
+}
+
+.pt-profile-form__subtitle {
+    font-size: 0.875rem;
+    color: var(--pt-text-muted);
+    margin: 0 0 1rem;
+}
+
+/* Standard numeric inputs: no +/- steppers, just a typeable field */
+
+[data-testid="stForm"] [data-testid="stNumberInputStepUp"],
+[data-testid="stForm"] [data-testid="stNumberInputStepDown"] {
+    display: none !important;
+}
+
+[data-testid="stForm"] [data-testid="stNumberInputContainer"] input {
+    width: 100%;
+}
+
+.pt-field-error {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--pt-danger);
+    margin: -0.5rem 0 0.6rem;
 }
 
 /* Chat */
@@ -527,6 +593,15 @@ section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
     [data-testid="stChatMessage"] [data-testid="stChatMessageContent"] {
         padding: 0.7rem 0.85rem;
         font-size: 0.9rem;
+    }
+
+    [data-testid="stForm"] [data-testid="stHorizontalBlock"] {
+        flex-direction: column;
+    }
+
+    [data-testid="stForm"] [data-testid="stHorizontalBlock"] [data-testid="stColumn"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
     }
 }
 
