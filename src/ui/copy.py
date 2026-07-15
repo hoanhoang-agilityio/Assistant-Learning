@@ -92,7 +92,45 @@ HITL_TYPE_COPY: dict[str, str] = {
     "clarification": "Just need a couple more details from you.",
     "approval": "Your plan is ready — take a look.",
     "tool_approval": "Approve this action to continue.",
+    "profile_form": "Let's fill in a few details to build your plan.",
 }
+
+# goal-feasibility issue code (core/profile/goal_spec.py's assess_goal_feasibility) -> friendly
+# message. Mirrors that module's own _feasibility_message wording so the profile form banner
+# and the backend's internal reasoning stay in sync without importing across the API boundary.
+FEASIBILITY_ISSUE_COPY: dict[str, str] = {
+    "unrealistic_fat_loss_rate": (
+        "This target would require an unsafe rate of weight loss. "
+        "Consider a lower target rate or a longer timeline."
+    ),
+    "aggressive_fat_loss_rate": (
+        "This is an aggressive fat-loss rate. You can continue, but consider a longer timeline."
+    ),
+    "aggressive_muscle_gain_rate": (
+        "This is an aggressive muscle-gain rate. You can continue, but consider a longer timeline."
+    ),
+    "goal_direction_conflict:fat_loss_positive_delta": (
+        "Your goal is fat loss, but the target weight is higher than your current weight. "
+        "Please double-check your numbers."
+    ),
+    "goal_direction_conflict:muscle_gain_negative_delta": (
+        "Your goal is muscle gain, but the target weight is lower than your current weight. "
+        "Please double-check your numbers."
+    ),
+}
+
+
+def feasibility_messages(issues: list[str]) -> list[str]:
+    """Map feasibility issue codes to friendly messages, deduped and in original order."""
+    seen: set[str] = set()
+    messages: list[str] = []
+    for issue in issues:
+        message = FEASIBILITY_ISSUE_COPY.get(issue)
+        if message and message not in seen:
+            seen.add(message)
+            messages.append(message)
+    return messages
+
 
 APPROVAL_STATUS_COPY: dict[str, str] = {
     "approved": "Approved — saving now…",

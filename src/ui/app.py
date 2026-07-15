@@ -21,6 +21,7 @@ from ui.components.chat import (
     render_messages,
     sync_active_run_if_needed,
 )
+from ui.components.profile_form import render_profile_form
 from ui.components.sidebar import render_sidebar
 from ui.components.welcome import render_welcome
 
@@ -109,8 +110,13 @@ def main() -> None:
             and status.get("hitl_type", "approval") == "approval"
             and status.get("approval_status") not in {"rejected", "approved"}
         )
+        waiting_for_profile_form = bool(
+            run_id and status and status.get("hitl_type") == "profile_form"
+        )
         if waiting_for_approval:
             render_hitl_actions(client, run_id, status)
+        if waiting_for_profile_form:
+            render_profile_form(client, run_id, status)
 
     chat_placeholder = (
         "Want any changes? (e.g. train 5 days per week)…"
@@ -119,7 +125,7 @@ def main() -> None:
     )
     query = st.chat_input(
         chat_placeholder,
-        disabled=is_processing,
+        disabled=is_processing or waiting_for_profile_form,
     )
     pending_query = st.session_state.pending_query
     active_query = query or pending_query

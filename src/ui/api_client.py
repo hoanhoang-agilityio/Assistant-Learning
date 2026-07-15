@@ -103,20 +103,23 @@ def resume_run(
     decision_type: str | None = None,
     message: str | None = None,
     pending_tool: str | None = None,
+    form_data: dict[str, Any] | None = None,
     poll: bool = True,
     timeout: float = DEFAULT_RUN_POLL_TIMEOUT,
     interval: float = DEFAULT_POLL_INTERVAL,
     on_progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {}
-    if decision_type is not None:
+    if form_data is not None:
+        payload["form_data"] = form_data
+    elif decision_type is not None:
         payload["decision_type"] = decision_type
         if message is not None:
             payload["message"] = message
     elif user_response is not None:
         payload["user_response"] = user_response
     else:
-        raise ValueError("user_response or decision_type is required")
+        raise ValueError("user_response, decision_type, or form_data is required")
     if approval_status is not None:
         payload["approval_status"] = approval_status
     if pending_tool is not None:

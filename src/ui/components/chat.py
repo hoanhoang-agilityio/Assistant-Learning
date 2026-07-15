@@ -52,7 +52,7 @@ def _format_steps_trail(status: dict[str, Any]) -> str | None:
     return " → ".join(f"{PHASE_ICONS.get(p, '⚙️')} {PHASE_LABELS.get(p, p.title())}" for p in trail)
 
 
-def _write_pipeline_step(
+def write_pipeline_step(
     status_container: Any,
     status: dict[str, Any],
     *,
@@ -149,7 +149,7 @@ def sync_active_run_if_needed(client: httpx.Client) -> bool:
     st.session_state.is_processing = True
     try:
         with st.status("🧭 Picking up where we left off…", expanded=True) as pipeline_status:
-            last_step = _write_pipeline_step(
+            last_step = write_pipeline_step(
                 pipeline_status,
                 status,
                 last_step=None,
@@ -157,7 +157,7 @@ def sync_active_run_if_needed(client: httpx.Client) -> bool:
 
             def handle_poll_progress(status_update: dict[str, Any]) -> None:
                 nonlocal last_step
-                last_step = _write_pipeline_step(
+                last_step = write_pipeline_step(
                     pipeline_status,
                     status_update,
                     last_step=last_step,
@@ -172,7 +172,7 @@ def sync_active_run_if_needed(client: httpx.Client) -> bool:
 
         st.session_state.run_status = settled
         st.session_state.messages = _rebuild_messages_from_run(settled)
-        _update_run_history_status(run_id, settled.get("status", "unknown"))
+        update_run_history_status(run_id, settled.get("status", "unknown"))
         return settled.get("status") != "running"
     except httpx.TimeoutException:
         latest = get_run(client, run_id)
@@ -197,7 +197,7 @@ def _rebuild_messages_from_run(status: dict[str, Any]) -> list[dict[str, str]]:
     return messages
 
 
-def _assistant_message_from_status(status: dict[str, Any]) -> str:
+def assistant_message_from_status(status: dict[str, Any]) -> str:
     return _format_assistant_status_message(status)
 
 
@@ -211,7 +211,7 @@ def _add_to_run_history(run_id: str, query: str, status: str) -> None:
     history.append(entry)
 
 
-def _update_run_history_status(run_id: str, status: str) -> None:
+def update_run_history_status(run_id: str, status: str) -> None:
     for item in st.session_state.run_history:
         if item["run_id"] == run_id:
             item["status"] = status
@@ -248,11 +248,11 @@ def render_hitl_actions(
     action_cols = st.columns([1, 1, 8])
     if action_cols[0].button("✅ Approve", type="primary", key="approve_plan"):
         with st.status("💾 Saving your approved plan…", expanded=True) as approve_status:
-            last_step = _write_pipeline_step(approve_status, status, last_step=None)
+            last_step = write_pipeline_step(approve_status, status, last_step=None)
 
             def handle_approve_progress(status_update: dict[str, Any]) -> None:
                 nonlocal last_step
-                last_step = _write_pipeline_step(
+                last_step = write_pipeline_step(
                     approve_status,
                     status_update,
                     last_step=last_step,
@@ -272,10 +272,10 @@ def render_hitl_actions(
         st.session_state.messages.append(
             {
                 "role": "assistant",
-                "content": _assistant_message_from_status(updated),
+                "content": assistant_message_from_status(updated),
             }
         )
-        _update_run_history_status(run_id, updated.get("status", "unknown"))
+        update_run_history_status(run_id, updated.get("status", "unknown"))
         st.rerun()
 
     if action_cols[1].button("✋ Reject", key="reject_plan"):
@@ -294,10 +294,10 @@ def render_hitl_actions(
         st.session_state.messages.append(
             {
                 "role": "assistant",
-                "content": _assistant_message_from_status(updated),
+                "content": assistant_message_from_status(updated),
             }
         )
-        _update_run_history_status(run_id, updated.get("status", "unknown"))
+        update_run_history_status(run_id, updated.get("status", "unknown"))
         st.rerun()
 
 
@@ -324,7 +324,7 @@ def _handle_plan_change(client: httpx.Client, run_id: str, query: str) -> None:
 
             def handle_revision_progress(status_update: dict[str, Any]) -> None:
                 nonlocal last_step
-                last_step = _write_pipeline_step(
+                last_step = write_pipeline_step(
                     revision_status,
                     status_update,
                     last_step=last_step,
@@ -341,10 +341,10 @@ def _handle_plan_change(client: httpx.Client, run_id: str, query: str) -> None:
         st.session_state.messages.append(
             {
                 "role": "assistant",
-                "content": _assistant_message_from_status(updated),
+                "content": assistant_message_from_status(updated),
             }
         )
-        _update_run_history_status(run_id, updated.get("status", "unknown"))
+        update_run_history_status(run_id, updated.get("status", "unknown"))
     except httpx.TimeoutException:
         st.session_state.messages.append(
             {
@@ -366,7 +366,7 @@ def _handle_clarification(client: httpx.Client, run_id: str, query: str) -> None
 
             def handle_resume_progress(status_update: dict[str, Any]) -> None:
                 nonlocal last_step
-                last_step = _write_pipeline_step(
+                last_step = write_pipeline_step(
                     resume_status,
                     status_update,
                     last_step=last_step,
@@ -383,10 +383,10 @@ def _handle_clarification(client: httpx.Client, run_id: str, query: str) -> None
         st.session_state.messages.append(
             {
                 "role": "assistant",
-                "content": _assistant_message_from_status(updated),
+                "content": assistant_message_from_status(updated),
             }
         )
-        _update_run_history_status(run_id, updated.get("status", "unknown"))
+        update_run_history_status(run_id, updated.get("status", "unknown"))
     except httpx.TimeoutException:
         st.session_state.messages.append(
             {
@@ -453,7 +453,7 @@ def handle_user_input(
         poll_status = created
 
         with st.status("👋 Got it — let's build your plan…", expanded=True) as pipeline_status:
-            last_step = _write_pipeline_step(
+            last_step = write_pipeline_step(
                 pipeline_status,
                 created,
                 last_step=None,
@@ -462,7 +462,7 @@ def handle_user_input(
             def handle_poll_progress(status_update: dict[str, Any]) -> None:
                 nonlocal poll_status, last_step
                 poll_status = status_update
-                last_step = _write_pipeline_step(
+                last_step = write_pipeline_step(
                     pipeline_status,
                     status_update,
                     last_step=last_step,
@@ -476,7 +476,7 @@ def handle_user_input(
             pipeline_status.update(label="✅ All set!", state="complete")
 
         st.session_state.run_status = settled
-        assistant_content = _assistant_message_from_status(settled)
+        assistant_content = assistant_message_from_status(settled)
         st.session_state.messages.append(
             {"role": "assistant", "content": assistant_content},
         )
@@ -492,7 +492,7 @@ def handle_user_input(
             st.session_state.messages.append(
                 {
                     "role": "assistant",
-                    "content": _assistant_message_from_status(poll_status),
+                    "content": assistant_message_from_status(poll_status),
                 }
             )
             if new_run_id:

@@ -44,6 +44,13 @@ MODEL_PRICING_USD: dict[str, ModelPricing] = {
     "gpt-4o": ModelPricing(
         input_per_million=2.50, output_per_million=10.00, cached_input_per_million=1.25
     ),
+    # gpt-4.1 family: OpenAI prompt caching discounts cached input ~75%.
+    "gpt-4.1-mini": ModelPricing(
+        input_per_million=0.40, output_per_million=1.60, cached_input_per_million=0.10
+    ),
+    "gpt-4.1": ModelPricing(
+        input_per_million=2.00, output_per_million=8.00, cached_input_per_million=0.50
+    ),
     # gpt-5.x family: cached input billed at ~10% of base input rate.
     "gpt-5.4-mini": ModelPricing(
         input_per_million=0.75, output_per_million=4.50, cached_input_per_million=0.075

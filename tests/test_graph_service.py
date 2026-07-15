@@ -117,6 +117,42 @@ def test_resume_run_profile_form_via_command_resume(
     assert snapshot.values["user_profile"]["current_weight_kg"] == 85.0
 
 
+def test_get_run_reports_running_while_pending_resume_race_leaves_stale_checkpoint(
+    memory_checkpointer,
+) -> None:
+    """A background resume thread (start_resume_run/start_profile_form_resume/etc.) can
+    have a run_id in _pending_runs before its Command(...) invoke has written a single
+    checkpoint update -- get_run() must not mistake that untouched, pre-resume checkpoint
+    (still showing the old interrupt) for a genuinely settled outcome, or a poller resuming
+    the profile form would see the exact same "still needs the form" state it just
+    submitted and stop polling before the real result ever arrives."""
+    configure_profile_extractor(lambda _query: ExtractedProfile())
+    orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
+    run_status = orchestrator.create_run(
+        query="I want a 4-day training plan to lose weight.",
+        user_profile={"age": 30, "height_cm": 175},
+        constraints={"days_per_week": 4, "equipment": "gym"},
+    )
+    assert run_status.status == "waiting_hitl"
+    assert run_status.hitl_type == "profile_form"
+
+    # Simulate the race window: a resume thread has been registered as pending, but hasn't
+    # advanced the checkpoint past the pre-resume interrupt yet.
+    with orchestrator._lock:
+        orchestrator._pending_runs[run_status.run_id] = {}
+    raced_status = orchestrator.get_run(run_status.run_id)
+    assert raced_status.status == "running"
+
+    # Once the (simulated) background thread finishes and clears the pending marker, the
+    # real checkpoint state -- still genuinely paused, since nothing actually resumed it --
+    # must be reported again rather than staying stuck on "running" forever.
+    with orchestrator._lock:
+        orchestrator._pending_runs.pop(run_status.run_id, None)
+    settled_status = orchestrator.get_run(run_status.run_id)
+    assert settled_status.status == "waiting_hitl"
+    assert settled_status.hitl_type == "profile_form"
+
+
 def _waiting_for_approval_state(run_id: str, tmp_path) -> dict:
     initial = create_initial_state(
         run_id=run_id,

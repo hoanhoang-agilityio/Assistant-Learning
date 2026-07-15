@@ -27,13 +27,18 @@ Equipment = Literal["gym", "home", "bodyweight"]
 FeasibilityLevel = Literal["safe", "aggressive", "unsafe"]
 
 # Orchestration-level required fields (post-merge flat profile dict).
+#
+# "goal" and "activity_level" are intentionally excluded: the onboarding form no longer
+# collects them, and the downstream pipeline already degrades gracefully when they're
+# absent (resolve_goal_archetype/calculate_macros_data default to "general_fitness" /
+# "gym_3x_week"). Keeping them required here would make the profile_form HITL step
+# pause forever, since nothing would ever supply them.
 REQUIRED_PROFILE_FIELDS: tuple[str, ...] = (
     "age",
     "sex",
     "height_cm",
     "current_weight_kg",
-    "activity_level",
-    "goal",
+    "target_weight_kg",
 )
 GOAL_REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "fat_loss": (),
