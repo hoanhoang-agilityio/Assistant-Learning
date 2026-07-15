@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -67,6 +67,7 @@ class RunStatus:
     pending_tool: str | None
     next_nodes: tuple[str, ...]
     error_message: str | None = None
+    profile_form: dict[str, Any] | None = None
 
 
 class RunOrchestrator:
@@ -168,9 +169,19 @@ class RunOrchestrator:
         config = self._build_config(run_id)
         snapshot = self._graph.get_state(config)
         if snapshot.values:
-            return self._to_status(
+            status = self._to_status(
                 run_id, snapshot.values, snapshot.next, interrupts=_collect_interrupts(snapshot)
             )
+            if pending is not None and status.status != "running":
+                # A background thread (start_run/start_resume_run/start_profile_form_resume/
+                # start_continue_run) is actively invoking the graph for this run_id, but the
+                # checkpointer can still reflect the pre-resume snapshot for a brief window
+                # right after the thread starts (it hasn't written its first update yet) --
+                # e.g. the profile form's own missing-fields interrupt, still attached to the
+                # old checkpoint. Report "running" so pollers keep waiting for the thread's
+                # real outcome instead of settling on that stale pre-resume state.
+                return replace(status, status="running")
+            return status
         if pending is not None:
             return self._pending_status(run_id, pending)
         raise RunNotFoundError(f"Run not found: {run_id}")
@@ -552,6 +563,9 @@ class RunOrchestrator:
         lifecycle = _resolve_lifecycle_status(state, next_nodes, interrupts)
         final_plan = _read_final_plan(state)
         hitl_type, hitl_message = _resolve_hitl_context(state, next_nodes, interrupts)
+        profile_form = (
+            _extract_profile_form_payload(interrupts) if hitl_type == "profile_form" else None
+        )
         return RunStatus(
             run_id=run_id,
             thread_id=str(state.get("thread_id", run_id)),
@@ -573,6 +587,7 @@ class RunOrchestrator:
             pending_tool=state.get("pending_tool"),
             next_nodes=next_nodes,
             error_message=None,
+            profile_form=profile_form,
         )
 
 

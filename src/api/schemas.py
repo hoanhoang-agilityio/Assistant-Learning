@@ -67,3 +67,10 @@ class RunStatusResponse(BaseModel):
     pending_tool: str | None
     next_nodes: list[str]
     error_message: str | None = None
+    profile_form: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Raw profile-form interrupt payload (profile/missing_fields/feasibility_issues/"
+            "validation_errors), present only when hitl_type is 'profile_form'."
+        ),
+    )

@@ -24,4 +24,5 @@ def to_run_status_response(status: RunStatus) -> RunStatusResponse:
         pending_tool=status.pending_tool,
         next_nodes=list(status.next_nodes),
         error_message=status.error_message,
+        profile_form=status.profile_form,
     )
