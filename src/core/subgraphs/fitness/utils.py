@@ -1,10 +1,12 @@
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 from core.profile.goal_spec import rate_to_calorie_adjustment
 from core.subgraphs.fitness.schema import (
+    EditOperation,
     SafetyResult,
     StructuredWorkout,
     WorkoutDay,
@@ -293,6 +295,13 @@ def validate_workout_safety_data(
     return SafetyResult(passed=not unique_feedback, feedback=unique_feedback).model_dump()
 
 
+EDIT_FAILED_NOTICE = (
+    "> **Note:** I couldn't apply your requested change precisely, so your plan is "
+    "unchanged from before. Try naming the specific day or exercise you mean and "
+    "I'll try again.\n\n"
+)
+
+
 def synthesize_plan_data(
     macro_targets: dict[str, Any],
     structured_workout: dict[str, Any] | None,
@@ -300,6 +309,7 @@ def synthesize_plan_data(
     verification_feedback: str | None,
     safety_result: dict[str, Any],
     plan_blueprint: dict[str, Any] | None = None,
+    edit_failed: bool = False,
 ) -> dict[str, Any]:
     if structured_workout is None:
         return {"draft_plan": "# Fitness Plan Draft\n\nWorkout plan unavailable.\n"}
@@ -393,6 +403,10 @@ def synthesize_plan_data(
         f"{feedback_section}"
         f"{safety_section}"
     )
+    if edit_failed:
+        draft_plan = draft_plan.replace(
+            "# Fitness Plan Draft\n\n", "# Fitness Plan Draft\n\n" + EDIT_FAILED_NOTICE, 1
+        )
     return {"draft_plan": draft_plan}
 
 
@@ -500,6 +514,36 @@ def _default_day_templates(days_per_week: int) -> list[tuple[str, tuple[WorkoutE
     ]
 
 
+def resolve_expected_day_count(
+    operation: EditOperation | None,
+    previous_workout: dict[str, Any] | None,
+    training_constraints: dict[str, Any],
+) -> int:
+    """Resolve the day count a workout should have this run.
+
+    During an edit (operation + previous_workout both present), the expected
+    count is derived from the plan being edited -- ADD_DAY/REMOVE_DAY adjust it
+    by one, anything else keeps it the same -- never from the static,
+    profile-derived training_constraints["days_per_week"], which can be stale
+    relative to a plan already edited in an earlier turn (e.g. a prior
+    successful ADD_DAY took it from 4 to 5 days, but training_constraints still
+    says 4). This is the single source of truth for that value, used
+    identically by generation (ensure_training_day_count) and validation
+    (validate_workout_safety_data) so they can never disagree.
+
+    Fresh generation (no operation/previous_workout) is unchanged: falls back
+    to training_constraints["days_per_week"] exactly as before.
+    """
+    if operation is not None and previous_workout is not None:
+        prev_day_count = len(previous_workout.get("days", []))
+        if operation.operation == "ADD_DAY":
+            return prev_day_count + 1
+        if operation.operation == "REMOVE_DAY":
+            return prev_day_count - 1
+        return prev_day_count
+    return int(training_constraints["days_per_week"])
+
+
 def ensure_training_day_count(
     workout: StructuredWorkout,
     training_constraints: dict[str, Any],
@@ -528,6 +572,138 @@ def ensure_training_day_count(
             "notes": list(dict.fromkeys([*workout.notes, *fallback.notes])),
         }
     )
+
+
+def replace_exercise(
+    workout: dict[str, Any],
+    target: str | None,
+    replacement: str | None,
+) -> dict[str, Any] | None:
+    """Deterministically rename one exercise across all days.
+
+    Returns None (signalling "fall back to edit-mode generation") unless the
+    target name matches exactly one exercise in the workout -- ambiguous or
+    missing matches are not guessed at.
+    """
+    if not target or not replacement:
+        return None
+    target_lower = target.strip().lower()
+    updated = deepcopy(workout)
+    matches = [
+        exercise
+        for day in updated.get("days", [])
+        for exercise in day.get("exercises", [])
+        if str(exercise.get("name", "")).strip().lower() == target_lower
+    ]
+    if len(matches) != 1:
+        return None
+    matches[0]["name"] = replacement
+    return updated
+
+
+def apply_deterministic_edit(
+    operation: EditOperation,
+    previous_workout: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Apply an edit operation without an LLM call, or None to fall back to edit mode.
+
+    UPDATE_MACROS never touches the workout -- the macro recompute happens
+    entirely outside workout generation (calculate_macros_data), so reusing
+    the previous workout unchanged is the correct result, not a shortcut.
+    """
+    if operation.operation == "UPDATE_MACROS":
+        return previous_workout
+    if operation.operation == "REPLACE_EXERCISE":
+        return replace_exercise(
+            previous_workout,
+            operation.target_exercise,
+            operation.replacement_exercise,
+        )
+    return None
+
+
+def _day_signature(day: dict[str, Any]) -> tuple[Any, ...]:
+    """Comparable snapshot of a workout day for preservation checks: focus +
+    ordered exercise names only. Deliberately excludes sets/reps/notes -- this
+    is a minimal regression check, not a full diff.
+    """
+    exercise_names = tuple(str(exercise.get("name", "")) for exercise in day.get("exercises", []))
+    return (str(day.get("focus", "")), exercise_names)
+
+
+def _add_day_unrelated_days_changed(
+    previous_workout: dict[str, Any], new_workout: dict[str, Any]
+) -> bool:
+    """For ADD_DAY: every pre-existing day (assumed to stay in place, new day appended
+    last -- no stable day IDs to pin its position otherwise) must be unchanged. Not a
+    general diff: a plain positional prefix comparison, only ever called once the day
+    count itself has already been confirmed to be prev+1.
+    """
+    prev_sig = [_day_signature(day) for day in previous_workout.get("days", [])]
+    new_sig = [_day_signature(day) for day in new_workout.get("days", [])]
+    return prev_sig != new_sig[: len(prev_sig)]
+
+
+def _remove_day_unrelated_days_changed(
+    previous_workout: dict[str, Any], new_workout: dict[str, Any]
+) -> bool:
+    """For REMOVE_DAY: the remaining days must equal the previous days with exactly
+    one entry removed, in the same order. Checked by brute force over the (<=6) day
+    positions rather than a general diff, since day counts are tiny; only ever called
+    once the day count itself has already been confirmed to be prev-1.
+    """
+    prev_sig = [_day_signature(day) for day in previous_workout.get("days", [])]
+    new_sig = [_day_signature(day) for day in new_workout.get("days", [])]
+    return not any(prev_sig[:i] + prev_sig[i + 1 :] == new_sig for i in range(len(prev_sig)))
+
+
+def validate_edit_result(
+    operation: EditOperation,
+    previous_workout: dict[str, Any],
+    new_workout: dict[str, Any],
+) -> list[str]:
+    """Lightweight, intentionally non-exhaustive checks that an edit did what it claimed.
+
+    Not a diff engine: two day-count comparisons, one positional-prefix
+    preservation check each for ADD_DAY/REMOVE_DAY, and two name-membership
+    checks, reusing the same feedback-string convention as
+    validate_workout_safety_data so callers can merge results into one list.
+    """
+    issues: list[str] = []
+    prev_days = len(previous_workout.get("days", []))
+    new_days = len(new_workout.get("days", []))
+    if operation.operation == "ADD_DAY":
+        if new_days != prev_days + 1:
+            issues.append("edit_validation_failed:day_count_did_not_increase")
+        elif _add_day_unrelated_days_changed(previous_workout, new_workout):
+            issues.append("edit_validation_failed:unrelated_day_changed")
+    elif operation.operation == "REMOVE_DAY":
+        if new_days != prev_days - 1:
+            issues.append("edit_validation_failed:day_count_did_not_decrease")
+        elif _remove_day_unrelated_days_changed(previous_workout, new_workout):
+            issues.append("edit_validation_failed:unrelated_day_changed")
+    elif operation.operation == "REPLACE_EXERCISE":
+        names = {
+            str(exercise.get("name", "")).strip().lower()
+            for day in new_workout.get("days", [])
+            for exercise in day.get("exercises", [])
+        }
+        replacement = (operation.replacement_exercise or "").strip().lower()
+        target = (operation.target_exercise or "").strip().lower()
+        if replacement and replacement not in names:
+            issues.append("edit_validation_failed:replacement_missing")
+        if target and target in names:
+            issues.append("edit_validation_failed:target_still_present")
+    return issues
+
+
+def flatten_exercise_names(workout: dict[str, Any]) -> list[str]:
+    """Flat list of exercise names across all days, for edit-classifier grounding."""
+    return [
+        str(exercise.get("name", ""))
+        for day in workout.get("days", [])
+        for exercise in day.get("exercises", [])
+    ]
 
 
 def build_default_structured_workout(
