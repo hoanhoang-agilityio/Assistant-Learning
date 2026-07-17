@@ -1,5 +1,7 @@
 """Pydantic schemas for Fitness Planner structured outputs."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -62,3 +64,13 @@ class SafetyResult(BaseModel):
 
     passed: bool
     feedback: list[str] = Field(default_factory=list)
+
+
+class EditOperation(BaseModel):
+    """Classification of a follow-up plan-edit request against an existing workout."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    operation: Literal["ADD_DAY", "REMOVE_DAY", "REPLACE_EXERCISE", "UPDATE_MACROS", "OTHER"]
+    target_exercise: str | None = None
+    replacement_exercise: str | None = None

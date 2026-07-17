@@ -7,6 +7,7 @@ from core.agents.state import OrchestrationState
 from core.config.settings import get_settings
 from core.subgraphs.fitness.blueprint import build_plan_blueprint
 from core.subgraphs.fitness.planner import generate_structured_workout
+from core.subgraphs.fitness.schema import EditOperation
 from core.subgraphs.fitness.state import FitnessState
 from core.subgraphs.fitness.template_registry import (
     adapt_workout_to_blueprint,
@@ -19,7 +20,9 @@ from core.subgraphs.fitness.utils import (
     ensure_training_day_count,
     load_fitness_context,
     load_prior_safety_feedback,
+    resolve_expected_day_count,
     synthesize_plan_data,
+    validate_edit_result,
     validate_workout_safety_data,
     write_fitness_artifacts,
 )
@@ -70,6 +73,9 @@ def _resolve_workout_template_node(state: FitnessState) -> dict:
         "workout_source": resolution["workout_source"],
         "reused_workout": resolution["reused_workout"],
     }
+    if "edit_operation" in resolution:
+        updates["edit_operation"] = resolution["edit_operation"]
+        updates["previous_workout"] = resolution["previous_workout"]
     if resolution["structured_workout"] is not None:
         updates["structured_workout"] = adapt_workout_to_blueprint(
             resolution["structured_workout"],
@@ -92,6 +98,12 @@ def _fitness_planner_node(state: FitnessState) -> dict:
         else None
     )
     revision_feedback = load_revision_feedback(state["workspace_path"])
+    previous_workout = state.get("previous_workout")
+    edit_operation_data = state.get("edit_operation")
+    edit_operation = (
+        EditOperation.model_validate(edit_operation_data) if edit_operation_data else None
+    )
+
     workout = generate_structured_workout(
         profile=state["profile"],
         constraints=state["constraints"],
@@ -102,10 +114,23 @@ def _fitness_planner_node(state: FitnessState) -> dict:
         planner_feedback=state["planner_feedback"],
         verification_feedback=state["verification_feedback"],
         revision_feedback=revision_feedback,
+        mode="edit" if edit_operation is not None else "generate",
+        previous_workout=previous_workout,
+        edit_operation=edit_operation,
     )
+
+    # resolve_expected_day_count is the single source of truth for the target day
+    # count -- during an edit it's derived from previous_workout, never from the
+    # static profile-derived training_constraints, so it stays in agreement with
+    # what _safety_check_node validates against below.
+    expected_days = resolve_expected_day_count(
+        edit_operation, previous_workout, state["training_constraints"]
+    )
+    training_constraints = {**state["training_constraints"], "days_per_week": expected_days}
+
     workout = ensure_training_day_count(
         workout,
-        state["training_constraints"],
+        training_constraints,
         state["profile"],
     )
     from core.subgraphs.fitness.blueprint import PlanBlueprint
@@ -124,21 +149,73 @@ def _fitness_planner_node(state: FitnessState) -> dict:
 
 
 def _safety_check_node(state: FitnessState) -> dict:
+    previous_workout = state.get("previous_workout")
+    edit_operation_data = state.get("edit_operation")
+    edit_operation = (
+        EditOperation.model_validate(edit_operation_data) if edit_operation_data else None
+    )
+
+    # Same resolve_expected_day_count call, same inputs, as _fitness_planner_node
+    # used to produce this candidate -- so the day-count check below can never
+    # flag a correctly-edited plan as a "mismatch" against a stale
+    # training_constraints["days_per_week"] the candidate was never targeting.
+    expected_days = resolve_expected_day_count(
+        edit_operation, previous_workout, state["training_constraints"]
+    )
+    training_constraints = {**state["training_constraints"], "days_per_week": expected_days}
+
     safety_result = validate_workout_safety_data(
         profile=state["profile"],
         macro_targets=state["macro_targets"],
-        training_constraints=state["training_constraints"],
+        training_constraints=training_constraints,
         structured_workout=state["structured_workout"],
     )
+
+    edit_issues: list[str] = []
+    if edit_operation is not None and previous_workout is not None:
+        edit_issues = validate_edit_result(
+            edit_operation, previous_workout, state["structured_workout"]
+        )
+        if edit_issues:
+            merged = sorted(set(safety_result["feedback"]) | set(edit_issues))
+            safety_result = {"passed": False, "feedback": merged}
+
     updates: dict = {"safety_result": safety_result}
-    if not safety_result["passed"] and state["planner_attempts"] < state["max_planner_attempts"]:
-        merged_feedback = list(state["planner_feedback"])
-        for item in safety_result["feedback"]:
-            if item not in merged_feedback:
-                merged_feedback.append(item)
-        updates["planner_feedback"] = merged_feedback
-        updates["structured_workout"] = None
-        updates["reused_workout"] = False
+    if not safety_result["passed"]:
+        if state["planner_attempts"] < state["max_planner_attempts"]:
+            merged_feedback = list(state["planner_feedback"])
+            for item in safety_result["feedback"]:
+                if item not in merged_feedback:
+                    merged_feedback.append(item)
+            updates["planner_feedback"] = merged_feedback
+            updates["structured_workout"] = None
+            updates["reused_workout"] = False
+        elif edit_issues:
+            # Revert to the unchanged prior plan, and recompute safety_result
+            # against THAT plan (not the discarded failed candidate) so
+            # structured_workout, safety_result, the persisted artifacts, and
+            # the rendered draft plan all describe the same workout.
+            #
+            # days_per_week is overridden to previous_workout's own actual day
+            # count, not state["training_constraints"]["days_per_week"] -- that
+            # field is a static, never-mutated profile default and can be stale
+            # relative to a plan already edited in an earlier turn (e.g. a prior
+            # successful ADD_DAY took it from 3 to 4 days). previous_workout's
+            # own day count is definitionally correct here, regardless of which
+            # operation was being attempted this turn, since we're reverting to
+            # it exactly as it was.
+            reverted_training_constraints = {
+                **state["training_constraints"],
+                "days_per_week": len(previous_workout.get("days", [])),
+            }
+            updates["safety_result"] = validate_workout_safety_data(
+                profile=state["profile"],
+                macro_targets=state["macro_targets"],
+                training_constraints=reverted_training_constraints,
+                structured_workout=previous_workout,
+            )
+            updates["structured_workout"] = previous_workout
+            updates["edit_failed"] = True
     return updates
 
 
@@ -158,6 +235,7 @@ def _synthesize_plan_node(state: FitnessState) -> dict:
         verification_feedback=state["verification_feedback"],
         safety_result=state["safety_result"],
         plan_blueprint=state["plan_blueprint"],
+        edit_failed=state.get("edit_failed", False),
     )
 
 
@@ -251,6 +329,9 @@ def to_fitness_state(state: OrchestrationState) -> FitnessState:
         template_fingerprint=None,
         workout_source=None,
         reused_workout=False,
+        edit_operation=None,
+        previous_workout=None,
+        edit_failed=False,
     )
 
 

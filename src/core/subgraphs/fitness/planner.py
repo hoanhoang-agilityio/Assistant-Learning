@@ -1,7 +1,7 @@
 """LLM structured workout generation for the Fitness subgraph."""
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -15,8 +15,11 @@ from core.llm.serializers import (
     compact_profile_for_llm,
     compact_structured_findings,
 )
-from core.subgraphs.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
-from core.subgraphs.fitness.schema import StructuredWorkout
+from core.subgraphs.fitness.prompts import (
+    FITNESS_PLANNER_SYSTEM_PROMPT,
+    build_fitness_edit_system_prompt,
+)
+from core.subgraphs.fitness.schema import EditOperation, StructuredWorkout
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.research.schema import ResearchFindings
 
@@ -45,6 +48,11 @@ def build_planner_context_payload(
     shares a byte-identical leading prefix for OpenAI's prompt caching to
     match against (see build_planner_feedback_payload for the part that
     actually changes on retry).
+
+    Deliberately does not carry `previous_workout` -- in edit mode that's
+    promoted to its own top-level CURRENT WORKOUT block by
+    generate_structured_workout (see below), not buried as one field among
+    profile/macros/training_constraints/execution_plan/structured_findings.
     """
     return {
         "profile": compact_profile_for_llm(profile),
@@ -115,8 +123,21 @@ def generate_structured_workout(
     planner_feedback: list[str],
     verification_feedback: str | None,
     revision_feedback: str | None = None,
+    mode: Literal["generate", "edit"] = "generate",
+    previous_workout: dict[str, Any] | None = None,
+    edit_operation: EditOperation | None = None,
 ) -> StructuredWorkout:
-    """Generate a structured workout via LLM structured output."""
+    """Generate a structured workout via LLM structured output.
+
+    In "edit" mode, the message is restructured around `previous_workout` as
+    the primary editing context (CURRENT WORKOUT / USER REQUEST / TASK, with
+    everything else demoted to an ADDITIONAL CONTEXT block) and scored against
+    a system prompt composed by build_fitness_edit_system_prompt() -- the base
+    edit hard-constraints plus operation-specific rules for `edit_operation`,
+    when known -- instead of the base generation prompt, so the model is told
+    it is editing, not generating a new plan. The output schema and all
+    downstream parsing/validation are identical between modes.
+    """
     if _AGENT_OVERRIDE is not None:
         return _AGENT_OVERRIDE(
             profile=profile,
@@ -142,20 +163,45 @@ def generate_structured_workout(
         revision_feedback=revision_feedback,
     )
     validate_fitness_planner_payload({**context_payload, **feedback_payload})
-    # Two separate compact_json blocks, not one merged dict: this keeps the
-    # context block's serialized bytes identical between a first attempt and
-    # a safety-check retry (only feedback_payload differs), giving OpenAI's
-    # prompt caching a real repeated prefix to match against on retry.
-    message_content = compact_json(context_payload) + "\n" + compact_json(feedback_payload)
+
+    if mode == "edit" and previous_workout is not None:
+        message_content = (
+            "CURRENT WORKOUT (this is the plan you are editing -- the immutable baseline):\n"
+            + compact_json(previous_workout)
+            + "\n\nUSER REQUEST:\n"
+            + (revision_feedback or "").strip()
+            + "\n\nTASK:\nYou are EDITING the CURRENT WORKOUT above, not generating a new "
+            "plan. Apply only the change described in USER REQUEST. Every part of CURRENT "
+            "WORKOUT not implicated by USER REQUEST must be reproduced exactly as given.\n\n"
+            "ADDITIONAL CONTEXT:\n"
+            + compact_json(context_payload)
+            + "\n"
+            + compact_json(feedback_payload)
+        )
+    else:
+        # Two separate compact_json blocks, not one merged dict: this keeps the
+        # context block's serialized bytes identical between a first attempt and
+        # a safety-check retry (only feedback_payload differs), giving OpenAI's
+        # prompt caching a real repeated prefix to match against on retry.
+        message_content = compact_json(context_payload) + "\n" + compact_json(feedback_payload)
+    if mode == "edit":
+        operation_name = edit_operation.operation if edit_operation is not None else None
+        system_prompt = build_fitness_edit_system_prompt(operation_name)
+        prompt_cache_key = (
+            f"fitness_planner_edit_{operation_name}" if operation_name else "fitness_planner_edit"
+        )
+    else:
+        system_prompt = FITNESS_PLANNER_SYSTEM_PROMPT
+        prompt_cache_key = "fitness_planner"
     token = set_llm_metrics_node("fitness_planner")
     try:
         return invoke_standard_structured_output(
             StructuredWorkout,
             [
-                SystemMessage(content=FITNESS_PLANNER_SYSTEM_PROMPT),
+                SystemMessage(content=system_prompt),
                 HumanMessage(content=message_content),
             ],
-            prompt_cache_key="fitness_planner",
+            prompt_cache_key=prompt_cache_key,
         )
     finally:
         from core.llm.metrics import reset_llm_metrics_node
