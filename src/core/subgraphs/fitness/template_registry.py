@@ -7,8 +7,13 @@ from typing import Any
 
 from core.config.settings import get_settings
 from core.subgraphs.fitness.blueprint import PlanBlueprint, session_duration_bucket_from_profile
+from core.subgraphs.fitness.edit_classifier import classify_edit_operation
 from core.subgraphs.fitness.schema import StructuredWorkout
-from core.subgraphs.fitness.utils import is_cacheable_workout
+from core.subgraphs.fitness.utils import (
+    apply_deterministic_edit,
+    flatten_exercise_names,
+    is_cacheable_workout,
+)
 from core.subgraphs.planning.utils import load_revision_feedback
 from core.vfs import VFS
 
@@ -136,12 +141,43 @@ def resolve_workout_template(
             "reused_workout": False,
         }
 
-    if load_revision_feedback(workspace_path):
+    revision_feedback = load_revision_feedback(workspace_path)
+    if revision_feedback:
+        prior_workout = load_prior_workout(workspace_path)
+        if prior_workout is None:
+            # No existing plan to edit (e.g. revision feedback landed before the
+            # first-ever generation) -- fall back to a normal, unscoped generation.
+            return {
+                "structured_workout": None,
+                "template_fingerprint": fingerprint,
+                "workout_source": "llm_required",
+                "reused_workout": False,
+            }
+
+        operation = classify_edit_operation(
+            revision_feedback, flatten_exercise_names(prior_workout)
+        )
+
+        if operation.operation in ("UPDATE_MACROS", "REPLACE_EXERCISE"):
+            deterministic_result = apply_deterministic_edit(operation, prior_workout)
+            if deterministic_result is not None:
+                return {
+                    "structured_workout": deterministic_result,
+                    "template_fingerprint": fingerprint,
+                    "workout_source": "deterministic_edit",
+                    "reused_workout": True,
+                }
+            # Ambiguous/no-match deterministic attempt (e.g. REPLACE_EXERCISE with
+            # zero or multiple matches) falls through to edit-mode generation below,
+            # same as ADD_DAY/REMOVE_DAY/OTHER.
+
         return {
             "structured_workout": None,
             "template_fingerprint": fingerprint,
             "workout_source": "llm_required",
             "reused_workout": False,
+            "edit_operation": operation.model_dump(),
+            "previous_workout": prior_workout,
         }
 
     if should_reuse_prior_workout(

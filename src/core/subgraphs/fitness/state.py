@@ -22,5 +22,10 @@ class FitnessState(TypedDict):
     is_verification_rerun: bool
     draft_plan: str | None
     template_fingerprint: str | None
-    workout_source: Literal["llm", "registry", "run_reuse", "llm_required"] | None
+    workout_source: (
+        Literal["llm", "registry", "run_reuse", "llm_required", "deterministic_edit"] | None
+    )
     reused_workout: bool
+    edit_operation: dict | None
+    previous_workout: dict | None
+    edit_failed: bool
