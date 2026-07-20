@@ -6,7 +6,7 @@ from core.agents.state import ApprovalStatus
 
 
 class CreateRunRequest(BaseModel):
-    query: str = Field(min_length=3)
+    query: str = Field(min_length=3, max_length=4000)
     user_profile: dict[str, Any] = Field(default_factory=dict)
     constraints: dict[str, Any] = Field(default_factory=dict)
     user_id: str | None = Field(
@@ -42,6 +42,7 @@ class ResumeRunRequest(BaseModel):
 class ContinueRunRequest(BaseModel):
     message: str = Field(
         min_length=1,
+        max_length=4000,
         description="Plan change request in an ongoing conversation (replan without re-asking profile).",
     )
 
