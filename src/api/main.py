@@ -5,9 +5,35 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.deps import close_orchestrator_resources, get_orchestrator
 from api.routes.runs import router as runs_router
-from core.config.settings import get_settings
+from core.config.settings import Settings, get_settings
 from core.graph.service import RunOrchestrator
 from core.rate_limit.pricing import validate_model_pricing_coverage
+
+
+def resolve_cors_origins(settings: Settings) -> list[str]:
+    """Explicit, non-wildcard CORS origins for the local Streamlit UI."""
+    return [f"http://localhost:{settings.streamlit_port}"]
+
+
+def add_cors_middleware(app: FastAPI, settings: Settings) -> None:
+    allow_origins = resolve_cors_origins(settings)
+    allow_credentials = True
+    # A wildcard origin combined with credentials is a landmine: browsers
+    # reject the combination today, but a future "fix" that reflects the
+    # request origin back (instead of removing the wildcard) would silently
+    # turn this into a real cross-origin credential-leak path. Assert the
+    # unsafe combination can never ship, rather than relying on browser
+    # behavior as the only backstop.
+    assert "*" not in allow_origins or not allow_credentials, (
+        "CORS misconfiguration: wildcard origin must not be combined with allow_credentials=True"
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allow_origins,
+        allow_credentials=allow_credentials,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
@@ -40,13 +66,7 @@ def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    add_cors_middleware(app, settings)
     app.include_router(runs_router)
 
     if orchestrator is not None:

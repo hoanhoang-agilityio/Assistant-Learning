@@ -1,10 +1,12 @@
 import time
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.deps import reset_orchestrator
-from api.main import create_app
+from api.main import create_app, resolve_cors_origins
+from core.config.settings import Settings
 from core.graph.service import RunOrchestrator
 from core.mcp.tavily_client import TavilyMCPClient
 from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
@@ -120,3 +122,25 @@ def test_resume_run_persists_final_plan(api_client: TestClient, complete_profile
 def test_get_run_not_found(api_client: TestClient) -> None:
     response = api_client.get("/runs/does-not-exist")
     assert response.status_code == 404
+
+
+def test_cors_origins_are_not_wildcarded() -> None:
+    """Regression test for A9: CORS must never combine a wildcard origin with
+    credentials -- browsers reject the combination today, but that's not a
+    control we should rely on."""
+    origins = resolve_cors_origins(Settings())
+    assert "*" not in origins
+
+
+def test_cors_middleware_rejects_wildcard_with_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The assertion in add_cors_middleware is the backstop for a future
+    "fix" that reintroduces a wildcard origin alongside credentials -- assert
+    it actually fires rather than trusting it exists."""
+    import api.main as main_module
+
+    monkeypatch.setattr(main_module, "resolve_cors_origins", lambda settings: ["*"])
+    app = FastAPI()
+    with pytest.raises(AssertionError):
+        main_module.add_cors_middleware(app, Settings())
