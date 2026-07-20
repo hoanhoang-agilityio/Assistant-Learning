@@ -13,6 +13,7 @@ from typing import Any
 
 import httpx
 import streamlit as st
+import streamlit.components.v1 as components
 
 from ui.api_client import resume_run
 from ui.components.chat import (
@@ -27,8 +28,8 @@ SEX_OPTIONS: tuple[str, ...] = ("male", "female")
 _REQUIRED_FIELD_ERROR = "This field is required."
 
 # Field name -> widget key prefix (combined with "_{run_id}" to form the actual st widget
-# key). Kept in sync with the keys used below so _invalid_field_style can target the
-# right widget via Streamlit's automatic ".st-key-<key>" container class.
+# key). Kept in sync with the keys used below so _focus_field can target the right
+# widget via Streamlit's automatic ".st-key-<key>" container class.
 _FIELD_KEY_PREFIXES: dict[str, str] = {
     "age": "pf_age",
     "sex": "pf_sex",
@@ -91,31 +92,28 @@ def _validate(values: dict[str, Any]) -> dict[str, str]:
     return errors
 
 
-def _error_caption(errors: dict[str, str], field: str) -> None:
-    if field in errors:
-        st.markdown(
-            f'<div class="pt-field-error">⚠ {errors[field]}</div>',
-            unsafe_allow_html=True,
-        )
+def _focus_field(run_id: str, field: str) -> None:
+    """Scroll to and focus the first invalid field's widget after a failed submit.
 
-
-def _invalid_field_style(errors: dict[str, str], run_id: str) -> None:
-    """Inject a scoped <style> block that red-borders each invalid field's widget.
-
-    Streamlit gives every keyed widget's container a ".st-key-<key>" class, which lets us
-    target individual fields without touching the rest of the form's styling.
+    Streamlit's iframe shares the same origin as the parent page, so reaching through
+    ``window.parent.document`` to drive focus on a plain HTML input/select is a common
+    (if hacky) escape hatch — there's no first-class Streamlit API for this.
     """
-    selectors = [
-        f'.st-key-{prefix}_{run_id} [data-testid="stNumberInputContainer"], '
-        f'.st-key-{prefix}_{run_id} [data-baseweb="select"] > div:first-child'
-        for field, prefix in _FIELD_KEY_PREFIXES.items()
-        if field in errors
-    ]
-    if not selectors:
+    prefix = _FIELD_KEY_PREFIXES.get(field)
+    if not prefix:
         return
-    st.markdown(
-        f"<style>{', '.join(selectors)} {{ border: 1.5px solid var(--pt-danger) !important; }}</style>",
-        unsafe_allow_html=True,
+    selector = f".st-key-{prefix}_{run_id} input, .st-key-{prefix}_{run_id} [data-baseweb='select']"
+    components.html(
+        f"""<script>
+        setTimeout(function() {{
+            var el = window.parent.document.querySelector("{selector}");
+            if (el) {{
+                el.scrollIntoView({{behavior: "smooth", block: "center"}});
+                el.focus();
+            }}
+        }}, 50);
+        </script>""",
+        height=0,
     )
 
 
@@ -123,15 +121,7 @@ def render_profile_form(client: httpx.Client, run_id: str, status: dict[str, Any
     """Render the structured profile-form HITL step and handle its submission."""
     payload = status.get("profile_form") or {}
     profile = payload.get("profile") or {}
-    server_missing = set(payload.get("missing_fields") or [])
     issues = feasibility_messages(payload.get("feasibility_issues") or [])
-
-    errors_key = f"pf_errors_{run_id}"
-    if errors_key not in st.session_state:
-        st.session_state[errors_key] = dict.fromkeys(
-            server_missing & _FIELD_KEY_PREFIXES.keys(), _REQUIRED_FIELD_ERROR
-        )
-    errors: dict[str, str] = st.session_state[errors_key]
 
     st.markdown(
         f'<div class="pt-hitl-banner">🙋 <span>{HITL_TYPE_COPY["profile_form"]}</span></div>',
@@ -144,8 +134,6 @@ def render_profile_form(client: httpx.Client, run_id: str, status: dict[str, Any
             + "</div>",
             unsafe_allow_html=True,
         )
-
-    _invalid_field_style(errors, run_id)
 
     with st.form(f"profile_form_{run_id}", border=True):
         st.markdown(
@@ -165,7 +153,6 @@ def render_profile_form(client: httpx.Client, run_id: str, status: dict[str, Any
                 step=1,
                 key=f"pf_age_{run_id}",
             )
-            _error_caption(errors, "age")
         with col2:
             sex = st.selectbox(
                 "Sex",
@@ -175,7 +162,6 @@ def render_profile_form(client: httpx.Client, run_id: str, status: dict[str, Any
                 placeholder="Select…",
                 key=f"pf_sex_{run_id}",
             )
-            _error_caption(errors, "sex")
 
         col3, col4 = st.columns(2)
         with col3:
@@ -187,7 +173,6 @@ def render_profile_form(client: httpx.Client, run_id: str, status: dict[str, Any
                 step=1.0,
                 key=f"pf_height_cm_{run_id}",
             )
-            _error_caption(errors, "height_cm")
         with col4:
             current_weight_kg = st.number_input(
                 "Current weight (kg)",
@@ -197,7 +182,6 @@ def render_profile_form(client: httpx.Client, run_id: str, status: dict[str, Any
                 step=0.5,
                 key=f"pf_current_weight_kg_{run_id}",
             )
-            _error_caption(errors, "current_weight_kg")
 
         target_weight_kg = st.number_input(
             "Target weight (kg)",
@@ -207,7 +191,6 @@ def render_profile_form(client: httpx.Client, run_id: str, status: dict[str, Any
             step=0.5,
             key=f"pf_target_weight_kg_{run_id}",
         )
-        _error_caption(errors, "target_weight_kg")
 
         submitted = st.form_submit_button("Continue →", type="primary")
 
@@ -221,12 +204,15 @@ def render_profile_form(client: httpx.Client, run_id: str, status: dict[str, Any
         "current_weight_kg": current_weight_kg,
         "target_weight_kg": target_weight_kg,
     }
-    new_errors = _validate(values)
-    if new_errors:
-        st.session_state[errors_key] = new_errors
-        st.rerun()
+    errors = _validate(values)
+    if errors:
+        st.markdown(
+            '<div class="pt-form-error">⚠ Please complete all required fields.</div>',
+            unsafe_allow_html=True,
+        )
+        _focus_field(run_id, next(iter(errors)))
+        return
 
-    st.session_state[errors_key] = {}
     form_data = {key: value for key, value in values.items() if value is not None}
 
     st.session_state.messages.append({"role": "user", "content": "Submitted my profile details."})

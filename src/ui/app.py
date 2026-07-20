@@ -89,9 +89,6 @@ def main() -> None:
     messages: list[dict[str, str]] = st.session_state.messages
     is_processing: bool = st.session_state.is_processing
 
-    if not messages and not is_processing:
-        render_welcome()
-
     render_messages(messages)
 
     with httpx.Client(
@@ -130,8 +127,14 @@ def main() -> None:
     pending_query = st.session_state.pending_query
     active_query = query or pending_query
 
+    if not messages and not is_processing and not active_query:
+        render_welcome()
+
     if active_query and not is_processing:
         st.session_state.pending_query = None
+        # Echo the query immediately so the welcome/suggestions give way to just the
+        # query and the loading UI while the run is in flight, instead of a blank gap.
+        render_messages([{"role": "user", "content": active_query}])
         with httpx.Client(
             base_url=st.session_state.api_base_url,
             timeout=DEFAULT_REQUEST_TIMEOUT,
