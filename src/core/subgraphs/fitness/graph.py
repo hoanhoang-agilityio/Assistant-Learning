@@ -137,9 +137,6 @@ def _fitness_planner_node(state: FitnessState) -> dict:
 
     blueprint = PlanBlueprint.model_validate(state["plan_blueprint"])
     adapted = adapt_workout_to_blueprint(workout.model_dump(), blueprint)
-    fingerprint = state.get("template_fingerprint")
-    if fingerprint:
-        store_workout_template(fingerprint, adapted, source="llm")
     return {
         "structured_workout": adapted,
         "planner_attempts": state["planner_attempts"] + 1,
@@ -216,6 +213,14 @@ def _safety_check_node(state: FitnessState) -> dict:
             )
             updates["structured_workout"] = previous_workout
             updates["edit_failed"] = True
+    else:
+        # Cache write gated on a passing safety check -- writing here (not in
+        # _fitness_planner_node) ensures a plan that fails safety validation
+        # can never poison TemplateRegistry, which is a cross-user read
+        # surface keyed only on days/equipment/blueprint-family.
+        fingerprint = state.get("template_fingerprint")
+        if fingerprint and state.get("workout_source") == "llm":
+            store_workout_template(fingerprint, state["structured_workout"], source="llm")
     return updates
 
 

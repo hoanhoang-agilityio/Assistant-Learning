@@ -12,6 +12,7 @@ from core.subgraphs.fitness.graph import build_fitness_subgraph, resolve_max_pla
 from core.subgraphs.fitness.planner import configure_fitness_planner
 from core.subgraphs.fitness.schema import StructuredWorkout, WorkoutDay, WorkoutExercise
 from core.subgraphs.fitness.state import FitnessState
+from core.subgraphs.fitness.template_registry import TemplateRegistry
 from core.subgraphs.fitness.utils import (
     build_default_structured_workout,
     calculate_macros_data,
@@ -271,6 +272,27 @@ def test_fitness_planner_stops_after_max_attempts(fitness_state: FitnessState) -
     assert result["planner_attempts"] == get_settings().max_planner_attempts
     assert result["safety_result"]["passed"] is False
     assert result["draft_plan"]
+
+
+def test_unsafe_workout_never_poisons_template_registry(fitness_state: FitnessState) -> None:
+    """Regression test for A1: a plan that never passes the safety check must
+    never be written to TemplateRegistry, which is a cross-user cache keyed
+    only on days/equipment/blueprint-family fingerprint. Notes are overridden
+    to be registry-cacheable (no benchmark marker) so this actually exercises
+    the safety-gate ordering rather than the unrelated benchmark-note filter."""
+
+    def unsafe_cacheable_planner(**kwargs: Any) -> StructuredWorkout:
+        workout = _unsafe_duplicate_exercise_workout(kwargs["profile"], kwargs["constraints"])
+        return workout.model_copy(update={"notes": ["LLM generated workout."]})
+
+    configure_fitness_planner(unsafe_cacheable_planner)
+    graph = build_fitness_subgraph()
+    result = graph.invoke(fitness_state)
+
+    assert result["safety_result"]["passed"] is False
+    fingerprint = result["template_fingerprint"]
+    assert fingerprint is not None
+    assert TemplateRegistry().get(fingerprint) is None
 
 
 def test_fitness_planner_repairs_day_count_without_retry(fitness_state: FitnessState) -> None:
