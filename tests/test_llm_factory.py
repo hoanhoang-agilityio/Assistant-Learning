@@ -3,12 +3,33 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from langchain_core.messages import AIMessage
 
-from core.llm.factory import invoke_standard_structured_output, invoke_xhigh_structured_output
+from core.config.settings import Settings
+from core.llm.factory import (
+    configure_rate_limiter,
+    invoke_standard_structured_output,
+    invoke_xhigh_structured_output,
+)
+from core.rate_limit import AIRateLimiter, InMemoryUsageStore
+from core.rate_limit.context import reset_rate_limit_user_id, set_rate_limit_user_id
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
 _MIN_PLAN_RATIONALE = "Test plan rationale with enough characters for validation."
+
+
+def _include_raw_result(parsed: ExecutionPlan, *, output_tokens: int = 42) -> dict:
+    """Simulate with_structured_output(..., include_raw=True).invoke()'s return shape."""
+    raw = AIMessage(
+        content="",
+        usage_metadata={
+            "input_tokens": 123,
+            "output_tokens": output_tokens,
+            "total_tokens": 123 + output_tokens,
+        },
+    )
+    return {"raw": raw, "parsed": parsed, "parsing_error": None}
 
 
 def _sample_plan() -> ExecutionPlan:
@@ -48,7 +69,7 @@ def test_invoke_xhigh_structured_output_uses_openai_first(
     mock_get_settings.return_value.anthropic_api_key = "anthropic-key"
     mock_get_settings.return_value.llm_structured_output_max_tokens = 2048
     structured_llm = MagicMock()
-    structured_llm.invoke.return_value = expected
+    structured_llm.invoke.return_value = _include_raw_result(expected)
     bound_llm = MagicMock()
     bound_llm.with_structured_output.return_value = structured_llm
     mock_get_openai.return_value.bind.return_value = bound_llm
@@ -61,6 +82,7 @@ def test_invoke_xhigh_structured_output_uses_openai_first(
     bound_llm.with_structured_output.assert_called_once_with(
         ExecutionPlan,
         method="json_schema",
+        include_raw=True,
     )
     mock_get_anthropic.assert_not_called()
 
@@ -85,7 +107,7 @@ def test_invoke_xhigh_structured_output_falls_back_to_anthropic(
     mock_get_openai.return_value.bind.return_value = openai_bound
 
     anthropic_structured = MagicMock()
-    anthropic_structured.invoke.return_value = expected
+    anthropic_structured.invoke.return_value = _include_raw_result(expected)
     anthropic_bound = MagicMock()
     anthropic_bound.with_structured_output.return_value = anthropic_structured
     mock_get_anthropic.return_value.bind.return_value = anthropic_bound
@@ -98,6 +120,7 @@ def test_invoke_xhigh_structured_output_falls_back_to_anthropic(
     anthropic_bound.with_structured_output.assert_called_once_with(
         ExecutionPlan,
         method="function_calling",
+        include_raw=True,
     )
 
 
@@ -163,7 +186,7 @@ def test_invoke_standard_structured_output(
     expected = _sample_plan()
     mock_get_settings.return_value.openai_api_key = "openai-key"
     structured_llm = MagicMock()
-    structured_llm.invoke.return_value = expected
+    structured_llm.invoke.return_value = _include_raw_result(expected)
     bound_llm = MagicMock()
     bound_llm.with_structured_output.return_value = structured_llm
     mock_get_standard.return_value.bind.return_value = bound_llm
@@ -198,3 +221,40 @@ def test_invoke_xhigh_structured_output_skips_fallback_for_length_limit_errors(
         invoke_xhigh_structured_output(ExecutionPlan, [])
 
     mock_get_anthropic.assert_not_called()
+
+
+@patch("core.llm.factory.get_settings")
+@patch("core.llm.factory.get_standard_llm")
+def test_invoke_standard_structured_output_meters_real_output_tokens(
+    mock_get_standard: MagicMock,
+    mock_get_settings: MagicMock,
+) -> None:
+    """Regression test for A4: with_structured_output(...).invoke() returns a parsed
+    Pydantic object with no usage_metadata of its own. Metering that object (instead of
+    the raw AIMessage returned alongside it via include_raw=True) silently fabricates an
+    input-token estimate and reports 0 output tokens -- defeating the per-user daily
+    cost/token cap for every structured-output call. Assert the real usage from the raw
+    message (777 output tokens, not 0) is what actually reaches the rate limiter."""
+    expected = _sample_plan()
+    mock_get_settings.return_value.openai_api_key = "openai-key"
+    mock_get_settings.return_value.openai_standard_model = "gpt-5.4-mini"
+    mock_get_settings.return_value.llm_structured_output_max_tokens = 2048
+    structured_llm = MagicMock()
+    structured_llm.invoke.return_value = _include_raw_result(expected, output_tokens=777)
+    bound_llm = MagicMock()
+    bound_llm.with_structured_output.return_value = structured_llm
+    mock_get_standard.return_value.bind.return_value = bound_llm
+
+    settings = Settings(rate_limit_enabled=True, rate_limit_daily_max_tokens_per_user=1_000_000)
+    limiter = AIRateLimiter(settings=settings, store=InMemoryUsageStore())
+    configure_rate_limiter(limiter)
+    token = set_rate_limit_user_id("metering-test-user")
+    try:
+        invoke_standard_structured_output(ExecutionPlan, [])
+        snapshot = limiter.get_snapshot("metering-test-user")
+    finally:
+        reset_rate_limit_user_id(token)
+        configure_rate_limiter(None)
+
+    assert snapshot.output_tokens == 777
+    assert snapshot.input_tokens == 123
