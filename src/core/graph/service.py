@@ -89,10 +89,29 @@ class RunOrchestrator:
         self._lock = threading.Lock()
         self._pending_runs: dict[str, dict[str, Any]] = {}
         self._run_failures: dict[str, dict[str, str]] = {}
+        # Guards the window between reading a run's pre-resume snapshot and the
+        # background thread that invokes the graph against it -- without this,
+        # two near-simultaneous resume/continue calls both read the same
+        # "waiting" snapshot and both invoke the graph concurrently against the
+        # same checkpointer thread (double-click, client retry, or a deliberate
+        # double-submit). Only one resume/continue may be in flight per run_id;
+        # the second is rejected (ValueError, mapped to HTTP 409 by the API
+        # layer) rather than racing through.
+        self._active_resumes: set[str] = set()
 
     @property
     def graph(self) -> CompiledStateGraph:
         return self._graph
+
+    def _acquire_resume_guard(self, run_id: str) -> None:
+        with self._lock:
+            if run_id in self._active_resumes:
+                raise ValueError(f"Run {run_id} already has a resume/continue in progress")
+            self._active_resumes.add(run_id)
+
+    def _release_resume_guard(self, run_id: str) -> None:
+        with self._lock:
+            self._active_resumes.discard(run_id)
 
     def create_run(
         self,
@@ -198,63 +217,70 @@ class RunOrchestrator:
         approved_tools: list[str] | None = None,
         form_data: dict[str, Any] | None = None,
     ) -> RunStatus:
-        config = self._build_config(run_id)
-        snapshot = self._graph.get_state(config)
-        if not snapshot.values:
-            raise RunNotFoundError(f"Run not found: {run_id}")
+        self._acquire_resume_guard(run_id)
+        release_guard = True
+        try:
+            config = self._build_config(run_id)
+            snapshot = self._graph.get_state(config)
+            if not snapshot.values:
+                raise RunNotFoundError(f"Run not found: {run_id}")
 
-        if snapshot.next == ("user",):
-            if form_data is None:
-                raise ValueError("form_data is required to resume the profile form")
-            return self.start_profile_form_resume(run_id, form_data=form_data)
+            if snapshot.next == ("user",):
+                if form_data is None:
+                    raise ValueError("form_data is required to resume the profile form")
+                result = self.start_profile_form_resume(run_id, form_data=form_data)
+                release_guard = False
+                return result
 
-        if snapshot.next != ("hitl",) and not snapshot.values.get("waiting_for_user"):
-            raise ValueError("Run is not waiting for HITL input")
+            if snapshot.next != ("hitl",) and not snapshot.values.get("waiting_for_user"):
+                raise ValueError("Run is not waiting for HITL input")
 
-        if decision_type is not None:
-            decision = create_approval_decision(
-                decision_type,
-                message,
-                pending_tool=pending_tool or snapshot.values.get("pending_tool"),
-                approved_tools=approved_tools or snapshot.values.get("approved_tools"),
-            )
-            update = decision_to_resume_update(
-                decision,
-                replan_count=int(snapshot.values.get("replan_count") or 0),
-            )
-        else:
-            if not user_response:
-                raise ValueError("user_response or decision_type is required")
-            resolved_status = approval_status or classify_approval_response(
-                user_response, strict=True
-            )
-            update = {
-                "user_response": user_response,
-                "approval_status": resolved_status,
-                "waiting_for_user": False,
-            }
-            if pending_tool and resolved_status == "approved":
-                merged_tools = list(snapshot.values.get("approved_tools") or [])
-                if pending_tool not in merged_tools:
-                    merged_tools.append(pending_tool)
-                update["approved_tools"] = merged_tools
-                update["pending_tool"] = None
+            if decision_type is not None:
+                decision = create_approval_decision(
+                    decision_type,
+                    message,
+                    pending_tool=pending_tool or snapshot.values.get("pending_tool"),
+                    approved_tools=approved_tools or snapshot.values.get("approved_tools"),
+                )
+                update = decision_to_resume_update(decision)
+            else:
+                if not user_response:
+                    raise ValueError("user_response or decision_type is required")
+                resolved_status = approval_status or classify_approval_response(
+                    user_response, strict=True
+                )
+                update = {
+                    "user_response": user_response,
+                    "approval_status": resolved_status,
+                    "waiting_for_user": False,
+                }
+                if pending_tool and resolved_status == "approved":
+                    merged_tools = list(snapshot.values.get("approved_tools") or [])
+                    if pending_tool not in merged_tools:
+                        merged_tools.append(pending_tool)
+                    update["approved_tools"] = merged_tools
+                    update["pending_tool"] = None
 
-        resolved_status = update.get("approval_status")
-        if resolved_status == "revision_requested":
-            # Profile-relevant revisions are no longer reconstructed here -- the routing
-            # guard (route_from_supervisor) sends REPLAN runs back into the User subgraph
-            # when profile_complete/profile_valid is False, and the User subgraph's own
-            # extract/validate loop decides whether that revision text actually touched the
-            # profile (looping into its form) or can pass straight through.
-            feedback = update.get("user_response") or message or ""
-            update.update(user_revision_to_replan_update(feedback))
-            update["profile_complete"] = False
-            update["profile_valid"] = False
-            workspace_path = snapshot.values.get("workspace_path")
-            if workspace_path and update.get("revision_feedback"):
-                persist_revision_feedback(str(workspace_path), str(update["revision_feedback"]))
-        return self.start_resume_run(run_id, update=update)
+            resolved_status = update.get("approval_status")
+            if resolved_status == "revision_requested":
+                # Profile-relevant revisions are no longer reconstructed here -- the routing
+                # guard (route_from_supervisor) sends REPLAN runs back into the User subgraph
+                # when profile_complete/profile_valid is False, and the User subgraph's own
+                # extract/validate loop decides whether that revision text actually touched the
+                # profile (looping into its form) or can pass straight through.
+                feedback = update.get("user_response") or message or ""
+                update.update(user_revision_to_replan_update(feedback))
+                update["profile_complete"] = False
+                update["profile_valid"] = False
+                workspace_path = snapshot.values.get("workspace_path")
+                if workspace_path and update.get("revision_feedback"):
+                    persist_revision_feedback(str(workspace_path), str(update["revision_feedback"]))
+            result = self.start_resume_run(run_id, update=update)
+            release_guard = False
+            return result
+        finally:
+            if release_guard:
+                self._release_resume_guard(run_id)
 
     def start_profile_form_resume(self, run_id: str, *, form_data: dict[str, Any]) -> RunStatus:
         """Resume a run paused at the profile form (dynamic `interrupt()`) with submitted data.
@@ -311,6 +337,7 @@ class RunOrchestrator:
             reset_rate_limit_user_id(context_token)
             with self._lock:
                 self._pending_runs.pop(run_id, None)
+            self._release_resume_guard(run_id)
 
     def continue_run(self, run_id: str, *, message: str) -> RunStatus:
         """Replan from an existing conversation when the user changes plan preferences."""
@@ -318,31 +345,40 @@ class RunOrchestrator:
         if not feedback:
             raise ValueError("message is required")
 
-        config = self._build_config(run_id)
-        snapshot = self._graph.get_state(config)
-        if not snapshot.values:
-            raise RunNotFoundError(f"Run not found: {run_id}")
+        self._acquire_resume_guard(run_id)
+        release_guard = True
+        try:
+            config = self._build_config(run_id)
+            snapshot = self._graph.get_state(config)
+            if not snapshot.values:
+                raise RunNotFoundError(f"Run not found: {run_id}")
 
-        lifecycle = _resolve_lifecycle_status(snapshot.values, snapshot.next)
-        if lifecycle not in {"completed", "waiting_hitl"}:
-            raise ValueError("Run cannot accept plan changes in its current state")
+            lifecycle = _resolve_lifecycle_status(snapshot.values, snapshot.next)
+            if lifecycle not in {"completed", "waiting_hitl"}:
+                raise ValueError("Run cannot accept plan changes in its current state")
 
-        self._rate_limiter.reserve_request(str(snapshot.values.get("user_id", "")) or None)
-        update = user_revision_to_replan_update(feedback)
-        # The routing guard (route_from_supervisor) re-enters the User subgraph for this
-        # REPLAN since profile_complete/profile_valid is now False -- see resume_run's
-        # revision_requested branch for the same pattern.
-        update["profile_complete"] = False
-        update["profile_valid"] = False
-        update["current_node"] = "hitl"
-        update["final_artifact_path"] = None
-        workspace_path = snapshot.values.get("workspace_path")
-        if workspace_path:
-            persist_revision_feedback(str(workspace_path), feedback)
+            self._rate_limiter.reserve_request(str(snapshot.values.get("user_id", "")) or None)
+            update = user_revision_to_replan_update(feedback)
+            # The routing guard (route_from_supervisor) re-enters the User subgraph for this
+            # REPLAN since profile_complete/profile_valid is now False -- see resume_run's
+            # revision_requested branch for the same pattern.
+            update["profile_complete"] = False
+            update["profile_valid"] = False
+            update["current_node"] = "hitl"
+            update["final_artifact_path"] = None
+            workspace_path = snapshot.values.get("workspace_path")
+            if workspace_path:
+                persist_revision_feedback(str(workspace_path), feedback)
 
-        if snapshot.next == ("hitl",) or snapshot.values.get("waiting_for_user"):
-            return self.start_resume_run(run_id, update=update)
-        return self.start_continue_run(run_id, update=update, config=config)
+            if snapshot.next == ("hitl",) or snapshot.values.get("waiting_for_user"):
+                result = self.start_resume_run(run_id, update=update)
+            else:
+                result = self.start_continue_run(run_id, update=update, config=config)
+            release_guard = False
+            return result
+        finally:
+            if release_guard:
+                self._release_resume_guard(run_id)
 
     def start_continue_run(
         self,
@@ -398,6 +434,7 @@ class RunOrchestrator:
             reset_rate_limit_user_id(context_token)
             with self._lock:
                 self._pending_runs.pop(run_id, None)
+            self._release_resume_guard(run_id)
 
     def start_resume_run(self, run_id: str, *, update: dict[str, Any]) -> RunStatus:
         """Resume a HITL-paused run in a background thread and return immediately."""
@@ -450,6 +487,7 @@ class RunOrchestrator:
             reset_rate_limit_user_id(context_token)
             with self._lock:
                 self._pending_runs.pop(run_id, None)
+            self._release_resume_guard(run_id)
 
     def _execute_create_run(
         self,

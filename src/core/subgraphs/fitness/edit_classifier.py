@@ -1,7 +1,5 @@
 """LLM-based classification of follow-up plan-edit requests."""
 
-from collections.abc import Callable
-
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.llm.factory import invoke_standard_structured_output
@@ -9,10 +7,6 @@ from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.payload import compact_json
 from core.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
 from core.subgraphs.fitness.schema import EditOperation
-
-EditClassifier = Callable[[str, list[str]], EditOperation]
-
-_CLASSIFIER_OVERRIDE: EditClassifier | None = None
 
 _EDIT_CLASSIFIER_SYSTEM_PROMPT = (
     """You classify a user's follow-up request against their existing workout plan into
@@ -36,19 +30,11 @@ otherwise. Do not guess an operation you are not confident about -- prefer OTHER
 )
 
 
-def configure_edit_classifier(classifier: EditClassifier | None) -> None:
-    """Override the edit classifier (used in tests)."""
-    global _CLASSIFIER_OVERRIDE
-    _CLASSIFIER_OVERRIDE = classifier
-
-
 def classify_edit_operation(
     revision_feedback: str,
     current_exercise_names: list[str],
 ) -> EditOperation:
     """Classify a follow-up revision request into a structured edit operation."""
-    if _CLASSIFIER_OVERRIDE is not None:
-        return _CLASSIFIER_OVERRIDE(revision_feedback, current_exercise_names)
     payload = {
         "request": revision_feedback.strip(),
         "current_exercise_names": current_exercise_names,

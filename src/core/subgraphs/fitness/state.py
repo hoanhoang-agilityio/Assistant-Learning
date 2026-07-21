@@ -7,6 +7,7 @@ class FitnessState(TypedDict):
     workspace_path: str
     profile: dict
     constraints: dict
+    days_per_week_explicit: bool
     execution_plan: dict
     structured_findings: dict | None
     evidence_summary: str | None

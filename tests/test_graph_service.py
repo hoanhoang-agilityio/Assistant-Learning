@@ -1,4 +1,8 @@
+import threading
 import time
+from pathlib import Path
+
+import pytest
 
 from core.graph.run import create_initial_state
 from core.graph.service import RunOrchestrator
@@ -6,6 +10,7 @@ from core.profile.extraction import configure_profile_extractor
 from core.profile.schema import ExtractedProfile, Goal, Profile
 from core.subgraphs.planning.utils import profile_to_orchestration_updates
 from core.subgraphs.user.utils import extract_profile
+from core.vfs import VFS
 
 
 def test_resume_clarification_merges_user_response_into_profile(
@@ -204,3 +209,61 @@ def test_resume_run_free_text_approval_uses_strict_classification(
     prefix_status = orchestrator.resume_run("approve-prefix", user_response="approving this plan")
     assert prefix_status.approval_status == "pending"
     assert prefix_status.route_decision == "REPLAN"
+
+
+def test_concurrent_resume_calls_reject_the_second_with_conflict(
+    memory_checkpointer,
+    tmp_path,
+) -> None:
+    """Regression test for A5: two near-simultaneous resume calls for the same run_id must
+    not both read the pre-resume snapshot and invoke the graph -- the second call must be
+    rejected (ValueError, mapped to HTTP 409 by the API layer) while the first is still in
+    flight, not double-processed."""
+    orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
+    run_id = "concurrent-resume-run"
+    config = {"configurable": {"thread_id": run_id}}
+    state = _waiting_for_approval_state(run_id, tmp_path)
+    vfs = VFS.for_run(Path(state["workspace_path"]))
+    vfs.write("fitness/final_plan.md", "# Final Plan\n\nMacro targets and training days.")
+    orchestrator.graph.invoke(state, config)
+
+    # Block the first resume's background thread inside graph.invoke, right where the real
+    # race window sits (after the pre-resume snapshot has been read, before the graph call
+    # completes), so a second resume_run() call is guaranteed to observe the first as still
+    # in flight rather than racing against real thread scheduling.
+    release_first_invoke = threading.Event()
+    original_invoke = orchestrator.graph.invoke
+    invoke_call_count = {"count": 0}
+
+    def blocking_invoke(*args, **kwargs):
+        invoke_call_count["count"] += 1
+        release_first_invoke.wait(timeout=5)
+        return original_invoke(*args, **kwargs)
+
+    orchestrator._graph.invoke = blocking_invoke
+
+    first_status = orchestrator.resume_run(run_id, user_response="approve")
+    assert first_status.status == "running"
+
+    with pytest.raises(ValueError, match="already has a resume/continue in progress"):
+        orchestrator.resume_run(run_id, user_response="approve")
+
+    release_first_invoke.set()
+
+    settled = None
+    for _ in range(100):
+        settled = orchestrator.get_run(run_id)
+        if settled.status != "running":
+            break
+        time.sleep(0.02)
+    else:
+        raise AssertionError("resume did not settle in time")
+
+    assert settled.approval_status == "approved"
+    # Only the first resume's Command(update=...) ever reached graph.invoke -- the rejected
+    # duplicate never got far enough to invoke the graph a second time.
+    assert invoke_call_count["count"] == 1
+
+    # The guard is released once the in-flight resume completes, so a later resume for the
+    # same run_id is not permanently blocked.
+    orchestrator._graph.invoke = original_invoke

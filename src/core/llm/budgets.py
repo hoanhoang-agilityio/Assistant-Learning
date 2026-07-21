@@ -12,12 +12,10 @@ from core.llm.payload import compact_json
 
 @dataclass(frozen=True)
 class LlmNodeBudget:
-    """Token and latency budget for a single LLM node."""
+    """Token budget for a single LLM node."""
 
     node: str
     max_input_tokens: int
-    max_output_tokens: int
-    max_latency_ms: float | None = None
     exception_note: str | None = None
     # Per-node override of the node's tier-level reasoning_effort default
     # (settings.openai_standard_reasoning_effort / openai_xhigh_reasoning_effort).
@@ -31,36 +29,30 @@ LLM_NODE_BUDGETS: dict[str, LlmNodeBudget] = {
     "profile_extraction": LlmNodeBudget(
         node="profile_extraction",
         max_input_tokens=1100,
-        max_output_tokens=120,
         exception_note="Query length may exceed normal budget.",
     ),
     "planning_agent": LlmNodeBudget(
         node="planning_agent",
         max_input_tokens=500,
-        max_output_tokens=800,
         exception_note="More tasks may increase output.",
     ),
     "research_query_planning": LlmNodeBudget(
         node="research_query_planning",
         max_input_tokens=750,
-        max_output_tokens=450,
     ),
     "research_react_loop": LlmNodeBudget(
         node="research_react_loop",
         max_input_tokens=3000,
-        max_output_tokens=300,
         exception_note="Cumulative multi-turn budget.",
     ),
     "research_evidence_eval": LlmNodeBudget(
         node="research_evidence_eval",
         max_input_tokens=1300,
-        max_output_tokens=120,
         exception_note="May be skipped deterministically.",
     ),
     "research_synthesis": LlmNodeBudget(
         node="research_synthesis",
         max_input_tokens=2600,
-        max_output_tokens=500,
         exception_note="Evidence snippet settings drive budget.",
         # Heaviest STANDARD-tier call (largest input, must reconcile
         # potentially conflicting sources into structured findings) — bump
@@ -71,13 +63,11 @@ LLM_NODE_BUDGETS: dict[str, LlmNodeBudget] = {
     "fitness_planner": LlmNodeBudget(
         node="fitness_planner",
         max_input_tokens=1100,
-        max_output_tokens=900,
         exception_note="Safety retry counts separately.",
     ),
     "ragas_judge": LlmNodeBudget(
         node="ragas_judge",
         max_input_tokens=3500,
-        max_output_tokens=800,
         exception_note=(
             "Benchmark-only (core.evaluation.ragas). Two sequential Ragas SDK "
             "calls (statement generation, then NLI verdict) -- cumulative budget, "

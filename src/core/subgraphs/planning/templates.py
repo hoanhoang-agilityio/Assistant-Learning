@@ -307,7 +307,3 @@ def build_template_execution_plan(profile: dict[str, Any]) -> ExecutionPlan | No
     if builder is None:
         return None
     return builder(profile)
-
-
-def list_template_ids() -> list[str]:
-    return sorted(_TEMPLATES.keys())

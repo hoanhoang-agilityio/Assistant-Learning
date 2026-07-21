@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from pydantic import BaseModel
+
 from core.config.settings import Settings, get_settings
 from core.rate_limit.context import get_rate_limit_user_id
 from core.rate_limit.errors import RateLimitExceededError
@@ -225,6 +227,22 @@ def extract_token_usage(
         output_tokens = int(token_usage.get("completion_tokens", 0) or 0)
         if input_tokens or output_tokens:
             return input_tokens, output_tokens
+
+    if isinstance(response, BaseModel) and not hasattr(response, "content"):
+        # A parsed structured-output object (e.g. the return value of
+        # with_structured_output(...).invoke() without include_raw=True) carries no
+        # usage metadata of its own. Silently falling through to the estimate below
+        # would fabricate an input-token count and report 0 output tokens -- the
+        # exact metering bug that lets structured-output calls defeat the per-user
+        # daily cost/token cap. Fail loudly instead: callers must meter the raw
+        # AIMessage (with_structured_output(..., include_raw=True)), not the parsed
+        # object. Real LangChain messages always have `.content`, even empty, so
+        # this never misfires on a genuine response.
+        raise ValueError(
+            "extract_token_usage received a parsed structured-output object with no "
+            "usage_metadata -- pass the raw AIMessage, not the parsed object "
+            "(use with_structured_output(..., include_raw=True))."
+        )
 
     output_text = getattr(response, "content", "")
     output_tokens = max(len(str(output_text)) // 4, 0)

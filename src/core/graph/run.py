@@ -29,6 +29,7 @@ def create_initial_state(
         constraints=constraints or {},
         profile_complete=False,
         profile_valid=False,
+        days_per_week_explicit=False,
         request_type=None,
         affected_domains=[],
         route_decision=None,

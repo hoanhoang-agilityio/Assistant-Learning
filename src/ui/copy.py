@@ -170,11 +170,3 @@ def step_display(step_id: str) -> tuple[str, str]:
 
 def phase_color(step_id: str) -> str:
     return PHASE_COLORS.get(phase_of(step_id), "#64748B")
-
-
-def phase_label(step_id: str) -> str:
-    return PHASE_LABELS.get(phase_of(step_id), "Working")
-
-
-def status_display(status: str) -> tuple[str, str]:
-    return STATUS_COPY.get(status, ("⏳", "Working on it…"))

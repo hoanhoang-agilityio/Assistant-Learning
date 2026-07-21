@@ -104,10 +104,34 @@ def _structured_output_runnable(
         bind_kwargs["prompt_cache_key"] = prompt_cache_key
     if reasoning_effort_override:
         bind_kwargs["reasoning_effort"] = reasoning_effort_override
+    # include_raw=True is load-bearing for cost/rate-limit metering: without it,
+    # .invoke() on this runnable returns only the parsed Pydantic object, which
+    # carries no usage_metadata. extract_token_usage can't find real token
+    # counts on that object and silently falls back to a fabricated input
+    # estimate plus a hardcoded 0 output tokens -- defeating the per-user
+    # daily cost/token cap for every structured-output call. With include_raw,
+    # .invoke() returns {"raw": AIMessage, "parsed": T, "parsing_error": ...},
+    # and callers must meter the raw AIMessage (see _invoke_structured_llm)
+    # while still returning the parsed object to their own callers.
     return llm.bind(**bind_kwargs).with_structured_output(
         output_schema,
         method=method,
+        include_raw=True,
     )
+
+
+def _invoke_structured_llm(structured_llm: Any, messages: list[BaseMessage]) -> tuple[Any, Any]:
+    """Invoke a with_structured_output(..., include_raw=True) runnable.
+
+    Returns (parsed, raw). `raw` is the underlying AIMessage carrying
+    usage_metadata -- callers must meter/record that, not the parsed object,
+    which has no usage metadata of its own.
+    """
+    result = structured_llm.invoke(messages)
+    parsing_error = result.get("parsing_error")
+    if parsing_error is not None:
+        raise parsing_error
+    return result["parsed"], result["raw"]
 
 
 def _maybe_record_metric(
@@ -199,11 +223,6 @@ def get_xhigh_anthropic_llm() -> BaseChatModel:
     )
 
 
-def get_xhigh_llm() -> BaseChatModel:
-    """Return the primary XHIGH-tier chat model (OpenAI)."""
-    return get_xhigh_openai_llm()
-
-
 def invoke_bound_llm(llm: BaseChatModel, messages: list[BaseMessage], *, model_name: str) -> Any:
     """Invoke a tool-bound chat model with per-user rate limiting."""
     estimated_tokens = estimate_message_tokens(messages)
@@ -274,21 +293,21 @@ def invoke_standard_structured_output[T: BaseModel](
         reasoning_effort_override=reasoning_effort_override,
     )
     started = time.perf_counter()
-    result = structured_llm.invoke(messages)
+    parsed, raw = _invoke_structured_llm(structured_llm, messages)
     latency_ms = (time.perf_counter() - started) * 1000
     _rate_limiter.record_active_user_response(
-        result,
+        raw,
         model_name=settings.openai_standard_model,
         estimated_input_tokens=estimated_tokens,
     )
     _maybe_record_metric(
         messages=messages,
-        response=result,
+        response=raw,
         model_name=settings.openai_standard_model,
         estimated_input_tokens=estimated_tokens,
         latency_ms=latency_ms,
     )
-    return result
+    return parsed
 
 
 def invoke_xhigh_structured_output[T: BaseModel](
@@ -319,21 +338,21 @@ def invoke_xhigh_structured_output[T: BaseModel](
                 reasoning_effort_override=reasoning_effort_override,
             )
             started = time.perf_counter()
-            result = structured_llm.invoke(messages)
+            parsed, raw = _invoke_structured_llm(structured_llm, messages)
             latency_ms = (time.perf_counter() - started) * 1000
             _rate_limiter.record_active_user_response(
-                result,
+                raw,
                 model_name=settings.openai_xhigh_model,
                 estimated_input_tokens=estimated_tokens,
             )
             _maybe_record_metric(
                 messages=messages,
-                response=result,
+                response=raw,
                 model_name=settings.openai_xhigh_model,
                 estimated_input_tokens=estimated_tokens,
                 latency_ms=latency_ms,
             )
-            return result
+            return parsed
         except Exception as exc:
             openai_error = exc
             if not _is_transient_llm_error(exc):
@@ -353,21 +372,21 @@ def invoke_xhigh_structured_output[T: BaseModel](
                 get_xhigh_anthropic_llm(), output_schema, method="function_calling"
             )
             started = time.perf_counter()
-            result = structured_llm.invoke(messages)
+            parsed, raw = _invoke_structured_llm(structured_llm, messages)
             latency_ms = (time.perf_counter() - started) * 1000
             _rate_limiter.record_active_user_response(
-                result,
+                raw,
                 model_name=settings.anthropic_xhigh_model,
                 estimated_input_tokens=estimated_tokens,
             )
             _maybe_record_metric(
                 messages=messages,
-                response=result,
+                response=raw,
                 model_name=settings.anthropic_xhigh_model,
                 estimated_input_tokens=estimated_tokens,
                 latency_ms=latency_ms,
             )
-            return result
+            return parsed
         except Exception as anthropic_error:
             raise RuntimeError(
                 "XHIGH structured output failed for both OpenAI and Anthropic"

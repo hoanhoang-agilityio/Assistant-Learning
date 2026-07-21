@@ -154,7 +154,6 @@ def test_graph_revision_at_approval_routes_to_replan(
             "revision",
             message="Reduce training volume and add more recovery days.",
         ),
-        replan_count=0,
     )
     merged: OrchestrationState = {
         **paused,

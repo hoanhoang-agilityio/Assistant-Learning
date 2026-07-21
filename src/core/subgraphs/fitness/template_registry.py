@@ -131,6 +131,7 @@ def resolve_workout_template(
     planner_feedback: list[str],
     verification_feedback: str | None,
     is_verification_rerun: bool,
+    days_per_week_explicit: bool = False,
 ) -> dict[str, Any]:
     fingerprint = build_template_fingerprint(profile, constraints, blueprint)
     if planner_feedback:
@@ -158,7 +159,15 @@ def resolve_workout_template(
             revision_feedback, flatten_exercise_names(prior_workout)
         )
 
-        if operation.operation in ("UPDATE_MACROS", "REPLACE_EXERCISE"):
+        # The deterministic shortcut only ever touches macros or a single exercise --
+        # it never changes day count. When this revision explicitly changes training
+        # frequency, the workout structure necessarily changes too, so a deterministic
+        # edit would always fail the day-count safety check and waste a retry. Skip it
+        # and let the planner generate the correct structure in one pass instead.
+        if not days_per_week_explicit and operation.operation in (
+            "UPDATE_MACROS",
+            "REPLACE_EXERCISE",
+        ):
             deterministic_result = apply_deterministic_edit(operation, prior_workout)
             if deterministic_result is not None:
                 return {

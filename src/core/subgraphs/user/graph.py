@@ -26,7 +26,15 @@ def _extract_node(state: UserState) -> dict:
         state["constraints"],
         revision_feedback=state.get("revision_feedback"),
     )
-    return {"profile": profile, "used_llm_extraction": True}
+    # apply_revision_overrides (inside extract_profile) stashes this as an internal marker
+    # on the profile dict when the revision text explicitly named a training-frequency
+    # target; pop it back off so it never reaches validation/persistence as a profile field.
+    days_per_week_explicit = profile.pop("_days_per_week_explicit", False)
+    return {
+        "profile": profile,
+        "used_llm_extraction": True,
+        "days_per_week_explicit": days_per_week_explicit,
+    }
 
 
 def _validate_node(state: UserState) -> dict:
@@ -122,6 +130,7 @@ def to_user_state(state: OrchestrationState) -> UserState:
         complete=False,
         valid=False,
         used_llm_extraction=False,
+        days_per_week_explicit=False,
     )
 
 
@@ -161,6 +170,7 @@ def invoke_user_subgraph(state: OrchestrationState, config: RunnableConfig) -> d
         "profile_complete": profile_result["complete"],
         "profile_valid": profile_result["valid"],
         "waiting_for_user": False,
+        "days_per_week_explicit": result["days_per_week_explicit"],
     }
     # NOTE: revision_feedback is intentionally left untouched -- Planning also reads it
     # (to inform the plan-regeneration prompt), so it must survive past this subgraph even
