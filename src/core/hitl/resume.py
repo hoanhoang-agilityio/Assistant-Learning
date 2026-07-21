@@ -1,6 +1,5 @@
 from typing import Any, Literal
 
-from core.agents.rerun import MAX_REPLAN_COUNT
 from core.agents.state import ApprovalStatus
 
 HitlDecisionType = Literal["approve", "reject", "revision"]
@@ -57,12 +56,7 @@ def user_revision_to_replan_update(feedback: str) -> dict[str, Any]:
     }
 
 
-def decision_to_resume_update(
-    decision: dict[str, Any],
-    *,
-    replan_count: int = 0,
-    max_replan_count: int = MAX_REPLAN_COUNT,
-) -> dict[str, Any]:
+def decision_to_resume_update(decision: dict[str, Any]) -> dict[str, Any]:
     """Map a create_approval_decision payload onto orchestration state updates."""
     approval_status: ApprovalStatus = decision["approval_status"]
     update: dict[str, Any] = {

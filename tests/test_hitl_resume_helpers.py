@@ -25,7 +25,7 @@ def test_create_approval_decision_revision_requires_message() -> None:
 
 def test_create_approval_decision_revision_triggers_replan() -> None:
     decision = create_approval_decision("revision", message="Add more leg volume.")
-    update = decision_to_resume_update(decision, replan_count=0)
+    update = decision_to_resume_update(decision)
     assert update["approval_status"] == "pending"
     assert update["route_decision"] == "REPLAN"
     assert "replan_count" not in update

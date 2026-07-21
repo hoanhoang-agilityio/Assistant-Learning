@@ -242,10 +242,7 @@ class RunOrchestrator:
                     pending_tool=pending_tool or snapshot.values.get("pending_tool"),
                     approved_tools=approved_tools or snapshot.values.get("approved_tools"),
                 )
-                update = decision_to_resume_update(
-                    decision,
-                    replan_count=int(snapshot.values.get("replan_count") or 0),
-                )
+                update = decision_to_resume_update(decision)
             else:
                 if not user_response:
                     raise ValueError("user_response or decision_type is required")
