@@ -77,6 +77,13 @@ def apply_revision_overrides(
         updated["days_per_week"] = parsed_days
     _sync_activity_and_days(updated)
     updated.update(derive_goal_spec_fields(updated))
+    # Internal signal, popped by `_extract_node`: whether *this* revision text explicitly
+    # named a training-frequency target, vs. days_per_week merely being carried over from the
+    # prior profile. The Fitness subgraph needs this to know when profile.days_per_week should
+    # override edit-derived day counts (see resolve_expected_day_count).
+    updated["_days_per_week_explicit"] = (
+        parsed_days is not None or overrides.get("days_per_week") is not None
+    )
     return updated
 
 
@@ -153,13 +160,6 @@ def _should_skip_profile_extraction(
     """Skip LLM extraction when orchestration already has a complete, feasible profile."""
     candidate = {**user_profile, **constraints}
     return not validate_profile_completeness(candidate)["feasibility_requires_review"]
-
-
-def should_use_llm_profile_extraction(
-    user_profile: dict[str, Any], constraints: dict[str, Any]
-) -> bool:
-    """Return True when profile extraction will invoke the LLM extractor."""
-    return not _should_skip_profile_extraction(user_profile, constraints)
 
 
 def extract_profile(

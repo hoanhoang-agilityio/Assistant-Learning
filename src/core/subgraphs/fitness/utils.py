@@ -518,12 +518,20 @@ def resolve_expected_day_count(
     operation: EditOperation | None,
     previous_workout: dict[str, Any] | None,
     training_constraints: dict[str, Any],
+    *,
+    days_per_week_explicit: bool = False,
 ) -> int:
     """Resolve the day count a workout should have this run.
 
-    During an edit (operation + previous_workout both present), the expected
-    count is derived from the plan being edited -- ADD_DAY/REMOVE_DAY adjust it
-    by one, anything else keeps it the same -- never from the static,
+    When the current revision explicitly named a training-frequency target
+    (days_per_week_explicit), that target -- training_constraints["days_per_week"],
+    sourced from the freshly revised profile -- is authoritative, regardless of edit
+    operation or previous day count. profile.days_per_week is the single source of
+    truth for user-requested frequency; EditOperation only decides edit *strategy*.
+
+    Otherwise, during an edit (operation + previous_workout both present), the
+    expected count is derived from the plan being edited -- ADD_DAY/REMOVE_DAY adjust
+    it by one, anything else keeps it the same -- never from the static,
     profile-derived training_constraints["days_per_week"], which can be stale
     relative to a plan already edited in an earlier turn (e.g. a prior
     successful ADD_DAY took it from 4 to 5 days, but training_constraints still
@@ -534,6 +542,8 @@ def resolve_expected_day_count(
     Fresh generation (no operation/previous_workout) is unchanged: falls back
     to training_constraints["days_per_week"] exactly as before.
     """
+    if days_per_week_explicit:
+        return int(training_constraints["days_per_week"])
     if operation is not None and previous_workout is not None:
         prev_day_count = len(previous_workout.get("days", []))
         if operation.operation == "ADD_DAY":

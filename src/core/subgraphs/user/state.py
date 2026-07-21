@@ -17,6 +17,7 @@ class UserState(TypedDict):
     complete: bool
     valid: bool
     used_llm_extraction: bool
+    days_per_week_explicit: bool
 
 
 class UserProfileResult(TypedDict):

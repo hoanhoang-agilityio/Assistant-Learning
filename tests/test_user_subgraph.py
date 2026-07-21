@@ -152,6 +152,48 @@ def test_irrelevant_revision_feedback_does_not_reopen_form(
     assert result["profile_valid"] is True
 
 
+def test_revision_feedback_with_day_count_sets_explicit_flag(
+    workspace_root: Path, complete_profile: dict[str, Any]
+) -> None:
+    """Revision text naming a training-frequency target flags days_per_week_explicit."""
+    state = _make_state(
+        run_id="user-run-4c",
+        workspace_root=workspace_root,
+        query="I want a fat loss plan.",
+        user_profile=complete_profile,
+        revision_feedback="change timeline to 10 weeks and train 5 days per week",
+    )
+    configure_profile_extractor(lambda _query: ExtractedProfile(goal=Goal(horizon_weeks=10)))
+
+    agent = UserAgent()
+    result = agent.run(state)
+
+    assert "__interrupt__" not in result
+    assert result["days_per_week_explicit"] is True
+    assert result["user_profile"]["horizon_weeks"] == 10
+    assert result["constraints"]["days_per_week"] == 5
+
+
+def test_irrelevant_revision_feedback_clears_explicit_flag(
+    workspace_root: Path, complete_profile: dict[str, Any]
+) -> None:
+    """Revision text with no day-count content must not carry a stale explicit flag."""
+    state = _make_state(
+        run_id="user-run-4d",
+        workspace_root=workspace_root,
+        query="I want a fat loss plan.",
+        user_profile=complete_profile,
+        revision_feedback="Please make Tuesday's workout harder.",
+    )
+    configure_profile_extractor(lambda _query: ExtractedProfile())
+
+    agent = UserAgent()
+    result = agent.run(state)
+
+    assert "__interrupt__" not in result
+    assert result["days_per_week_explicit"] is False
+
+
 def test_profile_relevant_revision_feedback_reopens_form(
     workspace_root: Path, complete_profile: dict[str, Any]
 ) -> None:

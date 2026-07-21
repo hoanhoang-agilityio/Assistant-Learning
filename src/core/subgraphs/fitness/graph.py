@@ -67,6 +67,7 @@ def _resolve_workout_template_node(state: FitnessState) -> dict:
         planner_feedback=state["planner_feedback"],
         verification_feedback=state["verification_feedback"],
         is_verification_rerun=state["is_verification_rerun"],
+        days_per_week_explicit=state.get("days_per_week_explicit", False),
     )
     updates: dict = {
         "template_fingerprint": resolution["template_fingerprint"],
@@ -120,11 +121,17 @@ def _fitness_planner_node(state: FitnessState) -> dict:
     )
 
     # resolve_expected_day_count is the single source of truth for the target day
-    # count -- during an edit it's derived from previous_workout, never from the
-    # static profile-derived training_constraints, so it stays in agreement with
-    # what _safety_check_node validates against below.
+    # count -- during an edit it's normally derived from previous_workout (never from
+    # the static profile-derived training_constraints), so it stays in agreement with
+    # what _safety_check_node validates against below. The one exception is when this
+    # revision explicitly named a new training frequency (days_per_week_explicit):
+    # then training_constraints["days_per_week"] -- itself sourced from the freshly
+    # revised profile -- wins over any edit-operation arithmetic.
     expected_days = resolve_expected_day_count(
-        edit_operation, previous_workout, state["training_constraints"]
+        edit_operation,
+        previous_workout,
+        state["training_constraints"],
+        days_per_week_explicit=state.get("days_per_week_explicit", False),
     )
     training_constraints = {**state["training_constraints"], "days_per_week": expected_days}
 
@@ -157,7 +164,10 @@ def _safety_check_node(state: FitnessState) -> dict:
     # flag a correctly-edited plan as a "mismatch" against a stale
     # training_constraints["days_per_week"] the candidate was never targeting.
     expected_days = resolve_expected_day_count(
-        edit_operation, previous_workout, state["training_constraints"]
+        edit_operation,
+        previous_workout,
+        state["training_constraints"],
+        days_per_week_explicit=state.get("days_per_week_explicit", False),
     )
     training_constraints = {**state["training_constraints"], "days_per_week": expected_days}
 
@@ -317,6 +327,7 @@ def to_fitness_state(state: OrchestrationState) -> FitnessState:
         workspace_path=state["workspace_path"],
         profile=state["user_profile"],
         constraints=state["constraints"],
+        days_per_week_explicit=state.get("days_per_week_explicit", False),
         execution_plan={},
         structured_findings=None,
         evidence_summary=None,
