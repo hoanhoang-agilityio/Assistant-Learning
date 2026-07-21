@@ -5,19 +5,12 @@ config:
 ---
 graph TD;
 	__start__([<p>__start__</p>]):::first
-	extract_profile(extract_profile)
-	validate_profile(validate_profile)
 	generate_plan(generate_plan)
 	reuse_execution_plan(reuse_execution_plan)
-	planning_hitl(planning_hitl)
 	__end__([<p>__end__</p>]):::last
-	__start__ --> extract_profile;
-	extract_profile --> validate_profile;
-	validate_profile -.-> generate_plan;
-	validate_profile -.-> planning_hitl;
-	validate_profile -.-> reuse_execution_plan;
+	__start__ -.-> generate_plan;
+	__start__ -.-> reuse_execution_plan;
 	generate_plan --> __end__;
-	planning_hitl --> __end__;
 	reuse_execution_plan --> __end__;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
