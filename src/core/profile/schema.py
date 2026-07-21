@@ -14,15 +14,6 @@ FitnessGoal = Literal[
     "endurance",
     "general_fitness",
 ]
-ActivityLevel = Literal[
-    "sedentary",
-    "gym_1x_week",
-    "gym_2x_week",
-    "gym_3x_week",
-    "gym_4x_week",
-    "gym_5x_week",
-    "gym_6x_week",
-]
 Equipment = Literal["gym", "home", "bodyweight"]
 FeasibilityLevel = Literal["safe", "aggressive", "unsafe"]
 

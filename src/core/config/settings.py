@@ -108,12 +108,7 @@ class Settings(BaseSettings):
     rate_limit_daily_max_tokens_per_user: int = 200_000
     rate_limit_daily_max_cost_usd_per_user: float = 2.0
 
-    # MCP research servers (JSON string → parsed in client setup)
-    mcp_servers_json: str = "{}"
-
     # App
-    api_host: str = "0.0.0.0"
-    api_port: int = 8000
     streamlit_port: int = 8501
     api_base_url: str = "http://localhost:8000"
     log_level: str = "INFO"
@@ -172,11 +167,6 @@ class Settings(BaseSettings):
         return bool(
             self.langfuse_tracing_enabled and self.langfuse_public_key and self.langfuse_secret_key
         )
-
-    @property
-    def langfuse_host(self) -> str:
-        """Deprecated alias kept for backward compatibility."""
-        return self.langfuse_base_url
 
     @property
     def checkpointer_dsn(self) -> str:

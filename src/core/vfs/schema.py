@@ -215,17 +215,6 @@ class PersistResult(BaseModel):
     final_artifact_path: str
 
 
-class SupervisorDecisionEntry(BaseModel):
-    """Single JSONL line in logs/supervisor_decisions.jsonl."""
-
-    model_config = ConfigDict(extra="allow")
-
-    route_decision: str
-    verification_passed: bool | None = None
-    retry_count: int | None = None
-    replan_count: int | None = None
-
-
 def _vfs_json_schemas() -> dict[str, type[BaseModel]]:
     from core.subgraphs.fitness.schema import StructuredWorkout
     from core.subgraphs.planning.schema import ExecutionPlan

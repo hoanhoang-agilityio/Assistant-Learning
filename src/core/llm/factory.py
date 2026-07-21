@@ -223,11 +223,6 @@ def get_xhigh_anthropic_llm() -> BaseChatModel:
     )
 
 
-def get_xhigh_llm() -> BaseChatModel:
-    """Return the primary XHIGH-tier chat model (OpenAI)."""
-    return get_xhigh_openai_llm()
-
-
 def invoke_bound_llm(llm: BaseChatModel, messages: list[BaseMessage], *, model_name: str) -> Any:
     """Invoke a tool-bound chat model with per-user rate limiting."""
     estimated_tokens = estimate_message_tokens(messages)

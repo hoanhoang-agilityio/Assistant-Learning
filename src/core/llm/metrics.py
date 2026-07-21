@@ -86,39 +86,6 @@ class LlmMetricsCollector:
     def clear(self) -> None:
         self.metrics.clear()
 
-    def summary_by_node(self) -> dict[str, dict[str, Any]]:
-        grouped: dict[str, list[LlmCallMetric]] = {}
-        for metric in self.metrics:
-            grouped.setdefault(metric.node, []).append(metric)
-        summary: dict[str, dict[str, Any]] = {}
-        for node, items in grouped.items():
-            summary[node] = {
-                "model": items[-1].model,
-                "calls": len(items),
-                "input_tokens": sum(item.input_tokens for item in items),
-                "output_tokens": sum(item.output_tokens for item in items),
-                "cached_tokens": sum(item.cached_tokens for item in items),
-                "estimated_input_tokens": sum(item.estimated_input_tokens for item in items),
-                "latency_ms": round(sum(item.latency_ms for item in items), 2),
-                "source": items[-1].source,
-            }
-        return summary
-
-    def to_table_rows(self) -> list[dict[str, Any]]:
-        return [
-            {
-                "node": metric.node,
-                "model": metric.model,
-                "input_tokens": metric.input_tokens,
-                "output_tokens": metric.output_tokens,
-                "cached_tokens": metric.cached_tokens,
-                "latency_ms": round(metric.latency_ms, 2),
-                "calls": 1,
-                "source": metric.source,
-            }
-            for metric in self.metrics
-        ]
-
     def summary_by_pipeline_node(self) -> dict[str, dict[str, Any]]:
         """Aggregate token usage and estimated cost by high-level pipeline node."""
         grouped: dict[str, dict[str, Any]] = {

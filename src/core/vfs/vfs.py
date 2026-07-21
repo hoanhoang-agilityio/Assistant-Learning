@@ -1,23 +1,11 @@
 from pathlib import Path
 
-from core.config.settings import Settings, get_settings
-
 
 class VFS:
     """Path-safe virtual file system rooted at a workspace directory."""
 
     def __init__(self, root: Path) -> None:
         self._root = root.resolve()
-
-    @classmethod
-    def from_workspace_root(
-        cls,
-        workspace_root: Path | None = None,
-        settings: Settings | None = None,
-    ) -> "VFS":
-        resolved_settings = settings or get_settings()
-        root = workspace_root or resolved_settings.workspace_root
-        return cls(root=root.resolve())
 
     @classmethod
     def for_run(cls, run_workspace_path: Path) -> "VFS":

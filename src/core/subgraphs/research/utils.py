@@ -16,7 +16,6 @@ from core.mcp.tavily_client import (
 from core.observability.tracing import traced_tavily_call
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.planning.utils import (
-    execution_plan_to_todo_strings,
     has_execution_plan,
     load_execution_plan,
 )
@@ -33,15 +32,8 @@ class ResearchTodosGateError(ValueError):
     """Raised when research is invoked before a planning execution plan exists."""
 
 
-def assert_execution_plan_gate(workspace_path: str) -> None:
-    if not has_execution_plan(workspace_path):
-        raise ResearchTodosGateError(
-            "Research blocked: plan/execution_plan.json is required before retrieval"
-        )
-
-
 def assert_todos_gate(todos: list[str]) -> None:
-    """Deprecated: prefer assert_execution_plan_gate."""
+    """Raise when research is invoked without planning todos."""
     if not todos:
         raise ResearchTodosGateError(
             "Research blocked: plan/execution_plan.json is required before retrieval"
@@ -94,14 +86,6 @@ def has_sufficient_research_coverage(
         and verified_count >= settings.research_min_verified_sources_for_skip_eval
         and len(evidence) >= settings.research_min_evidence_docs_for_skip_eval
     )
-
-
-def load_todos_for_research(workspace_path: str) -> list[str]:
-    """Derive ordered task strings from the execution plan for legacy tool signatures."""
-    plan = load_execution_plan_for_research(workspace_path)
-    if plan is None:
-        return []
-    return execution_plan_to_todo_strings(plan)
 
 
 def compact_source_for_llm(

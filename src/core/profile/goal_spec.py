@@ -11,14 +11,6 @@ DEFAULT_RECOMP_HORIZON_WEEKS = 12
 KCAL_PER_KG_FAT = 7700
 KCAL_PER_KG_LEAN_MASS = 5500
 
-GOAL_SPEC_FIELDS: tuple[str, ...] = (
-    "weight_delta_kg",
-    "horizon_weeks",
-    "weekly_rate_kg",
-    "goal_archetype",
-    "feasibility_level",
-)
-
 WEIGHT_CHANGING_GOALS: frozenset[str] = frozenset({"fat_loss", "muscle_gain"})
 
 
