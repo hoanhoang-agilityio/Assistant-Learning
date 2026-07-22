@@ -64,7 +64,6 @@ class RunStatus:
     hitl_message: str | None
     refusal_message: str | None
     steps: tuple[str, ...]
-    pending_tool: str | None
     next_nodes: tuple[str, ...]
     error_message: str | None = None
     profile_form: dict[str, Any] | None = None
@@ -213,8 +212,6 @@ class RunOrchestrator:
         approval_status: ApprovalStatus | None = None,
         decision_type: Literal["approve", "reject", "revision"] | None = None,
         message: str | None = None,
-        pending_tool: str | None = None,
-        approved_tools: list[str] | None = None,
         form_data: dict[str, Any] | None = None,
     ) -> RunStatus:
         self._acquire_resume_guard(run_id)
@@ -236,12 +233,7 @@ class RunOrchestrator:
                 raise ValueError("Run is not waiting for HITL input")
 
             if decision_type is not None:
-                decision = create_approval_decision(
-                    decision_type,
-                    message,
-                    pending_tool=pending_tool or snapshot.values.get("pending_tool"),
-                    approved_tools=approved_tools or snapshot.values.get("approved_tools"),
-                )
+                decision = create_approval_decision(decision_type, message)
                 update = decision_to_resume_update(decision)
             else:
                 if not user_response:
@@ -254,12 +246,6 @@ class RunOrchestrator:
                     "approval_status": resolved_status,
                     "waiting_for_user": False,
                 }
-                if pending_tool and resolved_status == "approved":
-                    merged_tools = list(snapshot.values.get("approved_tools") or [])
-                    if pending_tool not in merged_tools:
-                        merged_tools.append(pending_tool)
-                    update["approved_tools"] = merged_tools
-                    update["pending_tool"] = None
 
             resolved_status = update.get("approval_status")
             if resolved_status == "revision_requested":
@@ -553,7 +539,6 @@ class RunOrchestrator:
             hitl_message=None,
             refusal_message=None,
             steps=(),
-            pending_tool=None,
             next_nodes=("supervisor",),
             error_message=None,
         )
@@ -577,7 +562,6 @@ class RunOrchestrator:
             hitl_message=failure.get("error"),
             refusal_message=None,
             steps=(),
-            pending_tool=None,
             next_nodes=(),
             error_message=failure.get("error"),
         )
@@ -622,7 +606,6 @@ class RunOrchestrator:
             hitl_message=hitl_message,
             refusal_message=state.get("refusal_message"),
             steps=tuple(state.get("steps") or ()),
-            pending_tool=state.get("pending_tool"),
             next_nodes=next_nodes,
             error_message=None,
             profile_form=profile_form,
