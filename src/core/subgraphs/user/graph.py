@@ -7,8 +7,8 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import interrupt
 
 from core.agents.state import OrchestrationState
-from core.profile.schema import CONSTRAINT_FIELDS, PROFILE_FIELDS
-from core.subgraphs.user.state import UserProfileResult, UserState
+from core.profile.store import load_run_profile
+from core.subgraphs.user.state import UserState
 from core.subgraphs.user.utils import (
     extract_profile,
     merge_form_submission,
@@ -22,8 +22,7 @@ from core.subgraphs.wrapper import merge_subgraph_updates
 def _extract_node(state: UserState) -> dict:
     profile = extract_profile(
         state["query"],
-        state["user_profile"],
-        state["constraints"],
+        state["profile"],
         revision_feedback=state.get("revision_feedback"),
     )
     # apply_revision_overrides (inside extract_profile) stashes this as an internal marker
@@ -32,7 +31,6 @@ def _extract_node(state: UserState) -> dict:
     days_per_week_explicit = profile.pop("_days_per_week_explicit", False)
     return {
         "profile": profile,
-        "used_llm_extraction": True,
         "days_per_week_explicit": days_per_week_explicit,
     }
 
@@ -120,16 +118,13 @@ def to_user_state(state: OrchestrationState) -> UserState:
     return UserState(
         query=state["query"],
         workspace_path=state["workspace_path"],
-        user_profile=state["user_profile"],
-        constraints=state["constraints"],
         revision_feedback=state.get("revision_feedback"),
-        profile={},
+        profile=load_run_profile(state["workspace_path"]),
         missing_fields=[],
         feasibility_issues=[],
         validation_errors=[],
         complete=False,
         valid=False,
-        used_llm_extraction=False,
         days_per_week_explicit=False,
     )
 
@@ -145,30 +140,10 @@ def invoke_user_subgraph(state: OrchestrationState, config: RunnableConfig) -> d
     not swallow it.
     """
     result = get_user_subgraph().invoke(to_user_state(state), config)
-    profile_result: UserProfileResult = {
-        "profile": result["profile"],
-        "constraints": {
-            field: result["profile"][field]
-            for field in CONSTRAINT_FIELDS
-            if field in result["profile"]
-        },
-        "complete": result["complete"],
-        "valid": result["valid"],
-        "missing_fields": result["missing_fields"],
-        "feasibility_issues": result["feasibility_issues"],
-        "validation_errors": result["validation_errors"],
-    }
-    user_profile = {
-        field: profile_result["profile"][field]
-        for field in PROFILE_FIELDS
-        if field in profile_result["profile"]
-    }
     updates: dict[str, Any] = {
         "current_node": "user",
-        "user_profile": user_profile,
-        "constraints": profile_result["constraints"],
-        "profile_complete": profile_result["complete"],
-        "profile_valid": profile_result["valid"],
+        "profile_complete": result["complete"],
+        "profile_valid": result["valid"],
         "waiting_for_user": False,
         "days_per_week_explicit": result["days_per_week_explicit"],
     }

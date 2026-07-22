@@ -73,16 +73,20 @@ def invoke_planning_subgraph(state: OrchestrationState) -> dict:
     """
     Extract/validate profile, generate ExecutionPlan (3–10 research tasks), write todos.
 
-    Preconditions : supervisor routed to planning
-    Postconditions: plan/* on VFS; user_profile/constraints synced to orchestration state
-    HITL trigger  : missing_fields → waiting_for_user=True
+    Preconditions : supervisor routed to planning; plan/profile.json already complete/valid
+    Postconditions: plan/* on VFS (execution_plan.json, plan.md, and a re-persisted
+                    profile.json enriched with goal-spec fields -- see the VFS-profile plan)
+    HITL trigger  : missing_fields → waiting_for_user=True (raised by the User subgraph,
+                    not Planning -- see route_from_supervisor's profile gate)
     """
 ```
 
-| Internal steps | `extract_profile` → `validate_profile` → `generate_plan` \| `reuse_execution_plan` |
-| Key tools | `extract_profile`, `validate_profile`, `write_todos` |
-| State in | `query`, `user_profile`, `constraints`, `revision_feedback` |
-| State out | `current_node="planning"`, `user_profile`, `constraints`, `waiting_for_user?` |
+Profile extraction/validation is owned by the **User subgraph**, not Planning (see `agents/planning-subgraph.md`'s staleness note) — Planning trusts `plan/profile.json` is already complete/valid by the time it runs, gated by `route_from_supervisor`'s profile check.
+
+| Internal steps | `generate_plan` \| `reuse_execution_plan` (entry decided by `_route_entry`) |
+| Key tools | `load_run_profile` (VFS), `generate_plan` |
+| State in | `query`, `request_type`, `workspace_path`, `route_decision`, `revision_feedback` |
+| State out | `current_node="planning"` (profile fields are not read from or written to `OrchestrationState` — see `plan/profile.json` on VFS) |
 
 **File:** `src/core/subgraphs/planning/graph.py`
 
@@ -127,7 +131,7 @@ def invoke_fitness_subgraph(state: OrchestrationState) -> dict:
 
 | Internal steps | `load_context` → `build_blueprint` → `calculate_macros` → `resolve_workout_template` → `fitness_planner` → `safety_check` → `synthesize_plan` → `write_artifacts` |
 | Key tools | `calculate_macros`, `build_training_plan`, `synthesize_plan` |
-| State in | `user_profile`, `constraints`, `route_decision` (FIX_REASONING feeds verification_feedback) |
+| State in | `workspace_path`, `days_per_week_explicit`, `route_decision` (FIX_REASONING feeds verification_feedback) — `profile`/`constraints` are loaded from `plan/profile.json` inside `load_context`, not read from `OrchestrationState` |
 | State out | `current_node="fitness"` |
 
 **File:** `src/core/subgraphs/fitness/graph.py`
@@ -296,8 +300,9 @@ class OrchestrationState(TypedDict):
     user_id: str
     current_node: str
     query: str
-    user_profile: dict
-    constraints: dict
+    profile_complete: bool
+    profile_valid: bool
+    days_per_week_explicit: bool
     request_type: RequestType | None
     affected_domains: list[AffectedDomain]
     route_decision: RouteDecision | None   # FIX_REASONING | REPLAN | RERESEARCH | HITL | COMPLETE
@@ -311,12 +316,13 @@ class OrchestrationState(TypedDict):
     revision_feedback: str | None
     workspace_path: str
     final_artifact_path: str | None
+    refusal_message: str | None
     steps: list[str]
-    approved_tools: list[str]
-    pending_tool: str | None
 ```
 
 **Source:** `src/core/agents/state.py`
+
+**Note:** `user_profile`/`constraints` were removed (moved to VFS `plan/profile.json`, seeded via `core/profile/store.py:seed_profile` at create-run time and owned by the User subgraph) and `approved_tools`/`pending_tool` were removed (unused per-tool HITL-approval scaffolding with no real caller) — see `docs/reports/orchestration_profile_vfs_plan.md`. The `@entrypoint`/`start_run` API surface above is unaffected: `user_profile`/`constraints` are still accepted as request parameters, just no longer stored on `OrchestrationState`.
 
 ---
 

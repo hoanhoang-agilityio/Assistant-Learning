@@ -12,11 +12,8 @@ class PlanningState(TypedDict):
     """
 
     query: str
-    user_profile: dict
-    constraints: dict
     request_type: str | None
     workspace_path: str
     route_decision: RouteDecision | None
     revision_feedback: str | None
-    approved_tools: list[str]
     reused_execution_plan: bool

@@ -50,8 +50,7 @@ def test_extract_profile_applies_revision_without_reasking_profile(complete_prof
     )
     profile = extract_profile(
         query="I want a 4-day training plan to lose weight.",
-        user_profile=complete_profile,
-        constraints={"days_per_week": 4, "equipment": "gym"},
+        profile={**complete_profile, "days_per_week": 4, "equipment": "gym"},
         revision_feedback="i want to change to train 5 days per week",
     )
     assert profile["days_per_week"] == 5

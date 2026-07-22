@@ -1,11 +1,8 @@
-import json
 import re
-from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
 
-from core.llm.serializers import compact_profile_for_llm
 from core.profile.extraction import extract_profile_from_query
 from core.profile.goal_spec import assess_goal_feasibility, derive_goal_spec_fields
 from core.profile.normalize import _sync_activity_and_days, merge_profile_sources
@@ -17,7 +14,8 @@ from core.profile.schema import (
     ExtractedProfile,
     Profile,
 )
-from core.vfs import VFS
+from core.profile.store import load_run_profile
+from core.profile.store import persist_profile as persist_profile
 
 REVISION_OVERRIDE_FIELDS: tuple[str, ...] = (
     *CONSTRAINT_FIELDS,
@@ -154,36 +152,27 @@ def _format_validation_errors(exc: ValidationError) -> list[str]:
 # --- End new behavior ---------------------------------------------------------------------
 
 
-def _should_skip_profile_extraction(
-    user_profile: dict[str, Any], constraints: dict[str, Any]
-) -> bool:
-    """Skip LLM extraction when orchestration already has a complete, feasible profile."""
-    candidate = {**user_profile, **constraints}
-    return not validate_profile_completeness(candidate)["feasibility_requires_review"]
+def _should_skip_profile_extraction(profile: dict[str, Any]) -> bool:
+    """Skip LLM extraction when the seed profile is already complete and feasible."""
+    return not validate_profile_completeness(profile)["feasibility_requires_review"]
 
 
 def extract_profile(
     query: str,
-    user_profile: dict[str, Any],
-    constraints: dict[str, Any],
+    profile: dict[str, Any],
     *,
     revision_feedback: str | None = None,
 ) -> dict[str, Any]:
-    """Merge stored profile/constraints with LLM-extracted query fields into a flat profile."""
-    if _should_skip_profile_extraction(user_profile, constraints):
+    """Merge the stored/seed profile with LLM-extracted query fields into a flat profile."""
+    if _should_skip_profile_extraction(profile):
         extracted = ExtractedProfile()
     else:
-        extraction_query = resolve_extraction_query(query, user_profile)
+        extraction_query = resolve_extraction_query(query, profile)
         extracted = extract_profile_from_query(extraction_query)
-    profile = merge_profile_sources(
-        query=query,
-        user_profile=user_profile,
-        constraints=constraints,
-        extracted=extracted,
-    )
+    merged = merge_profile_sources(query=query, profile=profile, extracted=extracted)
     if revision_feedback:
-        profile = apply_revision_overrides(profile, revision_feedback)
-    return profile
+        merged = apply_revision_overrides(merged, revision_feedback)
+    return merged
 
 
 def merge_form_submission(profile: dict[str, Any], submission: dict[str, Any]) -> dict[str, Any]:
@@ -197,18 +186,7 @@ def merge_form_submission(profile: dict[str, Any], submission: dict[str, Any]) -
     return merged
 
 
-def persist_profile(workspace_path: str, profile: dict[str, Any]) -> None:
-    """Persist the validated profile snapshot to the run workspace VFS."""
-    vfs = VFS.for_run(Path(workspace_path))
-    vfs.write(
-        "plan/profile.json",
-        json.dumps(compact_profile_for_llm(profile), indent=2),
-    )
-
-
-def load_stored_profile(workspace_path: str) -> dict[str, Any]:
-    """Load the profile snapshot persisted by the User subgraph."""
-    vfs = VFS.for_run(Path(workspace_path))
-    if not vfs.exists("plan/profile.json"):
-        return {}
-    return json.loads(vfs.read("plan/profile.json"))
+# `persist_profile` is imported directly from `core.profile.store` above; `load_stored_profile`
+# is its pre-existing name in this module, kept as an alias so other call sites (e.g. planning)
+# don't need to change import paths in this pass.
+load_stored_profile = load_run_profile

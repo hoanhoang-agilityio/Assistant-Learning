@@ -7,6 +7,7 @@ import pytest
 from core.agents.state import OrchestrationState
 from core.profile.extraction import configure_profile_extractor
 from core.profile.schema import ExtractedProfile
+from core.profile.store import load_run_profile, persist_profile
 from core.subgraphs.planning.agent import PlanningAgent
 from core.subgraphs.planning.graph import (
     build_planning_subgraph,
@@ -24,6 +25,7 @@ from core.subgraphs.planning.utils import (
     load_planning_todos,
     persist_execution_plan,
     persist_revision_feedback,
+    should_reuse_execution_plan,
 )
 from core.subgraphs.user.utils import extract_profile
 from core.vfs import VFS
@@ -81,24 +83,26 @@ def _mock_fat_loss_execution_plan(**_kwargs: Any) -> ExecutionPlan:
 
 @pytest.fixture
 def planning_state(workspace_root: Path, complete_profile: dict) -> PlanningState:
-    """Planning always receives an already-complete, already-enriched user_profile.
+    """Planning always trusts an already-complete, already-enriched profile on VFS.
 
     Enrichment (goal_archetype/feasibility_level/weight_delta_kg/etc.) is normally
     performed by the User subgraph before Planning ever runs -- simulate that here via
     ``extract_profile`` directly (skips the LLM since ``complete_profile`` is already
-    complete/feasible) rather than relying on Planning to re-derive it.
+    complete/feasible), then persist it to `plan/profile.json` the same way the User
+    subgraph's `_persist_node` does. Planning now loads the profile from VFS inside its
+    nodes rather than from an embedded `PlanningState` field, so the fixture must seed
+    that file itself.
     """
     query = "I want to lose weight with a gym 3x/week plan."
-    enriched_profile = extract_profile(query=query, user_profile=complete_profile, constraints={})
+    workspace_path = str(workspace_root / "runs" / "plan-run")
+    enriched_profile = extract_profile(query=query, profile=complete_profile)
+    persist_profile(workspace_path, enriched_profile)
     return PlanningState(
         query=query,
-        user_profile=enriched_profile,
-        constraints={},
         request_type="fat_loss",
-        workspace_path=str(workspace_root / "runs" / "plan-run"),
+        workspace_path=workspace_path,
         route_decision=None,
         revision_feedback=None,
-        approved_tools=[],
         reused_execution_plan=False,
     )
 
@@ -142,7 +146,7 @@ def test_build_planning_payload_deduplicates_constraints(complete_profile: dict)
 def test_generate_plan_persists_vfs_artifacts(planning_state: PlanningState) -> None:
     configure_planning_agent(_mock_fat_loss_execution_plan)
     result = generate_plan(
-        profile=planning_state["user_profile"],
+        profile=load_run_profile(planning_state["workspace_path"]),
         query=planning_state["query"],
         request_type=planning_state["request_type"],
         workspace_path=planning_state["workspace_path"],
@@ -227,7 +231,7 @@ def test_replan_reuses_execution_plan_when_profile_and_coverage_match(
     )
     _seed_replan_workspace(
         planning_state["workspace_path"],
-        planning_state["user_profile"],
+        load_run_profile(planning_state["workspace_path"]),
         _mock_fat_loss_execution_plan(),
         issues=["missing_macro_targets"],
     )
@@ -247,7 +251,7 @@ def test_replan_regenerates_when_plan_lacks_issue_coverage(
     configure_planning_agent(_mock_fat_loss_execution_plan)
     _seed_replan_workspace(
         planning_state["workspace_path"],
-        planning_state["user_profile"],
+        load_run_profile(planning_state["workspace_path"]),
         _plan_without_macro_keywords(),
         issues=["missing_macro_targets"],
     )
@@ -264,12 +268,17 @@ def test_replan_regenerates_when_profile_changed(
     planning_state: PlanningState,
     complete_profile: dict,
 ) -> None:
+    """`should_reuse_execution_plan` must detect a profile mismatch and force
+    regeneration. Exercised as a direct unit call rather than through the compiled
+    subgraph: Planning now loads its "current" profile from the same VFS file
+    `profile_matches_stored_profile` compares against, so a graph-level invoke can no
+    longer represent "current profile differs from the stored one" as two distinct
+    values -- both reads would hit the identical `plan/profile.json`.
+    """
     configure_profile_extractor(lambda _query: ExtractedProfile())
-    configure_planning_agent(_mock_fat_loss_execution_plan)
     stored_profile = extract_profile(
         query=planning_state["query"],
-        user_profile={**complete_profile, "age": 25},
-        constraints={},
+        profile=complete_profile,
     )
     _seed_replan_workspace(
         planning_state["workspace_path"],
@@ -277,12 +286,14 @@ def test_replan_regenerates_when_profile_changed(
         _mock_fat_loss_execution_plan(),
         issues=["missing_macro_targets"],
     )
-    state = {
-        **planning_state,
-        "route_decision": "REPLAN",
-    }
-    result = build_planning_subgraph().invoke(state)
-    assert result.get("reused_execution_plan") is not True
+    changed_profile = extract_profile(
+        query=planning_state["query"],
+        profile={**complete_profile, "age": 25},
+    )
+    assert (
+        should_reuse_execution_plan("REPLAN", planning_state["workspace_path"], changed_profile)
+        is False
+    )
 
 
 def test_first_run_always_generates_plan(planning_state: PlanningState) -> None:
@@ -298,8 +309,6 @@ def test_planning_agent_runs_from_orchestration(planning_state: PlanningState) -
         "thread_id": "plan-thread",
         "current_node": "supervisor",
         "query": planning_state["query"],
-        "user_profile": planning_state["user_profile"],
-        "constraints": planning_state["constraints"],
         "request_type": planning_state["request_type"],
         "affected_domains": ["planning", "research", "fitness", "verify"],
         "route_decision": None,
@@ -326,7 +335,7 @@ def test_replan_skips_reuse_when_revision_feedback_present(
     configure_planning_agent(_mock_fat_loss_execution_plan)
     _seed_replan_workspace(
         planning_state["workspace_path"],
-        planning_state["user_profile"],
+        load_run_profile(planning_state["workspace_path"]),
         _mock_fat_loss_execution_plan(),
         issues=["missing_macro_targets"],
     )
@@ -345,15 +354,16 @@ def test_replan_skips_reuse_when_revision_feedback_present(
 def test_invoke_planning_subgraph_does_not_touch_user_profile(
     planning_state: PlanningState,
 ) -> None:
-    """Planning trusts user_profile/constraints as given; it never rewrites them."""
+    """`OrchestrationState` no longer has `user_profile`/`constraints` fields at all, so
+    `invoke_planning_subgraph`'s update dict structurally cannot contain them -- this is
+    now a guard against either field being reintroduced later.
+    """
     configure_planning_agent(_mock_fat_loss_execution_plan)
     orchestration_state: OrchestrationState = {
         "run_id": "plan-run-2",
         "thread_id": "plan-thread-2",
         "current_node": "supervisor",
         "query": planning_state["query"],
-        "user_profile": planning_state["user_profile"],
-        "constraints": planning_state["constraints"],
         "request_type": planning_state["request_type"],
         "affected_domains": ["planning", "research", "fitness", "verify"],
         "route_decision": None,

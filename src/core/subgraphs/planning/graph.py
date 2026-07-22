@@ -6,6 +6,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
 from core.profile.goal_spec import derive_goal_spec_fields
+from core.profile.store import load_run_profile
 from core.subgraphs.planning.planning_agent import (
     generate_execution_plan,
     is_planning_agent_overridden,
@@ -18,15 +19,6 @@ from core.subgraphs.planning.utils import (
     should_reuse_execution_plan,
 )
 from core.subgraphs.wrapper import merge_subgraph_updates
-
-
-def _merged_profile(state: PlanningState) -> dict[str, Any]:
-    """Combine the (already validated) user_profile with constraints into one flat dict.
-
-    Matches the shape planning's core functions expect (profile + constraint fields
-    together) -- see core/profile/schema.py PROFILE_FIELDS/CONSTRAINT_FIELDS.
-    """
-    return {**state["constraints"], **state["user_profile"]}
 
 
 def generate_plan(
@@ -66,7 +58,7 @@ def generate_plan(
 
 def _generate_plan_node(state: PlanningState) -> dict:
     return generate_plan(
-        profile=_merged_profile(state),
+        profile=load_run_profile(state["workspace_path"]),
         query=state["query"],
         request_type=state["request_type"],
         workspace_path=state["workspace_path"],
@@ -82,7 +74,7 @@ def _route_entry(state: PlanningState) -> str:
     if should_reuse_execution_plan(
         state.get("route_decision"),
         state["workspace_path"],
-        _merged_profile(state),
+        load_run_profile(state["workspace_path"]),
     ):
         return "reuse_execution_plan"
     return "generate_plan"
@@ -92,9 +84,9 @@ def build_planning_subgraph() -> CompiledStateGraph:
     """Compile the Planning subgraph StateGraph.
 
     Profile extraction/validation moved to the User subgraph (see core.subgraphs.user);
-    Planning trusts `state["user_profile"]` is already complete and valid by the time it
-    runs (enforced by the top-level routing guard), so it's a fixed two-node sequence with
-    no HITL branch of its own.
+    Planning trusts the VFS profile (`plan/profile.json`, loaded via `load_run_profile`) is
+    already complete and valid by the time it runs (enforced by the top-level routing guard),
+    so it's a fixed two-node sequence with no HITL branch of its own.
     """
     graph = StateGraph(PlanningState)
     graph.add_node("generate_plan", _generate_plan_node)
@@ -122,13 +114,10 @@ def to_planning_state(state: OrchestrationState) -> PlanningState:
     revision_feedback = state.get("revision_feedback") or load_revision_feedback(workspace_path)
     return PlanningState(
         query=state["query"],
-        user_profile=state["user_profile"],
-        constraints=state["constraints"],
         request_type=state["request_type"],
         workspace_path=workspace_path,
         route_decision=state.get("route_decision"),
         revision_feedback=revision_feedback,
-        approved_tools=list(state.get("approved_tools") or []),
         reused_execution_plan=False,
     )
 
@@ -140,12 +129,7 @@ def _planning_steps_from_result(result: dict) -> list[str]:
 
 
 def invoke_planning_subgraph(state: OrchestrationState) -> dict:
-    """Run the Planning subgraph and map results back to orchestration updates.
-
-    Planning no longer writes `user_profile`/`constraints` back -- it only ever reads them
-    (already complete/valid, owned by the User subgraph) and reports its own plan-generation
-    steps.
-    """
+    """Run the Planning subgraph and map results back to orchestration updates."""
     result = get_planning_subgraph().invoke(to_planning_state(state))
     return merge_subgraph_updates(
         state,
