@@ -52,7 +52,6 @@ def _research_agent_node(state: ResearchState) -> dict:
         "evidence": result.evidence,
         "structured_findings": result.structured_findings.model_dump(),
         "evidence_summary": result.evidence_summary,
-        "agent_iterations": result.agent_iterations,
     }
 
 
@@ -119,7 +118,6 @@ def to_research_state(state: OrchestrationState) -> ResearchState:
         structured_findings=None,
         evidence_summary=None,
         blocked_by_todos=False,
-        agent_iterations=0,
         is_reresearch=state.get("route_decision") == "RERESEARCH",
     )
 

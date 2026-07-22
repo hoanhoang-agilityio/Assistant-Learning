@@ -121,9 +121,7 @@ def verification_state(
         training_plan={},
         safety_flags=[],
         verification_report={},
-        feedback=None,
         faithfulness_score=None,
-        pass_fail=False,
     )
 
 
@@ -188,7 +186,7 @@ def test_verification_subgraph_writes_vfs_artifacts(verification_state: Verifica
     report = json.loads(vfs.read("verify/verification_v1.json"))
     ragas = json.loads(vfs.read("verify/ragas.json"))
     assert report["passed"] is True
-    assert result["pass_fail"] is True
+    assert result["verification_report"]["ragas"]["pass_fail"] is True
     assert ragas["faithfulness_score"] >= FAITHFULNESS_PASS_THRESHOLD
 
 

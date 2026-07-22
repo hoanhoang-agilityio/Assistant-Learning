@@ -101,10 +101,8 @@ Defined in [`state.py`](../../core/subgraphs/verification/state.py):
 | `constraints` | `dict` | From orchestration (seeded) |
 | `safety_flags` | `list[str]` | From `fitness/safety_flags.json` |
 | `plan_blueprint` | `dict` | From `fitness/blueprint.json` |
-| `verification_report` | `dict` | Built incrementally across check nodes |
-| `feedback` | `str \| None` | Aggregated failure feedback |
+| `verification_report` | `dict` | Built incrementally across check nodes; `feedback` and `ragas.pass_fail` live nested inside this dict |
 | `faithfulness_score` | `float \| None` | From ragas check |
-| `pass_fail` | `bool` | Faithfulness pass/fail |
 
 ### 3.2 Orchestration mapping
 

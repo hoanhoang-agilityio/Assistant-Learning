@@ -13,6 +13,4 @@ class VerificationState(TypedDict):
     safety_flags: list[str]
     plan_blueprint: dict
     verification_report: dict
-    feedback: str | None
     faithfulness_score: float | None
-    pass_fail: bool
