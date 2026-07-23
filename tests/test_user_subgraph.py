@@ -30,6 +30,9 @@ def _make_state(
             workspace_root=workspace_root,
         )
     )
+    # These tests exercise UserAgent/to_user_state directly, bypassing supervisor_node --
+    # so fitness_query (normally set only on an ALLOW scope decision) must be set here too.
+    state["fitness_query"] = query
     state["revision_feedback"] = revision_feedback
     return state
 

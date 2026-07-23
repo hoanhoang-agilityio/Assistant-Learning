@@ -205,6 +205,7 @@ def test_research_agent_runs_from_orchestration(research_state: ResearchState) -
         "thread_id": "research-thread",
         "current_node": "supervisor",
         "query": research_state["query"],
+        "fitness_query": research_state["query"],
         "user_profile": {},
         "constraints": {},
         "request_type": research_state["request_type"],

@@ -113,7 +113,7 @@ def to_planning_state(state: OrchestrationState) -> PlanningState:
     workspace_path = state["workspace_path"]
     revision_feedback = state.get("revision_feedback") or load_revision_feedback(workspace_path)
     return PlanningState(
-        query=state["query"],
+        query=state["fitness_query"],
         request_type=state["request_type"],
         workspace_path=workspace_path,
         route_decision=state.get("route_decision"),

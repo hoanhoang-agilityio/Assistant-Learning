@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from core.agents.rerun import partial_rerun_decision_data
 from core.agents.state import OrchestrationState
 from core.agents.supervisor_log import append_supervisor_decision, load_verification_report
-from core.agents.tools import check_topic_scope, classify_request
+from core.agents.tools import check_topic_scope, classify_request, refusal_message_for
 
 
 def supervisor_node(state: OrchestrationState) -> dict:
@@ -11,12 +11,28 @@ def supervisor_node(state: OrchestrationState) -> dict:
     updates: dict = {}
 
     if state["request_type"] is None:
-        scope = check_topic_scope(state["query"])
-        if scope["is_off_topic"]:
+        scope_result = check_topic_scope(state["query"])
+
+        # Routing depends solely on scope_result.decision -- no separate boolean flags.
+        # Only ALLOW continues; REJECT/MIXED/CLARIFY all terminate the run immediately
+        # (mixed intent must never silently continue to planning with only part of the
+        # message -- see ScopeResult's docstring for why the unsupported part is still
+        # preserved on scope_result even though the run stops here).
+        if scope_result.decision != "ALLOW":
             return {
+                # Persisted as a plain dict -- see OrchestrationState.scope_result's
+                # docstring for why a ScopeResult instance never goes into checkpointed
+                # state directly.
+                "scope_result": scope_result.model_dump(),
                 "route_decision": "REFUSED",
-                "refusal_message": scope["refusal_message"],
+                "refusal_message": refusal_message_for(scope_result),
             }
+
+        # `query` is never mutated -- it stays the immutable original for the lifetime of
+        # the run. `fitness_query` is the copy downstream planning-related subgraphs
+        # consume instead (see OrchestrationState's docstring).
+        updates["scope_result"] = scope_result.model_dump()
+        updates["fitness_query"] = state["query"]
 
         classification = classify_request(state["query"])
         updates.update(classification)
