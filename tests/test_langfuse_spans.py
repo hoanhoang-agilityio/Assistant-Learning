@@ -57,6 +57,45 @@ def test_wrap_traced_subgraph_node_opens_span(
     mock_span.update.assert_called_once_with(output=result)
 
 
+@patch("core.observability.langfuse.subgraph_span_context")
+def test_wrap_traced_subgraph_node_interrupt_is_not_span_error(
+    mock_span_context: MagicMock,
+    orchestration_state: OrchestrationState,
+) -> None:
+    """GraphInterrupt must leave the Langfuse span at DEFAULT, not ERROR.
+
+    Re-raising inside the span context makes OTEL mark the observation ERROR;
+    we close the span cleanly first, then propagate the interrupt.
+    """
+    from langgraph.errors import GraphInterrupt
+    from langgraph.types import Interrupt
+
+    mock_span = MagicMock()
+    mock_span_context.return_value.__enter__.return_value = mock_span
+    interrupt = GraphInterrupt((Interrupt(value={"type": "profile_form"}),))
+
+    def invoke_fn(state: OrchestrationState, config: object) -> dict:
+        raise interrupt
+
+    traced = wrap_traced_subgraph_node("user", invoke_fn, needs_config=True)
+
+    with pytest.raises(GraphInterrupt) as raised:
+        traced(orchestration_state, {})
+
+    assert raised.value is interrupt
+    mock_span.update.assert_called_once_with(
+        output={"paused": True, "reason": "interrupt"},
+        level="DEFAULT",
+        status_message="paused for interrupt",
+    )
+    # Span context must exit without an active exception (else OTEL sets ERROR).
+    assert mock_span_context.return_value.__exit__.call_args.args[:3] == (
+        None,
+        None,
+        None,
+    )
+
+
 @patch("core.observability.langfuse.get_langfuse_client")
 def test_tavily_tool_span_uses_run_trace(
     mock_get_client: MagicMock,

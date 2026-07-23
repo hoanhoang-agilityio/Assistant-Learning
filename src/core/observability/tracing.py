@@ -66,6 +66,7 @@ def _run_traced_node(
     span_name = resolve_subgraph_span_name(node_key, state.get("route_decision"))
     tier = SUBGRAPH_TIERS.get(node_key)
     is_partial_rerun = span_name.startswith("partial_rerun_")
+    pending_interrupt: GraphInterrupt | None = None
     try:
         with subgraph_span_context(
             state,
@@ -76,19 +77,25 @@ def _run_traced_node(
         ) as span:
             try:
                 result = invoke_fn(state, *invoke_args)
-            except GraphInterrupt:
+            except GraphInterrupt as exc:
                 # A node (currently only "user") can pause mid-execution via LangGraph's
-                # dynamic interrupt(), which raises rather than returning. Left uncaught,
-                # this would unwind through the span's own exception handling and get
-                # logged as an error -- misleading, since a pause is expected, benign
-                # control flow, not a failure. Record it as paused and let it keep
-                # propagating so the graph actually pauses.
+                # dynamic interrupt(), which raises rather than returning. That is expected,
+                # benign control flow — not a failure. Swallow inside this span so OTEL /
+                # Langfuse do not mark the observation ERROR on context exit, then re-raise
+                # after the span closes so the parent graph still pauses.
+                pending_interrupt = exc
                 if span is not None:
-                    span.update(output={"paused": True, "reason": "interrupt"})
-                raise
-            if span is not None:
-                span.update(output=result)
-            return result
+                    span.update(
+                        output={"paused": True, "reason": "interrupt"},
+                        level="DEFAULT",
+                        status_message="paused for interrupt",
+                    )
+            else:
+                if span is not None:
+                    span.update(output=result)
+                return result
+        assert pending_interrupt is not None
+        raise pending_interrupt
     finally:
         reset_trace_run_id(token)
 
