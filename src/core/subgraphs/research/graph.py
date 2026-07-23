@@ -108,7 +108,7 @@ def get_research_subgraph() -> CompiledStateGraph:
 
 def to_research_state(state: OrchestrationState) -> ResearchState:
     return ResearchState(
-        query=state["query"],
+        query=state["fitness_query"],
         request_type=state["request_type"],
         workspace_path=state["workspace_path"],
         profile={},

@@ -27,6 +27,8 @@ def create_initial_state(
         user_id=resolved_user_id,
         current_node="supervisor",
         query=query,
+        fitness_query=None,
+        scope_result=None,
         profile_complete=False,
         profile_valid=False,
         days_per_week_explicit=False,

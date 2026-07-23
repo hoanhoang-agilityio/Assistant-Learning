@@ -116,7 +116,7 @@ def get_user_subgraph() -> CompiledStateGraph:
 
 def to_user_state(state: OrchestrationState) -> UserState:
     return UserState(
-        query=state["query"],
+        query=state["fitness_query"],
         workspace_path=state["workspace_path"],
         revision_feedback=state.get("revision_feedback"),
         profile=load_run_profile(state["workspace_path"]),

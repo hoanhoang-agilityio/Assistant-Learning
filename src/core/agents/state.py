@@ -1,5 +1,9 @@
 from typing import Literal, TypedDict
 
+from pydantic import BaseModel, Field
+
+from core.agents.topic_scope_judge import ScopeDecision, ScopeRequest
+
 RouteDecision = Literal["FIX_REASONING", "REPLAN", "RERESEARCH", "HITL", "COMPLETE", "REFUSED"]
 RequestType = Literal[
     "training_plan",
@@ -14,6 +18,24 @@ AffectedDomain = Literal["planning", "research", "fitness", "verify"]
 ApprovalStatus = Literal["pending", "approved", "rejected", "revision_requested"]
 
 
+class ScopeResult(BaseModel):
+    """Orchestration-level record of the scope guardrail's verdict for this run.
+
+    Deliberately a separate type from `TopicScopeJudgement` (the LLM judge's own output
+    contract in topic_scope_judge.py): this is what gets persisted in checkpointed state
+    and exposed to logging/analytics, so it must stay stable even if the judge's prompt
+    or schema changes. `check_topic_scope` (core/agents/tools.py) is the translation
+    boundary between the two -- it partitions the judge's `requests` into
+    supported/unsupported here. Keeping full ScopeRequest objects (not just text) retains
+    action_type for future analytics/guardrails without revisiting this layer.
+    """
+
+    decision: ScopeDecision
+    supported_requests: list[ScopeRequest]
+    unsupported_requests: list[ScopeRequest]
+    reason: str = Field(description="One concise sentence explaining the decision.")
+
+
 class OrchestrationState(TypedDict):
     """Global orchestration state stored in LangGraph checkpointer."""
 
@@ -22,7 +44,29 @@ class OrchestrationState(TypedDict):
     user_id: str
     current_node: str
 
+    # The original user message. Immutable for the lifetime of the run -- no node may ever
+    # write to this key. Always safe to read for logging/tracing/analytics/future
+    # guardrails regardless of the scope decision. Planning-related nodes must NOT read
+    # this directly; they read `fitness_query` instead (see below).
     query: str
+    # Set once by supervisor_node, only when scope_result.decision == "ALLOW" -- a copy of
+    # `query` at that point, consumed only by the research/planning/user subgraphs. None
+    # for any run that never reached ALLOW (REJECT/MIXED/CLARIFY terminate before this is
+    # set, so those subgraphs are never reached and never need to read it).
+    fitness_query: str | None
+    # Set once by supervisor_node alongside the routing decision -- carries the full scope
+    # verdict (including the unsupported part of a MIXED message) for logging/UI even when
+    # the run terminates without ever reaching planning.
+    #
+    # Stored as ScopeResult.model_dump() (a plain dict), not a ScopeResult instance:
+    # OrchestrationState is a checkpointed persistence boundary and every other field in it
+    # is already a plain primitive/list/dict, so this keeps that invariant rather than
+    # depending on LangGraph's serializer to round-trip an application-specific Pydantic
+    # type indefinitely (it currently warns that unregistered custom types in checkpoints
+    # will be blocked in a future version). ScopeResult remains the typed contract for
+    # in-memory construction/validation -- call ScopeResult.model_validate(state["scope_result"])
+    # at any read site that wants the typed object back.
+    scope_result: dict | None
     profile_complete: bool
     profile_valid: bool
     days_per_week_explicit: bool
