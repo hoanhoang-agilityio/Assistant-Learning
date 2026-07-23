@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from core.profile.goal_spec import rate_to_calorie_adjustment
+from core.profile.store import load_run_profile, split_constraints
 from core.subgraphs.fitness.schema import (
     EditOperation,
     SafetyResult,
@@ -55,15 +56,17 @@ HOME_GYM_KEYWORDS = (
 
 
 def load_fitness_context(workspace_path: str) -> dict[str, Any]:
+    """Hydrate Fitness's VFS-backed context: profile+constraints, execution plan, research
+    findings, and prior verification feedback. `plan/profile.json` stores profile and
+    constraint fields together as one flat dict, so `constraints` here is derived via
+    `split_constraints` rather than read from a separate artifact.
+    """
     vfs = VFS.for_run(Path(workspace_path))
-    profile: dict[str, Any] = {}
+    profile = load_run_profile(workspace_path)
     evidence_summary: str | None = None
     structured_findings: dict[str, Any] | None = None
     verification_feedback: str | None = None
     execution_plan: dict[str, Any] = {}
-
-    if vfs.exists("plan/profile.json"):
-        profile = json.loads(vfs.read("plan/profile.json"))
 
     if has_execution_plan(workspace_path):
         execution_plan = load_execution_plan(workspace_path).model_dump()
@@ -83,6 +86,7 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
 
     return {
         "profile": profile,
+        "constraints": split_constraints(profile),
         "execution_plan": execution_plan,
         "structured_findings": structured_findings,
         "evidence_summary": evidence_summary,

@@ -29,10 +29,6 @@ class ResumeRunRequest(BaseModel):
         default=None,
         description="Required for reject/revision when using decision_type.",
     )
-    pending_tool: str | None = Field(
-        default=None,
-        description="Tool name when resuming a per-tool approval interrupt.",
-    )
     form_data: dict[str, Any] | None = Field(
         default=None,
         description="Submitted profile form fields, required when hitl_type is 'profile_form'.",
@@ -65,7 +61,6 @@ class RunStatusResponse(BaseModel):
     hitl_message: str | None
     refusal_message: str | None
     steps: list[str]
-    pending_tool: str | None
     next_nodes: list[str]
     error_message: str | None = None
     profile_form: dict[str, Any] | None = Field(

@@ -67,8 +67,6 @@ def _ragas_faithfulness_node(state: VerificationState) -> dict:
     return {
         "verification_report": final_report,
         "faithfulness_score": ragas["faithfulness_score"],
-        "pass_fail": ragas["pass_fail"],
-        "feedback": final_report["feedback"],
     }
 
 
@@ -117,9 +115,7 @@ def to_verification_state(state: OrchestrationState) -> VerificationState:
         safety_flags=[],
         plan_blueprint={},
         verification_report={},
-        feedback=None,
         faithfulness_score=None,
-        pass_fail=False,
     )
 
 

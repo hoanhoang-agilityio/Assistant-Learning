@@ -8,7 +8,12 @@ from core.agents.state import OrchestrationState
 from core.config.settings import get_settings
 from core.graph.run import create_initial_state
 from core.subgraphs.fitness.agent import FitnessAgent
-from core.subgraphs.fitness.graph import build_fitness_subgraph, resolve_max_planner_attempts
+from core.subgraphs.fitness.graph import (
+    _load_context_node,
+    build_fitness_subgraph,
+    resolve_max_planner_attempts,
+    to_fitness_state,
+)
 from core.subgraphs.fitness.planner import configure_fitness_planner
 from core.subgraphs.fitness.schema import StructuredWorkout, WorkoutDay, WorkoutExercise
 from core.subgraphs.fitness.state import FitnessState
@@ -90,6 +95,49 @@ def fitness_state(workspace_root: Path, complete_profile: dict[str, Any]) -> Fit
         template_fingerprint=None,
         workout_source=None,
         reused_workout=False,
+    )
+
+
+def test_load_context_node_hydrates_constraints_from_vfs(workspace_root: Path) -> None:
+    """Regression test for the Fitness constraints-hydration gap flagged in the VFS-profile
+    plan: `to_fitness_state` no longer copies `profile`/`constraints` from orchestration, so
+    `_load_context_node` must repopulate *both* from `plan/profile.json` -- not just
+    `profile` -- or every downstream node (blueprint, macros, template resolution, planner,
+    safety check) silently falls back to hardcoded constraint defaults instead of what the
+    user actually requested.
+    """
+    non_default_profile = {
+        "age": 30,
+        "sex": "male",
+        "height_cm": 175,
+        "current_weight_kg": 85.0,
+        "target_weight_kg": 75.0,
+        "goal": "fat_loss",
+    }
+    non_default_constraints = {
+        "days_per_week": 5,
+        "equipment": "home",
+        "session_duration_minutes": 45,
+        "high_protein": True,
+    }
+    initial = create_initial_state(
+        run_id="fitness-constraints-run",
+        thread_id="fitness-constraints-thread",
+        query="I want a fat loss plan.",
+        user_profile=non_default_profile,
+        constraints=non_default_constraints,
+        workspace_root=workspace_root,
+    )
+
+    fitness_state = to_fitness_state(initial)
+    assert fitness_state["profile"] == {}, "orchestration no longer seeds profile directly"
+    assert fitness_state["constraints"] == {}, "orchestration no longer seeds constraints directly"
+
+    updates = _load_context_node(fitness_state)
+
+    assert updates["profile"]["age"] == 30
+    assert updates["constraints"] == non_default_constraints, (
+        "constraints must be hydrated from plan/profile.json, not left empty/default"
     )
 
 
@@ -350,8 +398,6 @@ def test_fitness_agent_runs_from_orchestration(fitness_state: FitnessState) -> N
         "thread_id": "fitness-thread",
         "current_node": "supervisor",
         "query": "lose weight",
-        "user_profile": fitness_state["profile"],
-        "constraints": fitness_state["constraints"],
         "request_type": "fat_loss",
         "affected_domains": ["planning", "research", "fitness", "verify"],
         "route_decision": None,

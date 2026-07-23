@@ -51,10 +51,9 @@ def test_complete_profile_skips_form_and_persists(
     assert result["profile_complete"] is True
     assert result["profile_valid"] is True
     assert result["waiting_for_user"] is False
-    assert result["user_profile"]["age"] == 30
-    assert result["user_profile"]["goal"] == "fat_loss"
 
     stored = load_stored_profile(result["workspace_path"])
+    assert stored["age"] == 30
     assert stored["goal"] == "fat_loss"
 
 
@@ -93,8 +92,10 @@ def test_missing_fields_pause_at_form_then_resume_completes(workspace_root: Path
     assert resumed["profile_complete"] is True
     assert resumed["profile_valid"] is True
     assert resumed["waiting_for_user"] is False
-    assert resumed["user_profile"]["sex"] == "male"
-    assert resumed["user_profile"]["current_weight_kg"] == 80.0
+
+    stored = load_stored_profile(resumed["workspace_path"])
+    assert stored["sex"] == "male"
+    assert stored["current_weight_kg"] == 80.0
 
 
 def test_still_incomplete_resubmission_loops_back_to_form(workspace_root: Path) -> None:
@@ -170,8 +171,10 @@ def test_revision_feedback_with_day_count_sets_explicit_flag(
 
     assert "__interrupt__" not in result
     assert result["days_per_week_explicit"] is True
-    assert result["user_profile"]["horizon_weeks"] == 10
-    assert result["constraints"]["days_per_week"] == 5
+
+    stored = load_stored_profile(result["workspace_path"])
+    assert stored["horizon_weeks"] == 10
+    assert stored["days_per_week"] == 5
 
 
 def test_irrelevant_revision_feedback_clears_explicit_flag(
@@ -252,8 +255,7 @@ def test_extract_profile_merges_query_and_profile() -> None:
     query = "I want to lose weight. Male, 30 years old, 175 cm, 85 kg. Gym 3x/week. Goal: 75 kg"
     profile = extract_profile(
         query=query,
-        user_profile={},
-        constraints={"days_per_week": 3},
+        profile={"days_per_week": 3},
     )
     assert profile["sex"] == "male"
     assert profile["age"] == 30
@@ -272,11 +274,35 @@ def test_extract_profile_prefers_existing_user_profile(complete_profile: dict) -
     )
     profile = extract_profile(
         query="Male, 40 years old, 180 cm, 90 kg",
-        user_profile=complete_profile,
-        constraints={},
+        profile=complete_profile,
     )
     assert profile["age"] == 30
     assert profile["height_cm"] == 175
+
+
+def test_extract_profile_prefers_stored_profile_over_fresh_extraction() -> None:
+    """Regression test for the flattened seed's merge-precedence invariant: unlike the
+    skip-heuristic case above (`test_extract_profile_prefers_existing_user_profile`), this
+    forces LLM extraction to actually run (the seed is incomplete) and proves the seed's
+    already-known fields still beat what the extractor returns for those same fields, while
+    extraction still fills in the fields the seed is missing.
+    """
+    configure_profile_extractor(
+        lambda _query: ExtractedProfile(
+            profile=Profile(age=99, height_cm=190, current_weight_kg=80),
+            goal=Goal(goal="fat_loss", target_weight_kg=75),
+        )
+    )
+    profile = extract_profile(
+        query="I want to get fit.",
+        profile={"age": 30, "height_cm": 175, "sex": "male"},
+    )
+    assert profile["age"] == 30, "stored age must beat the fresh extraction's age"
+    assert profile["height_cm"] == 175, "stored height must beat the fresh extraction's height"
+    assert profile["sex"] == "male"
+    assert profile["current_weight_kg"] == 80.0, "extraction fills fields the seed is missing"
+    assert profile["target_weight_kg"] == 75.0
+    assert profile["goal"] == "fat_loss"
 
 
 def test_extract_profile_parses_natural_language_query() -> None:
@@ -287,7 +313,7 @@ def test_extract_profile_parses_natural_language_query() -> None:
         )
     )
     query = "im 27, 75kg, 171cm, i want to lose 2kg in 2 months"
-    profile = extract_profile(query=query, user_profile={}, constraints={})
+    profile = extract_profile(query=query, profile={})
     assert profile["age"] == 27
     assert profile["height_cm"] == 171
     assert profile["current_weight_kg"] == 75.0
@@ -308,8 +334,7 @@ def test_extract_profile_parses_muscle_gain_query() -> None:
     )
     profile = extract_profile(
         query=query,
-        user_profile={},
-        constraints={"days_per_week": 4, "equipment": "gym"},
+        profile={"days_per_week": 4, "equipment": "gym"},
     )
     assert profile["age"] == 27
     assert profile["height_cm"] == 171
@@ -336,8 +361,7 @@ def test_extract_profile_uses_latest_hitl_segment_for_extraction() -> None:
     )
     extract_profile(
         query=accumulated_query,
-        user_profile={"age": 30},
-        constraints={},
+        profile={"age": 30},
     )
     assert captured_queries == ["Male, 30 years old, 175 cm, 85 kg. Gym 3x/week. Goal: 75 kg"]
 
@@ -348,8 +372,7 @@ def test_extract_profile_skips_extraction_when_profile_complete(complete_profile
     )
     profile = extract_profile(
         query="I want to lose weight with a gym 3x/week plan.",
-        user_profile=complete_profile,
-        constraints={},
+        profile=complete_profile,
     )
     assert validate_profile_completeness(profile)["feasibility_requires_review"] is False
     assert profile["age"] == 30

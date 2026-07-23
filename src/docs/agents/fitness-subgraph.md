@@ -71,7 +71,7 @@ Template reuse is **disabled** when `plan/revision_feedback.json` exists on VFS.
 
 | Field | Set by |
 |-------|--------|
-| `profile`, `execution_plan`, `structured_findings`, `evidence_summary`, `verification_feedback` | `load_context` |
+| `profile`, `constraints`, `execution_plan`, `structured_findings`, `evidence_summary`, `verification_feedback` | `load_context` |
 | `plan_blueprint` | `build_blueprint` |
 | `macro_targets`, `training_constraints` | `calculate_macros` |
 | `template_fingerprint`, `workout_source`, `reused_workout`, `structured_workout` | `resolve_workout_template` or `fitness_planner` |
@@ -88,12 +88,14 @@ Template reuse is **disabled** when `plan/revision_feedback.json` exists on VFS.
 
 | VFS path | Usage |
 |----------|-------|
-| `plan/profile.json` | User profile |
+| `plan/profile.json` | User profile **and** constraints — one flat dict on disk; `load_fitness_context` splits `constraints` back out via `split_constraints(profile)` (`core/profile/store.py`) since every downstream node (blueprint, macros, template resolution, planner, safety check) reads them as two separate `FitnessState` fields |
 | `plan/execution_plan.json` | Research task alignment for planner |
 | `research/findings.json` | `structured_findings` (preferred) or `evidence_summary` |
 | `verify/verification_v1.json` | `verification_feedback` from prior verification run |
 
 When `structured_findings.consensus` is present, a formatted evidence summary is derived for the markdown draft.
+
+`to_fitness_state()` no longer copies `profile`/`constraints` from `OrchestrationState` (both were removed entirely — see `docs/reports/orchestration_profile_vfs_plan.md`); both are seeded empty and hydrated exclusively by `load_context` above.
 
 On `FIX_REASONING` reruns (`is_verification_rerun=true`), prior safety feedback from `fitness/safety_flags.json` is loaded into `planner_feedback`.
 

@@ -70,7 +70,6 @@ def resume_run(
             approval_status=payload.approval_status,
             decision_type=payload.decision_type,
             message=payload.message,
-            pending_tool=payload.pending_tool,
             form_data=payload.form_data,
         )
     except RunNotFoundError as exc:

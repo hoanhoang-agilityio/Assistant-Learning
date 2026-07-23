@@ -3,7 +3,7 @@
 from typing import Any
 
 from core.profile.goal_spec import derive_goal_spec_fields
-from core.profile.schema import ExtractedProfile
+from core.profile.schema import CONSTRAINT_FIELDS, ExtractedProfile
 
 GYM_ACTIVITY_PREFIX = "gym_"
 GYM_ACTIVITY_SUFFIX = "x_week"
@@ -95,21 +95,29 @@ def _sync_activity_and_days(profile: dict[str, Any]) -> None:
 def merge_profile_sources(
     *,
     query: str,
-    user_profile: dict[str, Any],
-    constraints: dict[str, Any],
+    profile: dict[str, Any],
     extracted: ExtractedProfile,
 ) -> dict[str, Any]:
-    """Merge LLM extraction with constraints and existing user profile (profile wins)."""
-    profile: dict[str, Any] = {"query": query}
-    for field_name, value in constraints.items():
+    """Merge LLM extraction with the stored/seed profile (stored profile wins).
+
+    Preserves the original three-tier precedence even though the seed is now a single
+    flat dict rather than separate `user_profile`/`constraints` arguments: constraint
+    fields (`CONSTRAINT_FIELDS`) stay lowest priority (a fresh query can override a stale
+    training-day/equipment preference), everything else in the seed profile stays highest
+    priority (already-confirmed biometrics/goal fields must never be clobbered by a fresh
+    partial extraction), with LLM `extracted` fields in between.
+    """
+    merged: dict[str, Any] = {"query": query}
+    for field_name in CONSTRAINT_FIELDS:
+        value = profile.get(field_name)
         if value is not None and value != "":
-            profile[field_name] = value
-    profile.update(normalize_extracted_profile(extracted))
-    for field_name, value in user_profile.items():
-        if field_name == "missing_fields":
+            merged[field_name] = value
+    merged.update(normalize_extracted_profile(extracted))
+    for field_name, value in profile.items():
+        if field_name in CONSTRAINT_FIELDS or field_name == "missing_fields":
             continue
         if value is not None and value != "":
-            profile[field_name] = value
-    _sync_activity_and_days(profile)
-    profile.update(derive_goal_spec_fields(profile))
-    return profile
+            merged[field_name] = value
+    _sync_activity_and_days(merged)
+    merged.update(derive_goal_spec_fields(merged))
+    return merged

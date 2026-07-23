@@ -14,5 +14,4 @@ class ResearchState(TypedDict):
     structured_findings: dict[str, Any] | None
     evidence_summary: str | None
     blocked_by_todos: bool
-    agent_iterations: int
     is_reresearch: bool

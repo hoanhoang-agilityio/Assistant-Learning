@@ -6,6 +6,17 @@
 
 **Related:** [Workflow](./workflow.md) · [Supervisor](./supervisor.md) · [Research](./research-subgraph.md) · [Fitness](./fitness-subgraph.md)
 
+> **⚠ Staleness note (2026-07-22):** Profile extraction/validation (§6-§7, §10) was relocated
+> to the **User subgraph** (`src/core/subgraphs/user/`) before this refactor — Planning is
+> actually a fixed **2-node** graph (`generate_plan` / `reuse_execution_plan`) with no
+> `extract_profile`/`validate_profile`/`planning_hitl` nodes of its own; see
+> `tests/test_user_subgraph.py` and `core/subgraphs/user/graph.py` for the current profile
+> flow. Separately, `user_profile`/`constraints` were removed from `OrchestrationState`/
+> `PlanningState` entirely (profile now lives only on VFS `plan/profile.json`, loaded via
+> `core/profile/store.py:load_run_profile`) — see `docs/reports/orchestration_profile_vfs_plan.md`.
+> The two specific fixes below correct the field tables most directly affected by that second
+> change; the broader node-structure staleness above predates it and needs its own pass.
+
 ---
 
 ## Executive Summary
@@ -144,18 +155,13 @@ Defined in [`state.py`](../../core/subgraphs/planning/state.py):
 | Field | Type | Description |
 |-------|------|-------------|
 | `query` | `str` | User query (input, seeded from orchestration) |
-| `user_profile` | `dict` | Structured profile from API/orchestration (input) |
-| `constraints` | `dict` | Equipment, session duration, etc. (input) |
 | `request_type` | `str \| None` | Classified request type (input) |
 | `workspace_path` | `str` | Run workspace VFS path (input) |
 | `route_decision` | `RouteDecision \| None` | Drives REPLAN reuse (input) |
 | `revision_feedback` | `str \| None` | User revision text from HITL resume (input) |
-| `profile` | `dict` | Merged flat profile (set by `extract_profile`) |
-| `missing_fields` | `list[str]` | Set by `validate_profile` |
-| `requires_hitl` | `bool` | Set by `validate_profile` or `planning_hitl` |
 | `reused_execution_plan` | `bool` | Whether plan was reused from VFS (set by `reuse_execution_plan`) |
 
-**Seeded from orchestration** via `to_planning_state()` — output/intermediate fields reset to defaults on each invocation. `revision_feedback` is loaded from orchestration state or `plan/revision_feedback.json` on VFS.
+**No profile fields in state** — `PlanningState` has no `user_profile`/`constraints`/`profile` field at all. Nodes load the current profile from VFS directly (`load_run_profile(state["workspace_path"])`), and `generate_plan`'s own `persist_execution_plan` re-writes `plan/profile.json` with a goal-spec-enriched copy. **Seeded from orchestration** via `to_planning_state()` — output/intermediate fields reset to defaults on each invocation. `revision_feedback` is loaded from orchestration state or `plan/revision_feedback.json` on VFS.
 
 ### 4.2 What is NOT in state (intentional design)
 
@@ -185,9 +191,9 @@ Execution plan data is **not duplicated in state**. VFS is the source of truth.
 | Orchestration update | Condition |
 |---------------------|-----------|
 | `current_node: "planning"` | Always |
-| `user_profile`, `constraints` | Synced from merged `profile` via `profile_to_orchestration_updates()` |
-| `user_profile.missing_fields` | When `requires_hitl=true` |
-| `waiting_for_user: true` | When `requires_hitl` |
+| `steps` | Appended via `merge_subgraph_updates()` |
+
+Planning never touches `user_profile`/`constraints` on `OrchestrationState` — those fields don't exist there anymore (`profile_to_orchestration_updates()` was deleted, confirmed to have zero production callers). Profile-gating (`waiting_for_user`, the missing-fields HITL prompt) is entirely the User subgraph's responsibility now, not Planning's — see the staleness note at the top of this doc.
 
 ---
 
@@ -349,18 +355,14 @@ If profile changed, revision feedback exists, or plan lacks coverage → `genera
 
 ## 10. HITL Path — Missing profile fields
 
-```
-validate_profile → missing_fields ≠ [] → planning_hitl
-→ orchestration: waiting_for_user=true, user_profile.missing_fields=[...]
-→ supervisor → hitl → request_clarification → format_missing_profile_prompt()
-```
-
-**Resume flow** (`RunOrchestrator.resume_run` in [`core/graph/service.py`](../../core/graph/service.py)):
-
-1. User sends clarification message
-2. `build_profile(query=message, ...)` merges clarification
-3. `profile_to_orchestration_updates()` syncs back to orchestration
-4. Graph resumes → supervisor → planning re-runs
+**This is no longer Planning's responsibility.** Missing-profile HITL is handled entirely by
+the User subgraph's dynamic `interrupt()` in `_form_node`
+(`src/core/subgraphs/user/graph.py`), resumed via `Command(resume=form_data)` — see
+`RunOrchestrator.start_profile_form_resume` in `core/graph/service.py` and
+`tests/test_user_subgraph.py`. `route_from_supervisor`'s profile gate
+(`core/graph/routing.py`) redirects any profile-gated node (planning/research/fitness) into
+`"user"` whenever `profile_complete`/`profile_valid` is false, so Planning only ever runs
+once the User subgraph has already produced a complete, valid `plan/profile.json`.
 
 ---
 

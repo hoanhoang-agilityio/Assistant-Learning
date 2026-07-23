@@ -23,8 +23,6 @@ class OrchestrationState(TypedDict):
     current_node: str
 
     query: str
-    user_profile: dict
-    constraints: dict
     profile_complete: bool
     profile_valid: bool
     days_per_week_explicit: bool
@@ -49,5 +47,3 @@ class OrchestrationState(TypedDict):
     refusal_message: str | None
 
     steps: list[str]
-    approved_tools: list[str]
-    pending_tool: str | None

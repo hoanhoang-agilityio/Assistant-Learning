@@ -41,14 +41,3 @@ def test_user_revision_to_replan_update_allows_repeat_requests() -> None:
     assert second["route_decision"] == "REPLAN"
     assert "replan_count" not in first
     assert "replan_count" not in second
-
-
-def test_create_approval_decision_tool_resume_merges_approved_tools() -> None:
-    decision = create_approval_decision(
-        "approve",
-        pending_tool="extract_profile",
-        approved_tools=[],
-    )
-    update = decision_to_resume_update(decision)
-    assert update["approved_tools"] == ["extract_profile"]
-    assert update["pending_tool"] is None

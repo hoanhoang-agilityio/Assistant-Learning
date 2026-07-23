@@ -6,7 +6,6 @@ from core.agents.rerun import STRUCTURAL_ISSUE_MARKERS
 from core.llm.contracts import validate_planning_payload
 from core.llm.serializers import compact_profile_for_llm
 from core.profile.goal_spec import derive_goal_spec_fields
-from core.profile.schema import CONSTRAINT_FIELDS, PROFILE_FIELDS
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.planning.templates import build_template_execution_plan
 from core.subgraphs.user.utils import load_stored_profile
@@ -32,7 +31,6 @@ __all__ = [
     "persist_revision_feedback",
     "load_revision_feedback",
     "profile_matches_stored_profile",
-    "profile_to_orchestration_updates",
     "seed_execution_plan",
     "should_reuse_execution_plan",
 ]
@@ -74,19 +72,6 @@ def build_planning_payload(
         payload["revision_feedback"] = stripped_feedback
     validate_planning_payload(payload)
     return payload
-
-
-def profile_to_orchestration_updates(
-    profile: dict[str, Any],
-    *,
-    missing_fields: list[str] | None = None,
-) -> dict[str, Any]:
-    """Map an extracted planning profile onto orchestration user_profile/constraints."""
-    user_profile = {field: profile[field] for field in PROFILE_FIELDS if field in profile}
-    if missing_fields is not None:
-        user_profile["missing_fields"] = missing_fields
-    constraints = {field: profile[field] for field in CONSTRAINT_FIELDS if field in profile}
-    return {"user_profile": user_profile, "constraints": constraints}
 
 
 _ISSUE_TASK_KEYWORDS: dict[str, tuple[str, ...]] = {

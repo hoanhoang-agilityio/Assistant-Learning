@@ -14,6 +14,7 @@ from core.mcp.tavily_client import (
     get_tavily_client,
 )
 from core.observability.tracing import traced_tavily_call
+from core.profile.store import load_run_profile
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.planning.utils import (
     has_execution_plan,
@@ -42,10 +43,7 @@ def assert_todos_gate(todos: list[str]) -> None:
 
 def load_profile_for_research(workspace_path: str) -> dict[str, Any]:
     """Load validated profile from planning VFS artifacts."""
-    vfs = VFS.for_run(Path(workspace_path))
-    if not vfs.exists("plan/profile.json"):
-        return {}
-    return json.loads(vfs.read("plan/profile.json"))
+    return load_run_profile(workspace_path)
 
 
 def load_execution_plan_for_research(workspace_path: str) -> ExecutionPlan | None:

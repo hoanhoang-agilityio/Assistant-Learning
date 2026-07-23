@@ -37,7 +37,8 @@ def _load_context_node(state: FitnessState) -> dict:
     if state["is_verification_rerun"]:
         planner_feedback = load_prior_safety_feedback(state["workspace_path"])
     return {
-        "profile": context["profile"] or state["profile"],
+        "profile": context["profile"],
+        "constraints": context["constraints"],
         "execution_plan": context["execution_plan"],
         "structured_findings": context["structured_findings"],
         "evidence_summary": context["evidence_summary"],
@@ -325,8 +326,8 @@ def to_fitness_state(state: OrchestrationState) -> FitnessState:
     is_verification_rerun = state.get("route_decision") == "FIX_REASONING"
     return FitnessState(
         workspace_path=state["workspace_path"],
-        profile=state["user_profile"],
-        constraints=state["constraints"],
+        profile={},
+        constraints={},
         days_per_week_explicit=state.get("days_per_week_explicit", False),
         execution_plan={},
         structured_findings=None,

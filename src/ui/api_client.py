@@ -102,7 +102,6 @@ def resume_run(
     approval_status: str | None = None,
     decision_type: str | None = None,
     message: str | None = None,
-    pending_tool: str | None = None,
     form_data: dict[str, Any] | None = None,
     poll: bool = True,
     timeout: float = DEFAULT_RUN_POLL_TIMEOUT,
@@ -122,8 +121,6 @@ def resume_run(
         raise ValueError("user_response, decision_type, or form_data is required")
     if approval_status is not None:
         payload["approval_status"] = approval_status
-    if pending_tool is not None:
-        payload["pending_tool"] = pending_tool
     response = client.post(f"/runs/{run_id}/resume", json=payload)
     response.raise_for_status()
     resumed = response.json()

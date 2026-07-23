@@ -8,9 +8,6 @@ HitlDecisionType = Literal["approve", "reject", "revision"]
 def create_approval_decision(
     decision_type: HitlDecisionType,
     message: str | None = None,
-    *,
-    pending_tool: str | None = None,
-    approved_tools: list[str] | None = None,
 ) -> dict[str, Any]:
     """Build a HITL resume decision payload for graph Command(update=...)."""
     if decision_type == "approve":
@@ -35,10 +32,6 @@ def create_approval_decision(
             "user_response": message,
             "approval_status": "revision_requested",
         }
-    if pending_tool is not None:
-        decision["pending_tool"] = pending_tool
-    if approved_tools is not None:
-        decision["approved_tools"] = approved_tools
     return decision
 
 
@@ -64,15 +57,6 @@ def decision_to_resume_update(decision: dict[str, Any]) -> dict[str, Any]:
         "approval_status": approval_status,
         "waiting_for_user": False,
     }
-    pending_tool = decision.get("pending_tool")
-    if pending_tool and approval_status == "approved":
-        approved_tools = list(decision.get("approved_tools") or [])
-        if pending_tool not in approved_tools:
-            approved_tools.append(pending_tool)
-        update["approved_tools"] = approved_tools
-        update["pending_tool"] = None
-    elif approval_status == "rejected":
-        update["pending_tool"] = None
-    elif approval_status == "revision_requested":
+    if approval_status == "revision_requested":
         update.update(user_revision_to_replan_update(decision["user_response"]))
     return update

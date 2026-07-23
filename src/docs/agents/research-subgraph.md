@@ -131,7 +131,6 @@ Defined in [`state.py`](../../core/subgraphs/research/state.py):
 | `structured_findings` | `dict \| None` | Serialized `ResearchFindings` |
 | `evidence_summary` | `str \| None` | Backward-compat summary string |
 | `blocked_by_todos` | `bool` | Gate flag — missing execution plan |
-| `agent_iterations` | `int` | ReAct loop iterations completed |
 | `is_reresearch` | `bool` | `true` when `route_decision = "RERESEARCH"` |
 
 **Seeded from orchestration** via `to_research_state()` — output fields reset on each invocation.
@@ -141,7 +140,7 @@ Defined in [`state.py`](../../core/subgraphs/research/state.py):
 | Node | Fields written | Side effects |
 |------|----------------|--------------|
 | `todos_gate` | `profile`, `execution_plan`, `blocked_by_todos` | Reads VFS `plan/*` |
-| `research_agent` | `sources`, `evidence`, `structured_findings`, `evidence_summary`, `agent_iterations` | Local KB + Tavily + LLM calls |
+| `research_agent` | `sources`, `evidence`, `structured_findings`, `evidence_summary` | Local KB + Tavily + LLM calls. `agent_iterations` is reported on the agent's own `RunResearchAgentResult` for logging, not stored on `ResearchState` — it was write-only there (nothing downstream read it) and was removed. |
 | `write_artifacts` | — | Writes `research/sources.json`, `research/findings.json` |
 | `blocked` | `evidence_summary` (passthrough) | No VFS writes |
 
