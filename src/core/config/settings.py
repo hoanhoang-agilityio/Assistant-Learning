@@ -92,11 +92,13 @@ class Settings(BaseSettings):
     max_planner_attempts: int = 2
     fix_reasoning_planner_attempts: int = 1
 
-    # Off by default: when true, classify_request narrows affected_domains per
-    # request_type via REQUEST_TYPE_DOMAIN_OVERRIDES (core/agents/tools.py)
-    # instead of always returning all 4 domains. The override map is empty
-    # today, so this flag is inert until a mapping is actually populated.
-    classify_request_narrows_domains: bool = False
+    classify_request_narrows_domains: bool = True
+
+    run_execution_plan_enabled: bool = True
+
+    verify_workflow_enabled: bool = True
+
+    edit_workflow_v2_enabled: bool = True
 
     # LLM payload observability (debug only; does not change business logic)
     llm_payload_debug: bool = False
