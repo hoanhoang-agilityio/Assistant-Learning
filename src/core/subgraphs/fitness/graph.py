@@ -3,9 +3,11 @@ from functools import lru_cache
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from core.agents.run_execution_plan import RunExecutionPlan
 from core.agents.state import OrchestrationState
 from core.config.settings import get_settings
 from core.subgraphs.fitness.blueprint import build_plan_blueprint
+from core.subgraphs.fitness.normalize import normalize_submitted_plan
 from core.subgraphs.fitness.planner import generate_structured_workout
 from core.subgraphs.fitness.schema import EditOperation
 from core.subgraphs.fitness.state import FitnessState
@@ -69,6 +71,7 @@ def _resolve_workout_template_node(state: FitnessState) -> dict:
         verification_feedback=state["verification_feedback"],
         is_verification_rerun=state["is_verification_rerun"],
         days_per_week_explicit=state.get("days_per_week_explicit", False),
+        fitness_mode=state.get("fitness_mode"),
     )
     updates: dict = {
         "template_fingerprint": resolution["template_fingerprint"],
@@ -84,6 +87,23 @@ def _resolve_workout_template_node(state: FitnessState) -> dict:
             blueprint,
         )
     return updates
+
+
+def _route_after_macros(state: FitnessState) -> str:
+    if state.get("fitness_mode") == "evaluate":
+        return "normalize_submitted_plan"
+    return "resolve_workout_template"
+
+
+def _normalize_submitted_plan_node(state: FitnessState) -> dict:
+    result = normalize_submitted_plan(
+        state.get("submitted_plan_text") or "",
+        state["training_constraints"],
+    )
+    return {
+        "structured_workout": result["structured_workout"],
+        "normalization_findings": result["normalization_findings"],
+    }
 
 
 def _route_after_template_resolution(state: FitnessState) -> str:
@@ -196,7 +216,6 @@ def _safety_check_node(state: FitnessState) -> dict:
                 if item not in merged_feedback:
                     merged_feedback.append(item)
             updates["planner_feedback"] = merged_feedback
-            updates["structured_workout"] = None
             updates["reused_workout"] = False
         elif edit_issues:
             # Revert to the unchanged prior plan, and recompute safety_result
@@ -236,6 +255,8 @@ def _safety_check_node(state: FitnessState) -> dict:
 
 
 def _route_after_safety(state: FitnessState) -> str:
+    if state.get("fitness_mode") == "evaluate":
+        return "synthesize_plan"
     if state["safety_result"]["passed"]:
         return "synthesize_plan"
     if state["planner_attempts"] < state["max_planner_attempts"]:
@@ -267,6 +288,7 @@ def _write_artifacts_node(state: FitnessState) -> dict:
         plan_blueprint=state["plan_blueprint"],
         template_fingerprint=state.get("template_fingerprint"),
         workout_source=state.get("workout_source"),
+        normalization_findings=state.get("normalization_findings") or [],
     )
     return {}
 
@@ -278,6 +300,7 @@ def build_fitness_subgraph() -> CompiledStateGraph:
     graph.add_node("build_blueprint", _build_blueprint_node)
     graph.add_node("calculate_macros", _calculate_macros_node)
     graph.add_node("resolve_workout_template", _resolve_workout_template_node)
+    graph.add_node("normalize_submitted_plan", _normalize_submitted_plan_node)
     graph.add_node("fitness_planner", _fitness_planner_node)
     graph.add_node("safety_check", _safety_check_node)
     graph.add_node("synthesize_plan", _synthesize_plan_node)
@@ -285,7 +308,14 @@ def build_fitness_subgraph() -> CompiledStateGraph:
     graph.add_edge(START, "load_context")
     graph.add_edge("load_context", "build_blueprint")
     graph.add_edge("build_blueprint", "calculate_macros")
-    graph.add_edge("calculate_macros", "resolve_workout_template")
+    graph.add_conditional_edges(
+        "calculate_macros",
+        _route_after_macros,
+        {
+            "resolve_workout_template": "resolve_workout_template",
+            "normalize_submitted_plan": "normalize_submitted_plan",
+        },
+    )
     graph.add_conditional_edges(
         "resolve_workout_template",
         _route_after_template_resolution,
@@ -294,6 +324,7 @@ def build_fitness_subgraph() -> CompiledStateGraph:
             "fitness_planner": "fitness_planner",
         },
     )
+    graph.add_edge("normalize_submitted_plan", "safety_check")
     graph.add_edge("fitness_planner", "safety_check")
     graph.add_conditional_edges(
         "safety_check",
@@ -320,6 +351,17 @@ def resolve_max_planner_attempts(state: OrchestrationState) -> int:
     if state.get("route_decision") == "FIX_REASONING":
         return settings.fix_reasoning_planner_attempts
     return settings.max_planner_attempts
+
+
+def _resolve_fitness_mode(state: OrchestrationState) -> str | None:
+    """RunExecutionPlan.fitness_mode when a plan is present in state, else None -- which
+    reproduces today's generate/edit inference exactly (resolve_workout_template's own
+    revision_feedback-presence check, unchanged this phase). Phase 4 of the intent-aware
+    orchestration refactor."""
+    execution_plan = state.get("execution_plan")
+    if not execution_plan:
+        return None
+    return RunExecutionPlan.model_validate(execution_plan).fitness_mode
 
 
 def to_fitness_state(state: OrchestrationState) -> FitnessState:
@@ -349,12 +391,33 @@ def to_fitness_state(state: OrchestrationState) -> FitnessState:
         edit_operation=None,
         previous_workout=None,
         edit_failed=False,
+        fitness_mode=_resolve_fitness_mode(state),
+        submitted_plan_text=state.get("submitted_plan_text"),
+        normalization_findings=[],
     )
 
 
 def invoke_fitness_subgraph(state: OrchestrationState) -> dict:
     """Run the Fitness subgraph and map results back to orchestration updates."""
     result = get_fitness_subgraph().invoke(to_fitness_state(state))
+    if result.get("fitness_mode") == "evaluate":
+        # Phase 4: evaluate mode runs a different node sequence than generate/edit --
+        # resolve_workout_template/fitness_planner never execute for this mode.
+        steps = [
+            "load_context",
+            "build_blueprint",
+            "calculate_macros",
+            "normalize_submitted_plan",
+            "safety_check",
+            "synthesize_plan",
+            "write_artifacts",
+        ]
+        return merge_subgraph_updates(
+            state,
+            {"current_node": "fitness"},
+            subgraph="fitness",
+            steps=steps,
+        )
     steps = [
         "load_context",
         "build_blueprint",
