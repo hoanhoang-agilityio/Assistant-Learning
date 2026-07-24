@@ -16,6 +16,16 @@ CLARIFY_MESSAGE = (
     "or recovery advice? Send a new message with a bit more detail."
 )
 
+VERIFY_WORKFLOW_UNAVAILABLE_MESSAGE = (
+    "Checking an existing plan isn't available yet -- that's coming soon. In the "
+    "meantime, I can build you a new plan from scratch if you'd like."
+)
+
+SUBMITTED_PLAN_MISSING_MESSAGE = (
+    "I didn't receive the plan you'd like me to check. Please resend your request with "
+    "the plan's text included."
+)
+
 DEFAULT_AFFECTED_DOMAINS: list[AffectedDomain] = [
     "planning",
     "research",
@@ -23,13 +33,7 @@ DEFAULT_AFFECTED_DOMAINS: list[AffectedDomain] = [
     "verify",
 ]
 
-# Per-request_type narrower domain set, used only when
-# settings.classify_request_narrows_domains is true. Empty by construction:
-# no request_type is currently known to be safe to narrow (e.g.
-# macro_calculation still needs "research" per planning_agent.py's prompt),
-# so populating this without also updating that prompt would cause the
-# planning agent to plan work the pipeline then never runs. See
-# docs/reports/known_limitations_remediation_plan.md, "Issue 2 (part 2)".
+
 REQUEST_TYPE_DOMAIN_OVERRIDES: dict[RequestType, list[AffectedDomain]] = {}
 
 

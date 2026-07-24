@@ -3,12 +3,15 @@ from pathlib import Path
 import pytest
 from langgraph.graph import END
 
+from core.agents.intent_judge import UserIntentJudgement, configure_user_intent_judge
 from core.agents.request_type_judge import RequestTypeJudgement, configure_request_type_judge
 from core.agents.state import OrchestrationState, ScopeResult
 from core.agents.supervisor import supervisor_node
 from core.agents.tools import (
     OFF_TOPIC_REFUSAL_MESSAGE,
     REQUEST_TYPE_DOMAIN_OVERRIDES,
+    SUBMITTED_PLAN_MISSING_MESSAGE,
+    VERIFY_WORKFLOW_UNAVAILABLE_MESSAGE,
     check_topic_scope,
     classify_request,
     refusal_message_for,
@@ -442,3 +445,344 @@ def test_first_invoke_routes_to_planning(initial_state: OrchestrationState) -> N
     )
     assert result["current_node"] == "planning"
     assert result["request_type"] == "training_plan"
+
+
+def _configure_generate_classification_stubs() -> None:
+    configure_topic_scope_judge(
+        lambda _query: TopicScopeJudgement(
+            decision="ALLOW",
+            requests=[
+                ScopeRequest(text=_query, action_type="training_plan", supported=True),
+            ],
+            reason="Test stub.",
+        )
+    )
+    configure_request_type_judge(
+        lambda _query: RequestTypeJudgement(request_type="training_plan", reason="Test stub.")
+    )
+
+
+def test_supervisor_node_flag_off_matches_flag_on_generate_apart_from_execution_plan(
+    initial_state: OrchestrationState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Phase 3 (implementation_plan.md, phase_3_technical_spec.md): supervisor_node now
+    reads run_execution_plan_enabled. The invariant is no longer "output is byte-identical
+    regardless of the flag" (superseded from Phase 2's version of this test) -- it's "every
+    field except execution_plan is identical, and execution_plan is populated only when the
+    resolved workflow is GenerateWorkflow" (the default intent-judge stub always resolves to
+    generate, per tests/helpers/classification.py)."""
+    _configure_generate_classification_stubs()
+
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "false")
+    get_settings.cache_clear()
+    result_off = supervisor_node(dict(initial_state))
+
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "true")
+    get_settings.cache_clear()
+    result_on = supervisor_node(dict(initial_state))
+
+    assert "execution_plan" not in result_off
+    assert result_on["execution_plan"] == {
+        "user_intent": "generate",
+        "workflow": "GenerateWorkflow",
+        "ordered_domains": ["planning", "research", "fitness", "verify"],
+        "fitness_mode": "generate",
+        "verification_strategy": "FULL",
+    }
+    result_on_without_plan = {k: v for k, v in result_on.items() if k != "execution_plan"}
+    assert result_off == result_on_without_plan
+
+
+def test_supervisor_node_withholds_execution_plan_for_edit_workflow(
+    initial_state: OrchestrationState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """EditWorkflow/EditWithReplanWorkflow are still Phase 6's concern -- unaffected by
+    Phase 4 -- so an edit classification must still fall back to legacy routing exactly as
+    if the flag were off, with no REFUSED/execution_plan of any kind."""
+    _configure_generate_classification_stubs()
+    configure_user_intent_judge(
+        lambda _query: UserIntentJudgement(
+            user_intent="edit",
+            reason="Test stub.",
+            mentions_submitted_plan=False,
+            touches_goal_or_constraints=False,
+        )
+    )
+
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "false")
+    get_settings.cache_clear()
+    result_off = supervisor_node(dict(initial_state))
+
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "true")
+    get_settings.cache_clear()
+    result_on = supervisor_node(dict(initial_state))
+
+    assert "execution_plan" not in result_off
+    assert "execution_plan" not in result_on
+    assert result_off == result_on
+
+
+def _configure_verify_classification(mentions_submitted_plan: bool = True) -> None:
+    configure_user_intent_judge(
+        lambda _query: UserIntentJudgement(
+            user_intent="verify",
+            reason="Test stub.",
+            mentions_submitted_plan=mentions_submitted_plan,
+            touches_goal_or_constraints=False,
+        )
+    )
+
+
+def test_supervisor_node_refuses_verify_when_flag_off(
+    initial_state: OrchestrationState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Phase 4, Gap 2: verify_workflow_enabled off -- ends via REFUSED with the "not yet
+    supported" message, not a silent fallback into plan generation."""
+    _configure_generate_classification_stubs()
+    _configure_verify_classification()
+
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "true")
+    monkeypatch.setenv("VERIFY_WORKFLOW_ENABLED", "false")
+    get_settings.cache_clear()
+    result = supervisor_node({**initial_state, "submitted_plan_text": "Day 1: Squat 3x5"})
+
+    assert "execution_plan" not in result
+    assert result["route_decision"] == "REFUSED"
+    assert result["refusal_message"] == VERIFY_WORKFLOW_UNAVAILABLE_MESSAGE
+
+
+def test_supervisor_node_refuses_verify_when_no_plan_anywhere(
+    initial_state: OrchestrationState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Phase 4, Gap 3: flag on, no dedicated submitted_plan_text, AND the intent judge
+    found no plan referenced inline in `query` either -- fails closed, with a distinct
+    message from Gap 2's. This is the only combination that should still REFUSED; it's the
+    regression guard for "no plan provided" (neither channel has one)."""
+    _configure_generate_classification_stubs()
+    _configure_verify_classification(mentions_submitted_plan=False)
+
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "true")
+    monkeypatch.setenv("VERIFY_WORKFLOW_ENABLED", "true")
+    get_settings.cache_clear()
+    result = supervisor_node({**initial_state, "submitted_plan_text": "   "})
+
+    assert "execution_plan" not in result
+    assert result["route_decision"] == "REFUSED"
+    assert result["refusal_message"] == SUBMITTED_PLAN_MISSING_MESSAGE
+
+
+def test_supervisor_node_stores_execution_plan_for_verify_when_fully_enabled(
+    initial_state: OrchestrationState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dedicated submitted_plan_text case: both flags on and plan text present via the
+    dedicated field -- VerifyExternalWorkflow is genuinely reachable, and submitted_plan_text
+    passes through unchanged (existing behavior, unaffected by the inline-plan fallback)."""
+    _configure_generate_classification_stubs()
+    _configure_verify_classification()
+
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "true")
+    monkeypatch.setenv("VERIFY_WORKFLOW_ENABLED", "true")
+    get_settings.cache_clear()
+    result = supervisor_node(
+        {**initial_state, "submitted_plan_text": "Day 1: Squat 3x5\nDay 2: Bench 3x5"}
+    )
+
+    assert result.get("route_decision") != "REFUSED"
+    assert "submitted_plan_text" not in result  # unchanged from the input state, not rewritten
+    assert result["execution_plan"] == {
+        "user_intent": "verify",
+        "workflow": "VerifyExternalWorkflow",
+        "ordered_domains": ["fitness", "verify"],
+        "fitness_mode": "evaluate",
+        "verification_strategy": "EXTERNAL_PLAN",
+    }
+
+
+def test_supervisor_node_backfills_submitted_plan_text_from_inline_query(
+    initial_state: OrchestrationState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inline workout plan in query: no dedicated submitted_plan_text was sent, but the
+    intent judge flags mentions_submitted_plan=True (the plan was pasted directly into the
+    chat message) -- the raw query should be backfilled into submitted_plan_text and routing
+    should proceed into VerifyExternalWorkflow instead of refusing. Regression test for the
+    "plan pasted inline in query" bug: the query itself is never touched or rewritten, it's
+    only copied verbatim (design review F2 -- no LLM transcription happens here)."""
+    inline_query = (
+        "i want to gain weight, help me verify this plan if there is nothing wrong, "
+        "correct them\n\nDay 1 -- Upper Push/Pull\nBarbell Bench Press: 4 x 6-8"
+    )
+    _configure_generate_classification_stubs()
+    _configure_verify_classification(mentions_submitted_plan=True)
+
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "true")
+    monkeypatch.setenv("VERIFY_WORKFLOW_ENABLED", "true")
+    get_settings.cache_clear()
+    result = supervisor_node({**initial_state, "query": inline_query, "submitted_plan_text": None})
+
+    assert result.get("route_decision") != "REFUSED"
+    assert result["submitted_plan_text"] == inline_query
+    assert result["execution_plan"] == {
+        "user_intent": "verify",
+        "workflow": "VerifyExternalWorkflow",
+        "ordered_domains": ["fitness", "verify"],
+        "fitness_mode": "evaluate",
+        "verification_strategy": "EXTERNAL_PLAN",
+    }
+
+
+def test_routing_identical_regardless_of_flag_for_generate_classification(
+    initial_state: OrchestrationState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The routing-level invariant Phase 3 actually promises: whatever supervisor_node's
+    raw output looks like, route_from_supervisor's decision for the first hop is identical
+    whether execution_plan is present (flag on) or absent (flag off)."""
+    _configure_generate_classification_stubs()
+
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "false")
+    get_settings.cache_clear()
+    result_off = supervisor_node(dict(initial_state))
+    state_off: OrchestrationState = {**initial_state, **result_off}
+
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "true")
+    get_settings.cache_clear()
+    result_on = supervisor_node(dict(initial_state))
+    state_on: OrchestrationState = {**initial_state, **result_on}
+
+    assert route_from_supervisor(state_off) == route_from_supervisor(state_on) == "planning"
+
+
+def _plan_dict(**overrides: object) -> dict:
+    defaults: dict[str, object] = {
+        "user_intent": "generate",
+        "workflow": "GenerateWorkflow",
+        "ordered_domains": ["planning", "research", "fitness", "verify"],
+        "fitness_mode": "generate",
+        "verification_strategy": "FULL",
+    }
+    defaults.update(overrides)
+    return defaults
+
+
+def test_resolve_next_subgraph_entry_reads_execution_plan(
+    initial_state: OrchestrationState,
+) -> None:
+    """Phase 3: resolve_next_subgraph's first-hop decision comes from
+    RunExecutionPlan.ordered_domains, not affected_domains, when a plan is present -- using
+    a plan whose entry domain differs from affected_domains' own first entry proves the new
+    code path is actually being read, not coincidentally matching the legacy one."""
+    state: OrchestrationState = {
+        **initial_state,
+        "current_node": "supervisor",
+        "affected_domains": ["planning", "research", "fitness", "verify"],
+        "execution_plan": _plan_dict(
+            ordered_domains=["fitness", "verify"], fitness_mode="evaluate"
+        ),
+    }
+    assert resolve_next_subgraph(state) == "fitness"
+
+
+def test_resolve_next_subgraph_mid_pipeline_walks_execution_plan_ordered_domains(
+    initial_state: OrchestrationState,
+) -> None:
+    state: OrchestrationState = {
+        **initial_state,
+        "current_node": "fitness",
+        "execution_plan": _plan_dict(ordered_domains=["fitness", "verify"]),
+    }
+    assert resolve_next_subgraph(state) == "verification"
+
+
+def test_resolve_next_subgraph_hitl_when_execution_plan_domains_exhausted(
+    initial_state: OrchestrationState,
+) -> None:
+    state: OrchestrationState = {
+        **initial_state,
+        "current_node": "verification",
+        "execution_plan": _plan_dict(ordered_domains=["fitness", "verify"]),
+    }
+    assert resolve_next_subgraph(state) == "hitl"
+
+
+def test_resolve_next_subgraph_falls_back_to_affected_domains_when_plan_absent(
+    initial_state: OrchestrationState,
+) -> None:
+    """execution_plan absent (flag off, or Gap A withheld it) -- byte-identical to
+    pre-Phase-3 behavior."""
+    state: OrchestrationState = {
+        **initial_state,
+        "current_node": "supervisor",
+        "affected_domains": ["planning", "research", "fitness", "verify"],
+        "execution_plan": None,
+    }
+    assert resolve_next_subgraph(state) == "planning"
+
+
+def test_revision_requested_reads_entry_domain_from_execution_plan(
+    initial_state: OrchestrationState,
+) -> None:
+    """A plan whose entry domain isn't "planning" proves _route_terminal_decision's
+    revision_requested branch reads RunExecutionPlan.entry_domain rather than always
+    returning the legacy literal."""
+    state: OrchestrationState = {
+        **initial_state,
+        "approval_status": "revision_requested",
+        "replan_count": 0,
+        "execution_plan": _plan_dict(ordered_domains=["fitness", "verify"]),
+        "route_decision": "COMPLETE",
+        "waiting_for_user": False,
+    }
+    assert route_from_supervisor(state) == "fitness"
+
+
+def test_revision_requested_falls_back_to_planning_when_plan_absent(
+    initial_state: OrchestrationState,
+) -> None:
+    state: OrchestrationState = {
+        **initial_state,
+        "approval_status": "revision_requested",
+        "replan_count": 0,
+        "execution_plan": None,
+        "route_decision": "COMPLETE",
+        "waiting_for_user": False,
+    }
+    assert route_from_supervisor(state) == "planning"
+
+
+def test_resolve_next_subgraph_handles_pre_phase_1_checkpoint_missing_key(
+    initial_state: OrchestrationState,
+) -> None:
+    """Migration test: a checkpoint from before Phase 1 shipped has no execution_plan key
+    at all (not even None) -- .get(), not [...], at every read site must handle this
+    identically to the flag-off case, with no KeyError."""
+    state = dict(initial_state)
+    state["current_node"] = "supervisor"
+    state["affected_domains"] = ["planning", "research", "fitness", "verify"]
+    del state["execution_plan"]
+    assert "execution_plan" not in state
+    assert resolve_next_subgraph(state) == "planning"  # type: ignore[arg-type]
+
+
+def test_routing_uses_already_populated_plan_regardless_of_live_flag_value(
+    initial_state: OrchestrationState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Design review F3, reconfirmed for Phase 3: flipping run_execution_plan_enabled back
+    to False does not retroactively change a run whose execution_plan is already populated
+    in its checkpoint -- routing reads state presence, not the live setting. Inconsequential
+    for Phase 3 (every populated plan is GenerateWorkflow, routing identical to legacy
+    either way), but the mechanism must be proven, not assumed."""
+    state: OrchestrationState = {
+        **initial_state,
+        "current_node": "supervisor",
+        "execution_plan": _plan_dict(),
+    }
+    monkeypatch.setenv("RUN_EXECUTION_PLAN_ENABLED", "false")
+    get_settings.cache_clear()
+    assert resolve_next_subgraph(state) == "planning"

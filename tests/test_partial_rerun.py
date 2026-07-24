@@ -63,6 +63,50 @@ def test_partial_rerun_hitl_when_replan_exhausted() -> None:
     assert result["route_decision"] == "HITL"
 
 
+def _external_plan_report(
+    *,
+    consistency_issues: list[str] | None = None,
+    safety_issues: list[str] | None = None,
+) -> dict:
+    """A report shaped like EXTERNAL_PLAN's actual output -- citation/ragas keys are
+    structurally absent, not present-and-failing."""
+    return {
+        "passed": False,
+        "consistency": {"passed": not consistency_issues, "issues": consistency_issues or []},
+        "safety": {"passed": not safety_issues, "issues": safety_issues or []},
+        "feedback": "verification failed",
+    }
+
+
+def test_partial_rerun_never_emits_reresearch_when_research_absent_from_plan() -> None:
+    """Phase 5, design review F4/Sec5.6: a workflow with no research domain (e.g.
+    VerifyExternalWorkflow's ["fitness", "verify"]) must never receive a RERESEARCH
+    decision -- citation/ragas being absent from the report (not present-and-failing)
+    must not be misread as an evidence issue."""
+    report = _external_plan_report(safety_issues=["aggressive_calorie_deficit"])
+    result = partial_rerun_decision_data(report, 0, 0, ordered_domains=["fitness", "verify"])
+    assert result["route_decision"] == "FIX_REASONING"
+    assert result["route_decision"] != "RERESEARCH"
+
+
+def test_partial_rerun_structural_issues_still_replan_without_research() -> None:
+    """REPLAN's structural-issue check runs before the has_research gate and is
+    unaffected by it."""
+    report = _external_plan_report(consistency_issues=["missing_macro_targets"])
+    result = partial_rerun_decision_data(report, 0, 0, ordered_domains=["fitness", "verify"])
+    assert result["route_decision"] == "REPLAN"
+
+
+def test_partial_rerun_reresearch_still_reachable_when_research_present() -> None:
+    """Backward compatibility: ordered_domains including "research" (or omitted
+    entirely, the legacy/None case) preserves today's exact RERESEARCH behavior."""
+    report = _failed_report(citation_issues=["no_sources_referenced_in_draft"])
+    result = partial_rerun_decision_data(
+        report, 0, 0, ordered_domains=["planning", "research", "fitness", "verify"]
+    )
+    assert result["route_decision"] == "RERESEARCH"
+
+
 def test_route_from_supervisor_rerun_targets() -> None:
     base = create_initial_state(
         run_id="rerun-run",
@@ -124,6 +168,54 @@ def test_route_from_supervisor_replan_continues_to_fitness_after_research() -> N
         "current_node": "research",
     }
     assert route_from_supervisor(state) == "fitness"
+
+
+def test_route_from_supervisor_replan_reads_execution_plan_entry_domain() -> None:
+    """Phase 3: REPLAN's entry-node target comes from RunExecutionPlan.entry_domain when a
+    plan is present, not the hardcoded "planning" literal -- a plan whose entry domain is
+    "fitness" proves this. FIX_REASONING/RERESEARCH are untouched this phase (out of scope
+    per phase_3_technical_spec.md) and must keep targeting their fixed literals regardless
+    of execution_plan's presence."""
+    base = create_initial_state(
+        run_id="rerun-run",
+        thread_id="rerun-thread",
+        query="test",
+        workspace_root=Path("/tmp/rerun-workspace"),
+    )
+    base = {**base, "profile_complete": True, "profile_valid": True}
+    plan = {
+        "user_intent": "generate",
+        "workflow": "GenerateWorkflow",
+        "ordered_domains": ["fitness", "verify"],
+        "fitness_mode": "generate",
+        "verification_strategy": "FULL",
+    }
+
+    replan_state: OrchestrationState = {
+        **base,
+        "route_decision": "REPLAN",
+        "replan_count": 1,
+        "current_node": "verification",
+        "execution_plan": plan,
+    }
+    assert route_from_supervisor(replan_state) == "fitness"
+
+    fix_reasoning_state: OrchestrationState = {
+        **base,
+        "route_decision": "FIX_REASONING",
+        "retry_count": 1,
+        "execution_plan": plan,
+    }
+    assert route_from_supervisor(fix_reasoning_state) == "fitness"
+
+    reresearch_state: OrchestrationState = {
+        **base,
+        "route_decision": "RERESEARCH",
+        "retry_count": 1,
+        "current_node": "verification",
+        "execution_plan": plan,
+    }
+    assert route_from_supervisor(reresearch_state) == "research"
 
 
 def test_route_guards_force_hitl_when_limits_exceeded() -> None:
