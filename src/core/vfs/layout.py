@@ -13,6 +13,7 @@ PLAN_EXECUTION_PLAN = "plan/execution_plan.json"
 PLAN_MARKDOWN = "plan/plan.md"
 PLAN_PROFILE = "plan/profile.json"
 PLAN_REVISION_FEEDBACK = "plan/revision_feedback.json"
+PLAN_SUBMITTED_TEXT = "plan/submitted_plan.md"
 
 RESEARCH_SOURCES = "research/sources.json"
 RESEARCH_FINDINGS = "research/findings.json"
@@ -22,6 +23,7 @@ FITNESS_CALCULATIONS = "fitness/calculations.json"
 FITNESS_BLUEPRINT = "fitness/blueprint.json"
 FITNESS_TEMPLATE_FINGERPRINT = "fitness/template_fingerprint.json"
 FITNESS_SAFETY_FLAGS = "fitness/safety_flags.json"
+FITNESS_NORMALIZATION_FINDINGS = "fitness/normalization_findings.json"
 FITNESS_FINAL_PLAN = "fitness/final_plan.md"
 
 VERIFY_REPORT = "verify/verification_v1.json"
@@ -46,6 +48,7 @@ type VfsArtifactPath = Literal[
     "plan/plan.md",
     "plan/profile.json",
     "plan/revision_feedback.json",
+    "plan/submitted_plan.md",
     "research/sources.json",
     "research/findings.json",
     "fitness/workout.json",
@@ -53,6 +56,7 @@ type VfsArtifactPath = Literal[
     "fitness/blueprint.json",
     "fitness/template_fingerprint.json",
     "fitness/safety_flags.json",
+    "fitness/normalization_findings.json",
     "fitness/final_plan.md",
     "verify/verification_v1.json",
     "verify/ragas.json",
@@ -115,6 +119,12 @@ VFS_ARTIFACTS: tuple[VfsArtifactSpec, ...] = (
         description="User revision feedback for REPLAN runs",
     ),
     VfsArtifactSpec(
+        path=PLAN_SUBMITTED_TEXT,
+        content_kind=VfsContentKind.MARKDOWN,
+        producer="orchestration",
+        description="User-submitted existing plan text for VerifyExternalWorkflow runs",
+    ),
+    VfsArtifactSpec(
         path=RESEARCH_SOURCES,
         content_kind=VfsContentKind.JSON,
         producer="research",
@@ -155,6 +165,16 @@ VFS_ARTIFACTS: tuple[VfsArtifactSpec, ...] = (
         content_kind=VfsContentKind.JSON,
         producer="fitness",
         description="Deterministic safety feedback flags",
+    ),
+    VfsArtifactSpec(
+        path=FITNESS_NORMALIZATION_FINDINGS,
+        content_kind=VfsContentKind.JSON,
+        producer="fitness",
+        description=(
+            "Findings recorded when a submitted external plan's structure conflicts with "
+            "the profile-derived blueprint (design review F7); always written by evaluate "
+            "mode, possibly empty"
+        ),
     ),
     VfsArtifactSpec(
         path=FITNESS_FINAL_PLAN,

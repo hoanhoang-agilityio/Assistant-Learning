@@ -1,9 +1,18 @@
 from datetime import UTC, datetime
 
+from core.agents.intent_judge import judge_user_intent
 from core.agents.rerun import partial_rerun_decision_data
+from core.agents.run_execution_plan import RunExecutionPlan, resolve_workflow
 from core.agents.state import OrchestrationState
 from core.agents.supervisor_log import append_supervisor_decision, load_verification_report
-from core.agents.tools import check_topic_scope, classify_request, refusal_message_for
+from core.agents.tools import (
+    SUBMITTED_PLAN_MISSING_MESSAGE,
+    VERIFY_WORKFLOW_UNAVAILABLE_MESSAGE,
+    check_topic_scope,
+    classify_request,
+    refusal_message_for,
+)
+from core.config.settings import get_settings
 
 
 def supervisor_node(state: OrchestrationState) -> dict:
@@ -37,6 +46,28 @@ def supervisor_node(state: OrchestrationState) -> dict:
         classification = classify_request(state["query"])
         updates.update(classification)
 
+        if get_settings().run_execution_plan_enabled:
+            judgement = judge_user_intent(state["query"])
+            plan = resolve_workflow(judgement)
+            if plan.workflow == "GenerateWorkflow":
+                updates["execution_plan"] = plan.model_dump()
+            elif plan.workflow == "VerifyExternalWorkflow":
+                if not get_settings().verify_workflow_enabled:
+                    updates["route_decision"] = "REFUSED"
+                    updates["refusal_message"] = VERIFY_WORKFLOW_UNAVAILABLE_MESSAGE
+                elif not (state.get("submitted_plan_text") or "").strip():
+                    if judgement.mentions_submitted_plan:
+                        updates["submitted_plan_text"] = state["query"]
+                        updates["execution_plan"] = plan.model_dump()
+                    else:
+                        updates["route_decision"] = "REFUSED"
+                        updates["refusal_message"] = SUBMITTED_PLAN_MISSING_MESSAGE
+                else:
+                    updates["execution_plan"] = plan.model_dump()
+            elif plan.workflow in ("EditWorkflow", "EditWithReplanWorkflow"):
+                if get_settings().edit_workflow_v2_enabled:
+                    updates["execution_plan"] = plan.model_dump()
+
     merged_state: OrchestrationState = {**state, **updates}  # type: ignore[typeddict-item]
 
     if merged_state["current_node"] == "verification":
@@ -44,10 +75,17 @@ def supervisor_node(state: OrchestrationState) -> dict:
             updates["route_decision"] = "COMPLETE"
         else:
             report = load_verification_report(merged_state["workspace_path"])
+            merged_execution_plan = merged_state.get("execution_plan")
+            ordered_domains = (
+                RunExecutionPlan.model_validate(merged_execution_plan).ordered_domains
+                if merged_execution_plan
+                else None
+            )
             rerun = partial_rerun_decision_data(
                 report,
                 merged_state["retry_count"],
                 merged_state["replan_count"],
+                ordered_domains=ordered_domains,
             )
             updates.update(rerun)
             _log_supervisor_decision(merged_state, report, rerun)

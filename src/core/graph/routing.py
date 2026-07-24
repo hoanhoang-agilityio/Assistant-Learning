@@ -1,6 +1,7 @@
 from langgraph.graph import END
 
 from core.agents.rerun import MAX_REPLAN_COUNT, MAX_RETRY_COUNT
+from core.agents.run_execution_plan import RunExecutionPlan
 from core.agents.state import OrchestrationState, RouteDecision
 
 DOMAIN_ORDER = ("planning", "research", "fitness", "verify")
@@ -30,12 +31,33 @@ def _profile_ready(state: OrchestrationState) -> bool:
     return bool(state["profile_complete"] and state["profile_valid"])
 
 
+def _entry_domain(state: OrchestrationState) -> str | None:
+    """`RunExecutionPlan.entry_domain` when a plan is present in state, else `None` (the
+    caller falls back to its own literal default).
+
+    Phase 3 of the intent-aware orchestration refactor (see
+    docs/reports/execution_plan_refactor/). Shared by both retry-target read sites below
+    so the `if execution_plan present: read plan; else: literal fallback` pattern exists
+    once, not twice.
+    """
+    execution_plan = state.get("execution_plan")
+    if not execution_plan:
+        return None
+    return RunExecutionPlan.model_validate(execution_plan).entry_domain
+
+
 def resolve_next_subgraph(state: OrchestrationState) -> str:
     """Select the next subgraph in the default pipeline order."""
-    affected_domains = state["affected_domains"] or list(DOMAIN_ORDER)
-    ordered_domains = [domain for domain in DOMAIN_ORDER if domain in affected_domains]
-    if not ordered_domains:
-        ordered_domains = list(DOMAIN_ORDER)
+    execution_plan = state.get("execution_plan")
+    if execution_plan:
+        # Phase 3: RunExecutionPlan.ordered_domains is the routing-authoritative source
+        # when present -- see docs/reports/execution_plan_refactor/phase_3_technical_spec.md.
+        ordered_domains = list(RunExecutionPlan.model_validate(execution_plan).ordered_domains)
+    else:
+        affected_domains = state["affected_domains"] or list(DOMAIN_ORDER)
+        ordered_domains = [domain for domain in DOMAIN_ORDER if domain in affected_domains]
+        if not ordered_domains:
+            ordered_domains = list(DOMAIN_ORDER)
 
     current_node = state["current_node"]
     if current_node == "supervisor":
@@ -70,7 +92,7 @@ def _resolve_partial_rerun_route(state: OrchestrationState) -> str | None:
         if state["replan_count"] > MAX_REPLAN_COUNT:
             return "hitl"
         if current_node in _PARTIAL_RERUN_ENTRY_NODES:
-            return "planning"
+            return _entry_domain(state) or "planning"
         if current_node == "planning":
             return "research"
         if current_node == "research":
@@ -104,7 +126,7 @@ def _route_terminal_decision(state: OrchestrationState) -> str:
     if approval_status == "revision_requested":
         if state["replan_count"] > MAX_REPLAN_COUNT:
             return END
-        return "planning"
+        return _entry_domain(state) or "planning"
     return "hitl"
 
 

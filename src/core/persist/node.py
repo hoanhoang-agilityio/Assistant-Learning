@@ -1,3 +1,4 @@
+from core.agents.run_execution_plan import RunExecutionPlan
 from core.agents.state import OrchestrationState
 from core.agents.supervisor_log import load_verification_report
 from core.llm.metrics import write_pipeline_cost_log
@@ -13,10 +14,17 @@ from core.subgraphs.wrapper import merge_subgraph_updates
 
 def invoke_persist_node(state: OrchestrationState) -> dict:
     """Run PERSIST_RESULTS after supervisor persist_trigger guards pass."""
+    execution_plan = state.get("execution_plan")
+    verification_strategy = (
+        RunExecutionPlan.model_validate(execution_plan).verification_strategy
+        if execution_plan
+        else None
+    )
     trigger = persist_trigger_data(
         verification_passed=state["verification_passed"],
         faithfulness_score=state["faithfulness_score"],
         approval_status=state["approval_status"],
+        verification_strategy=verification_strategy,
     )
     if not trigger["can_persist"]:
         return merge_subgraph_updates(

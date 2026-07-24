@@ -132,6 +132,7 @@ def resolve_workout_template(
     verification_feedback: str | None,
     is_verification_rerun: bool,
     days_per_week_explicit: bool = False,
+    fitness_mode: str | None = None,
 ) -> dict[str, Any]:
     fingerprint = build_template_fingerprint(profile, constraints, blueprint)
     if planner_feedback:
@@ -143,7 +144,12 @@ def resolve_workout_template(
         }
 
     revision_feedback = load_revision_feedback(workspace_path)
-    if revision_feedback:
+    is_edit_mode = (
+        fitness_mode == "edit"
+        if get_settings().edit_workflow_v2_enabled
+        else bool(revision_feedback)
+    )
+    if is_edit_mode:
         prior_workout = load_prior_workout(workspace_path)
         if prior_workout is None:
             # No existing plan to edit (e.g. revision feedback landed before the

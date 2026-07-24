@@ -6,6 +6,7 @@ default (see conftest.py) so the supervisor graph can be exercised offline; test
 care about a specific verdict configure their own override instead.
 """
 
+from core.agents.intent_judge import UserIntentJudgement
 from core.agents.request_type_judge import RequestTypeJudgement
 from core.agents.state import RequestType
 from core.agents.topic_scope_judge import ScopeRequest, TopicScopeJudgement
@@ -116,4 +117,22 @@ def default_request_type_judge(query: str) -> RequestTypeJudgement:
     return RequestTypeJudgement(
         request_type=request_type,
         reason="Keyword-based test stub verdict.",
+    )
+
+
+def default_user_intent_judge(_query: str) -> UserIntentJudgement:
+    """Stand-in for the real user-intent LLM judge.
+
+    Always classifies "generate" regardless of the query -- this is Phase 2's documented
+    default (nothing calls judge_user_intent from production code yet, and "generate" is
+    the only workflow any existing test exercises), matching
+    default_request_type_judge/default_topic_scope_judge's role as the autouse-fixture
+    default. Tests that want to exercise edit/verify classification configure their own
+    override via configure_user_intent_judge instead.
+    """
+    return UserIntentJudgement(
+        user_intent="generate",
+        reason="Test stub default verdict.",
+        mentions_submitted_plan=False,
+        touches_goal_or_constraints=False,
     )

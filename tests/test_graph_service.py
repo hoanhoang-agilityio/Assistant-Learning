@@ -56,6 +56,32 @@ def test_resume_run_profile_form_via_command_resume(
     assert stored["current_weight_kg"] == 85.0
 
 
+def test_create_run_forwards_submitted_plan_text_into_state(
+    memory_checkpointer,
+) -> None:
+    """Regression: create_run/start_run previously dropped submitted_plan_text before it
+    ever reached create_initial_state, so the supervisor's verify-workflow guard
+    (SUBMITTED_PLAN_MISSING_MESSAGE) fired even when a client submitted plan text."""
+    configure_profile_extractor(lambda _query: ExtractedProfile())
+    orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
+    run_status = orchestrator.create_run(
+        query="I want a 4-day training plan to lose weight.",
+        user_profile={
+            "age": 30,
+            "sex": "male",
+            "height_cm": 175,
+            "current_weight_kg": 85.0,
+            "activity_level": "gym_3x_week",
+            "goal": "fat_loss",
+        },
+        constraints={"days_per_week": 4, "equipment": "gym"},
+        submitted_plan_text="Day 1: Squat 3x5",
+    )
+    config = {"configurable": {"thread_id": run_status.run_id}}
+    snapshot = orchestrator.graph.get_state(config)
+    assert snapshot.values["submitted_plan_text"] == "Day 1: Squat 3x5"
+
+
 def test_get_run_reports_running_while_pending_resume_race_leaves_stale_checkpoint(
     memory_checkpointer,
 ) -> None:

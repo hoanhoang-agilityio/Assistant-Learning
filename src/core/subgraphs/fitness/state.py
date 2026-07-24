@@ -30,3 +30,5 @@ class FitnessState(TypedDict):
     edit_operation: dict | None
     previous_workout: dict | None
     edit_failed: bool
+    fitness_mode: Literal["generate", "edit", "evaluate"] | None
+    submitted_plan_text: str | None

@@ -14,3 +14,4 @@ class VerificationState(TypedDict):
     plan_blueprint: dict
     verification_report: dict
     faithfulness_score: float | None
+    verification_strategy: str

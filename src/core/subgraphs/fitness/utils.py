@@ -433,6 +433,7 @@ def write_fitness_artifacts(
     plan_blueprint: dict[str, Any] | None = None,
     template_fingerprint: str | None = None,
     workout_source: str | None = None,
+    normalization_findings: list[str] | None = None,
 ) -> None:
     vfs = VFS.for_run(Path(workspace_path))
     workout_summary = build_workout_summary(structured_workout)
@@ -460,6 +461,10 @@ def write_fitness_artifacts(
         )
     safety_feedback = safety_result.get("feedback") or []
     vfs.write("fitness/safety_flags.json", json.dumps(safety_feedback, indent=2))
+    vfs.write(
+        "fitness/normalization_findings.json",
+        json.dumps(normalization_findings or [], indent=2),
+    )
     vfs.write("fitness/final_plan.md", draft_plan)
 
 

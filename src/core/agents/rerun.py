@@ -17,14 +17,14 @@ def partial_rerun_decision_data(
     verification_report: dict[str, Any],
     retry_count: int,
     replan_count: int,
+    *,
+    ordered_domains: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Select partial rerun route after a failed verification report."""
     if verification_report.get("passed"):
         return {"route_decision": "COMPLETE"}
 
     consistency_issues = verification_report.get("consistency", {}).get("issues", [])
-    citation_issues = verification_report.get("citation", {}).get("issues", [])
-    ragas_pass = verification_report.get("ragas", {}).get("pass_fail", False)
+    has_research = ordered_domains is None or "research" in ordered_domains
 
     if _has_structural_issues(consistency_issues):
         if replan_count < MAX_REPLAN_COUNT:
@@ -34,13 +34,16 @@ def partial_rerun_decision_data(
             }
         return _hitl_route()
 
-    if not ragas_pass or _has_evidence_issues(citation_issues):
-        if retry_count < MAX_RETRY_COUNT:
-            return {
-                "route_decision": "RERESEARCH",
-                "retry_count": retry_count + 1,
-            }
-        return _hitl_route()
+    if has_research:
+        citation_issues = verification_report.get("citation", {}).get("issues", [])
+        ragas_pass = verification_report.get("ragas", {}).get("pass_fail", False)
+        if not ragas_pass or _has_evidence_issues(citation_issues):
+            if retry_count < MAX_RETRY_COUNT:
+                return {
+                    "route_decision": "RERESEARCH",
+                    "retry_count": retry_count + 1,
+                }
+            return _hitl_route()
 
     if retry_count < MAX_RETRY_COUNT:
         return {

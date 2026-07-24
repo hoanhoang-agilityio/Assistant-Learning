@@ -44,28 +44,10 @@ class OrchestrationState(TypedDict):
     user_id: str
     current_node: str
 
-    # The original user message. Immutable for the lifetime of the run -- no node may ever
-    # write to this key. Always safe to read for logging/tracing/analytics/future
-    # guardrails regardless of the scope decision. Planning-related nodes must NOT read
-    # this directly; they read `fitness_query` instead (see below).
     query: str
-    # Set once by supervisor_node, only when scope_result.decision == "ALLOW" -- a copy of
-    # `query` at that point, consumed only by the research/planning/user subgraphs. None
-    # for any run that never reached ALLOW (REJECT/MIXED/CLARIFY terminate before this is
-    # set, so those subgraphs are never reached and never need to read it).
+
     fitness_query: str | None
-    # Set once by supervisor_node alongside the routing decision -- carries the full scope
-    # verdict (including the unsupported part of a MIXED message) for logging/UI even when
-    # the run terminates without ever reaching planning.
-    #
-    # Stored as ScopeResult.model_dump() (a plain dict), not a ScopeResult instance:
-    # OrchestrationState is a checkpointed persistence boundary and every other field in it
-    # is already a plain primitive/list/dict, so this keeps that invariant rather than
-    # depending on LangGraph's serializer to round-trip an application-specific Pydantic
-    # type indefinitely (it currently warns that unregistered custom types in checkpoints
-    # will be blocked in a future version). ScopeResult remains the typed contract for
-    # in-memory construction/validation -- call ScopeResult.model_validate(state["scope_result"])
-    # at any read site that wants the typed object back.
+
     scope_result: dict | None
     profile_complete: bool
     profile_valid: bool
@@ -73,6 +55,8 @@ class OrchestrationState(TypedDict):
 
     request_type: RequestType | None
     affected_domains: list[AffectedDomain]
+    execution_plan: dict | None
+    submitted_plan_text: str | None
 
     route_decision: RouteDecision | None
     retry_count: int

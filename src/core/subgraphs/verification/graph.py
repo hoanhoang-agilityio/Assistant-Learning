@@ -1,17 +1,20 @@
 from functools import lru_cache
+from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from core.agents.run_execution_plan import RunExecutionPlan
 from core.agents.state import OrchestrationState
 from core.subgraphs.verification.state import VerificationState
+from core.subgraphs.verification.strategies import (
+    ALL_VALIDATOR_STEPS,
+    ValidatorStep,
+    resolve_strategy,
+)
 from core.subgraphs.verification.utils import (
-    build_verification_report,
-    citation_check_data,
-    consistency_check_data,
-    heuristic_faithfulness_data,
+    build_verification_report_for_checks,
     load_verification_context,
-    safety_check_data,
     write_verification_artifacts,
 )
 from core.subgraphs.wrapper import merge_subgraph_updates
@@ -30,48 +33,45 @@ def _load_context_node(state: VerificationState) -> dict:
     }
 
 
-def _citation_check_node(state: VerificationState) -> dict:
-    citation = citation_check_data(state["draft_plan"], state["sources"])
-    return {"verification_report": {"citation": citation}}
+def _make_validator_node(step: ValidatorStep):
+    def _node(state: VerificationState) -> dict:
+        result = step.run(state)
+        report = dict(state["verification_report"])
+        report[step.report_key] = result
+        return {"verification_report": report}
+
+    return _node
 
 
-def _consistency_check_node(state: VerificationState) -> dict:
-    consistency = consistency_check_data(
-        state["draft_plan"],
-        state["macro_targets"],
-        state["training_plan"],
-        state["plan_blueprint"],
-    )
-    report = dict(state["verification_report"])
-    report["consistency"] = consistency
-    return {"verification_report": report}
+def _route_after_load_context(state: VerificationState) -> str:
+    strategy = resolve_strategy(state.get("verification_strategy"), state.get("workspace_path"))
+    return strategy[0].node_name
 
 
-def _safety_check_node(state: VerificationState) -> dict:
-    safety = safety_check_data(state["draft_plan"], state["safety_flags"])
-    report = dict(state["verification_report"])
-    report["safety"] = safety
-    return {"verification_report": report}
+def _route_after_validator(state: VerificationState) -> str:
+    """Generic dispatcher (Phase 5/6): walk this run's verification_strategy's validator
+    list, keyed by how many checks have already run -- each validator node adds exactly
+    one key to `verification_report`, so its length is the index of the next step.
+    `workspace_path` lets EDIT_REVIEW's F8 fallback (no prior report -> run FULL instead)
+    resolve consistently across every step in the same run."""
+    strategy = resolve_strategy(state.get("verification_strategy"), state.get("workspace_path"))
+    completed = len(state["verification_report"])
+    if completed >= len(strategy):
+        return "finalize_report"
+    return strategy[completed].node_name
 
 
-def _ragas_faithfulness_node(state: VerificationState) -> dict:
-    ragas = heuristic_faithfulness_data(state["draft_plan"], state["evidence"])
-    report = dict(state["verification_report"])
-    report["ragas"] = ragas
-    final_report = build_verification_report(
-        citation=report["citation"],
-        consistency=report["consistency"],
-        safety=report["safety"],
-        ragas=ragas,
-    )
-    return {
-        "verification_report": final_report,
-        "faithfulness_score": ragas["faithfulness_score"],
-    }
+def _finalize_report_node(state: VerificationState) -> dict:
+    report = build_verification_report_for_checks(state["verification_report"])
+    updates: dict[str, Any] = {"verification_report": report}
+    ragas = report.get("ragas")
+    if ragas is not None:
+        updates["faithfulness_score"] = ragas["faithfulness_score"]
+    return updates
 
 
 def _write_artifacts_node(state: VerificationState) -> dict:
-    ragas = state["verification_report"]["ragas"]
+    ragas = state["verification_report"].get("ragas")
     write_verification_artifacts(
         workspace_path=state["workspace_path"],
         verification_report=state["verification_report"],
@@ -84,17 +84,21 @@ def build_verification_subgraph() -> CompiledStateGraph:
     """Compile the Verification subgraph StateGraph."""
     graph = StateGraph(VerificationState)
     graph.add_node("load_context", _load_context_node)
-    graph.add_node("citation_check", _citation_check_node)
-    graph.add_node("consistency_check", _consistency_check_node)
-    graph.add_node("safety_check", _safety_check_node)
-    graph.add_node("ragas_faithfulness", _ragas_faithfulness_node)
+    for step in ALL_VALIDATOR_STEPS:
+        graph.add_node(step.node_name, _make_validator_node(step))
+    graph.add_node("finalize_report", _finalize_report_node)
     graph.add_node("write_artifacts", _write_artifacts_node)
+
     graph.add_edge(START, "load_context")
-    graph.add_edge("load_context", "citation_check")
-    graph.add_edge("citation_check", "consistency_check")
-    graph.add_edge("consistency_check", "safety_check")
-    graph.add_edge("safety_check", "ragas_faithfulness")
-    graph.add_edge("ragas_faithfulness", "write_artifacts")
+    all_targets = {step.node_name: step.node_name for step in ALL_VALIDATOR_STEPS}
+    graph.add_conditional_edges("load_context", _route_after_load_context, all_targets)
+    for step in ALL_VALIDATOR_STEPS:
+        graph.add_conditional_edges(
+            step.node_name,
+            _route_after_validator,
+            {**all_targets, "finalize_report": "finalize_report"},
+        )
+    graph.add_edge("finalize_report", "write_artifacts")
     graph.add_edge("write_artifacts", END)
     return graph.compile()
 
@@ -102,6 +106,13 @@ def build_verification_subgraph() -> CompiledStateGraph:
 @lru_cache
 def get_verification_subgraph() -> CompiledStateGraph:
     return build_verification_subgraph()
+
+
+def _resolve_verification_strategy(state: OrchestrationState) -> str:
+    execution_plan = state.get("execution_plan")
+    if not execution_plan:
+        return "FULL"
+    return RunExecutionPlan.model_validate(execution_plan).verification_strategy
 
 
 def to_verification_state(state: OrchestrationState) -> VerificationState:
@@ -116,6 +127,7 @@ def to_verification_state(state: OrchestrationState) -> VerificationState:
         plan_blueprint={},
         verification_report={},
         faithfulness_score=None,
+        verification_strategy=_resolve_verification_strategy(state),
     )
 
 
@@ -123,6 +135,14 @@ def invoke_verification_subgraph(state: OrchestrationState) -> dict:
     """Run the Verification subgraph and map results back to orchestration updates."""
     result = get_verification_subgraph().invoke(to_verification_state(state))
     report = result["verification_report"]
+    steps = ["load_context"]
+    steps.extend(
+        step.node_name
+        for step in resolve_strategy(
+            result.get("verification_strategy"), result.get("workspace_path")
+        )
+    )
+    steps.extend(["finalize_report", "write_artifacts"])
     return merge_subgraph_updates(
         state,
         {
@@ -131,14 +151,7 @@ def invoke_verification_subgraph(state: OrchestrationState) -> dict:
             "faithfulness_score": result["faithfulness_score"],
         },
         subgraph="verification",
-        steps=[
-            "load_context",
-            "citation_check",
-            "consistency_check",
-            "safety_check",
-            "ragas_faithfulness",
-            "write_artifacts",
-        ],
+        steps=steps,
     )
 
 
