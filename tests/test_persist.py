@@ -36,6 +36,30 @@ def test_persist_trigger_blocks_low_faithfulness() -> None:
     assert "faithfulness_below_threshold" in result["persist_blocked_reasons"]
 
 
+def test_persist_trigger_omits_faithfulness_reason_for_external_plan_strategy() -> None:
+    """Phase 5: EXTERNAL_PLAN never runs the faithfulness check, so faithfulness_score is
+    always None -- the diagnostic reason list must not misreport this as a failure."""
+    result = persist_trigger_data(
+        verification_passed=True,
+        faithfulness_score=None,
+        approval_status="pending",
+        verification_strategy="EXTERNAL_PLAN",
+    )
+    assert "faithfulness_below_threshold" not in result["persist_blocked_reasons"]
+    assert "approval_missing" in result["persist_blocked_reasons"]
+
+
+def test_persist_trigger_still_blocks_low_faithfulness_for_full_strategy() -> None:
+    """Regression: FULL strategy (the default) keeps today's exact behavior."""
+    result = persist_trigger_data(
+        verification_passed=True,
+        faithfulness_score=None,
+        approval_status="pending",
+        verification_strategy="FULL",
+    )
+    assert "faithfulness_below_threshold" in result["persist_blocked_reasons"]
+
+
 def test_persist_trigger_allows_approved_despite_failed_verification() -> None:
     result = persist_trigger_data(
         verification_passed=False,

@@ -247,11 +247,49 @@ def build_verification_report(
     }
 
 
+_REPORT_LABELS: tuple[tuple[str, str], ...] = (
+    ("citation", "Citation"),
+    ("consistency", "Consistency"),
+    ("safety", "Safety"),
+)
+
+
+def build_verification_report_for_checks(checks: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    passed = True
+    feedback_parts: list[str] = []
+    for key, label in _REPORT_LABELS:
+        check = checks.get(key)
+        if check is None:
+            continue
+        if not check["passed"]:
+            passed = False
+        if check["issues"]:
+            feedback_parts.append(f"{label} issues: {', '.join(check['issues'])}")
+
+    ragas = checks.get("ragas")
+    if ragas is not None:
+        if not ragas["pass_fail"]:
+            passed = False
+            feedback_parts.append(
+                f"Faithfulness score {ragas['faithfulness_score']} below "
+                f"{FAITHFULNESS_PASS_THRESHOLD}"
+            )
+
+    return {
+        **checks,
+        "passed": passed,
+        "feedback": "; ".join(feedback_parts) if feedback_parts else None,
+    }
+
+
 def write_verification_artifacts(
     workspace_path: str,
     verification_report: dict[str, Any],
-    ragas: dict[str, Any],
+    ragas: dict[str, Any] | None,
 ) -> None:
+    """`ragas` is None for a strategy that never runs the faithfulness check (Phase 5,
+    e.g. EXTERNAL_PLAN) -- written as JSON null, an honest record that the check simply
+    didn't run for this verification_strategy, not that it ran and failed."""
     vfs = VFS.for_run(Path(workspace_path))
     vfs.write("verify/verification_v1.json", json.dumps(verification_report, indent=2))
     vfs.write("verify/ragas.json", json.dumps(ragas, indent=2))

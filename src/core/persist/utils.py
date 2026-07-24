@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from core.subgraphs.verification.strategies import resolve_strategy
 from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.vfs import VFS
 
@@ -21,14 +22,36 @@ def persist_trigger_data(
     verification_passed: bool,
     faithfulness_score: float | None,
     approval_status: str | None,
+    *,
+    verification_strategy: str | None = None,
 ) -> dict[str, Any]:
-    """Return whether PERSIST_RESULTS may run."""
+    """Return whether PERSIST_RESULTS may run.
+
+    `verification_strategy` (Phase 5): the "faithfulness_below_threshold" diagnostic is
+    only meaningful for a strategy that actually runs (or, Phase 6, carries forward) a
+    faithfulness check -- for `EXTERNAL_PLAN` (which never runs it at all),
+    `faithfulness_score` is always `None`, and unconditionally reporting this reason would
+    misreport why a run isn't auto-persistable. This is a diagnostic-accuracy fix, not a
+    gating change: `can_persist` only ever becomes `True` via the `approval_status ==
+    "approved"` branch above, so `persist_blocked_reasons` is UI/diagnostic-facing only,
+    never itself a gate.
+
+    Checked by `report_key == "ragas"`, not identity with the `FAITHFULNESS` ValidatorStep:
+    `EDIT_REVIEW`'s carry-forward step produces the same `"ragas"` report key via a
+    different `ValidatorStep` instance (`CARRIED_FAITHFULNESS`), so an identity check would
+    incorrectly treat `EDIT_REVIEW` as faithfulness-less.
+    """
     if approval_status == "approved":
         return {"can_persist": True, "persist_blocked_reasons": []}
     blocked_reasons: list[str] = []
     if not verification_passed:
         blocked_reasons.append("verification_not_passed")
-    if faithfulness_score is None or faithfulness_score < FAITHFULNESS_PASS_THRESHOLD:
+    strategy_has_faithfulness_check = any(
+        step.report_key == "ragas" for step in resolve_strategy(verification_strategy)
+    )
+    if strategy_has_faithfulness_check and (
+        faithfulness_score is None or faithfulness_score < FAITHFULNESS_PASS_THRESHOLD
+    ):
         blocked_reasons.append("faithfulness_below_threshold")
     blocked_reasons.append("approval_missing")
     return {
