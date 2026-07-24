@@ -13,6 +13,14 @@ class CreateRunRequest(BaseModel):
         default=None,
         description="Optional user id for rate limiting (X-User-Id header wins).",
     )
+    submitted_plan_text: str | None = Field(
+        default=None,
+        description=(
+            "An existing plan the user wants checked, not regenerated. The sole "
+            "authoritative source of the submitted plan's text -- never inferred or "
+            "transcribed by the intent classifier (design review F2)."
+        ),
+    )
 
 
 class ResumeRunRequest(BaseModel):

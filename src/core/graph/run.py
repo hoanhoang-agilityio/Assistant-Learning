@@ -3,7 +3,9 @@ from pathlib import Path
 from core.agents.state import OrchestrationState
 from core.config.settings import get_settings
 from core.profile.store import seed_profile
+from core.vfs import VFS
 from core.vfs.bootstrap import init_run_workspace
+from core.vfs.layout import PLAN_SUBMITTED_TEXT
 
 
 def create_initial_state(
@@ -15,10 +17,13 @@ def create_initial_state(
     constraints: dict | None = None,
     workspace_root: Path | None = None,
     user_id: str | None = None,
+    submitted_plan_text: str | None = None,
 ) -> OrchestrationState:
     """Bootstrap run workspace and return default orchestration state."""
     workspace_path = init_run_workspace(run_id, workspace_root=workspace_root)
     seed_profile(str(workspace_path), user_profile or {}, constraints or {})
+    if submitted_plan_text:
+        VFS.for_run(workspace_path).write(PLAN_SUBMITTED_TEXT, submitted_plan_text)
     settings = get_settings()
     resolved_user_id = (user_id or "").strip() or settings.rate_limit_default_user_id
     return OrchestrationState(
@@ -34,6 +39,8 @@ def create_initial_state(
         days_per_week_explicit=False,
         request_type=None,
         affected_domains=[],
+        execution_plan=None,
+        submitted_plan_text=submitted_plan_text,
         route_decision=None,
         retry_count=0,
         replan_count=0,

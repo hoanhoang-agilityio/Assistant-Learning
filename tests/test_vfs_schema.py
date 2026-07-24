@@ -13,8 +13,10 @@ from core.vfs import (
 )
 from core.vfs.bootstrap import RUN_SUBDIRS
 from core.vfs.layout import (
+    FITNESS_NORMALIZATION_FINDINGS,
     FITNESS_SAFETY_FLAGS,
     PLAN_REVISION_FEEDBACK,
+    PLAN_SUBMITTED_TEXT,
     RESEARCH_SOURCES,
     get_artifact_spec,
     is_known_vfs_path,
@@ -40,6 +42,14 @@ def test_get_artifact_spec_returns_metadata() -> None:
     assert spec is not None
     assert spec.producer == "planning"
     assert spec.content_kind.value == "json"
+
+
+def test_registry_contains_phase_4_artifacts() -> None:
+    paths = {spec.path for spec in VFS_ARTIFACTS}
+    assert PLAN_SUBMITTED_TEXT in paths
+    assert FITNESS_NORMALIZATION_FINDINGS in paths
+    assert get_artifact_spec(PLAN_SUBMITTED_TEXT).producer == "orchestration"
+    assert get_artifact_spec(FITNESS_NORMALIZATION_FINDINGS).producer == "fitness"
 
 
 def test_is_known_vfs_path() -> None:

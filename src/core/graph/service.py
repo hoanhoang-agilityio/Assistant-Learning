@@ -120,6 +120,7 @@ class RunOrchestrator:
         constraints: dict[str, Any] | None = None,
         run_id: str | None = None,
         user_id: str | None = None,
+        submitted_plan_text: str | None = None,
     ) -> RunStatus:
         resolved_run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
         self._rate_limiter.reserve_request(user_id)
@@ -131,6 +132,7 @@ class RunOrchestrator:
             user_profile=user_profile,
             constraints=constraints,
             user_id=user_id,
+            submitted_plan_text=submitted_plan_text,
         )
         config = build_graph_invoke_config(state)
         self._graph.invoke(state, config)
@@ -152,6 +154,7 @@ class RunOrchestrator:
         constraints: dict[str, Any] | None = None,
         run_id: str | None = None,
         user_id: str | None = None,
+        submitted_plan_text: str | None = None,
     ) -> RunStatus:
         """Start a run in a background thread and return immediately."""
         resolved_run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
@@ -164,6 +167,7 @@ class RunOrchestrator:
             user_profile=user_profile,
             constraints=constraints,
             user_id=user_id,
+            submitted_plan_text=submitted_plan_text,
         )
         config = build_graph_invoke_config(state)
         with self._lock:
