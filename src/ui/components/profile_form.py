@@ -18,6 +18,7 @@ import streamlit.components.v1 as components
 from ui.api_client import resume_run
 from ui.components.chat import (
     assistant_message_from_status,
+    run_guarded_backend_action,
     update_run_history_status,
     write_pipeline_step,
 )
@@ -216,23 +217,38 @@ def render_profile_form(client: httpx.Client, run_id: str, status: dict[str, Any
     form_data = {key: value for key, value in values.items() if value is not None}
 
     st.session_state.messages.append({"role": "user", "content": "Submitted my profile details."})
-    with st.status("📝 Thanks! Saving your details…", expanded=True) as form_status:
-        last_step: str | None = None
 
-        def handle_progress(status_update: dict[str, Any]) -> None:
-            nonlocal last_step
-            last_step = write_pipeline_step(form_status, status_update, last_step=last_step)
+    def do_submit() -> dict[str, Any]:
+        with st.status("📝 Thanks! Saving your details…", expanded=True) as form_status:
+            last_step: str | None = None
 
-        updated = resume_run(
-            client,
-            run_id,
-            form_data=form_data,
-            on_progress=handle_progress,
+            def handle_progress(status_update: dict[str, Any]) -> None:
+                nonlocal last_step
+                last_step = write_pipeline_step(form_status, status_update, last_step=last_step)
+
+            updated = resume_run(
+                client,
+                run_id,
+                form_data=form_data,
+                on_progress=handle_progress,
+            )
+            form_status.update(label="✅ Got it!", state="complete")
+        return updated
+
+    def on_success(updated: dict[str, Any]) -> None:
+        st.session_state.run_status = updated
+        st.session_state.messages.append(
+            {"role": "assistant", "content": assistant_message_from_status(updated)}
         )
-        form_status.update(label="✅ Got it!", state="complete")
-    st.session_state.run_status = updated
-    st.session_state.messages.append(
-        {"role": "assistant", "content": assistant_message_from_status(updated)}
+        update_run_history_status(run_id, updated.get("status", "unknown"))
+
+    run_guarded_backend_action(
+        do_submit,
+        on_success=on_success,
+        timeout_message=(
+            "⏳ Still saving your details — this is taking a little longer than "
+            "usual. Please wait a moment…"
+        ),
+        error_prefix="Couldn't save your profile details",
+        rerun_on_settle=True,
     )
-    update_run_history_status(run_id, updated.get("status", "unknown"))
-    st.rerun()
