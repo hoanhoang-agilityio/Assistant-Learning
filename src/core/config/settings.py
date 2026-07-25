@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     openai_max_tokens: int = 4096
     anthropic_max_tokens: int = 4096
     llm_structured_output_max_tokens: int = 2048
+    # Per-call deadlines (SDK-native `timeout=` kwarg) so a hung provider
+    # connection can never block a run indefinitely.
+    openai_standard_timeout_seconds: float = 60.0
+    openai_xhigh_timeout_seconds: float = 90.0
+    anthropic_timeout_seconds: float = 90.0
 
     # Off by default: when true, core.evaluation.ragas_benchmark's
     # evaluate_draft_faithfulness scores drafts with the real Ragas SDK
@@ -67,6 +72,8 @@ class Settings(BaseSettings):
     tavily_api_key: str | None = None
     tavily_mcp_url: str = "https://mcp.tavily.com/mcp"
     mock_research: bool = False
+    # Deadline for each Tavily MCP call (tool handshake, search, extract).
+    tavily_tool_timeout_seconds: float = 20.0
 
     # Research Agent
     research_max_search_iterations: int = 2
@@ -91,6 +98,15 @@ class Settings(BaseSettings):
     # Orchestration / Fitness retry budgets
     max_planner_attempts: int = 2
     fix_reasoning_planner_attempts: int = 1
+
+    # Wall-clock deadline for a single graph.invoke() call (background run
+    # execution, resume, continue, and profile-form resume). Bounds a run
+    # even if a node hangs on something with no timeout of its own.
+    run_execution_timeout_seconds: float = 900.0
+
+    # How often the background orphan-reconciliation sweep runs while the API
+    # process is up (in addition to the one that always runs at startup).
+    reconciliation_interval_seconds: float = 300.0
 
     classify_request_narrows_domains: bool = True
 

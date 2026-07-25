@@ -8,6 +8,9 @@ from langchain_core.messages import AIMessage
 from core.config.settings import Settings
 from core.llm.factory import (
     configure_rate_limiter,
+    get_standard_llm,
+    get_xhigh_anthropic_llm,
+    get_xhigh_openai_llm,
     invoke_standard_structured_output,
     invoke_xhigh_structured_output,
 )
@@ -258,3 +261,94 @@ def test_invoke_standard_structured_output_meters_real_output_tokens(
 
     assert snapshot.output_tokens == 777
     assert snapshot.input_tokens == 123
+
+
+@patch("core.llm.factory.ChatOpenAI")
+@patch("core.llm.factory.get_settings")
+def test_get_standard_llm_configures_request_timeout(
+    mock_get_settings: MagicMock,
+    mock_chat_openai: MagicMock,
+) -> None:
+    """Regression (PR2): the STANDARD-tier OpenAI client must carry an explicit
+    deadline so a hung provider connection can never block a run indefinitely."""
+    mock_get_settings.return_value.openai_api_key = "openai-key"
+    mock_get_settings.return_value.openai_standard_model = "gpt-5.4-mini"
+    mock_get_settings.return_value.openai_max_tokens = 4096
+    mock_get_settings.return_value.openai_standard_reasoning_effort = "none"
+    mock_get_settings.return_value.openai_verbosity = "low"
+    mock_get_settings.return_value.openai_standard_timeout_seconds = 60.0
+
+    get_standard_llm.cache_clear()
+    try:
+        get_standard_llm()
+    finally:
+        get_standard_llm.cache_clear()
+
+    mock_chat_openai.assert_called_once_with(
+        model="gpt-5.4-mini",
+        api_key="openai-key",
+        max_tokens=4096,
+        reasoning_effort="none",
+        verbosity="low",
+        timeout=60.0,
+        temperature=0,
+    )
+
+
+@patch("core.llm.factory.ChatOpenAI")
+@patch("core.llm.factory.get_settings")
+def test_get_xhigh_openai_llm_configures_request_timeout(
+    mock_get_settings: MagicMock,
+    mock_chat_openai: MagicMock,
+) -> None:
+    """Regression (PR2): the XHIGH-tier OpenAI client must carry an explicit
+    deadline, independent of the STANDARD tier's own timeout setting."""
+    mock_get_settings.return_value.openai_api_key = "openai-key"
+    mock_get_settings.return_value.openai_xhigh_model = "gpt-5.4"
+    mock_get_settings.return_value.openai_max_tokens = 4096
+    mock_get_settings.return_value.openai_xhigh_reasoning_effort = "low"
+    mock_get_settings.return_value.openai_verbosity = "low"
+    mock_get_settings.return_value.openai_xhigh_timeout_seconds = 90.0
+
+    get_xhigh_openai_llm.cache_clear()
+    try:
+        get_xhigh_openai_llm()
+    finally:
+        get_xhigh_openai_llm.cache_clear()
+
+    mock_chat_openai.assert_called_once_with(
+        model="gpt-5.4",
+        api_key="openai-key",
+        max_tokens=4096,
+        reasoning_effort="low",
+        verbosity="low",
+        timeout=90.0,
+    )
+
+
+@patch("core.llm.factory.ChatAnthropic")
+@patch("core.llm.factory.get_settings")
+def test_get_xhigh_anthropic_llm_configures_request_timeout(
+    mock_get_settings: MagicMock,
+    mock_chat_anthropic: MagicMock,
+) -> None:
+    """Regression (PR2): the Anthropic fallback client must carry an explicit
+    deadline too -- a hung fallback call is just as capable of stalling a run."""
+    mock_get_settings.return_value.anthropic_api_key = "anthropic-key"
+    mock_get_settings.return_value.anthropic_xhigh_model = "claude-3-5-haiku-20241022"
+    mock_get_settings.return_value.anthropic_max_tokens = 4096
+    mock_get_settings.return_value.anthropic_timeout_seconds = 90.0
+
+    get_xhigh_anthropic_llm.cache_clear()
+    try:
+        get_xhigh_anthropic_llm()
+    finally:
+        get_xhigh_anthropic_llm.cache_clear()
+
+    mock_chat_anthropic.assert_called_once_with(
+        model="claude-3-5-haiku-20241022",
+        api_key="anthropic-key",
+        temperature=0,
+        max_tokens=4096,
+        timeout=90.0,
+    )

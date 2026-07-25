@@ -189,6 +189,7 @@ def get_standard_llm() -> BaseChatModel:
         max_tokens=settings.openai_max_tokens,
         reasoning_effort=settings.openai_standard_reasoning_effort,
         verbosity=settings.openai_verbosity,
+        timeout=settings.openai_standard_timeout_seconds,
         **_temperature_kwargs(settings.openai_standard_reasoning_effort),
     )
 
@@ -205,6 +206,7 @@ def get_xhigh_openai_llm() -> BaseChatModel:
         max_tokens=settings.openai_max_tokens,
         reasoning_effort=settings.openai_xhigh_reasoning_effort,
         verbosity=settings.openai_verbosity,
+        timeout=settings.openai_xhigh_timeout_seconds,
         **_temperature_kwargs(settings.openai_xhigh_reasoning_effort),
     )
 
@@ -220,6 +222,7 @@ def get_xhigh_anthropic_llm() -> BaseChatModel:
         api_key=settings.anthropic_api_key,
         temperature=0,
         max_tokens=settings.anthropic_max_tokens,
+        timeout=settings.anthropic_timeout_seconds,
     )
 
 
