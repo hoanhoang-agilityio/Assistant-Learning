@@ -21,6 +21,14 @@ class CreateRunRequest(BaseModel):
             "transcribed by the intent classifier (design review F2)."
         ),
     )
+    idempotency_key: str | None = Field(
+        default=None,
+        max_length=200,
+        description=(
+            "Optional client-supplied key. A repeated request with the same key "
+            "returns the run already created for it instead of starting a new one."
+        ),
+    )
 
 
 class ResumeRunRequest(BaseModel):

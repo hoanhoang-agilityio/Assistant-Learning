@@ -35,6 +35,7 @@ def create_run(
             constraints=payload.constraints,
             user_id=user_id,
             submitted_plan_text=payload.submitted_plan_text,
+            idempotency_key=payload.idempotency_key,
         )
     except RateLimitExceededError as exc:
         raise HTTPException(

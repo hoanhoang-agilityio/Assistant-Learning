@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,6 +10,18 @@ from api.routes.runs import router as runs_router
 from core.config.settings import Settings, get_settings
 from core.graph.service import RunOrchestrator
 from core.rate_limit.pricing import validate_model_pricing_coverage
+
+
+async def _run_periodic_reconciliation(instance: RunOrchestrator, interval_seconds: float) -> None:
+    """Re-run orphan reconciliation on a timer for the lifetime of the process.
+
+    Startup reconciliation alone only catches runs orphaned by a *previous*
+    process; this catches a run whose own background thread died mid-flight
+    without reaching its except/finally handlers while this process is up.
+    """
+    while True:
+        await asyncio.sleep(interval_seconds)
+        await asyncio.to_thread(instance.reconcile_orphaned_runs)
 
 
 def resolve_cors_origins(settings: Settings) -> list[str]:
@@ -54,9 +68,20 @@ def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
         # Skip real Postgres wiring when a caller injected its own orchestrator
         # (tests) — dependency_overrides bypasses get_orchestrator() for
         # request handling, but the lifespan runs independently of that.
+        reconciliation_task: asyncio.Task | None = None
         if orchestrator is None:
-            get_orchestrator()  # construct eagerly: fail fast on bad DB config
+            instance = get_orchestrator()  # construct eagerly: fail fast on bad DB config
+            # Startup reconciliation: recover runs orphaned by a crash/restart
+            # of a *previous* process before this one accepts any traffic.
+            await asyncio.to_thread(instance.reconcile_orphaned_runs)
+            reconciliation_task = asyncio.create_task(
+                _run_periodic_reconciliation(instance, settings.reconciliation_interval_seconds)
+            )
         yield
+        if reconciliation_task is not None:
+            reconciliation_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await reconciliation_task
         if orchestrator is None:
             close_orchestrator_resources()
 

@@ -5,6 +5,8 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from core.config.settings import Settings, get_settings
 from core.graph.checkpointer import postgres_checkpointer
+from core.graph.idempotency_store import IdempotencyStore
+from core.graph.run_tracker import RunTracker
 from core.graph.service import RunOrchestrator
 from core.llm.factory import configure_rate_limiter
 from core.mcp.mock_tavily import build_mock_tavily_client
@@ -15,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 _usage_store: UsageStore = InMemoryUsageStore()
 _postgres_checkpointer_cm = None
+_run_tracker: RunTracker | None = None
+_idempotency_store: IdempotencyStore | None = None
 
 
 def configure_research_client() -> None:
@@ -67,17 +71,36 @@ def get_orchestrator() -> RunOrchestrator:
     checkpointer = (
         _open_postgres_checkpointer(settings) if settings.use_postgres_checkpointer else None
     )
-    return RunOrchestrator(rate_limiter=limiter, checkpointer=checkpointer)
+    # Orphan reconciliation and idempotency both need a record that survives a
+    # restart and is visible to every replica -- meaningless without the
+    # Postgres checkpointer, since state itself wouldn't survive a restart
+    # either in that case.
+    global _run_tracker, _idempotency_store
+    if settings.use_postgres_checkpointer:
+        _run_tracker = RunTracker(settings.checkpointer_dsn)
+        _idempotency_store = IdempotencyStore(settings.checkpointer_dsn)
+    return RunOrchestrator(
+        rate_limiter=limiter,
+        checkpointer=checkpointer,
+        run_tracker=_run_tracker,
+        idempotency_store=_idempotency_store,
+    )
 
 
 def close_orchestrator_resources() -> None:
     """Close long-lived Postgres connections — call from the app's shutdown/lifespan."""
-    global _postgres_checkpointer_cm
+    global _postgres_checkpointer_cm, _run_tracker, _idempotency_store
     if _postgres_checkpointer_cm is not None:
         _postgres_checkpointer_cm.__exit__(None, None, None)
         _postgres_checkpointer_cm = None
     if isinstance(_usage_store, PostgresUsageStore):
         _usage_store.close()
+    if _run_tracker is not None:
+        _run_tracker.close()
+        _run_tracker = None
+    if _idempotency_store is not None:
+        _idempotency_store.close()
+        _idempotency_store = None
 
 
 def reset_orchestrator() -> None:
