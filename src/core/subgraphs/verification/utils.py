@@ -49,6 +49,7 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
     macro_targets: dict[str, Any] = {}
     training_plan: dict[str, Any] = {}
     safety_flags: list[str] = []
+    fitness_safety_passed: bool | None = None
 
     if vfs.exists("fitness/final_plan.md"):
         draft_plan = vfs.read("fitness/final_plan.md")
@@ -69,6 +70,8 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
             )
     if vfs.exists("fitness/safety_flags.json"):
         safety_flags = json.loads(vfs.read("fitness/safety_flags.json"))
+    if vfs.exists("fitness/safety_passed.json"):
+        fitness_safety_passed = json.loads(vfs.read("fitness/safety_passed.json"))
     blueprint: dict[str, Any] = {}
     if vfs.exists("fitness/blueprint.json"):
         blueprint = json.loads(vfs.read("fitness/blueprint.json"))
@@ -81,6 +84,7 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
         "training_plan": training_plan,
         "safety_flags": safety_flags,
         "plan_blueprint": blueprint,
+        "fitness_safety_passed": fitness_safety_passed,
     }
 
 
@@ -89,6 +93,16 @@ def citation_check_data(draft_plan: str, sources: list[dict[str, Any]]) -> dict[
         return {
             "passed": False,
             "issues": ["missing_draft_plan"],
+            "cited_source_count": 0,
+        }
+
+    # No sources gathered is a real grounding failure, not "nothing to check" --
+    # `not sources` used to make `passed` true unconditionally here, silently
+    # rubber-stamping a plan built on zero research evidence.
+    if not sources:
+        return {
+            "passed": False,
+            "issues": ["no_sources_gathered"],
             "cited_source_count": 0,
         }
 
@@ -106,13 +120,15 @@ def citation_check_data(draft_plan: str, sources: list[dict[str, Any]]) -> dict[
         if title and title.lower() in draft_plan.lower():
             cited_source_count += 1
 
-    if sources and cited_source_count == 0:
-        if "evidence" in draft_plan.lower() or "research" in draft_plan.lower():
-            cited_source_count = 1
-        else:
-            issues.append("no_sources_referenced_in_draft")
+    # No keyword rubber-stamp: synthesis always emits a "## Evidence Summary"
+    # section, so a bare "evidence"/"research" substring match here used to
+    # count as citing a source regardless of whether any real source was
+    # actually referenced. cited_source_count now only reflects genuine
+    # URL/title matches against the sources actually gathered.
+    if cited_source_count == 0:
+        issues.append("no_sources_referenced_in_draft")
 
-    passed = not issues and (not sources or cited_source_count > 0)
+    passed = not issues
     return {
         "passed": passed,
         "issues": issues,
@@ -156,13 +172,30 @@ def consistency_check_data(
 def safety_check_data(
     draft_plan: str,
     safety_flags: list[str],
+    *,
+    fitness_safety_passed: bool | None = None,
 ) -> dict[str, Any]:
+    """fitness_safety_passed is the actual pass/fail boolean Fitness's own
+    validate_workout_safety_data computed (see fitness/utils.py's
+    write_fitness_artifacts, which persists it to fitness/safety_passed.json).
+
+    Previously this check only ever re-derived pass/fail from whether any of
+    `safety_flags` appeared in the small CRITICAL_SAFETY_FLAGS allowlist below
+    -- every other flag Fitness can emit (equipment mismatch, duplicate
+    exercise, invalid set count, wrong day count, ...) was silently ignored.
+    When fitness_safety_passed is available it's authoritative: any fitness-
+    side safety failure blocks delivery, not just the allowlisted subset.
+    None (an older workspace predating this field, or a call site that hasn't
+    threaded it through) falls back to the flags-only check exactly as before.
+    """
     issues = [flag for flag in safety_flags if flag in CRITICAL_SAFETY_FLAGS]
     unsafe_terms = ("unsafe", "extreme deficit", "excessive volume")
     draft_lower = _draft_text_for_safety_scan(draft_plan).lower()
     for term in unsafe_terms:
         if term in draft_lower:
             issues.append(f"unsafe_language:{term}")
+    if fitness_safety_passed is False:
+        issues.append("fitness_safety_check_failed")
 
     return {
         "passed": not issues,

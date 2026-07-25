@@ -461,6 +461,13 @@ def write_fitness_artifacts(
         )
     safety_feedback = safety_result.get("feedback") or []
     vfs.write("fitness/safety_flags.json", json.dumps(safety_feedback, indent=2))
+    # The feedback strings above are only the 4-flag allowlist Verification's
+    # safety_check_data historically re-derived from -- the actual pass/fail
+    # boolean validate_workout_safety_data computed (covering every flag it
+    # can emit, not just that subset) was never persisted anywhere, so an
+    # equipment mismatch, duplicate exercise, or invalid set count could pass
+    # Verification's safety gate silently. Persist it directly.
+    vfs.write("fitness/safety_passed.json", json.dumps(safety_result["passed"]))
     vfs.write(
         "fitness/normalization_findings.json",
         json.dumps(normalization_findings or [], indent=2),

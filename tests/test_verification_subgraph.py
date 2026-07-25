@@ -20,6 +20,7 @@ from core.subgraphs.verification.utils import (
     citation_check_data,
     consistency_check_data,
     heuristic_faithfulness_data,
+    load_verification_context,
     safety_check_data,
 )
 from core.vfs import VFS
@@ -133,6 +134,46 @@ def test_citation_check_passes_with_evidence_section(verification_state: Verific
     assert result["passed"] is True
 
 
+def test_citation_check_fails_on_zero_sources(verification_state: VerificationState) -> None:
+    """Regression (PR7): zero sources gathered is a real grounding failure, not
+    "nothing to check" -- `not sources` used to make `passed` unconditionally
+    True here, silently rubber-stamping a plan built on zero research evidence."""
+    vfs = VFS.for_run(Path(verification_state["workspace_path"]))
+    draft_plan = vfs.read("fitness/final_plan.md")
+
+    result = citation_check_data(draft_plan, [])
+
+    assert result["passed"] is False
+    assert "no_sources_gathered" in result["issues"]
+    assert result["cited_source_count"] == 0
+
+
+def test_citation_check_does_not_rubber_stamp_via_evidence_keyword() -> None:
+    """Regression (PR7): a draft that mentions "evidence"/"research" (every real
+    draft does, via its "## Evidence Summary" section) must not count as citing
+    a source that was never actually referenced by URL or title."""
+    draft_plan = (
+        "# Fitness Plan Draft\n\n"
+        "## Training Plan\n\n### Day 1\n- Squat: 3 x 8\n\n"
+        "## Evidence Summary\n\n"
+        "General hypertrophy and research-backed training guidance was applied.\n"
+    )
+    sources = [
+        {
+            "source_id": "src_0",
+            "title": "Completely unrelated source title",
+            "url": "https://example.edu/never-mentioned",
+            "provider": "tavily",
+        }
+    ]
+
+    result = citation_check_data(draft_plan, sources)
+
+    assert result["passed"] is False
+    assert result["cited_source_count"] == 0
+    assert "no_sources_referenced_in_draft" in result["issues"]
+
+
 def test_consistency_check_validates_macro_and_day_count(
     verification_state: VerificationState,
 ) -> None:
@@ -168,6 +209,81 @@ def test_safety_check_ignores_unsafe_word_in_evidence_sections() -> None:
     assert "unsafe_language:unsafe" not in result["issues"]
 
 
+def test_safety_check_fails_when_fitness_safety_check_failed_outside_allowlist() -> None:
+    """Regression (PR7): the core bug this PR closes. Fitness's own
+    validate_workout_safety_data can fail for reasons outside the 4-item
+    CRITICAL_SAFETY_FLAGS allowlist (equipment mismatch, duplicate exercise,
+    invalid set count, wrong day count, ...) -- previously that failure was
+    never persisted anywhere, so Verification's safety gate passed regardless.
+    A flag not in the allowlist, combined with the real fitness_safety_passed
+    boolean, must now still fail the check."""
+    result = safety_check_data(
+        "Plan draft",
+        ["duplicate_exercise:Day 1:squat"],  # not in CRITICAL_SAFETY_FLAGS
+        fitness_safety_passed=False,
+    )
+
+    assert result["passed"] is False
+    assert "fitness_safety_check_failed" in result["issues"]
+
+
+def test_safety_check_passes_when_fitness_safety_passed_is_true_and_no_other_issues() -> None:
+    """A genuinely passing fitness safety result, with no critical flags and no
+    unsafe language in the draft, must still pass."""
+    result = safety_check_data("Plan draft", [], fitness_safety_passed=True)
+
+    assert result["passed"] is True
+    assert result["issues"] == []
+
+
+def test_write_fitness_artifacts_persists_safety_passed_boolean(tmp_path) -> None:
+    """Regression (PR7): validate_workout_safety_data's passed boolean must be
+    persisted, not just its feedback strings, so Verification can read the
+    real outcome directly instead of re-deriving an incomplete one."""
+    from core.subgraphs.fitness.utils import write_fitness_artifacts
+    from tests.helpers.fitness import default_structured_workout
+
+    workspace_path = str(tmp_path / "safety-persist-workspace")
+    profile = {"goal": "muscle_gain", "days_per_week": 3, "equipment": "gym"}
+    structured_workout = default_structured_workout(profile, {"days_per_week": 3}).model_dump()
+
+    write_fitness_artifacts(
+        workspace_path=workspace_path,
+        macro_targets={"calories": 2200},
+        structured_workout=structured_workout,
+        draft_plan="# Draft",
+        safety_result={"passed": False, "feedback": ["duplicate_exercise:Day 1:squat"]},
+    )
+
+    vfs = VFS.for_run(Path(workspace_path))
+    assert vfs.exists("fitness/safety_passed.json")
+    assert json.loads(vfs.read("fitness/safety_passed.json")) is False
+
+
+def test_load_verification_context_reads_fitness_safety_passed(tmp_path) -> None:
+    """Regression (PR7): load_verification_context must surface the persisted
+    boolean so safety_check_data can use it as the authoritative signal."""
+    workspace_path = str(tmp_path / "safety-context-workspace")
+    vfs = VFS.for_run(Path(workspace_path))
+    vfs.write("fitness/safety_passed.json", json.dumps(False))
+
+    context = load_verification_context(workspace_path)
+
+    assert context["fitness_safety_passed"] is False
+
+
+def test_load_verification_context_defaults_fitness_safety_passed_to_none_when_absent(
+    tmp_path,
+) -> None:
+    """An older workspace predating this field (or one where fitness hasn't run
+    yet) must not be mistaken for an explicit pass or fail."""
+    workspace_path = str(tmp_path / "no-safety-artifact-workspace")
+
+    context = load_verification_context(workspace_path)
+
+    assert context["fitness_safety_passed"] is None
+
+
 def test_ragas_faithfulness_meets_threshold(verification_state: VerificationState) -> None:
     vfs = VFS.for_run(Path(verification_state["workspace_path"]))
     draft_plan = vfs.read("fitness/final_plan.md")
@@ -188,6 +304,26 @@ def test_verification_subgraph_writes_vfs_artifacts(verification_state: Verifica
     assert report["passed"] is True
     assert result["verification_report"]["ragas"]["pass_fail"] is True
     assert ragas["faithfulness_score"] >= FAITHFULNESS_PASS_THRESHOLD
+
+
+def test_verification_subgraph_fails_safety_for_flag_outside_allowlist(
+    verification_state: VerificationState,
+) -> None:
+    """Regression (PR7), end-to-end: the compiled verification subgraph --
+    load_context -> safety_check, not safety_check_data called in isolation --
+    must read fitness's persisted passed boolean and fail the safety gate for
+    a flag outside CRITICAL_SAFETY_FLAGS (e.g. a duplicate exercise), which
+    previously passed silently regardless of what fitness actually found."""
+    vfs = VFS.for_run(Path(verification_state["workspace_path"]))
+    vfs.write("fitness/safety_flags.json", json.dumps(["duplicate_exercise:Day 1:squat"]))
+    vfs.write("fitness/safety_passed.json", json.dumps(False))
+
+    graph = build_verification_subgraph()
+    result = graph.invoke(verification_state)
+
+    safety_result = result["verification_report"]["safety"]
+    assert safety_result["passed"] is False
+    assert "fitness_safety_check_failed" in safety_result["issues"]
 
 
 def test_verification_agent_returns_structured_report(

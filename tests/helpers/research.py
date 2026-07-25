@@ -9,7 +9,8 @@ def default_structured_findings() -> ResearchFindings:
     return ResearchFindings(
         consensus=(
             "Resistance training combined with a moderate caloric deficit supports fat loss "
-            "while preserving lean mass for recreationally active adults."
+            "while preserving lean mass for recreationally active adults, per hypertrophy "
+            "training evidence from peer-reviewed literature."
         ),
         key_findings=[
             "Progressive resistance training 3-4 days per week supports fat loss outcomes.",

@@ -11,6 +11,7 @@ class VerificationState(TypedDict):
     macro_targets: dict
     training_plan: dict
     safety_flags: list[str]
+    fitness_safety_passed: bool | None
     plan_blueprint: dict
     verification_report: dict
     faithfulness_score: float | None
