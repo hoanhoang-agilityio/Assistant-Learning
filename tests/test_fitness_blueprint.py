@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.fitness.blueprint import build_plan_blueprint
 from core.subgraphs.fitness.schema import EditOperation
 from core.subgraphs.fitness.template_registry import (
@@ -22,12 +23,12 @@ def test_build_plan_blueprint_includes_horizon() -> None:
     profile = {
         "goal": "muscle_gain",
         "current_weight_kg": 73.0,
-        "weight_delta_kg": 2.0,
+        "target_weight_kg": 75.0,
         "horizon_weeks": 52,
         "days_per_week": 4,
     }
     constraints = {"equipment": "gym"}
-    blueprint = build_plan_blueprint(profile, constraints)
+    blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     assert blueprint.horizon_weeks == 52
     assert blueprint.template_family == "muscle_gain_4day_gym"
     assert blueprint.phases
@@ -36,7 +37,7 @@ def test_build_plan_blueprint_includes_horizon() -> None:
 def test_template_registry_reuse_by_fingerprint() -> None:
     profile = {"goal": "muscle_gain", "days_per_week": 3, "equipment": "gym"}
     constraints = {"equipment": "gym", "days_per_week": 3}
-    blueprint = build_plan_blueprint(profile, constraints)
+    blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     fingerprint = build_template_fingerprint(profile, constraints, blueprint)
     workout = default_structured_workout(profile, constraints).model_dump()
     workout["notes"] = ["Cacheable LLM workout for registry reuse test."]
@@ -59,7 +60,7 @@ def test_template_registry_reuse_by_fingerprint() -> None:
 def test_template_registry_skips_cache_when_revision_feedback_present(tmp_path) -> None:
     profile = {"goal": "muscle_gain", "days_per_week": 3, "equipment": "gym"}
     constraints = {"equipment": "gym", "days_per_week": 3}
-    blueprint = build_plan_blueprint(profile, constraints)
+    blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     fingerprint = build_template_fingerprint(profile, constraints, blueprint)
     workout = default_structured_workout(profile, constraints).model_dump()
     workout["notes"] = ["Cacheable LLM workout for registry reuse test."]
@@ -91,7 +92,7 @@ def test_deterministic_edit_applies_when_days_per_week_not_explicit(tmp_path, mo
     """Baseline: a macro-only edit still takes the deterministic shortcut untouched."""
     profile = {"goal": "muscle_gain", "days_per_week": 4, "equipment": "gym"}
     constraints = {"equipment": "gym", "days_per_week": 4}
-    blueprint = build_plan_blueprint(profile, constraints)
+    blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     workspace_path = str(tmp_path / "edit-workspace")
     _seed_prior_workout(workspace_path, profile, constraints)
     persist_revision_feedback(workspace_path, "give me more protein")
@@ -120,7 +121,7 @@ def test_deterministic_edit_skipped_when_days_per_week_explicit(tmp_path, monkey
     it would preserve the old day count and guarantee a safety-check failure/retry."""
     profile = {"goal": "muscle_gain", "days_per_week": 3, "equipment": "gym"}
     constraints = {"equipment": "gym", "days_per_week": 3}
-    blueprint = build_plan_blueprint(profile, constraints)
+    blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     workspace_path = str(tmp_path / "edit-workspace")
     old_profile = {**profile, "days_per_week": 4}
     old_constraints = {**constraints, "days_per_week": 4}
@@ -154,7 +155,7 @@ def test_deterministic_replace_exercise_skipped_when_days_per_week_explicit(
     """Same skip behavior applies to REPLACE_EXERCISE-classified compound requests."""
     profile = {"goal": "muscle_gain", "days_per_week": 5, "equipment": "gym"}
     constraints = {"equipment": "gym", "days_per_week": 5}
-    blueprint = build_plan_blueprint(profile, constraints)
+    blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     workspace_path = str(tmp_path / "edit-workspace")
     old_profile = {**profile, "days_per_week": 4}
     old_constraints = {**constraints, "days_per_week": 4}
@@ -190,7 +191,7 @@ def test_deterministic_replace_exercise_skipped_when_days_per_week_explicit(
 def test_adapt_workout_scales_volume_from_blueprint() -> None:
     profile = {"goal": "fat_loss", "days_per_week": 3}
     constraints = {"equipment": "gym", "days_per_week": 3}
-    blueprint = build_plan_blueprint(profile, constraints)
+    blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     workout = default_structured_workout(profile, constraints).model_dump()
     adapted = adapt_workout_to_blueprint(workout, blueprint)
     assert adapted["weekly_sets"] <= workout["weekly_sets"]
@@ -211,7 +212,7 @@ def test_default_workout_rotates_push_pull_legs() -> None:
 def test_store_workout_template_skips_benchmark_and_non_llm_sources() -> None:
     profile = {"goal": "muscle_gain", "days_per_week": 3}
     constraints = {"equipment": "gym", "days_per_week": 3}
-    blueprint = build_plan_blueprint(profile, constraints)
+    blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     fingerprint = build_template_fingerprint(profile, constraints, blueprint)
     benchmark_workout = default_structured_workout(profile, constraints).model_dump()
     registry = TemplateRegistry()

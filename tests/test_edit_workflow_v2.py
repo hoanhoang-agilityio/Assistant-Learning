@@ -9,6 +9,7 @@ from core.agents.state import OrchestrationState
 from core.agents.supervisor import supervisor_node
 from core.config.settings import get_settings
 from core.graph.run import create_initial_state
+from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.fitness.blueprint import build_plan_blueprint
 from core.subgraphs.fitness.template_registry import resolve_workout_template
 from core.vfs import VFS
@@ -42,7 +43,11 @@ def test_resolve_workout_template_flag_off_uses_legacy_revision_feedback(
     get_settings.cache_clear()
     workspace_path = str(tmp_path / "workspace")
     VFS.for_run(Path(workspace_path))  # ensure workspace exists
-    blueprint = build_plan_blueprint(complete_profile, {"days_per_week": 3, "equipment": "gym"})
+    blueprint = build_plan_blueprint(
+        complete_profile,
+        {"days_per_week": 3, "equipment": "gym"},
+        derive_goal_spec(complete_profile),
+    )
 
     result = resolve_workout_template(
         workspace_path=workspace_path,
@@ -68,7 +73,11 @@ def test_resolve_workout_template_flag_on_uses_fitness_mode(
     monkeypatch.setenv("EDIT_WORKFLOW_V2_ENABLED", "true")
     get_settings.cache_clear()
     workspace_path = str(tmp_path / "workspace")
-    blueprint = build_plan_blueprint(complete_profile, {"days_per_week": 3, "equipment": "gym"})
+    blueprint = build_plan_blueprint(
+        complete_profile,
+        {"days_per_week": 3, "equipment": "gym"},
+        derive_goal_spec(complete_profile),
+    )
 
     result = resolve_workout_template(
         workspace_path=workspace_path,
@@ -94,7 +103,11 @@ def test_resolve_workout_template_flag_on_no_prior_workout_falls_back_to_generat
     monkeypatch.setenv("EDIT_WORKFLOW_V2_ENABLED", "true")
     get_settings.cache_clear()
     workspace_path = str(tmp_path / "workspace")
-    blueprint = build_plan_blueprint(complete_profile, {"days_per_week": 3, "equipment": "gym"})
+    blueprint = build_plan_blueprint(
+        complete_profile,
+        {"days_per_week": 3, "equipment": "gym"},
+        derive_goal_spec(complete_profile),
+    )
 
     result = resolve_workout_template(
         workspace_path=workspace_path,

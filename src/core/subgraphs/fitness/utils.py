@@ -4,7 +4,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from core.profile.goal_spec import rate_to_calorie_adjustment
+from core.profile.goal_spec import GoalSpec, rate_to_calorie_adjustment
+from core.profile.normalize import resolve_activity_level
 from core.profile.store import load_run_profile, split_constraints
 from core.subgraphs.fitness.schema import (
     EditOperation,
@@ -138,13 +139,17 @@ def _minimum_calories(profile: dict[str, Any]) -> float:
     return MIN_CALORIES_MALE
 
 
-def calculate_macros_data(profile: dict[str, Any], constraints: dict[str, Any]) -> dict[str, Any]:
+def calculate_macros_data(
+    profile: dict[str, Any],
+    constraints: dict[str, Any],
+    goal_spec: GoalSpec,
+) -> dict[str, Any]:
+    """`goal_spec` must be derived by the caller from this same `profile` -- see the
+    single-derivation threading rule in core/profile/goal_spec.py."""
     goal = str(profile.get("goal", "general_fitness"))
-    activity_level = str(profile.get("activity_level", "gym_3x_week"))
+    activity_level = resolve_activity_level(profile.get("days_per_week"))
     weight_kg = float(profile["current_weight_kg"])
-    weekly_rate_kg = profile.get("weekly_rate_kg")
-    if weekly_rate_kg is not None:
-        weekly_rate_kg = float(weekly_rate_kg)
+    weekly_rate_kg = goal_spec.weekly_rate_kg
 
     bmr = _calculate_bmr(profile)
     tdee = bmr * _activity_multiplier(activity_level)
