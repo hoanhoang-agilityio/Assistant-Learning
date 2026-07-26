@@ -1,4 +1,5 @@
 from core.llm.serializers import compact_execution_plan_for_llm, compact_profile_for_llm
+from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.research.utils import (
     build_eval_llm_extra,
@@ -35,6 +36,7 @@ def test_build_research_context_payload_strips_query_from_profile() -> None:
         query=profile["query"],
         request_type="fat_loss",
         profile=profile,
+        goal_spec=derive_goal_spec(profile),
     )
     assert payload["query"] == profile["query"]
     assert "query" not in payload["profile"]
@@ -43,20 +45,24 @@ def test_build_research_context_payload_strips_query_from_profile() -> None:
 
 
 def test_build_research_context_payload_keeps_distinct_request_type() -> None:
+    profile = {"goal": "fat_loss"}
     payload = build_research_context_payload(
         query="Build a training plan",
         request_type="training_plan",
-        profile={"goal": "fat_loss"},
+        profile=profile,
+        goal_spec=derive_goal_spec(profile),
     )
     assert payload["request_type"] == "training_plan"
 
 
 def test_build_research_context_payload_includes_execution_plan_fields() -> None:
     plan = _sample_plan()
+    profile = {"goal": "fat_loss"}
     payload = build_research_context_payload(
         query="Build a plan",
         request_type=None,
-        profile={"goal": "fat_loss"},
+        profile=profile,
+        goal_spec=derive_goal_spec(profile),
         execution_plan=plan,
         extra={"source_count": 2},
     )
@@ -67,10 +73,12 @@ def test_build_research_context_payload_includes_execution_plan_fields() -> None
 
 
 def test_build_research_context_payload_react_omits_execution_plan() -> None:
+    profile = {"goal": "fat_loss"}
     payload = build_research_context_payload(
         query="Build a plan",
         request_type="training_plan",
-        profile={"goal": "fat_loss"},
+        profile=profile,
+        goal_spec=derive_goal_spec(profile),
     )
     assert "plan_rationale" not in payload
     assert "tasks" not in payload

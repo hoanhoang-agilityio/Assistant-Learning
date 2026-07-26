@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
+from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.research_agent import (
@@ -175,10 +176,12 @@ def test_verify_sources_marks_whitelist_and_fitness_keyword() -> None:
 
 
 def test_run_research_agent_uses_override_without_llm() -> None:
+    profile = {"goal": "fat_loss"}
     result = run_research_agent(
         query="lose weight",
         request_type="fat_loss",
-        profile={"goal": "fat_loss"},
+        profile=profile,
+        goal_spec=derive_goal_spec(profile),
         execution_plan=_sample_plan(),
     )
     assert result.agent_iterations == 1
@@ -190,10 +193,12 @@ def test_run_research_agent_uses_override_without_llm() -> None:
 def test_configure_research_agent_override() -> None:
     custom = default_research_agent_result()
     configure_research_agent(lambda **kwargs: custom)
+    profile: dict = {}
     result = run_research_agent(
         query="lose weight",
         request_type="fat_loss",
-        profile={},
+        profile=profile,
+        goal_spec=derive_goal_spec(profile),
         execution_plan=_sample_plan(),
     )
     assert result == custom
@@ -216,12 +221,14 @@ def test_eval_skip_when_sufficient_verified_sources() -> None:
         {"url": "https://www.nih.gov/fitness", "content": "Document one"},
         {"url": "https://pubmed.ncbi.nlm.nih.gov/study", "content": "Document two"},
     ]
+    profile = {"goal": "fat_loss"}
     with patch(
         "core.subgraphs.research.research_agent.invoke_standard_structured_output"
     ) as mock_llm:
         result = _evaluate_evidence(
             query="lose weight",
-            profile={"goal": "fat_loss"},
+            profile=profile,
+            goal_spec=derive_goal_spec(profile),
             execution_plan=_sample_plan(),
             sources=sources,
             evidence=evidence,
