@@ -130,17 +130,19 @@ def test_invoke_with_timeout_raises_when_graph_invoke_hangs(
 ) -> None:
     """Regression (PR2): before this fix, self._graph.invoke() was called directly
     and unbounded, so a hung node could block a background run forever with no
-    visible failure. _invoke_with_timeout must raise instead of hanging."""
+    visible failure. _stream_with_timeout (graph.stream(), since the streaming
+    refactor) must raise instead of hanging."""
     mock_get_settings.return_value.run_execution_timeout_seconds = 0.05
     orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
 
-    def hanging_invoke(*_args: object, **_kwargs: object) -> None:
+    def hanging_stream(*_args: object, **_kwargs: object):
         time.sleep(2)
+        yield ((), {"node": {}})
 
-    orchestrator._graph.invoke = hanging_invoke  # type: ignore[method-assign]
+    orchestrator._graph.stream = hanging_stream  # type: ignore[method-assign]
 
     with pytest.raises(TimeoutError):
-        orchestrator._invoke_with_timeout({}, {})
+        orchestrator._stream_with_timeout({}, {})
 
 
 @patch("core.graph.service.get_settings")
@@ -148,17 +150,18 @@ def test_invoke_with_timeout_returns_normally_within_deadline(
     mock_get_settings: MagicMock,
     memory_checkpointer,
 ) -> None:
-    """A graph.invoke() call that finishes well inside the deadline is unaffected."""
+    """A graph.stream() call that finishes well inside the deadline is unaffected."""
     mock_get_settings.return_value.run_execution_timeout_seconds = 5.0
     orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
     calls: list[tuple[object, object]] = []
 
-    def fast_invoke(input_data: object, config: object) -> None:
+    def fast_stream(input_data: object, config: object, **_kwargs: object):
         calls.append((input_data, config))
+        yield ((), {"node": {}})
 
-    orchestrator._graph.invoke = fast_invoke  # type: ignore[method-assign]
+    orchestrator._graph.stream = fast_stream  # type: ignore[method-assign]
 
-    orchestrator._invoke_with_timeout("input", {"configurable": {}})
+    orchestrator._stream_with_timeout("input", {"configurable": {}})
 
     assert calls == [("input", {"configurable": {}})]
 
@@ -174,10 +177,11 @@ def test_start_run_records_failure_instead_of_hanging_when_execution_times_out(
     configure_profile_extractor(lambda _query: ExtractedProfile())
     orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
 
-    def hanging_invoke(*_args: object, **_kwargs: object) -> None:
+    def hanging_stream(*_args: object, **_kwargs: object):
         time.sleep(2)
+        yield ((), {"node": {}})
 
-    orchestrator._graph.invoke = hanging_invoke  # type: ignore[method-assign]
+    orchestrator._graph.stream = hanging_stream  # type: ignore[method-assign]
 
     run_status = orchestrator.start_run(
         query="I want a 4-day training plan to lose weight.",
@@ -266,20 +270,20 @@ def test_concurrent_resume_calls_reject_the_second_with_conflict(
     vfs.write("fitness/final_plan.md", "# Final Plan\n\nMacro targets and training days.")
     orchestrator.graph.invoke(state, config)
 
-    # Block the first resume's background thread inside graph.invoke, right where the real
-    # race window sits (after the pre-resume snapshot has been read, before the graph call
-    # completes), so a second resume_run() call is guaranteed to observe the first as still
-    # in flight rather than racing against real thread scheduling.
+    # Block the first resume's background thread inside graph.stream(), right where the
+    # real race window sits (after the pre-resume snapshot has been read, before the graph
+    # call completes), so a second resume_run() call is guaranteed to observe the first as
+    # still in flight rather than racing against real thread scheduling.
     release_first_invoke = threading.Event()
-    original_invoke = orchestrator.graph.invoke
-    invoke_call_count = {"count": 0}
+    original_stream = orchestrator.graph.stream
+    stream_call_count = {"count": 0}
 
-    def blocking_invoke(*args, **kwargs):
-        invoke_call_count["count"] += 1
+    def blocking_stream(*args, **kwargs):
+        stream_call_count["count"] += 1
         release_first_invoke.wait(timeout=5)
-        return original_invoke(*args, **kwargs)
+        yield from original_stream(*args, **kwargs)
 
-    orchestrator._graph.invoke = blocking_invoke
+    orchestrator._graph.stream = blocking_stream
 
     first_status = orchestrator.resume_run(run_id, user_response="approve")
     assert first_status.status == "running"
@@ -299,13 +303,13 @@ def test_concurrent_resume_calls_reject_the_second_with_conflict(
         raise AssertionError("resume did not settle in time")
 
     assert settled.approval_status == "approved"
-    # Only the first resume's Command(update=...) ever reached graph.invoke -- the rejected
+    # Only the first resume's Command(update=...) ever reached graph.stream -- the rejected
     # duplicate never got far enough to invoke the graph a second time.
-    assert invoke_call_count["count"] == 1
+    assert stream_call_count["count"] == 1
 
     # The guard is released once the in-flight resume completes, so a later resume for the
     # same run_id is not permanently blocked.
-    orchestrator._graph.invoke = original_invoke
+    orchestrator._graph.stream = original_stream
 
 
 @pytest.fixture

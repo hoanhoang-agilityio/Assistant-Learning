@@ -1,3 +1,4 @@
+import json
 import time
 
 import pytest
@@ -177,6 +178,87 @@ def test_second_resume_of_the_same_run_returns_conflict(
 def test_get_run_not_found(api_client: TestClient) -> None:
     response = api_client.get("/runs/does-not-exist")
     assert response.status_code == 404
+
+
+def _read_sse_events(response) -> list[dict]:
+    events = []
+    for line in response.iter_lines():
+        if line.startswith("data: "):
+            events.append(json.loads(line[len("data: ") :]))
+    return events
+
+
+def test_stream_run_events_returns_404_for_unknown_run(api_client: TestClient) -> None:
+    with api_client.stream("GET", "/runs/does-not-exist/events") as response:
+        assert response.status_code == 404
+
+
+def test_stream_run_events_streams_node_updates_then_settles(
+    api_client: TestClient, complete_profile: dict
+) -> None:
+    """GET /runs/{run_id}/events must stream real-time node/subgraph-node
+    completions (not just the whole-subgraph granularity /runs/{run_id}
+    polling exposes), ending with exactly one run_settled event whose `run`
+    payload matches what /runs/{run_id} reports once the run has settled."""
+    created = api_client.post(
+        "/runs",
+        json={
+            "query": "I want a 4-day training plan to lose weight with strength training.",
+            "user_profile": complete_profile,
+            "constraints": {"days_per_week": 4, "equipment": "gym"},
+        },
+    ).json()
+    run_id = created["run_id"]
+
+    with api_client.stream("GET", f"/runs/{run_id}/events") as response:
+        assert response.status_code == 200
+        events = _read_sse_events(response)
+
+    assert events, "expected at least one streamed event"
+    node_updates = [event for event in events if event["type"] == "node_update"]
+    settled_events = [event for event in events if event["type"] == "run_settled"]
+
+    # Real node-level granularity, not just the 7 top-level subgraph names --
+    # confirms subgraphs=True is actually surfacing internal node completions.
+    steps = {event["step"] for event in node_updates}
+    assert "research:research_agent" in steps
+    assert "fitness:fitness_planner" in steps
+    assert "verification:citation_check" in steps
+
+    # Exactly one terminal event, and it's the last one.
+    assert len(settled_events) == 1
+    assert events[-1]["type"] == "run_settled"
+    assert settled_events[0]["run"]["status"] == "waiting_hitl"
+
+    polled = api_client.get(f"/runs/{run_id}").json()
+    assert settled_events[0]["run"]["status"] == polled["status"]
+    assert settled_events[0]["run"]["steps"] == polled["steps"]
+
+
+def test_stream_run_events_on_already_settled_run_emits_one_event(
+    api_client: TestClient, complete_profile: dict
+) -> None:
+    """Connecting to the events endpoint after a run has already settled (no
+    execution in flight) must not hang waiting for events that will never
+    come -- it should immediately emit one run_settled snapshot and close."""
+    created = api_client.post(
+        "/runs",
+        json={
+            "query": "Build a hypertrophy plan for muscle gain.",
+            "user_profile": complete_profile,
+            "constraints": {"days_per_week": 4, "equipment": "gym"},
+        },
+    ).json()
+    run_id = created["run_id"]
+    _wait_for_settled(api_client, run_id)
+
+    with api_client.stream("GET", f"/runs/{run_id}/events") as response:
+        assert response.status_code == 200
+        events = _read_sse_events(response)
+
+    assert len(events) == 1
+    assert events[0]["type"] == "run_settled"
+    assert events[0]["run"]["status"] == "waiting_hitl"
 
 
 def test_create_run_with_repeated_idempotency_key_returns_the_existing_run(

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import queue
 import threading
+import time
 import uuid
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -47,6 +49,23 @@ RunLifecycleStatus = Literal[
 
 class RunNotFoundError(LookupError):
     """Raised when a run id is unknown to the checkpointer."""
+
+
+@dataclass(frozen=True)
+class RunEvent:
+    """One item on a run's live event queue -- either a LangGraph node update
+    (a raw ``(namespace, {node_name: state_update})`` chunk straight from
+    ``graph.stream(stream_mode="updates", subgraphs=True)``, unmodified) or the
+    terminal event closing the stream once the run settles.
+
+    This is the single source of progress data for `GET /runs/{run_id}/events`
+    (see api/routes/runs.py) -- there is no separate progress-tracking
+    abstraction layered on top of LangGraph's own streamed events.
+    """
+
+    kind: Literal["node_update", "run_settled"]
+    chunk: tuple[tuple[str, ...], dict[str, Any]] | None = None
+    status: RunStatus | None = None
 
 
 @dataclass(frozen=True)
@@ -120,12 +139,20 @@ class RunOrchestrator:
         # and is visible to every replica, so it's a no-op without Postgres.
         self._idempotency_store = idempotency_store
         self._lock = threading.Lock()
-        # One long-lived pool backs every _invoke_with_timeout() call for this
+        # One long-lived pool backs every _stream_with_timeout() call for this
         # orchestrator's lifetime (default sizing: min(32, cpu_count + 4), so it
         # never becomes a de facto concurrency cap on in-flight runs).
         self._invoke_executor = ThreadPoolExecutor(thread_name_prefix="graph-invoke")
         self._pending_runs: dict[str, dict[str, Any]] = {}
         self._run_failures: dict[str, dict[str, str]] = {}
+        # One queue per currently-executing run, feeding GET /runs/{run_id}/events
+        # (see api/routes/runs.py). Opened at the start of each _execute_*
+        # background method and closed (after one final RunEvent(kind="run_settled",
+        # ...) is pushed) once that method's own cleanup has fully run -- an SSE
+        # client that already has a reference to the queue keeps draining it after
+        # it's removed from this dict, so closing here never drops the terminal
+        # event out from under an active connection.
+        self._run_event_queues: dict[str, queue.Queue[RunEvent]] = {}
         # Guards the window between reading a run's pre-resume snapshot and the
         # background thread that invokes the graph against it -- without this,
         # two near-simultaneous resume/continue calls both read the same
@@ -150,24 +177,96 @@ class RunOrchestrator:
         with self._lock:
             self._active_resumes.discard(run_id)
 
-    def _invoke_with_timeout(self, input_data: Any, config: dict[str, Any]) -> None:
-        """Run self._graph.invoke() under a wall-clock deadline.
+    def _open_event_stream(self, run_id: str) -> None:
+        with self._lock:
+            self._run_event_queues[run_id] = queue.Queue()
 
-        Every graph.invoke() call site in this class goes through here so a hung
-        node (an LLM/Tavily call that ignores its own timeout, or a stuck
-        subgraph) can never leave a run at "running" forever -- it raises
-        instead, and the caller's existing except/finally already records that
-        as a failed run.
+    def get_event_queue(self, run_id: str) -> queue.Queue[RunEvent] | None:
+        """Return run_id's live event queue, or None if it isn't currently executing.
 
-        concurrent.futures cannot forcibly stop a running thread: on timeout,
-        the underlying invoke() call may keep executing on self._invoke_executor
-        in the background after this raises. That's an accepted limitation, not
-        a bug -- the goal here is an honest, visible run status, not reclaiming
-        the thread.
+        Read by the SSE endpoint (api/routes/runs.py) -- a None result means the
+        run is settled/paused already, so the endpoint should fall back to
+        get_run()'s current snapshot instead of waiting on a stream.
+        """
+        with self._lock:
+            return self._run_event_queues.get(run_id)
+
+    def _close_event_stream(self, run_id: str, *, final_status: RunStatus) -> None:
+        with self._lock:
+            event_queue = self._run_event_queues.pop(run_id, None)
+        if event_queue is not None:
+            event_queue.put(RunEvent(kind="run_settled", status=final_status))
+
+    def _stream_with_timeout(
+        self,
+        input_data: Any,
+        config: dict[str, Any],
+        *,
+        run_id: str | None = None,
+    ) -> None:
+        """Run self._graph.stream(..., stream_mode="updates", subgraphs=True) under
+        a wall-clock deadline, publishing each yielded chunk to run_id's live event
+        queue (opened via _open_event_stream) as it arrives.
+
+        Replaces the old single blocking self._graph.invoke() call: every graph
+        execution call site in this class goes through here so (a) a hung node (an
+        LLM/Tavily call that ignores its own timeout, or a stuck subgraph) can
+        never leave a run at "running" forever -- the same guarantee as before,
+        now enforced across the stream's iteration instead of around one blocking
+        call -- and (b) GET /runs/{run_id}/events (see api/routes/runs.py) can
+        observe each node's completion in real time instead of only learning about
+        it once the whole run settles. subgraphs=True is what makes LangGraph
+        surface a subgraph's *internal* node completions (e.g. "research_agent"
+        inside the research subgraph), not just the wrapping "research" node --
+        verified empirically against this codebase's actual subgraphs before this
+        change; it requires no changes to the subgraphs themselves.
+
+        concurrent.futures cannot forcibly stop a running thread: on timeout, the
+        underlying stream may keep executing on self._invoke_executor in the
+        background after this raises. That's an accepted limitation, not a bug --
+        the goal here is an honest, visible run status, not reclaiming the thread.
         """
         settings = get_settings()
-        future = self._invoke_executor.submit(self._graph.invoke, input_data, config)
-        future.result(timeout=settings.run_execution_timeout_seconds)
+        deadline = time.monotonic() + settings.run_execution_timeout_seconds
+        chunk_queue: queue.Queue[Any] = queue.Queue()
+        done = object()
+
+        def _drain_stream() -> None:
+            try:
+                for chunk in self._graph.stream(
+                    input_data, config, stream_mode="updates", subgraphs=True
+                ):
+                    chunk_queue.put(chunk)
+            except BaseException as exc:  # noqa: BLE001 -- re-raised on the caller's thread below
+                chunk_queue.put(exc)
+            finally:
+                chunk_queue.put(done)
+
+        self._invoke_executor.submit(_drain_stream)
+        timeout_message = (
+            f"Graph execution did not finish within "
+            f"{settings.run_execution_timeout_seconds:.0f} seconds"
+        )
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(timeout_message)
+            try:
+                item = chunk_queue.get(timeout=remaining)
+            except queue.Empty as exc:
+                raise TimeoutError(timeout_message) from exc
+            if item is done:
+                return
+            if isinstance(item, BaseException):
+                raise item
+            if run_id is not None:
+                self._publish_chunk(run_id, item)
+
+    def _publish_chunk(self, run_id: str, chunk: tuple[tuple[str, ...], dict[str, Any]]) -> None:
+        with self._lock:
+            event_queue = self._run_event_queues.get(run_id)
+        if event_queue is not None:
+            event_queue.put(RunEvent(kind="node_update", chunk=chunk))
 
     def _mark_run_tracked(self, run_id: str, *, query: str) -> None:
         """Record that run_id's background execution has started, if tracking is on."""
@@ -310,8 +409,8 @@ class RunOrchestrator:
             submitted_plan_text=submitted_plan_text,
         )
         config = build_graph_invoke_config(state)
-        self._invoke_with_timeout(state, config)
-        # The business outcome (the invoke above either succeeded or raised)
+        self._stream_with_timeout(state, config)
+        # The business outcome (the stream above either finished or raised)
         # is decided by this point -- flush/metrics are best-effort and must
         # never turn a successful invoke into a reported failure.
         with best_effort("flush_langfuse", run_id=resolved_run_id):
@@ -359,6 +458,11 @@ class RunOrchestrator:
         with self._lock:
             self._run_failures.pop(resolved_run_id, None)
             self._pending_runs[resolved_run_id] = state
+        # Opened here, synchronously, rather than as the first line inside
+        # _execute_create_run: that runs on the background thread, which could
+        # otherwise race an SSE client connecting to GET /runs/{run_id}/events
+        # before the thread has actually opened the queue.
+        self._open_event_stream(resolved_run_id)
         thread = threading.Thread(
             target=self._execute_create_run,
             args=(state, config, resolved_run_id),
@@ -478,6 +582,9 @@ class RunOrchestrator:
             self._run_failures.pop(run_id, None)
             self._pending_runs[run_id] = snapshot.values
 
+        # Opened synchronously here (see start_run's identical comment) so a
+        # racing SSE connection can never beat the background thread to it.
+        self._open_event_stream(run_id)
         thread = threading.Thread(
             target=self._execute_profile_form_resume,
             args=(run_id, form_data, config),
@@ -499,7 +606,7 @@ class RunOrchestrator:
         with best_effort("mark_run_tracked", run_id=run_id):
             self._mark_run_tracked(run_id, query=str(snapshot.values.get("query", "")))
         try:
-            self._invoke_with_timeout(Command(resume=form_data), config)
+            self._stream_with_timeout(Command(resume=form_data), config, run_id=run_id)
         except Exception as exc:
             logger.exception("Profile form resume for run %s failed", run_id)
             with self._lock:
@@ -525,6 +632,7 @@ class RunOrchestrator:
         with best_effort("sync_run_tracked", run_id=run_id):
             self._sync_run_tracked(run_id, snapshot, failed=failed)
         self._release_resume_guard(run_id)
+        self._close_event_stream(run_id, final_status=self.get_run(run_id))
 
     def continue_run(self, run_id: str, *, message: str) -> RunStatus:
         """Replan from an existing conversation when the user changes plan preferences."""
@@ -588,6 +696,9 @@ class RunOrchestrator:
             self._run_failures.pop(run_id, None)
             self._pending_runs[run_id] = {**snapshot.values, **update}
 
+        # Opened synchronously here (see start_run's identical comment) so a
+        # racing SSE connection can never beat the background thread to it.
+        self._open_event_stream(run_id)
         thread = threading.Thread(
             target=self._execute_continue_run,
             args=(run_id, update, config),
@@ -610,7 +721,9 @@ class RunOrchestrator:
         with best_effort("mark_run_tracked", run_id=run_id):
             self._mark_run_tracked(run_id, query=str(snapshot.values.get("query", "")))
         try:
-            self._invoke_with_timeout(Command(update=update, goto="supervisor"), config)
+            self._stream_with_timeout(
+                Command(update=update, goto="supervisor"), config, run_id=run_id
+            )
         except Exception as exc:
             logger.exception("Continue for run %s failed", run_id)
             with self._lock:
@@ -636,6 +749,7 @@ class RunOrchestrator:
         with best_effort("sync_run_tracked", run_id=run_id):
             self._sync_run_tracked(run_id, snapshot, failed=failed)
         self._release_resume_guard(run_id)
+        self._close_event_stream(run_id, final_status=self.get_run(run_id))
 
     def start_resume_run(self, run_id: str, *, update: dict[str, Any]) -> RunStatus:
         """Resume a HITL-paused run in a background thread and return immediately."""
@@ -651,6 +765,9 @@ class RunOrchestrator:
             self._run_failures.pop(run_id, None)
             self._pending_runs[run_id] = {**snapshot.values, **update}
 
+        # Opened synchronously here (see start_run's identical comment) so a
+        # racing SSE connection can never beat the background thread to it.
+        self._open_event_stream(run_id)
         thread = threading.Thread(
             target=self._execute_resume_run,
             args=(run_id, update, config),
@@ -673,7 +790,7 @@ class RunOrchestrator:
         with best_effort("mark_run_tracked", run_id=run_id):
             self._mark_run_tracked(run_id, query=str(snapshot.values.get("query", "")))
         try:
-            self._invoke_with_timeout(Command(update=update), config)
+            self._stream_with_timeout(Command(update=update), config, run_id=run_id)
         except Exception as exc:
             logger.exception("Resume for run %s failed", run_id)
             with self._lock:
@@ -699,6 +816,7 @@ class RunOrchestrator:
         with best_effort("sync_run_tracked", run_id=run_id):
             self._sync_run_tracked(run_id, snapshot, failed=failed)
         self._release_resume_guard(run_id)
+        self._close_event_stream(run_id, final_status=self.get_run(run_id))
 
     def _execute_create_run(
         self,
@@ -710,7 +828,7 @@ class RunOrchestrator:
         with best_effort("mark_run_tracked", run_id=run_id):
             self._mark_run_tracked(run_id, query=str(state.get("query", "")))
         try:
-            self._invoke_with_timeout(state, config)
+            self._stream_with_timeout(state, config, run_id=run_id)
         except Exception as exc:
             logger.exception("Run %s failed", run_id)
             with self._lock:
@@ -734,6 +852,7 @@ class RunOrchestrator:
             self._pending_runs.pop(run_id, None)
         with best_effort("sync_run_tracked", run_id=run_id):
             self._sync_run_tracked(run_id, snapshot, failed=failed)
+        self._close_event_stream(run_id, final_status=self.get_run(run_id))
 
     def _maybe_write_token_cost_log(
         self,
