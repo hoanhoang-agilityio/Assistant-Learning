@@ -1,4 +1,8 @@
-from core.profile.normalize import merge_profile_sources, normalize_extracted_profile
+from core.profile.normalize import (
+    merge_profile_sources,
+    normalize_extracted_profile,
+    resolve_activity_level,
+)
 from core.profile.schema import Constraints, ExtractedProfile, Goal, Profile
 
 
@@ -11,18 +15,24 @@ def test_normalize_rounds_measurements() -> None:
     assert profile["current_weight_kg"] == 85.6
 
 
-def test_normalize_derives_activity_from_days_per_week() -> None:
+def test_normalize_extracts_days_per_week() -> None:
     extracted = ExtractedProfile(constraints=Constraints(days_per_week=5))
     profile = normalize_extracted_profile(extracted)
-    assert profile["activity_level"] == "gym_5x_week"
     assert profile["days_per_week"] == 5
+    assert "activity_level" not in profile, "activity_level is never a profile field"
 
 
 def test_normalize_sedentary_days_per_week() -> None:
     extracted = ExtractedProfile(constraints=Constraints(days_per_week=0))
     profile = normalize_extracted_profile(extracted)
-    assert profile["activity_level"] == "sedentary"
     assert profile["days_per_week"] == 0
+
+
+def test_resolve_activity_level_is_a_pure_function_of_days_per_week() -> None:
+    """activity_level is never stored -- it's recomputed on demand from days_per_week."""
+    assert resolve_activity_level(5) == "gym_5x_week"
+    assert resolve_activity_level(0) == "sedentary"
+    assert resolve_activity_level(None) == "gym_3x_week"
 
 
 def test_normalize_includes_goal_fields() -> None:
@@ -34,6 +44,18 @@ def test_normalize_includes_goal_fields() -> None:
     assert profile["current_weight_kg"] == 75.0
     assert profile["target_weight_kg"] == 73.0
     assert profile["goal"] == "fat_loss"
+
+
+def test_normalize_resolves_delta_only_extraction_into_target_weight() -> None:
+    """A delta-only phrase ("lose 5kg") must resolve into target_weight_kg and never
+    persist weight_delta_kg -- see resolve_target_weight."""
+    extracted = ExtractedProfile(
+        profile=Profile(current_weight_kg=80),
+        goal=Goal(goal="fat_loss", weight_delta_kg=-5),
+    )
+    profile = merge_profile_sources(query="lose 5kg", profile={}, extracted=extracted)
+    assert profile["target_weight_kg"] == 75.0
+    assert "weight_delta_kg" not in profile
 
 
 def test_merge_profile_prefers_stored_profile() -> None:
@@ -71,8 +93,8 @@ def test_merge_profile_query_overrides_constraints() -> None:
         extracted=extracted,
     )
     assert profile["days_per_week"] == 5
-    assert profile["activity_level"] == "gym_5x_week"
     assert profile["equipment"] == "gym"
+    assert "activity_level" not in profile
 
 
 def test_merge_profile_sources_preserves_three_tier_precedence() -> None:

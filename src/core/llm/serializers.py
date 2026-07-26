@@ -1,10 +1,21 @@
 """Shared compact serializers for LLM request payloads across subgraphs."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.profile.schema import CONSTRAINT_FIELDS, PROFILE_FIELDS
 
+if TYPE_CHECKING:
+    from core.profile.goal_spec import GoalSpec
+
 _PROFILE_LLM_FIELDS: tuple[str, ...] = (*PROFILE_FIELDS, *CONSTRAINT_FIELDS)
+
+_GOAL_SPEC_LLM_FIELDS: tuple[str, ...] = (
+    "goal_archetype",
+    "weekly_rate_kg",
+    "weight_delta_kg",
+    "goal_direction",
+    "feasibility_level",
+)
 
 _MACRO_TARGET_LLM_FIELDS: tuple[str, ...] = (
     "bmr",
@@ -17,15 +28,26 @@ _MACRO_TARGET_LLM_FIELDS: tuple[str, ...] = (
 
 
 def compact_profile_for_llm(profile: dict[str, Any]) -> dict[str, Any]:
-    """Return canonical profile fields for LLM payloads, excluding query and metadata."""
-    compact = {
+    """Return canonical raw profile fields for LLM payloads, excluding query and metadata."""
+    return {
         field_name: profile[field_name]
         for field_name in _PROFILE_LLM_FIELDS
         if field_name in profile and profile.get(field_name) not in (None, "")
     }
-    if "days_per_week" in compact and "activity_level" in compact:
-        del compact["activity_level"]
-    return compact
+
+
+def compact_goal_spec_for_llm(goal_spec: "GoalSpec") -> dict[str, Any]:
+    """Return non-null GoalSpec fields for LLM goal-context payloads.
+
+    The single place callers (planning, research) pull derived goal metrics from for LLM
+    payloads, instead of each hand-picking the same keys out of an ad hoc enriched dict.
+    """
+    dumped = goal_spec.model_dump()
+    return {
+        field_name: dumped[field_name]
+        for field_name in _GOAL_SPEC_LLM_FIELDS
+        if dumped.get(field_name) not in (None, "")
+    }
 
 
 def compact_execution_plan_for_llm(
