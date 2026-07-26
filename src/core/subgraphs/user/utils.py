@@ -4,8 +4,12 @@ from typing import Any
 from pydantic import ValidationError
 
 from core.profile.extraction import extract_profile_from_query
-from core.profile.goal_spec import assess_goal_feasibility, derive_goal_spec_fields
-from core.profile.normalize import _sync_activity_and_days, merge_profile_sources
+from core.profile.goal_spec import GoalSpec, derive_goal_spec
+from core.profile.normalize import (
+    _normalize_days_per_week,
+    merge_profile_sources,
+    resolve_target_weight,
+)
 from core.profile.schema import (
     CONSTRAINT_FIELDS,
     GOAL_REQUIRED_FIELDS,
@@ -57,7 +61,12 @@ def apply_revision_overrides(
     profile: dict[str, Any],
     revision_feedback: str,
 ) -> dict[str, Any]:
-    """Re-extract plan-change fields from revision text and override the merged profile."""
+    """Re-extract plan-change fields from revision text and override the merged profile.
+
+    Raw fields only survive into the returned profile: a delta phrase in the revision text
+    (`weight_delta_kg`) is folded into `target_weight_kg` via `resolve_target_weight` and
+    discarded, exactly like the query-extraction path in `merge_profile_sources`.
+    """
     stripped = revision_feedback.strip()
     if not stripped:
         return profile
@@ -70,11 +79,11 @@ def apply_revision_overrides(
         value = overrides.get(field_name)
         if value is not None and value != "":
             updated[field_name] = value
+    resolve_target_weight(updated)
     parsed_days = _parse_days_per_week_from_text(stripped)
     if parsed_days is not None:
         updated["days_per_week"] = parsed_days
-    _sync_activity_and_days(updated)
-    updated.update(derive_goal_spec_fields(updated))
+    _normalize_days_per_week(updated)
     # Internal signal, popped by `_extract_node`: whether *this* revision text explicitly
     # named a training-frequency target, vs. days_per_week merely being carried over from the
     # prior profile. The Fitness subgraph needs this to know when profile.days_per_week should
@@ -85,36 +94,30 @@ def apply_revision_overrides(
     return updated
 
 
-def validate_profile_completeness(profile: dict[str, Any]) -> dict[str, Any]:
+def validate_profile_completeness(profile: dict[str, Any], goal_spec: GoalSpec) -> dict[str, Any]:
     """Rule-based completeness + goal-feasibility checks.
 
-    Relocated unchanged from ``planning.utils.validate_profile_data``.
+    `goal_spec` must be derived (via `derive_goal_spec`) by the caller from this same
+    `profile` -- passed in explicitly rather than recomputed here, per the single-derivation
+    threading rule (see `_validate_node`, the sole caller).
     """
-    enriched = {**profile, **derive_goal_spec_fields(profile)}
     missing_fields: list[str] = []
     for field_name in REQUIRED_PROFILE_FIELDS:
-        if enriched.get(field_name) in (None, ""):
+        if profile.get(field_name) in (None, ""):
             missing_fields.append(field_name)
 
-    goal = enriched.get("goal")
+    goal = profile.get("goal")
     if isinstance(goal, str):
         for field_name in GOAL_REQUIRED_FIELDS.get(goal, ()):
-            if enriched.get(field_name) in (None, ""):
+            if profile.get(field_name) in (None, ""):
                 missing_fields.append(field_name)
-        if goal in {"fat_loss", "muscle_gain"}:
-            has_target = enriched.get("target_weight_kg") not in (None, "")
-            has_delta = enriched.get("weight_delta_kg") not in (None, "")
-            if not has_target and not has_delta:
-                missing_fields.append("target_weight_kg")
 
-    feasibility = assess_goal_feasibility(enriched)
     unique_missing_fields = sorted(set(missing_fields))
     return {
         "missing_fields": unique_missing_fields,
-        "feasibility_issues": feasibility.get("issues", []),
-        "feasibility_requires_review": bool(missing_fields)
-        or feasibility.get("requires_hitl", False),
-        "hitl_reason": feasibility.get("message"),
+        "feasibility_issues": goal_spec.feasibility_issues,
+        "feasibility_requires_review": bool(missing_fields) or goal_spec.requires_hitl,
+        "hitl_reason": goal_spec.feasibility_message,
     }
 
 
@@ -154,7 +157,8 @@ def _format_validation_errors(exc: ValidationError) -> list[str]:
 
 def _should_skip_profile_extraction(profile: dict[str, Any]) -> bool:
     """Skip LLM extraction when the seed profile is already complete and feasible."""
-    return not validate_profile_completeness(profile)["feasibility_requires_review"]
+    goal_spec = derive_goal_spec(profile)
+    return not validate_profile_completeness(profile, goal_spec)["feasibility_requires_review"]
 
 
 def extract_profile(
@@ -176,13 +180,20 @@ def extract_profile(
 
 
 def merge_form_submission(profile: dict[str, Any], submission: dict[str, Any]) -> dict[str, Any]:
-    """Merge a submitted profile-form dict into the working profile (submission wins)."""
+    """Merge a submitted profile-form dict into the working profile (submission wins).
+
+    Raw fields only: no derived goal metric is ever written back here. This is the fix for
+    the original stale-value bug -- previously this function also recomputed
+    weight_delta_kg/weekly_rate_kg/feasibility_level/goal_archetype and stored them in the
+    returned profile, so an edit to target_weight_kg alone could leave a stale derived
+    weight_delta_kg in place. Now those values are never persisted at all; downstream
+    callers get them fresh from `derive_goal_spec(profile)`.
+    """
     merged = dict(profile)
     for field_name, value in submission.items():
         if value is not None and value != "":
             merged[field_name] = value
-    _sync_activity_and_days(merged)
-    merged.update(derive_goal_spec_fields(merged))
+    _normalize_days_per_week(merged)
     return merged
 
 

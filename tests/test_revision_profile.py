@@ -1,4 +1,5 @@
 from core.profile.extraction import configure_profile_extractor
+from core.profile.normalize import resolve_activity_level
 from core.profile.schema import Constraints, ExtractedProfile
 from core.subgraphs.fitness.schema import (
     EditOperation,
@@ -30,7 +31,8 @@ def test_apply_revision_overrides_updates_days_per_week() -> None:
     }
     updated = apply_revision_overrides(profile, "i want to change to train 5 days per week")
     assert updated["days_per_week"] == 5
-    assert updated["activity_level"] == "gym_5x_week"
+    assert "activity_level" not in updated
+    assert resolve_activity_level(updated["days_per_week"]) == "gym_5x_week"
     assert updated["age"] == 27
     assert updated["goal"] == "fat_loss"
     assert updated["_days_per_week_explicit"] is True
@@ -54,7 +56,7 @@ def test_extract_profile_applies_revision_without_reasking_profile(complete_prof
         revision_feedback="i want to change to train 5 days per week",
     )
     assert profile["days_per_week"] == 5
-    assert profile["activity_level"] == "gym_5x_week"
+    assert "activity_level" not in profile
 
 
 def test_apply_revision_overrides_parses_days_from_natural_language() -> None:
@@ -72,7 +74,8 @@ def test_apply_revision_overrides_parses_days_from_natural_language() -> None:
     configure_profile_extractor(lambda _query: ExtractedProfile())
     updated = apply_revision_overrides(profile, "i want to train 3 days per week")
     assert updated["days_per_week"] == 3
-    assert updated["activity_level"] == "gym_3x_week"
+    assert "activity_level" not in updated
+    assert resolve_activity_level(updated["days_per_week"]) == "gym_3x_week"
     assert updated["_days_per_week_explicit"] is True
 
 

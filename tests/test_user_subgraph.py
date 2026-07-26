@@ -3,6 +3,7 @@ from typing import Any
 
 from core.graph.run import create_initial_state
 from core.profile.extraction import configure_profile_extractor
+from core.profile.goal_spec import derive_goal_spec
 from core.profile.schema import Constraints, ExtractedProfile, Goal, Profile
 from core.subgraphs.user.agent import UserAgent
 from core.subgraphs.user.utils import (
@@ -265,7 +266,7 @@ def test_extract_profile_merges_query_and_profile() -> None:
     assert profile["height_cm"] == 175
     assert profile["current_weight_kg"] == 85.0
     assert profile["target_weight_kg"] == 75.0
-    assert profile["activity_level"] == "gym_3x_week"
+    assert "activity_level" not in profile
     assert profile["goal"] == "fat_loss"
     assert profile["days_per_week"] == 3
     assert "lose weight" in profile["query"]
@@ -344,7 +345,7 @@ def test_extract_profile_parses_muscle_gain_query() -> None:
     assert profile["current_weight_kg"] == 73.0
     assert profile["target_weight_kg"] == 75.0
     assert profile["goal"] == "muscle_gain"
-    assert profile["activity_level"] == "gym_5x_week"
+    assert "activity_level" not in profile
     assert profile["days_per_week"] == 5
 
 
@@ -377,19 +378,25 @@ def test_extract_profile_skips_extraction_when_profile_complete(complete_profile
         query="I want to lose weight with a gym 3x/week plan.",
         profile=complete_profile,
     )
-    assert validate_profile_completeness(profile)["feasibility_requires_review"] is False
+    assert (
+        validate_profile_completeness(profile, derive_goal_spec(profile))[
+            "feasibility_requires_review"
+        ]
+        is False
+    )
     assert profile["age"] == 30
     assert profile["goal"] == "fat_loss"
 
 
 def test_validate_profile_completeness_flags_missing_fields() -> None:
-    result = validate_profile_completeness({"goal": "fat_loss"})
+    profile = {"goal": "fat_loss"}
+    result = validate_profile_completeness(profile, derive_goal_spec(profile))
     assert "age" in result["missing_fields"]
     assert "target_weight_kg" in result["missing_fields"]
     assert result["feasibility_requires_review"] is True
 
 
 def test_validate_profile_completeness_passes_complete_profile(complete_profile: dict) -> None:
-    result = validate_profile_completeness(complete_profile)
+    result = validate_profile_completeness(complete_profile, derive_goal_spec(complete_profile))
     assert result["missing_fields"] == []
     assert result["feasibility_requires_review"] is False
