@@ -136,38 +136,110 @@ section[data-testid="stSidebar"] hr {
     max-width: 34rem;
 }
 
-/* Friendly pipeline step indicator (inside st.status) */
+/* Claude-style growing execution timeline: a frozen "Thinking…"/"Thought for
+   Ns" header, then one row per step -- checkmarked once superseded by the
+   next step (or by the run settling), never removed. At most one row is
+   ever the active spinner. ui/components/chat.py re-renders the *whole*
+   block into one placeholder on every update (so completed rows persist
+   without any DOM mutation logic), then persists the same markup into chat
+   history once the run settles -- it stays visible for the rest of the
+   conversation, not just during the live run. Only the single
+   most-recently-changed row gets the enter animation (see
+   pt-timeline__row--enter): since every render replaces the block's HTML
+   wholesale, already-settled rows would otherwise replay their fade-in on
+   every subsequent update. */
 
-.pt-step {
+.pt-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+    margin: 0 0 0.75rem;
+}
+
+.pt-timeline__header {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
-    padding: 0.4rem 0.7rem;
-    margin: 0.15rem 0 0.35rem;
-    border-radius: var(--pt-radius-md);
-    border-left: 3px solid var(--pt-step-color, var(--pt-accent));
-    background-color: color-mix(in srgb, var(--pt-step-color, var(--pt-accent)) 10%, var(--secondary-background-color));
+    gap: 0.5rem;
+    padding: 0.15rem 0.1rem;
+    margin-bottom: 0.15rem;
 }
 
-.pt-step__icon {
-    font-size: 1.05rem;
-    line-height: 1;
-    animation: pt-pulse 1.6s ease-in-out infinite;
+.pt-timeline__header-dot {
+    flex: 0 0 auto;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background-color: var(--pt-text-muted);
 }
 
-.pt-step__text {
-    font-size: 0.875rem;
+.pt-timeline__header-dot--active {
+    animation: pt-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.pt-timeline__header-text {
+    font-size: 0.8125rem;
     font-weight: 500;
-    color: var(--text-color);
+    color: var(--pt-text-muted);
 }
 
-@keyframes pt-pulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.2); opacity: 0.72; }
+.pt-timeline__row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.15rem 0.1rem;
+}
+
+.pt-timeline__icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.9rem;
+    height: 0.9rem;
+    font-size: 0.75rem;
+    line-height: 1;
+}
+
+/* Subtle pulse (opacity + scale "breathing"), not a spinning ring -- calmer
+   and closer to the reference "thinking" indicator than a classic loader. */
+.pt-timeline__icon--active {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background-color: var(--pt-text-muted);
+    animation: pt-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.pt-timeline__icon--done {
+    color: var(--pt-accent);
+    font-weight: 700;
+}
+
+.pt-timeline__text {
+    font-size: 0.875rem;
+    font-weight: 450;
+    color: var(--pt-text-muted);
+    letter-spacing: -0.005em;
+}
+
+.pt-timeline__row--enter {
+    animation: pt-row-fade 200ms ease-out;
+}
+
+@keyframes pt-dot-pulse {
+    0%, 100% { transform: scale(0.85); opacity: 0.35; }
+    50% { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes pt-row-fade {
+    from { opacity: 0; transform: translateY(2px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .pt-step__icon {
+    .pt-timeline__row--enter,
+    .pt-timeline__icon--active,
+    .pt-timeline__header-dot--active {
         animation: none;
     }
 }

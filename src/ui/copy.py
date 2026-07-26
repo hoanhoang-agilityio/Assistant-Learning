@@ -9,16 +9,6 @@ backend node names to the user.
 
 from __future__ import annotations
 
-PHASE_COLORS: dict[str, str] = {
-    "supervisor": "#64748B",
-    "planning": "#8B5CF6",
-    "research": "#3B82F6",
-    "fitness": "#F97316",
-    "verification": "#14B8A6",
-    "hitl": "#EC4899",
-    "persist": "#4CAF50",
-}
-
 PHASE_ICONS: dict[str, str] = {
     "supervisor": "🧭",
     "planning": "🗺️",
@@ -27,16 +17,6 @@ PHASE_ICONS: dict[str, str] = {
     "verification": "🔍",
     "hitl": "🙋",
     "persist": "💾",
-}
-
-PHASE_LABELS: dict[str, str] = {
-    "supervisor": "Coordinating",
-    "planning": "Planning",
-    "research": "Researching",
-    "fitness": "Building your plan",
-    "verification": "Reviewing",
-    "hitl": "Needs you",
-    "persist": "Saving",
 }
 
 # step id ("subgraph:node" or a bare top-level node name) -> (icon, message)
@@ -166,7 +146,3 @@ def step_display(step_id: str) -> tuple[str, str]:
         return STEP_COPY[step_id]
     phase = phase_of(step_id)
     return PHASE_ICONS.get(phase, "⚙️"), _prettify(step_id)
-
-
-def phase_color(step_id: str) -> str:
-    return PHASE_COLORS.get(phase_of(step_id), "#64748B")
