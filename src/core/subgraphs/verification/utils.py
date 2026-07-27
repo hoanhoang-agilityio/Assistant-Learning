@@ -246,6 +246,10 @@ def heuristic_faithfulness_data(draft_plan: str, evidence: list[dict[str, Any]])
         "pass_fail": pass_fail,
         "method": "heuristic_evidence_grounding",
         "threshold": FAITHFULNESS_PASS_THRESHOLD,
+        "answer_relevancy_score": None,
+        "context_precision_score": None,
+        "context_recall_score": None,
+        "answer_correctness_score": None,
     }
 
 

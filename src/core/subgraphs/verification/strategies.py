@@ -87,6 +87,11 @@ def _carry_forward(
                 "pass_fail": False,
                 "faithfulness_score": 0.0,
                 "method": "carry_forward_missing",
+                "threshold": 0.0,
+                "answer_relevancy_score": None,
+                "context_precision_score": None,
+                "context_recall_score": None,
+                "answer_correctness_score": None,
             }
         return {"passed": False, "issues": [missing_issue]}
 

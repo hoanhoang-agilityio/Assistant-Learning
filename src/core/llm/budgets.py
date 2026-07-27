@@ -69,9 +69,10 @@ LLM_NODE_BUDGETS: dict[str, LlmNodeBudget] = {
         node="ragas_judge",
         max_input_tokens=3500,
         exception_note=(
-            "Benchmark-only (core.evaluation.ragas). Two sequential Ragas SDK "
-            "calls (statement generation, then NLI verdict) -- cumulative budget, "
-            "not enforced via check_payload_budget since Ragas builds its own "
+            "Benchmark-only (core.evaluation.ragas). Multi-metric Ragas SDK run: "
+            "faithfulness + answer_relevancy + context precision; with reference "
+            "also context_recall + answer_correctness. Cumulative budget, not "
+            "enforced via check_payload_budget since Ragas builds its own "
             "prompts internally. Estimate, not measured; see L1 step 5 in "
             "known_limitations_remediation_plan.md."
         ),

@@ -155,7 +155,12 @@ class CitationCheckResult(VerificationCheckResult):
 
 
 class RagasFaithfulness(BaseModel):
-    """Faithfulness scoring payload persisted to verify/ragas.json."""
+    """Faithfulness / RAGAS scoring payload persisted to verify/ragas.json.
+
+    Extra ``*_score`` fields are populated by the real Ragas multi-metric
+    scorer (benchmark path). The production heuristic only fills the four
+    core fields and leaves the rest as None.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -163,6 +168,10 @@ class RagasFaithfulness(BaseModel):
     pass_fail: bool
     method: str
     threshold: float = Field(ge=0.0, le=1.0)
+    answer_relevancy_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    context_precision_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    context_recall_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    answer_correctness_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class VerificationReport(BaseModel):
