@@ -230,7 +230,11 @@ def summarize_results(results: list[BenchmarkResult]) -> dict[str, Any]:
 
 
 def evaluate_draft_faithfulness(
-    draft_plan: str, evidence: list[dict[str, Any]], *, query: str = ""
+    draft_plan: str,
+    evidence: list[dict[str, Any]],
+    *,
+    query: str = "",
+    reference: str | None = None,
 ) -> dict[str, Any]:
     """Score a draft plan against evidence.
 
@@ -239,10 +243,17 @@ def evaluate_draft_faithfulness(
     proxy production verification uses. This is the only place in this
     plan's scope that reads verification_use_real_ragas -- production's
     _ragas_faithfulness_node always uses the heuristic regardless.
+
+    ``reference`` (ground-truth answer) enables context_recall and
+    answer_correctness on the real-SDK path; ignored by the heuristic.
     """
     if get_settings().verification_use_real_ragas:
         return ragas_faithfulness_data(
-            draft_plan, evidence, query=query, judge_llm=get_standard_llm()
+            draft_plan,
+            evidence,
+            query=query,
+            judge_llm=get_standard_llm(),
+            reference=reference,
         )
     return heuristic_faithfulness_data(draft_plan, evidence)
 
@@ -304,6 +315,10 @@ def compare_faithfulness_scorers(
             )
             row["real_faithfulness_score"] = real_result["faithfulness_score"]
             row["real_pass_fail"] = real_result["pass_fail"]
+            row["real_answer_relevancy_score"] = real_result.get("answer_relevancy_score")
+            row["real_context_precision_score"] = real_result.get("context_precision_score")
+            row["real_context_recall_score"] = real_result.get("context_recall_score")
+            row["real_answer_correctness_score"] = real_result.get("answer_correctness_score")
             row["agree"] = heuristic_result["pass_fail"] == real_result["pass_fail"]
             row["false_negative"] = heuristic_result["pass_fail"] and not real_result["pass_fail"]
         per_case.append(row)
