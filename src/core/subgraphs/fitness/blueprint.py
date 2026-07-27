@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.profile.goal_spec import derive_goal_spec_fields, resolve_goal_archetype
+from core.profile.goal_spec import GoalSpec
 
 
 class PlanPhase(BaseModel):
@@ -107,13 +107,17 @@ def _build_phases(goal: str, horizon_weeks: int | None) -> list[PlanPhase]:
 def build_plan_blueprint(
     profile: dict[str, Any],
     constraints: dict[str, Any],
+    goal_spec: GoalSpec,
 ) -> PlanBlueprint:
-    """Build a deterministic plan blueprint from profile and constraints."""
-    enriched = {**profile, **derive_goal_spec_fields(profile)}
-    goal = str(enriched.get("goal", "general_fitness"))
-    days_per_week = int(enriched.get("days_per_week") or constraints.get("days_per_week") or 3)
-    equipment = str(constraints.get("equipment") or enriched.get("equipment") or "gym")
-    horizon_weeks = enriched.get("horizon_weeks")
+    """Build a deterministic plan blueprint from profile, constraints, and GoalSpec.
+
+    `goal_spec` must be derived by the caller from this same `profile` -- see the
+    single-derivation threading rule in core/profile/goal_spec.py.
+    """
+    goal = str(profile.get("goal", "general_fitness"))
+    days_per_week = int(profile.get("days_per_week") or constraints.get("days_per_week") or 3)
+    equipment = str(constraints.get("equipment") or profile.get("equipment") or "gym")
+    horizon_weeks = profile.get("horizon_weeks")
     if horizon_weeks is not None:
         horizon_weeks = int(horizon_weeks)
     progression_notes = [
@@ -126,10 +130,10 @@ def build_plan_blueprint(
         )
     return PlanBlueprint(
         goal=goal,
-        goal_archetype=str(enriched.get("goal_archetype") or resolve_goal_archetype(enriched)),
+        goal_archetype=goal_spec.goal_archetype,
         horizon_weeks=horizon_weeks,
-        weekly_rate_kg=enriched.get("weekly_rate_kg"),
-        feasibility_level=str(enriched.get("feasibility_level", "safe")),
+        weekly_rate_kg=goal_spec.weekly_rate_kg,
+        feasibility_level=goal_spec.feasibility_level,
         template_family=_template_family(goal, days_per_week, equipment),
         phases=_build_phases(goal, horizon_weeks),
         progression_notes=progression_notes,

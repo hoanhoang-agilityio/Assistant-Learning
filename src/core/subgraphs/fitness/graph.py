@@ -6,6 +6,7 @@ from langgraph.graph.state import CompiledStateGraph
 from core.agents.run_execution_plan import RunExecutionPlan
 from core.agents.state import OrchestrationState
 from core.config.settings import get_settings
+from core.profile.goal_spec import GoalSpec, derive_goal_spec
 from core.subgraphs.fitness.blueprint import build_plan_blueprint
 from core.subgraphs.fitness.normalize import normalize_submitted_plan
 from core.subgraphs.fitness.planner import generate_structured_workout
@@ -50,12 +51,18 @@ def _load_context_node(state: FitnessState) -> dict:
 
 
 def _build_blueprint_node(state: FitnessState) -> dict:
-    blueprint = build_plan_blueprint(state["profile"], state["constraints"])
-    return {"plan_blueprint": blueprint.model_dump()}
+    # GoalSpec is derived exactly once here -- profile was loaded fresh from VFS in
+    # _load_context_node and never changes again within this subgraph -- then threaded
+    # explicitly to _calculate_macros_node via FitnessState. Safe to stash there: this
+    # subgraph has no checkpointer, so the value never survives past this single invocation.
+    goal_spec = derive_goal_spec(state["profile"])
+    blueprint = build_plan_blueprint(state["profile"], state["constraints"], goal_spec)
+    return {"plan_blueprint": blueprint.model_dump(), "goal_spec": goal_spec.model_dump()}
 
 
 def _calculate_macros_node(state: FitnessState) -> dict:
-    return calculate_macros_data(state["profile"], state["constraints"])
+    goal_spec = GoalSpec.model_validate(state["goal_spec"])
+    return calculate_macros_data(state["profile"], state["constraints"], goal_spec)
 
 
 def _resolve_workout_template_node(state: FitnessState) -> dict:
@@ -375,6 +382,7 @@ def to_fitness_state(state: OrchestrationState) -> FitnessState:
         structured_findings=None,
         evidence_summary=None,
         verification_feedback=None,
+        goal_spec={},
         plan_blueprint={},
         macro_targets={},
         training_constraints={},

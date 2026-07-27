@@ -5,6 +5,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
 from core.llm.serializers import compact_execution_plan_for_llm
+from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.research.research_agent import run_research_agent
 from core.subgraphs.research.state import ResearchState
 from core.subgraphs.research.utils import (
@@ -39,10 +40,15 @@ def _research_agent_node(state: ResearchState) -> dict:
     execution_plan = load_execution_plan_for_research(state["workspace_path"])
     if execution_plan is None:
         raise ValueError("Research agent invoked without execution plan")
+    # GoalSpec is derived exactly once here -- profile was loaded fresh from VFS in
+    # _todos_gate_node and never changes again within this subgraph -- and threaded
+    # explicitly through run_research_agent's internal call chain from here on.
+    goal_spec = derive_goal_spec(state["profile"])
     result = run_research_agent(
         query=state["query"],
         request_type=state["request_type"],
         profile=state["profile"],
+        goal_spec=goal_spec,
         execution_plan=execution_plan,
         workspace_path=state["workspace_path"],
         is_reresearch=state.get("is_reresearch", False),

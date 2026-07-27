@@ -8,6 +8,7 @@ from core.llm.contracts import (
     validate_planning_payload,
     validate_research_context_payload,
 )
+from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.fitness.planner import build_planner_payload
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.planning.utils import build_planning_payload
@@ -24,8 +25,10 @@ def test_planning_payload_contract_forbids_duplicates() -> None:
 
 
 def test_planning_payload_contract_strips_profile_query() -> None:
+    profile = {"query": "lose weight", "goal": "fat_loss", "age": 30}
     payload = build_planning_payload(
-        profile={"query": "lose weight", "goal": "fat_loss", "age": 30},
+        profile=profile,
+        goal_spec=derive_goal_spec(profile),
         query="lose weight",
         request_type="fat_loss",
         constraints={},
@@ -46,10 +49,12 @@ def test_research_payload_contract_forbids_plan_markdown() -> None:
         ],
         plan_markdown=_MIN_PLAN_MARKDOWN,
     )
+    profile = {"goal": "fat_loss", "query": "Build a plan"}
     payload = build_research_context_payload(
         query="Build a plan",
         request_type="fat_loss",
-        profile={"goal": "fat_loss", "query": "Build a plan"},
+        profile=profile,
+        goal_spec=derive_goal_spec(profile),
         execution_plan=plan,
     )
     validate_research_context_payload(payload)

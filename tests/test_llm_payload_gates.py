@@ -6,6 +6,7 @@ from core.llm.budgets import LLM_NODE_BUDGETS, check_payload_budget, measure_fix
 from core.llm.metrics import estimate_payload_tokens, reset_llm_metrics
 from core.llm.payload import compact_json
 from core.profile.extraction import _EXTRACTION_SYSTEM_PROMPT
+from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.fitness.planner import build_planner_payload
 from core.subgraphs.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
 from core.subgraphs.planning.planning_agent import _PLANNING_SYSTEM_PROMPT
@@ -53,6 +54,7 @@ def test_fixture_measurements_within_budgets() -> None:
         "equipment": "gym",
     }
     query = "I want to lose weight with a gym 3x/week plan."
+    goal_spec = derive_goal_spec(profile)
     plan = _sample_plan()
     findings = ResearchFindings(
         consensus="Consensus statement with enough characters for validation.",
@@ -73,6 +75,7 @@ def test_fixture_measurements_within_budgets() -> None:
             _PLANNING_SYSTEM_PROMPT,
             build_planning_payload(
                 profile=profile,
+                goal_spec=goal_spec,
                 query=query,
                 request_type="fat_loss",
                 constraints={"equipment": "gym"},
@@ -85,6 +88,7 @@ def test_fixture_measurements_within_budgets() -> None:
                 query=query,
                 request_type="fat_loss",
                 profile=profile,
+                goal_spec=goal_spec,
                 execution_plan=plan,
             ),
         ),
@@ -95,6 +99,7 @@ def test_fixture_measurements_within_budgets() -> None:
                 query=query,
                 request_type=None,
                 profile=profile,
+                goal_spec=goal_spec,
                 extra=build_synthesis_llm_extra(
                     sources=[
                         {"title": "Source", "url": "https://example.com/other", "snippet": "x"}
