@@ -64,7 +64,8 @@ def _run_async(coro: Awaitable[Any]) -> Any:
 
 
 def _invoke_tool(tool: BaseTool, payload: dict[str, Any]) -> dict[str, Any]:
-    result = _run_async(tool.ainvoke(payload))
+    timeout = get_settings().tavily_tool_timeout_seconds
+    result = _run_async(asyncio.wait_for(tool.ainvoke(payload), timeout=timeout))
     return _parse_tool_payload(result)
 
 
@@ -94,7 +95,9 @@ async def create_tavily_mcp_client(settings: Settings | None = None) -> TavilyMC
     resolved_settings = settings or get_settings()
     connections = build_tavily_connections(resolved_settings)
     client = MultiServerMCPClient(connections=connections)
-    tools = await client.get_tools()
+    tools = await asyncio.wait_for(
+        client.get_tools(), timeout=resolved_settings.tavily_tool_timeout_seconds
+    )
     tools_by_name = {tool.name: tool for tool in tools}
 
     search_tool_name = _resolve_tool_name(tools_by_name, TAVILY_SEARCH_TOOL_ALIASES)

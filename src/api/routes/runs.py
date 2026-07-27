@@ -1,9 +1,14 @@
+import json
+import queue
+from collections.abc import Iterator
+
 from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi.responses import StreamingResponse
 
 from api.deps import get_orchestrator
 from api.schemas import ContinueRunRequest, CreateRunRequest, ResumeRunRequest, RunStatusResponse
 from api.serializers import to_run_status_response
-from core.graph.service import RunNotFoundError, RunOrchestrator
+from core.graph.service import RunEvent, RunNotFoundError, RunOrchestrator, RunStatus
 from core.rate_limit import RateLimitExceededError
 
 router = APIRouter(prefix="/runs", tags=["runs"])
@@ -35,6 +40,7 @@ def create_run(
             constraints=payload.constraints,
             user_id=user_id,
             submitted_plan_text=payload.submitted_plan_text,
+            idempotency_key=payload.idempotency_key,
         )
     except RateLimitExceededError as exc:
         raise HTTPException(
@@ -104,3 +110,88 @@ def continue_run(
             detail=str(exc),
         ) from exc
     return to_run_status_response(run_status)
+
+
+def _step_id_from_chunk(chunk: tuple[tuple[str, ...], dict]) -> Iterator[str]:
+    """Map one graph.stream(subgraphs=True) chunk to "subgraph:node" step ids.
+
+    Mirrors the "{subgraph}:{node}" convention core/subgraphs/wrapper.py already
+    writes into RunStatus.steps, so the frontend can map a streamed step id
+    through the same STEP_COPY dictionary it already uses for polling -- no new
+    copy/mapping table for the streaming path. A top-level node (empty
+    namespace) yields its bare name (e.g. "hitl", "persist"), matching those
+    same bare-name STEP_COPY entries. "__interrupt__" is LangGraph's own pseudo
+    node marking a paused run, not a step a user should see -- skipped.
+    """
+    namespace, updates = chunk
+    subgraph_name = namespace[0].split(":", 1)[0] if namespace else None
+    for node_name in updates:
+        if node_name == "__interrupt__":
+            continue
+        yield f"{subgraph_name}:{node_name}" if subgraph_name else node_name
+
+
+def _format_sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+def _run_settled_event(run_status: RunStatus) -> str:
+    return _format_sse(
+        {"type": "run_settled", "run": to_run_status_response(run_status).model_dump()}
+    )
+
+
+def _iter_run_events(
+    event_queue: "queue.Queue[RunEvent] | None",
+    initial_status: RunStatus,
+) -> Iterator[str]:
+    """SSE body for GET /runs/{run_id}/events.
+
+    If the run isn't currently executing (event_queue is None -- already
+    settled, or paused on HITL), emit one run_settled event from the current
+    snapshot and close; a narrow race can leave event_queue None a moment after
+    a run genuinely finishes starting up (opened synchronously in start_run et
+    al., but this read can still land just before that), in which case the
+    client sees one settled event still reporting "running" and should
+    reconnect -- the existing polling endpoint remains available as a fallback
+    either way. Otherwise, stream each LangGraph node update as it arrives,
+    ending with exactly one run_settled event.
+    """
+    if event_queue is None:
+        yield _run_settled_event(initial_status)
+        return
+    while True:
+        event = event_queue.get()
+        if event.kind == "run_settled":
+            assert event.status is not None
+            yield _run_settled_event(event.status)
+            return
+        assert event.chunk is not None
+        for step in _step_id_from_chunk(event.chunk):
+            yield _format_sse({"type": "node_update", "step": step})
+
+
+@router.get("/{run_id}/events")
+def stream_run_events(
+    run_id: str,
+    orchestrator: RunOrchestrator = Depends(get_orchestrator),
+) -> StreamingResponse:
+    """Stream this run's LangGraph node-lifecycle events over SSE.
+
+    Complements GET /runs/{run_id} (kept for polling clients): while a run is
+    executing, each event carries the step id of the subgraph/node that just
+    completed -- real-time, at the same granularity LangGraph itself reports,
+    rather than only once the whole run settles. The stream always ends with
+    one run_settled event carrying the same status shape /runs/{run_id}
+    returns.
+    """
+    try:
+        initial_status = orchestrator.get_run(run_id)
+    except RunNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    event_queue = orchestrator.get_event_queue(run_id)
+    return StreamingResponse(
+        _iter_run_events(event_queue, initial_status),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

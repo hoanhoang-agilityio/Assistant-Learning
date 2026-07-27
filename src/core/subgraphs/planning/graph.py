@@ -5,7 +5,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from core.agents.state import OrchestrationState
-from core.profile.goal_spec import derive_goal_spec_fields
+from core.profile.goal_spec import derive_goal_spec
 from core.profile.store import load_run_profile
 from core.subgraphs.planning.planning_agent import (
     generate_execution_plan,
@@ -37,23 +37,24 @@ def generate_plan(
     (not in utils.py) to avoid a circular import: it needs `planning_agent.py`, which itself
     imports from `utils.py`.
     """
-    enriched_profile = {**profile, **derive_goal_spec_fields(profile)}
-    template_plan = build_template_execution_plan(enriched_profile)
+    goal_spec = derive_goal_spec(profile)
+    template_plan = build_template_execution_plan(profile, goal_spec)
     if (
         template_plan is not None
-        and enriched_profile.get("feasibility_level") != "unsafe"
+        and goal_spec.feasibility_level != "unsafe"
         and not is_planning_agent_overridden()
         and not (revision_feedback or "").strip()
     ):
-        return persist_execution_plan(enriched_profile, template_plan, workspace_path)
+        return persist_execution_plan(profile, template_plan, workspace_path)
     plan = generate_execution_plan(
-        profile=enriched_profile,
+        profile=profile,
+        goal_spec=goal_spec,
         query=query,
         request_type=request_type,
         constraints=constraints or {},
         revision_feedback=revision_feedback,
     )
-    return persist_execution_plan(enriched_profile, plan, workspace_path)
+    return persist_execution_plan(profile, plan, workspace_path)
 
 
 def _generate_plan_node(state: PlanningState) -> dict:

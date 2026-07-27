@@ -4,7 +4,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from core.profile.goal_spec import rate_to_calorie_adjustment
+from core.profile.goal_spec import GoalSpec, rate_to_calorie_adjustment
+from core.profile.normalize import resolve_activity_level
 from core.profile.store import load_run_profile, split_constraints
 from core.subgraphs.fitness.schema import (
     EditOperation,
@@ -138,13 +139,17 @@ def _minimum_calories(profile: dict[str, Any]) -> float:
     return MIN_CALORIES_MALE
 
 
-def calculate_macros_data(profile: dict[str, Any], constraints: dict[str, Any]) -> dict[str, Any]:
+def calculate_macros_data(
+    profile: dict[str, Any],
+    constraints: dict[str, Any],
+    goal_spec: GoalSpec,
+) -> dict[str, Any]:
+    """`goal_spec` must be derived by the caller from this same `profile` -- see the
+    single-derivation threading rule in core/profile/goal_spec.py."""
     goal = str(profile.get("goal", "general_fitness"))
-    activity_level = str(profile.get("activity_level", "gym_3x_week"))
+    activity_level = resolve_activity_level(profile.get("days_per_week"))
     weight_kg = float(profile["current_weight_kg"])
-    weekly_rate_kg = profile.get("weekly_rate_kg")
-    if weekly_rate_kg is not None:
-        weekly_rate_kg = float(weekly_rate_kg)
+    weekly_rate_kg = goal_spec.weekly_rate_kg
 
     bmr = _calculate_bmr(profile)
     tdee = bmr * _activity_multiplier(activity_level)
@@ -461,6 +466,13 @@ def write_fitness_artifacts(
         )
     safety_feedback = safety_result.get("feedback") or []
     vfs.write("fitness/safety_flags.json", json.dumps(safety_feedback, indent=2))
+    # The feedback strings above are only the 4-flag allowlist Verification's
+    # safety_check_data historically re-derived from -- the actual pass/fail
+    # boolean validate_workout_safety_data computed (covering every flag it
+    # can emit, not just that subset) was never persisted anywhere, so an
+    # equipment mismatch, duplicate exercise, or invalid set count could pass
+    # Verification's safety gate silently. Persist it directly.
+    vfs.write("fitness/safety_passed.json", json.dumps(safety_result["passed"]))
     vfs.write(
         "fitness/normalization_findings.json",
         json.dumps(normalization_findings or [], indent=2),

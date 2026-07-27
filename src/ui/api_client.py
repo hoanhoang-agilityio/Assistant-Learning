@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import httpx
@@ -68,6 +69,71 @@ def poll_run_until_settled(
     )
 
 
+def stream_run_events(
+    client: httpx.Client,
+    run_id: str,
+    *,
+    timeout: float = DEFAULT_RUN_POLL_TIMEOUT,
+) -> Iterator[dict[str, Any]]:
+    """Consume GET /runs/{run_id}/events, yielding each parsed SSE event.
+
+    Each event is either {"type": "node_update", "step": "<subgraph>:<node>"}
+    (or a bare top-level node name) or the terminal
+    {"type": "run_settled", "run": <RunStatus dict>}.
+    """
+    with client.stream(
+        "GET",
+        f"/runs/{run_id}/events",
+        timeout=timeout,
+    ) as response:
+        response.raise_for_status()
+        for line in response.iter_lines():
+            if not line.startswith("data: "):
+                continue
+            yield json.loads(line[len("data: ") :])
+
+
+def stream_run_until_settled(
+    client: httpx.Client,
+    run_id: str,
+    *,
+    timeout: float = DEFAULT_RUN_POLL_TIMEOUT,
+    interval: float = DEFAULT_POLL_INTERVAL,
+    on_progress: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    """Drive on_progress from the run's live SSE event stream and return the
+    settled status, instead of waiting for a whole subgraph (or the poll
+    interval) before the caller sees any update.
+
+    Accumulates streamed step ids into the same {"steps": [...]} shape
+    poll_run_until_settled's status dict already carries, so on_progress
+    callers (ui/components/chat.py's write_pipeline_step) don't need to change
+    at all -- only how quickly and how often on_progress fires changes.
+    Transparently falls back to poll_run_until_settled -- network error, older
+    server without the endpoint, proxy that strips streaming responses, or the
+    stream closing early without ever sending run_settled (httpx.TimeoutException
+    is itself an httpx.HTTPError) -- so callers get graceful degradation without
+    handling two code paths themselves.
+    """
+    try:
+        accumulated_steps: list[str] = []
+        for event in stream_run_events(client, run_id, timeout=timeout):
+            event_type = event.get("type")
+            if event_type == "node_update":
+                accumulated_steps.append(event["step"])
+                if on_progress is not None:
+                    on_progress({"steps": list(accumulated_steps)})
+            elif event_type == "run_settled":
+                return event["run"]
+        raise httpx.TimeoutException(
+            f"Run {run_id} event stream ended without settling", request=None
+        )
+    except httpx.HTTPError:
+        return poll_run_until_settled(
+            client, run_id, timeout=timeout, interval=interval, on_progress=on_progress
+        )
+
+
 def continue_run(
     client: httpx.Client,
     run_id: str,
@@ -85,7 +151,7 @@ def continue_run(
         return continued
     if continued.get("status") != "running":
         return continued
-    return poll_run_until_settled(
+    return stream_run_until_settled(
         client,
         run_id,
         timeout=timeout,
@@ -128,7 +194,7 @@ def resume_run(
         return resumed
     if resumed.get("status") != "running":
         return resumed
-    return poll_run_until_settled(
+    return stream_run_until_settled(
         client,
         run_id,
         timeout=timeout,

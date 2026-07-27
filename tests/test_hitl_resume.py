@@ -154,6 +154,7 @@ def test_graph_revision_at_approval_routes_to_replan(
             "revision",
             message="Reduce training volume and add more recovery days.",
         ),
+        replan_count=paused.get("replan_count", 0),
     )
     merged: OrchestrationState = {
         **paused,
@@ -162,6 +163,30 @@ def test_graph_revision_at_approval_routes_to_replan(
         "waiting_for_user": False,
     }
     assert merged["route_decision"] == "REPLAN"
-    assert merged.get("replan_count", 0) == 0
+    # Regression (PR8): the user-initiated revision path must increment
+    # replan_count -- previously it never did, so this stayed 0 forever no
+    # matter how many revisions a user requested, and route_from_supervisor's
+    # own MAX_REPLAN_COUNT guard (routing.py) could never actually fire for
+    # this path.
+    assert merged["replan_count"] == 1
     assert merged["revision_feedback"] == "Reduce training volume and add more recovery days."
     assert route_from_supervisor(merged) == "planning"
+
+
+def test_user_revision_rejected_once_shared_replan_budget_is_exhausted(
+    approval_state: OrchestrationState,
+) -> None:
+    """Regression (PR8), end-to-end: a run that already has replan_count at
+    MAX_REPLAN_COUNT (e.g. from an earlier AI-auto REPLAN, or a prior user
+    revision) must reject a further user-initiated revision request outright
+    -- not accept it and route back into planning forever."""
+    from core.agents.rerun import MAX_REPLAN_COUNT
+
+    with pytest.raises(ValueError, match="Maximum number of plan revisions"):
+        decision_to_resume_update(
+            create_approval_decision(
+                "revision",
+                message="One more change please.",
+            ),
+            replan_count=MAX_REPLAN_COUNT,
+        )

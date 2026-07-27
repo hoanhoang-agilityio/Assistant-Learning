@@ -5,8 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from core.llm.serializers import compact_profile_for_llm
-from core.profile.goal_spec import derive_goal_spec_fields
-from core.profile.normalize import _sync_activity_and_days
+from core.profile.normalize import _normalize_days_per_week, resolve_target_weight
 from core.profile.schema import CONSTRAINT_FIELDS
 from core.vfs import VFS
 from core.vfs.layout import PLAN_PROFILE
@@ -20,8 +19,9 @@ def seed_profile(
     """Merge API-supplied profile/constraints into a flat dict and write `plan/profile.json`.
 
     Mirrors the tail of `merge_profile_sources` (constraints as base, user_profile
-    overriding, then activity/goal-spec sync) minus the LLM-extraction step, since no
-    query extraction has happened yet at create-run time.
+    overriding, then raw-field normalization) minus the LLM-extraction step, since no
+    query extraction has happened yet at create-run time. Only raw fields are persisted --
+    derived goal metrics are never written here; see `core.profile.goal_spec.derive_goal_spec`.
     """
     profile: dict[str, Any] = {}
     for field_name, value in constraints.items():
@@ -32,8 +32,8 @@ def seed_profile(
             continue
         if value is not None and value != "":
             profile[field_name] = value
-    _sync_activity_and_days(profile)
-    profile.update(derive_goal_spec_fields(profile))
+    _normalize_days_per_week(profile)
+    resolve_target_weight(profile)
     persist_profile(workspace_path, profile)
 
 

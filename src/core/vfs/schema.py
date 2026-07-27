@@ -34,21 +34,22 @@ class RevisionFeedback(BaseModel):
 
 
 class ProfileSnapshot(BaseModel):
-    """Compact profile snapshot written to plan/profile.json."""
+    """Compact profile snapshot written to plan/profile.json.
 
-    model_config = ConfigDict(extra="allow")
+    Raw user inputs only -- `extra="forbid"` so a regression that tries to persist a
+    derived goal metric (weight_delta_kg, weekly_rate_kg, feasibility_level,
+    goal_archetype, activity_level -- see core.profile.goal_spec.GoalSpec) fails loudly
+    here instead of silently round-tripping through the run workspace.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     age: int | None = None
     sex: str | None = None
     height_cm: float | None = None
     current_weight_kg: float | None = None
     target_weight_kg: float | None = None
-    weight_delta_kg: float | None = None
     horizon_weeks: int | None = None
-    weekly_rate_kg: float | None = None
-    goal_archetype: str | None = None
-    feasibility_level: str | None = None
-    activity_level: str | None = None
     goal: str | None = None
     days_per_week: int | None = None
     equipment: str | None = None

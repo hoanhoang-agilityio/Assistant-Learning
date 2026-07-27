@@ -9,6 +9,7 @@ from core.llm.factory import invoke_xhigh_structured_output
 from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.payload import compact_json
 from core.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
+from core.profile.goal_spec import GoalSpec
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.planning.utils import build_planning_payload
 
@@ -62,12 +63,17 @@ def normalize_execution_plan(plan: ExecutionPlan) -> ExecutionPlan:
 def generate_execution_plan(
     *,
     profile: dict[str, Any],
+    goal_spec: GoalSpec,
     query: str,
     request_type: str | None,
     constraints: dict[str, Any],
     revision_feedback: str | None = None,
 ) -> ExecutionPlan:
-    """Generate a structured execution plan via LLM structured output."""
+    """Generate a structured execution plan via LLM structured output.
+
+    `goal_spec` must be derived by the caller (`generate_plan`) -- passed through, not
+    recomputed here.
+    """
     if _AGENT_OVERRIDE is not None:
         return normalize_execution_plan(
             _AGENT_OVERRIDE(
@@ -79,6 +85,7 @@ def generate_execution_plan(
         )
     payload = build_planning_payload(
         profile=profile,
+        goal_spec=goal_spec,
         query=query,
         request_type=request_type,
         constraints=constraints,

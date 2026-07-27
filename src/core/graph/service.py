@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import logging
+import queue
 import threading
+import time
 import uuid
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
@@ -13,8 +18,11 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
 from core.agents.state import ApprovalStatus
+from core.config.settings import get_settings
 from core.graph.builder import build_graph
+from core.graph.idempotency_store import IdempotencyStore
 from core.graph.run import create_initial_state
+from core.graph.run_tracker import RunTracker
 from core.hitl.resume import (
     create_approval_decision,
     decision_to_resume_update,
@@ -44,6 +52,23 @@ class RunNotFoundError(LookupError):
 
 
 @dataclass(frozen=True)
+class RunEvent:
+    """One item on a run's live event queue -- either a LangGraph node update
+    (a raw ``(namespace, {node_name: state_update})`` chunk straight from
+    ``graph.stream(stream_mode="updates", subgraphs=True)``, unmodified) or the
+    terminal event closing the stream once the run settles.
+
+    This is the single source of progress data for `GET /runs/{run_id}/events`
+    (see api/routes/runs.py) -- there is no separate progress-tracking
+    abstraction layered on top of LangGraph's own streamed events.
+    """
+
+    kind: Literal["node_update", "run_settled"]
+    chunk: tuple[tuple[str, ...], dict[str, Any]] | None = None
+    status: RunStatus | None = None
+
+
+@dataclass(frozen=True)
 class RunStatus:
     """Serializable run status for API and UI consumers."""
 
@@ -69,6 +94,24 @@ class RunStatus:
     profile_form: dict[str, Any] | None = None
 
 
+@contextmanager
+def best_effort(operation: str, *, run_id: str) -> Iterator[None]:
+    """Run a non-business-critical step -- an observability flush, a metrics/
+    cost-log write, in-memory bookkeeping -- without letting its failure
+    change a run's already-recorded outcome.
+
+    Every call site wrapping this must run strictly *after* the run's
+    success/failure has already been decided (self._run_failures populated or
+    not); never wrap the code that decides that outcome itself, or a flaky
+    cleanup step could turn a genuinely successful run into a falsely
+    reported failure -- exactly the bug this helper exists to close.
+    """
+    try:
+        yield
+    except Exception:
+        logger.warning("best_effort step %r failed for run %s", operation, run_id, exc_info=True)
+
+
 class RunOrchestrator:
     """Execute and resume orchestration runs via the compiled LangGraph."""
 
@@ -76,6 +119,8 @@ class RunOrchestrator:
         self,
         checkpointer: BaseCheckpointSaver | None = None,
         rate_limiter: AIRateLimiter | None = None,
+        run_tracker: RunTracker | None = None,
+        idempotency_store: IdempotencyStore | None = None,
     ) -> None:
         # Production wiring (Postgres-backed, per settings.use_postgres_checkpointer)
         # lives in api/deps.py:get_orchestrator, the only call site that constructs
@@ -85,9 +130,29 @@ class RunOrchestrator:
         self._checkpointer = checkpointer or MemorySaver()
         self._graph: CompiledStateGraph = build_graph(checkpointer=self._checkpointer)
         self._rate_limiter = rate_limiter or AIRateLimiter()
+        # Orphan reconciliation needs a record of "in-flight" that survives a
+        # process restart; MemorySaver-backed orchestrators (tests, scripts)
+        # have no such durability to reconcile against, so run_tracker is None
+        # there and every tracking/reconciliation call below becomes a no-op.
+        self._run_tracker = run_tracker
+        # Same reasoning: idempotency needs a record that survives a restart
+        # and is visible to every replica, so it's a no-op without Postgres.
+        self._idempotency_store = idempotency_store
         self._lock = threading.Lock()
+        # One long-lived pool backs every _stream_with_timeout() call for this
+        # orchestrator's lifetime (default sizing: min(32, cpu_count + 4), so it
+        # never becomes a de facto concurrency cap on in-flight runs).
+        self._invoke_executor = ThreadPoolExecutor(thread_name_prefix="graph-invoke")
         self._pending_runs: dict[str, dict[str, Any]] = {}
         self._run_failures: dict[str, dict[str, str]] = {}
+        # One queue per currently-executing run, feeding GET /runs/{run_id}/events
+        # (see api/routes/runs.py). Opened at the start of each _execute_*
+        # background method and closed (after one final RunEvent(kind="run_settled",
+        # ...) is pushed) once that method's own cleanup has fully run -- an SSE
+        # client that already has a reference to the queue keeps draining it after
+        # it's removed from this dict, so closing here never drops the terminal
+        # event out from under an active connection.
+        self._run_event_queues: dict[str, queue.Queue[RunEvent]] = {}
         # Guards the window between reading a run's pre-resume snapshot and the
         # background thread that invokes the graph against it -- without this,
         # two near-simultaneous resume/continue calls both read the same
@@ -112,6 +177,209 @@ class RunOrchestrator:
         with self._lock:
             self._active_resumes.discard(run_id)
 
+    def _open_event_stream(self, run_id: str) -> None:
+        with self._lock:
+            self._run_event_queues[run_id] = queue.Queue()
+
+    def get_event_queue(self, run_id: str) -> queue.Queue[RunEvent] | None:
+        """Return run_id's live event queue, or None if it isn't currently executing.
+
+        Read by the SSE endpoint (api/routes/runs.py) -- a None result means the
+        run is settled/paused already, so the endpoint should fall back to
+        get_run()'s current snapshot instead of waiting on a stream.
+        """
+        with self._lock:
+            return self._run_event_queues.get(run_id)
+
+    def _close_event_stream(self, run_id: str, *, final_status: RunStatus) -> None:
+        with self._lock:
+            event_queue = self._run_event_queues.pop(run_id, None)
+        if event_queue is not None:
+            event_queue.put(RunEvent(kind="run_settled", status=final_status))
+
+    def _stream_with_timeout(
+        self,
+        input_data: Any,
+        config: dict[str, Any],
+        *,
+        run_id: str | None = None,
+    ) -> None:
+        """Run self._graph.stream(..., stream_mode="updates", subgraphs=True) under
+        a wall-clock deadline, publishing each yielded chunk to run_id's live event
+        queue (opened via _open_event_stream) as it arrives.
+
+        Replaces the old single blocking self._graph.invoke() call: every graph
+        execution call site in this class goes through here so (a) a hung node (an
+        LLM/Tavily call that ignores its own timeout, or a stuck subgraph) can
+        never leave a run at "running" forever -- the same guarantee as before,
+        now enforced across the stream's iteration instead of around one blocking
+        call -- and (b) GET /runs/{run_id}/events (see api/routes/runs.py) can
+        observe each node's completion in real time instead of only learning about
+        it once the whole run settles. subgraphs=True is what makes LangGraph
+        surface a subgraph's *internal* node completions (e.g. "research_agent"
+        inside the research subgraph), not just the wrapping "research" node --
+        verified empirically against this codebase's actual subgraphs before this
+        change; it requires no changes to the subgraphs themselves.
+
+        concurrent.futures cannot forcibly stop a running thread: on timeout, the
+        underlying stream may keep executing on self._invoke_executor in the
+        background after this raises. That's an accepted limitation, not a bug --
+        the goal here is an honest, visible run status, not reclaiming the thread.
+        """
+        settings = get_settings()
+        deadline = time.monotonic() + settings.run_execution_timeout_seconds
+        chunk_queue: queue.Queue[Any] = queue.Queue()
+        done = object()
+
+        def _drain_stream() -> None:
+            try:
+                for chunk in self._graph.stream(
+                    input_data, config, stream_mode="updates", subgraphs=True
+                ):
+                    chunk_queue.put(chunk)
+            except BaseException as exc:  # noqa: BLE001 -- re-raised on the caller's thread below
+                chunk_queue.put(exc)
+            finally:
+                chunk_queue.put(done)
+
+        self._invoke_executor.submit(_drain_stream)
+        timeout_message = (
+            f"Graph execution did not finish within "
+            f"{settings.run_execution_timeout_seconds:.0f} seconds"
+        )
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(timeout_message)
+            try:
+                item = chunk_queue.get(timeout=remaining)
+            except queue.Empty as exc:
+                raise TimeoutError(timeout_message) from exc
+            if item is done:
+                return
+            if isinstance(item, BaseException):
+                raise item
+            if run_id is not None:
+                self._publish_chunk(run_id, item)
+
+    def _publish_chunk(self, run_id: str, chunk: tuple[tuple[str, ...], dict[str, Any]]) -> None:
+        with self._lock:
+            event_queue = self._run_event_queues.get(run_id)
+        if event_queue is not None:
+            event_queue.put(RunEvent(kind="node_update", chunk=chunk))
+
+    def _mark_run_tracked(self, run_id: str, *, query: str) -> None:
+        """Record that run_id's background execution has started, if tracking is on."""
+        if self._run_tracker is not None:
+            self._run_tracker.mark_running(run_id, query=query)
+
+    def _clear_run_tracked(self, run_id: str) -> None:
+        """Remove run_id's tracking row once its background execution has settled."""
+        if self._run_tracker is not None:
+            self._run_tracker.clear(run_id)
+
+    def _sync_run_tracked(self, run_id: str, snapshot: Any, *, failed: bool) -> None:
+        """Reconcile run_id's tracking row with how its execution actually settled.
+
+        A run that paused for HITL/profile-form input is kept as
+        'waiting_hitl' (resumable, guarded by claim_resume) rather than
+        cleared -- everything else (completed, refused, or already recorded
+        in _run_failures) clears the row like before.
+        """
+        if failed:
+            self._clear_run_tracked(run_id)
+            return
+        lifecycle = _resolve_lifecycle_status(
+            snapshot.values, snapshot.next, _collect_interrupts(snapshot)
+        )
+        if lifecycle == "waiting_hitl" and self._run_tracker is not None:
+            self._run_tracker.mark_waiting(run_id, query=str(snapshot.values.get("query", "")))
+        else:
+            self._clear_run_tracked(run_id)
+
+    def _claim_resume(self, run_id: str) -> None:
+        """Atomically transition run_id from 'waiting_hitl' to 'running' before
+        resuming it, so two concurrent resume attempts -- different worker
+        processes/replicas, or a client retry racing the original request --
+        can never both execute the same resume.
+
+        No-op (relies entirely on the existing in-memory _active_resumes
+        guard, which only protects a single process) when run_tracker isn't
+        configured -- e.g. MemorySaver-backed test/script orchestrators.
+
+        Raises ValueError -- mapped to 409 Conflict by the API layer, the
+        same as every other "run is not in a resumable state" check in this
+        class -- when the claim fails.
+        """
+        if self._run_tracker is None:
+            return
+        if not self._run_tracker.claim_resume(run_id):
+            raise ValueError(f"Run {run_id} has already been resumed")
+
+    def reconcile_orphaned_runs(self) -> int:
+        """Mark every run still 'running' past the staleness window as failed.
+
+        Call at process startup (to recover work orphaned by a crash or
+        restart of a *previous* process) and periodically while running (to
+        recover a run whose own background thread died without reaching its
+        except/finally handlers, e.g. a hard interpreter-level fault). No
+        automatic retry: an orphaned run is marked failed once and stays
+        failed -- resubmitting the request is left to the caller.
+
+        No-op when run_tracker wasn't configured (MemorySaver-backed
+        orchestrators have no restart-durable record to reconcile against).
+        Returns the number of runs reconciled.
+        """
+        if self._run_tracker is None:
+            return 0
+        settings = get_settings()
+        orphaned = self._run_tracker.reconcile_orphaned_runs(
+            stale_after_seconds=settings.run_execution_timeout_seconds
+        )
+        if not orphaned:
+            return 0
+        with self._lock:
+            for run_id, query in orphaned:
+                self._run_failures[run_id] = {
+                    "error": "Run orphaned: the process executing it stopped responding",
+                    "error_class": "orphaned",
+                    "query": query,
+                }
+                self._pending_runs.pop(run_id, None)
+        logger.warning("Reconciled %d orphaned run(s): %s", len(orphaned), [r for r, _ in orphaned])
+        return len(orphaned)
+
+    def _resolve_idempotent_run_id(
+        self, idempotency_key: str | None, candidate_run_id: str
+    ) -> tuple[str, bool]:
+        """Claim idempotency_key for candidate_run_id, or resolve to the run a
+        prior request already claimed it for.
+
+        Returns (run_id, should_execute). should_execute is False when a
+        prior request already owns this key -- the caller must return that
+        existing run's status instead of starting a new execution for it.
+        A no-op (always "start a new run") when no key was supplied or no
+        idempotency_store is configured.
+        """
+        if not idempotency_key or self._idempotency_store is None:
+            return candidate_run_id, True
+        return self._idempotency_store.get_or_create(idempotency_key, candidate_run_id)
+
+    def _existing_run_status(self, run_id: str, *, query: str) -> RunStatus:
+        """Status for a run a duplicate request resolved to via idempotency.
+
+        get_run() can raise RunNotFoundError in the brief window between the
+        original request claiming the key and that same request's own
+        create_initial_state()/_pending_runs write becoming visible -- report
+        the same synthetic "running" status start_run() itself would return
+        in that window rather than surfacing a spurious 404 for a run that
+        genuinely does exist.
+        """
+        try:
+            return self.get_run(run_id)
+        except RunNotFoundError:
+            return self._pending_status(run_id, {"query": query})
+
     def create_run(
         self,
         *,
@@ -121,8 +389,14 @@ class RunOrchestrator:
         run_id: str | None = None,
         user_id: str | None = None,
         submitted_plan_text: str | None = None,
+        idempotency_key: str | None = None,
     ) -> RunStatus:
-        resolved_run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
+        candidate_run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
+        resolved_run_id, should_execute = self._resolve_idempotent_run_id(
+            idempotency_key, candidate_run_id
+        )
+        if not should_execute:
+            return self._existing_run_status(resolved_run_id, query=query)
         self._rate_limiter.reserve_request(user_id)
         reset_llm_metrics()
         state = create_initial_state(
@@ -135,10 +409,15 @@ class RunOrchestrator:
             submitted_plan_text=submitted_plan_text,
         )
         config = build_graph_invoke_config(state)
-        self._graph.invoke(state, config)
-        flush_langfuse()
+        self._stream_with_timeout(state, config)
+        # The business outcome (the stream above either finished or raised)
+        # is decided by this point -- flush/metrics are best-effort and must
+        # never turn a successful invoke into a reported failure.
+        with best_effort("flush_langfuse", run_id=resolved_run_id):
+            flush_langfuse()
         snapshot = self._graph.get_state(config)
-        self._maybe_write_token_cost_log(snapshot.values, snapshot.next)
+        with best_effort("write_token_cost_log", run_id=resolved_run_id):
+            self._maybe_write_token_cost_log(snapshot.values, snapshot.next)
         return self._to_status(
             resolved_run_id,
             snapshot.values,
@@ -155,9 +434,15 @@ class RunOrchestrator:
         run_id: str | None = None,
         user_id: str | None = None,
         submitted_plan_text: str | None = None,
+        idempotency_key: str | None = None,
     ) -> RunStatus:
         """Start a run in a background thread and return immediately."""
-        resolved_run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
+        candidate_run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
+        resolved_run_id, should_execute = self._resolve_idempotent_run_id(
+            idempotency_key, candidate_run_id
+        )
+        if not should_execute:
+            return self._existing_run_status(resolved_run_id, query=query)
         self._rate_limiter.reserve_request(user_id)
         reset_llm_metrics()
         state = create_initial_state(
@@ -173,6 +458,11 @@ class RunOrchestrator:
         with self._lock:
             self._run_failures.pop(resolved_run_id, None)
             self._pending_runs[resolved_run_id] = state
+        # Opened here, synchronously, rather than as the first line inside
+        # _execute_create_run: that runs on the background thread, which could
+        # otherwise race an SSE client connecting to GET /runs/{run_id}/events
+        # before the thread has actually opened the queue.
+        self._open_event_stream(resolved_run_id)
         thread = threading.Thread(
             target=self._execute_create_run,
             args=(state, config, resolved_run_id),
@@ -236,9 +526,10 @@ class RunOrchestrator:
             if snapshot.next != ("hitl",) and not snapshot.values.get("waiting_for_user"):
                 raise ValueError("Run is not waiting for HITL input")
 
+            replan_count = int(snapshot.values.get("replan_count", 0))
             if decision_type is not None:
                 decision = create_approval_decision(decision_type, message)
-                update = decision_to_resume_update(decision)
+                update = decision_to_resume_update(decision, replan_count=replan_count)
             else:
                 if not user_response:
                     raise ValueError("user_response or decision_type is required")
@@ -259,7 +550,7 @@ class RunOrchestrator:
                 # extract/validate loop decides whether that revision text actually touched the
                 # profile (looping into its form) or can pass straight through.
                 feedback = update.get("user_response") or message or ""
-                update.update(user_revision_to_replan_update(feedback))
+                update.update(user_revision_to_replan_update(feedback, replan_count=replan_count))
                 update["profile_complete"] = False
                 update["profile_valid"] = False
                 workspace_path = snapshot.values.get("workspace_path")
@@ -285,11 +576,15 @@ class RunOrchestrator:
             raise RunNotFoundError(f"Run not found: {run_id}")
         if snapshot.next != ("user",):
             raise ValueError("Run is not waiting for the profile form")
+        self._claim_resume(run_id)
 
         with self._lock:
             self._run_failures.pop(run_id, None)
             self._pending_runs[run_id] = snapshot.values
 
+        # Opened synchronously here (see start_run's identical comment) so a
+        # racing SSE connection can never beat the background thread to it.
+        self._open_event_stream(run_id)
         thread = threading.Thread(
             target=self._execute_profile_form_resume,
             args=(run_id, form_data, config),
@@ -308,9 +603,10 @@ class RunOrchestrator:
         snapshot = self._graph.get_state(config)
         user_id = str(snapshot.values.get("user_id", ""))
         context_token = set_rate_limit_user_id(user_id or None)
+        with best_effort("mark_run_tracked", run_id=run_id):
+            self._mark_run_tracked(run_id, query=str(snapshot.values.get("query", "")))
         try:
-            self._graph.invoke(Command(resume=form_data), config)
-            flush_langfuse()
+            self._stream_with_timeout(Command(resume=form_data), config, run_id=run_id)
         except Exception as exc:
             logger.exception("Profile form resume for run %s failed", run_id)
             with self._lock:
@@ -319,15 +615,24 @@ class RunOrchestrator:
                     "error": str(exc),
                     "query": str(snapshot.values.get("query", "")),
                 }
-        finally:
-            snapshot = self._graph.get_state(config)
-            with self._lock:
-                failed = run_id in self._run_failures
+        # The run's outcome is fully decided above -- everything below is
+        # best-effort cleanup/observability/bookkeeping that must never be
+        # allowed to change it.
+        with best_effort("flush_langfuse", run_id=run_id):
+            flush_langfuse()
+        snapshot = self._graph.get_state(config)
+        with self._lock:
+            failed = run_id in self._run_failures
+        with best_effort("write_token_cost_log", run_id=run_id):
             self._maybe_write_token_cost_log(snapshot.values, snapshot.next, failed=failed)
+        with best_effort("reset_rate_limit_user_id", run_id=run_id):
             reset_rate_limit_user_id(context_token)
-            with self._lock:
-                self._pending_runs.pop(run_id, None)
-            self._release_resume_guard(run_id)
+        with self._lock:
+            self._pending_runs.pop(run_id, None)
+        with best_effort("sync_run_tracked", run_id=run_id):
+            self._sync_run_tracked(run_id, snapshot, failed=failed)
+        self._release_resume_guard(run_id)
+        self._close_event_stream(run_id, final_status=self.get_run(run_id))
 
     def continue_run(self, run_id: str, *, message: str) -> RunStatus:
         """Replan from an existing conversation when the user changes plan preferences."""
@@ -347,8 +652,13 @@ class RunOrchestrator:
             if lifecycle not in {"completed", "waiting_hitl"}:
                 raise ValueError("Run cannot accept plan changes in its current state")
 
+            # Built (and, if the shared replan budget is exhausted, raised) before
+            # reserving rate-limit quota -- a rejected revision request shouldn't
+            # consume a request from the user's daily cap.
+            update = user_revision_to_replan_update(
+                feedback, replan_count=int(snapshot.values.get("replan_count", 0))
+            )
             self._rate_limiter.reserve_request(str(snapshot.values.get("user_id", "")) or None)
-            update = user_revision_to_replan_update(feedback)
             # The routing guard (route_from_supervisor) re-enters the User subgraph for this
             # REPLAN since profile_complete/profile_valid is now False -- see resume_run's
             # revision_requested branch for the same pattern.
@@ -386,6 +696,9 @@ class RunOrchestrator:
             self._run_failures.pop(run_id, None)
             self._pending_runs[run_id] = {**snapshot.values, **update}
 
+        # Opened synchronously here (see start_run's identical comment) so a
+        # racing SSE connection can never beat the background thread to it.
+        self._open_event_stream(run_id)
         thread = threading.Thread(
             target=self._execute_continue_run,
             args=(run_id, update, config),
@@ -405,9 +718,12 @@ class RunOrchestrator:
         snapshot = self._graph.get_state(config)
         user_id = str(snapshot.values.get("user_id", ""))
         context_token = set_rate_limit_user_id(user_id or None)
+        with best_effort("mark_run_tracked", run_id=run_id):
+            self._mark_run_tracked(run_id, query=str(snapshot.values.get("query", "")))
         try:
-            self._graph.invoke(Command(update=update, goto="supervisor"), config)
-            flush_langfuse()
+            self._stream_with_timeout(
+                Command(update=update, goto="supervisor"), config, run_id=run_id
+            )
         except Exception as exc:
             logger.exception("Continue for run %s failed", run_id)
             with self._lock:
@@ -416,15 +732,24 @@ class RunOrchestrator:
                     "error": str(exc),
                     "query": str(snapshot.values.get("query", "")),
                 }
-        finally:
-            snapshot = self._graph.get_state(config)
-            with self._lock:
-                failed = run_id in self._run_failures
+        # The run's outcome is fully decided above -- everything below is
+        # best-effort cleanup/observability/bookkeeping that must never be
+        # allowed to change it.
+        with best_effort("flush_langfuse", run_id=run_id):
+            flush_langfuse()
+        snapshot = self._graph.get_state(config)
+        with self._lock:
+            failed = run_id in self._run_failures
+        with best_effort("write_token_cost_log", run_id=run_id):
             self._maybe_write_token_cost_log(snapshot.values, snapshot.next, failed=failed)
+        with best_effort("reset_rate_limit_user_id", run_id=run_id):
             reset_rate_limit_user_id(context_token)
-            with self._lock:
-                self._pending_runs.pop(run_id, None)
-            self._release_resume_guard(run_id)
+        with self._lock:
+            self._pending_runs.pop(run_id, None)
+        with best_effort("sync_run_tracked", run_id=run_id):
+            self._sync_run_tracked(run_id, snapshot, failed=failed)
+        self._release_resume_guard(run_id)
+        self._close_event_stream(run_id, final_status=self.get_run(run_id))
 
     def start_resume_run(self, run_id: str, *, update: dict[str, Any]) -> RunStatus:
         """Resume a HITL-paused run in a background thread and return immediately."""
@@ -434,11 +759,15 @@ class RunOrchestrator:
             raise RunNotFoundError(f"Run not found: {run_id}")
         if snapshot.next != ("hitl",) and not snapshot.values.get("waiting_for_user"):
             raise ValueError("Run is not waiting for HITL input")
+        self._claim_resume(run_id)
 
         with self._lock:
             self._run_failures.pop(run_id, None)
             self._pending_runs[run_id] = {**snapshot.values, **update}
 
+        # Opened synchronously here (see start_run's identical comment) so a
+        # racing SSE connection can never beat the background thread to it.
+        self._open_event_stream(run_id)
         thread = threading.Thread(
             target=self._execute_resume_run,
             args=(run_id, update, config),
@@ -458,9 +787,10 @@ class RunOrchestrator:
         snapshot = self._graph.get_state(config)
         user_id = str(snapshot.values.get("user_id", ""))
         context_token = set_rate_limit_user_id(user_id or None)
+        with best_effort("mark_run_tracked", run_id=run_id):
+            self._mark_run_tracked(run_id, query=str(snapshot.values.get("query", "")))
         try:
-            self._graph.invoke(Command(update=update), config)
-            flush_langfuse()
+            self._stream_with_timeout(Command(update=update), config, run_id=run_id)
         except Exception as exc:
             logger.exception("Resume for run %s failed", run_id)
             with self._lock:
@@ -469,15 +799,24 @@ class RunOrchestrator:
                     "error": str(exc),
                     "query": str(snapshot.values.get("query", "")),
                 }
-        finally:
-            snapshot = self._graph.get_state(config)
-            with self._lock:
-                failed = run_id in self._run_failures
+        # The run's outcome is fully decided above -- everything below is
+        # best-effort cleanup/observability/bookkeeping that must never be
+        # allowed to change it.
+        with best_effort("flush_langfuse", run_id=run_id):
+            flush_langfuse()
+        snapshot = self._graph.get_state(config)
+        with self._lock:
+            failed = run_id in self._run_failures
+        with best_effort("write_token_cost_log", run_id=run_id):
             self._maybe_write_token_cost_log(snapshot.values, snapshot.next, failed=failed)
+        with best_effort("reset_rate_limit_user_id", run_id=run_id):
             reset_rate_limit_user_id(context_token)
-            with self._lock:
-                self._pending_runs.pop(run_id, None)
-            self._release_resume_guard(run_id)
+        with self._lock:
+            self._pending_runs.pop(run_id, None)
+        with best_effort("sync_run_tracked", run_id=run_id):
+            self._sync_run_tracked(run_id, snapshot, failed=failed)
+        self._release_resume_guard(run_id)
+        self._close_event_stream(run_id, final_status=self.get_run(run_id))
 
     def _execute_create_run(
         self,
@@ -486,9 +825,10 @@ class RunOrchestrator:
         run_id: str,
     ) -> None:
         context_token = set_rate_limit_user_id(str(state.get("user_id", "")) or None)
+        with best_effort("mark_run_tracked", run_id=run_id):
+            self._mark_run_tracked(run_id, query=str(state.get("query", "")))
         try:
-            self._graph.invoke(state, config)
-            flush_langfuse()
+            self._stream_with_timeout(state, config, run_id=run_id)
         except Exception as exc:
             logger.exception("Run %s failed", run_id)
             with self._lock:
@@ -496,14 +836,23 @@ class RunOrchestrator:
                     "error": str(exc),
                     "query": str(state.get("query", "")),
                 }
-        finally:
-            snapshot = self._graph.get_state(config)
-            with self._lock:
-                failed = run_id in self._run_failures
+        # The run's outcome is fully decided above -- everything below is
+        # best-effort cleanup/observability/bookkeeping that must never be
+        # allowed to change it.
+        with best_effort("flush_langfuse", run_id=run_id):
+            flush_langfuse()
+        snapshot = self._graph.get_state(config)
+        with self._lock:
+            failed = run_id in self._run_failures
+        with best_effort("write_token_cost_log", run_id=run_id):
             self._maybe_write_token_cost_log(snapshot.values, snapshot.next, failed=failed)
+        with best_effort("reset_rate_limit_user_id", run_id=run_id):
             reset_rate_limit_user_id(context_token)
-            with self._lock:
-                self._pending_runs.pop(run_id, None)
+        with self._lock:
+            self._pending_runs.pop(run_id, None)
+        with best_effort("sync_run_tracked", run_id=run_id):
+            self._sync_run_tracked(run_id, snapshot, failed=failed)
+        self._close_event_stream(run_id, final_status=self.get_run(run_id))
 
     def _maybe_write_token_cost_log(
         self,

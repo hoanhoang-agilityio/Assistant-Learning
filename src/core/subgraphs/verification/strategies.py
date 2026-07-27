@@ -51,7 +51,11 @@ def _run_consistency(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def _run_safety(state: dict[str, Any]) -> dict[str, Any]:
-    return safety_check_data(state["draft_plan"], state["safety_flags"])
+    return safety_check_data(
+        state["draft_plan"],
+        state["safety_flags"],
+        fitness_safety_passed=state.get("fitness_safety_passed"),
+    )
 
 
 def _run_faithfulness(state: dict[str, Any]) -> dict[str, Any]:

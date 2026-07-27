@@ -12,6 +12,7 @@ class FitnessState(TypedDict):
     structured_findings: dict | None
     evidence_summary: str | None
     verification_feedback: str | None
+    goal_spec: dict
     plan_blueprint: dict
     macro_targets: dict
     training_constraints: dict

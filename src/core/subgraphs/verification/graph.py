@@ -30,6 +30,7 @@ def _load_context_node(state: VerificationState) -> dict:
         "training_plan": context["training_plan"],
         "safety_flags": context["safety_flags"],
         "plan_blueprint": context["plan_blueprint"],
+        "fitness_safety_passed": context["fitness_safety_passed"],
     }
 
 
@@ -124,6 +125,7 @@ def to_verification_state(state: OrchestrationState) -> VerificationState:
         macro_targets={},
         training_plan={},
         safety_flags=[],
+        fitness_safety_passed=None,
         plan_blueprint={},
         verification_report={},
         faithfulness_score=None,

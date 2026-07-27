@@ -35,18 +35,17 @@ GOAL_REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "fat_loss": (),
     "muscle_gain": (),
 }
+# Raw user inputs only. Derived goal metrics (weight_delta_kg, weekly_rate_kg,
+# feasibility_level, goal_archetype, goal_direction) and activity_level (a pure function
+# of days_per_week) are never persisted here -- see core/profile/goal_spec.py's GoalSpec
+# and core/profile/normalize.py's resolve_activity_level.
 PROFILE_FIELDS: tuple[str, ...] = (
     "age",
     "sex",
     "height_cm",
     "current_weight_kg",
     "target_weight_kg",
-    "weight_delta_kg",
     "horizon_weeks",
-    "weekly_rate_kg",
-    "goal_archetype",
-    "feasibility_level",
-    "activity_level",
     "goal",
 )
 CONSTRAINT_FIELDS: tuple[str, ...] = (

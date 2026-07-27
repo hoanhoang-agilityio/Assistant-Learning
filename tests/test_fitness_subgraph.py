@@ -7,6 +7,7 @@ import pytest
 from core.agents.state import OrchestrationState
 from core.config.settings import get_settings
 from core.graph.run import create_initial_state
+from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.fitness.agent import FitnessAgent
 from core.subgraphs.fitness.graph import (
     _load_context_node,
@@ -142,7 +143,7 @@ def test_load_context_node_hydrates_constraints_from_vfs(workspace_root: Path) -
 
 
 def test_calculate_macros_returns_targets(complete_profile: dict[str, Any]) -> None:
-    result = calculate_macros_data(complete_profile, {})
+    result = calculate_macros_data(complete_profile, {}, derive_goal_spec(complete_profile))
     macros = result["macro_targets"]
     assert macros["calories"] > 0
     assert macros["protein_g"] > 0
@@ -161,7 +162,9 @@ def test_calculate_macros_prefers_profile_training_days_over_constraints() -> No
         "goal": "muscle_gain",
         "days_per_week": 5,
     }
-    result = calculate_macros_data(profile, {"days_per_week": 4, "equipment": "gym"})
+    result = calculate_macros_data(
+        profile, {"days_per_week": 4, "equipment": "gym"}, derive_goal_spec(profile)
+    )
     assert result["training_constraints"]["days_per_week"] == 5
     assert result["macro_targets"]["activity_level"] == "gym_5x_week"
 
@@ -423,7 +426,7 @@ def test_write_fitness_artifacts_persists_expected_files(
     fitness_state: FitnessState,
     complete_profile: dict[str, Any],
 ) -> None:
-    macro_result = calculate_macros_data(complete_profile, {})
+    macro_result = calculate_macros_data(complete_profile, {}, derive_goal_spec(complete_profile))
     structured_workout = default_structured_workout(
         complete_profile,
         {"days_per_week": 3},

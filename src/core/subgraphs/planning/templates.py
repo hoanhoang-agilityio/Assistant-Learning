@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
+from core.profile.goal_spec import GoalSpec
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 
 
@@ -300,10 +301,15 @@ def _general_fitness(profile: dict[str, Any]) -> ExecutionPlan:
     )
 
 
-def build_template_execution_plan(profile: dict[str, Any]) -> ExecutionPlan | None:
-    """Return a deterministic execution plan for a known goal archetype."""
-    archetype = str(profile.get("goal_archetype", "general_fitness"))
-    builder = _TEMPLATES.get(archetype)
+def build_template_execution_plan(
+    profile: dict[str, Any], goal_spec: GoalSpec
+) -> ExecutionPlan | None:
+    """Return a deterministic execution plan for a known goal archetype.
+
+    `goal_spec` must be derived by the caller from this same `profile` -- see the
+    single-derivation threading rule in core/profile/goal_spec.py.
+    """
+    builder = _TEMPLATES.get(goal_spec.goal_archetype)
     if builder is None:
         return None
     return builder(profile)

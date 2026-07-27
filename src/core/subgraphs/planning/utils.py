@@ -4,8 +4,8 @@ from typing import Any
 
 from core.agents.rerun import STRUCTURAL_ISSUE_MARKERS
 from core.llm.contracts import validate_planning_payload
-from core.llm.serializers import compact_profile_for_llm
-from core.profile.goal_spec import derive_goal_spec_fields
+from core.llm.serializers import compact_goal_spec_for_llm, compact_profile_for_llm
+from core.profile.goal_spec import GoalSpec, derive_goal_spec
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.planning.templates import build_template_execution_plan
 from core.subgraphs.user.utils import load_stored_profile
@@ -39,20 +39,24 @@ __all__ = [
 def build_planning_payload(
     *,
     profile: dict[str, Any],
+    goal_spec: GoalSpec,
     query: str,
     request_type: str | None,
     constraints: dict[str, Any],
     revision_feedback: str | None = None,
 ) -> dict[str, Any]:
-    """Build a deduplicated payload for the Planning Agent LLM call."""
-    enriched_profile = {**profile, **derive_goal_spec_fields(profile)}
-    compact_profile = compact_profile_for_llm(enriched_profile)
+    """Build a deduplicated payload for the Planning Agent LLM call.
+
+    `goal_spec` must be derived by the caller (`generate_plan`) from this same `profile`,
+    not recomputed here -- see the single-derivation threading rule.
+    """
+    compact_profile = compact_profile_for_llm(profile)
     payload: dict[str, Any] = {"profile": compact_profile}
     goal_context = {
-        key: enriched_profile[key]
-        for key in ("goal_archetype", "horizon_weeks", "weekly_rate_kg", "feasibility_level")
-        if enriched_profile.get(key) not in (None, "")
+        "horizon_weeks": profile.get("horizon_weeks"),
+        **compact_goal_spec_for_llm(goal_spec),
     }
+    goal_context = {key: value for key, value in goal_context.items() if value not in (None, "")}
     if goal_context:
         payload["goal_context"] = goal_context
     stripped_query = query.strip()
@@ -195,8 +199,9 @@ def persist_execution_plan(
 
 def build_default_execution_plan(profile: dict[str, Any] | None = None) -> ExecutionPlan:
     """Build a deterministic fallback execution plan for tests and benchmarks."""
-    resolved_profile = {**(profile or {}), **derive_goal_spec_fields(profile or {})}
-    template_plan = build_template_execution_plan(resolved_profile)
+    resolved_profile = profile or {}
+    goal_spec = derive_goal_spec(resolved_profile)
+    template_plan = build_template_execution_plan(resolved_profile, goal_spec)
     if template_plan is not None:
         return template_plan
     goal = resolved_profile.get("goal", "general_fitness")
