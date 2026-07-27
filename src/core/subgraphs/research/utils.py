@@ -7,13 +7,18 @@ from typing import Any
 
 from core.config.settings import get_settings
 from core.llm.contracts import validate_research_context_payload
-from core.llm.serializers import compact_execution_plan_for_llm, compact_profile_for_llm
+from core.llm.serializers import (
+    compact_execution_plan_for_llm,
+    compact_goal_spec_for_llm,
+    compact_profile_for_llm,
+)
 from core.mcp.tavily_client import (
     TAVILY_EXTRACT_TOOL,
     TAVILY_SEARCH_TOOL,
     get_tavily_client,
 )
 from core.observability.tracing import traced_tavily_call
+from core.profile.goal_spec import GoalSpec
 from core.profile.store import load_run_profile
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.planning.utils import (
@@ -167,20 +172,18 @@ def build_synthesis_llm_extra(
     }
 
 
-def build_goal_context(profile: dict[str, Any]) -> dict[str, Any]:
-    """Return compact goal/timeline context for research payloads."""
-    return {
-        key: profile[key]
-        for key in (
-            "goal",
-            "goal_archetype",
-            "horizon_weeks",
-            "weekly_rate_kg",
-            "weight_delta_kg",
-            "feasibility_level",
-        )
-        if profile.get(key) not in (None, "")
+def build_goal_context(profile: dict[str, Any], goal_spec: GoalSpec) -> dict[str, Any]:
+    """Return compact goal/timeline context for research payloads.
+
+    `goal_spec` must be derived by the caller from this same `profile` -- see the
+    single-derivation threading rule in core/profile/goal_spec.py.
+    """
+    goal_context = {
+        "goal": profile.get("goal"),
+        "horizon_weeks": profile.get("horizon_weeks"),
+        **compact_goal_spec_for_llm(goal_spec),
     }
+    return {key: value for key, value in goal_context.items() if value not in (None, "")}
 
 
 def build_research_context_payload(
@@ -188,13 +191,14 @@ def build_research_context_payload(
     query: str,
     request_type: str | None,
     profile: dict[str, Any],
+    goal_spec: GoalSpec,
     execution_plan: ExecutionPlan | None = None,
     include_task_rationale: bool = True,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a deduplicated payload for Research Agent LLM calls."""
     payload: dict[str, Any] = {"profile": compact_profile_for_llm(profile)}
-    goal_context = build_goal_context(profile)
+    goal_context = build_goal_context(profile, goal_spec)
     if goal_context:
         payload["goal_context"] = goal_context
     stripped_query = query.strip()

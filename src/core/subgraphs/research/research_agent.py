@@ -18,6 +18,7 @@ from core.llm.factory import (
 )
 from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.payload import compact_json
+from core.profile.goal_spec import GoalSpec
 from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.research.prompts import (
     EVALUATION_SYSTEM_PROMPT,
@@ -129,12 +130,14 @@ def _plan_search_queries(
     query: str,
     request_type: str | None,
     profile: dict[str, Any],
+    goal_spec: GoalSpec,
     execution_plan: ExecutionPlan,
 ) -> SearchQueryBatch:
     payload = build_research_context_payload(
         query=query,
         request_type=request_type,
         profile=profile,
+        goal_spec=goal_spec,
         execution_plan=execution_plan,
     )
     return _invoke_with_node(
@@ -346,6 +349,7 @@ def _evaluate_evidence(
     *,
     query: str,
     profile: dict[str, Any],
+    goal_spec: GoalSpec,
     execution_plan: ExecutionPlan,
     sources: list[dict[str, Any]],
     evidence: list[dict[str, Any]],
@@ -357,6 +361,7 @@ def _evaluate_evidence(
         query=query,
         request_type=None,
         profile=profile,
+        goal_spec=goal_spec,
         execution_plan=execution_plan,
         include_task_rationale=False,
         extra=build_eval_llm_extra(sources, evidence),
@@ -376,6 +381,7 @@ def _run_react_loop(
     query: str,
     request_type: str | None,
     profile: dict[str, Any],
+    goal_spec: GoalSpec,
     execution_plan: ExecutionPlan,
     query_batch: SearchQueryBatch,
     session: _ResearchSession,
@@ -397,6 +403,7 @@ def _run_react_loop(
         query=query,
         request_type=request_type,
         profile=profile,
+        goal_spec=goal_spec,
     )
     messages: list = [
         SystemMessage(content=REACT_SYSTEM_PROMPT),
@@ -446,6 +453,7 @@ def _run_react_loop(
     evaluation = _evaluate_evidence(
         query=query,
         profile=profile,
+        goal_spec=goal_spec,
         execution_plan=execution_plan,
         sources=session.sources,
         evidence=session.evidence,
@@ -465,6 +473,7 @@ def _synthesize_findings(
     *,
     query: str,
     profile: dict[str, Any],
+    goal_spec: GoalSpec,
     sources: list[dict[str, Any]],
     evidence: list[dict[str, Any]],
 ) -> ResearchFindings:
@@ -472,6 +481,7 @@ def _synthesize_findings(
         query=query,
         request_type=None,
         profile=profile,
+        goal_spec=goal_spec,
         extra=build_synthesis_llm_extra(sources, evidence),
     )
     return _invoke_with_node(
@@ -489,11 +499,16 @@ def run_research_agent(
     query: str,
     request_type: str | None,
     profile: dict[str, Any],
+    goal_spec: GoalSpec,
     execution_plan: ExecutionPlan,
     workspace_path: str | None = None,
     is_reresearch: bool = False,
 ) -> ResearchAgentResult:
-    """Execute the full Research Agent pipeline."""
+    """Execute the full Research Agent pipeline.
+
+    `goal_spec` must be derived by the caller (`_research_agent_node`) from this same
+    `profile` -- passed through, never recomputed inside this module.
+    """
     if _AGENT_OVERRIDE is not None:
         return _AGENT_OVERRIDE(
             query=query,
@@ -519,6 +534,7 @@ def run_research_agent(
             query=query,
             request_type=request_type,
             profile=profile,
+            goal_spec=goal_spec,
             execution_plan=execution_plan,
         )
         used_tavily = _run_planned_searches(query_batch, session, profile=profile)
@@ -531,6 +547,7 @@ def run_research_agent(
                 query=query,
                 request_type=request_type,
                 profile=profile,
+                goal_spec=goal_spec,
                 execution_plan=execution_plan,
                 query_batch=query_batch,
                 session=session,
@@ -545,6 +562,7 @@ def run_research_agent(
     structured_findings = _synthesize_findings(
         query=query,
         profile=profile,
+        goal_spec=goal_spec,
         sources=ranked_sources,
         evidence=merged_evidence,
     )

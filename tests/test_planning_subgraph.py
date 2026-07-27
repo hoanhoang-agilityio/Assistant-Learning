@@ -6,6 +6,7 @@ import pytest
 
 from core.agents.state import OrchestrationState
 from core.profile.extraction import configure_profile_extractor
+from core.profile.goal_spec import derive_goal_spec
 from core.profile.schema import ExtractedProfile
 from core.profile.store import load_run_profile, persist_profile
 from core.subgraphs.planning.agent import PlanningAgent
@@ -83,20 +84,20 @@ def _mock_fat_loss_execution_plan(**_kwargs: Any) -> ExecutionPlan:
 
 @pytest.fixture
 def planning_state(workspace_root: Path, complete_profile: dict) -> PlanningState:
-    """Planning always trusts an already-complete, already-enriched profile on VFS.
+    """Planning always trusts an already-complete, already-validated raw profile on VFS.
 
-    Enrichment (goal_archetype/feasibility_level/weight_delta_kg/etc.) is normally
-    performed by the User subgraph before Planning ever runs -- simulate that here via
-    ``extract_profile`` directly (skips the LLM since ``complete_profile`` is already
-    complete/feasible), then persist it to `plan/profile.json` the same way the User
-    subgraph's `_persist_node` does. Planning now loads the profile from VFS inside its
-    nodes rather than from an embedded `PlanningState` field, so the fixture must seed
+    Completion/validation is normally performed by the User subgraph before Planning ever
+    runs -- simulate that here via ``extract_profile`` directly (skips the LLM since
+    ``complete_profile`` is already complete/feasible), then persist it to
+    `plan/profile.json` the same way the User subgraph's `_persist_node` does. Planning
+    derives `GoalSpec` fresh from this raw profile itself (never from a cached/enriched
+    copy) rather than from an embedded `PlanningState` field, so the fixture must seed
     that file itself.
     """
     query = "I want to lose weight with a gym 3x/week plan."
     workspace_path = str(workspace_root / "runs" / "plan-run")
-    enriched_profile = extract_profile(query=query, profile=complete_profile)
-    persist_profile(workspace_path, enriched_profile)
+    normalized_profile = extract_profile(query=query, profile=complete_profile)
+    persist_profile(workspace_path, normalized_profile)
     return PlanningState(
         query=query,
         request_type="fat_loss",
@@ -134,6 +135,7 @@ def test_build_planning_payload_deduplicates_constraints(complete_profile: dict)
     constraints = {"days_per_week": 3, "equipment": "gym", "high_protein": True}
     payload = build_planning_payload(
         profile=profile,
+        goal_spec=derive_goal_spec(profile),
         query=profile["query"],
         request_type="fat_loss",
         constraints=constraints,

@@ -7,6 +7,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import interrupt
 
 from core.agents.state import OrchestrationState
+from core.profile.goal_spec import derive_goal_spec
 from core.profile.store import load_run_profile
 from core.subgraphs.user.state import UserState
 from core.subgraphs.user.utils import (
@@ -36,7 +37,11 @@ def _extract_node(state: UserState) -> dict:
 
 
 def _validate_node(state: UserState) -> dict:
-    completeness = validate_profile_completeness(state["profile"])
+    # GoalSpec is derived exactly once here -- the sole node downstream of every place
+    # `profile` can change (_extract_node, _form_node) -- and passed explicitly into
+    # validate_profile_completeness rather than recomputed inside it.
+    goal_spec = derive_goal_spec(state["profile"])
+    completeness = validate_profile_completeness(state["profile"], goal_spec)
     validation_errors = validate_profile_schema(state["profile"])
     return {
         "missing_fields": completeness["missing_fields"],

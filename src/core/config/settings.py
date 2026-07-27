@@ -2,18 +2,25 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from pydantic import Field, PostgresDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _DEFAULT_WORKSPACE = _PROJECT_ROOT / "src" / "workspace"
+_ENV_FILE = _PROJECT_ROOT / ".env"
+
+# pydantic-settings only maps known fields onto Settings; SDKs such as LangSmith
+# read LANGSMITH_* from os.environ directly. Load .env into the process env so
+# those vars are visible even when they are not Settings fields.
+load_dotenv(_ENV_FILE, override=False)
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment / .env file."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         extra="ignore",
     )

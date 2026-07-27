@@ -17,10 +17,12 @@ import streamlit.components.v1 as components
 
 from ui.api_client import resume_run
 from ui.components.chat import (
+    TimelineTracker,
     assistant_message_from_status,
+    attach_timeline,
+    build_timeline_message,
     run_guarded_backend_action,
     update_run_history_status,
-    write_pipeline_step,
 )
 from ui.copy import HITL_TYPE_COPY, feasibility_messages
 
@@ -219,26 +221,20 @@ def render_profile_form(client: httpx.Client, run_id: str, status: dict[str, Any
     st.session_state.messages.append({"role": "user", "content": "Submitted my profile details."})
 
     def do_submit() -> dict[str, Any]:
-        with st.status("📝 Thanks! Saving your details…", expanded=True) as form_status:
-            last_step: str | None = None
-
-            def handle_progress(status_update: dict[str, Any]) -> None:
-                nonlocal last_step
-                last_step = write_pipeline_step(form_status, status_update, last_step=last_step)
-
-            updated = resume_run(
-                client,
-                run_id,
-                form_data=form_data,
-                on_progress=handle_progress,
-            )
-            form_status.update(label="✅ Got it!", state="complete")
-        return updated
+        row = st.empty()
+        tracker = TimelineTracker(row)
+        updated = resume_run(
+            client,
+            run_id,
+            form_data=form_data,
+            on_progress=tracker.on_progress,
+        )
+        return attach_timeline(updated, tracker)
 
     def on_success(updated: dict[str, Any]) -> None:
         st.session_state.run_status = updated
         st.session_state.messages.append(
-            {"role": "assistant", "content": assistant_message_from_status(updated)}
+            build_timeline_message(updated, assistant_message_from_status(updated))
         )
         update_run_history_status(run_id, updated.get("status", "unknown"))
 
