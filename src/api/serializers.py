@@ -1,5 +1,16 @@
-from api.schemas import RunStatusResponse
+from api.schemas import RunStatusResponse, RunSummaryResponse
+from core.graph.run_history_store import RunSummary
 from core.graph.service import RunStatus
+
+
+def to_run_summary_response(summary: RunSummary) -> RunSummaryResponse:
+    return RunSummaryResponse(
+        run_id=summary.run_id,
+        query=summary.query,
+        status=summary.status,
+        steps=list(summary.steps),
+        updated_at=summary.updated_at,
+    )
 
 
 def to_run_status_response(status: RunStatus) -> RunStatusResponse:

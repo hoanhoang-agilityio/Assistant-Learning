@@ -22,6 +22,7 @@ from core.config.settings import get_settings
 from core.graph.builder import build_graph
 from core.graph.idempotency_store import IdempotencyStore
 from core.graph.run import create_initial_state
+from core.graph.run_history_store import InMemoryRunHistoryStore, RunHistoryStore, RunSummary
 from core.graph.run_tracker import RunTracker
 from core.hitl.resume import (
     create_approval_decision,
@@ -124,6 +125,7 @@ class RunOrchestrator:
         rate_limiter: AIRateLimiter | None = None,
         run_tracker: RunTracker | None = None,
         idempotency_store: IdempotencyStore | None = None,
+        run_history_store: RunHistoryStore | InMemoryRunHistoryStore | None = None,
     ) -> None:
         # Production wiring (Postgres-backed, per settings.use_postgres_checkpointer)
         # lives in api/deps.py:get_orchestrator, the only call site that constructs
@@ -141,6 +143,7 @@ class RunOrchestrator:
         # Same reasoning: idempotency needs a record that survives a restart
         # and is visible to every replica, so it's a no-op without Postgres.
         self._idempotency_store = idempotency_store
+        self._run_history_store = run_history_store or InMemoryRunHistoryStore()
         self._lock = threading.Lock()
         # One long-lived pool backs every _stream_with_timeout() call for this
         # orchestrator's lifetime (default sizing: min(32, cpu_count + 4), so it
@@ -199,6 +202,8 @@ class RunOrchestrator:
             event_queue = self._run_event_queues.pop(run_id, None)
         if event_queue is not None:
             event_queue.put(RunEvent(kind="run_settled", status=final_status))
+        with best_effort("persist_run_history", run_id=run_id):
+            self._persist_run_history(run_id)
 
     def _stream_with_timeout(
         self,
@@ -350,7 +355,58 @@ class RunOrchestrator:
                 }
                 self._pending_runs.pop(run_id, None)
         logger.warning("Reconciled %d orphaned run(s): %s", len(orphaned), [r for r, _ in orphaned])
+        for run_id, _query in orphaned:
+            with best_effort("persist_run_history", run_id=run_id):
+                self._persist_run_history(run_id)
         return len(orphaned)
+
+    def list_runs(self, user_id: str, *, limit: int = 50) -> list[RunSummary]:
+        """Return recent runs for a user, newest first."""
+        resolved_user_id = (user_id or "").strip() or get_settings().rate_limit_default_user_id
+        return self._run_history_store.list_by_user(resolved_user_id, limit=limit)
+
+    def _resolve_user_id_for_run(self, run_id: str) -> str:
+        config = self._build_config(run_id)
+        snapshot = self._graph.get_state(config)
+        if snapshot.values:
+            user_id = str(snapshot.values.get("user_id", "")).strip()
+            if user_id:
+                return user_id
+        with self._lock:
+            pending = self._pending_runs.get(run_id)
+        if pending:
+            user_id = str(pending.get("user_id", "")).strip()
+            if user_id:
+                return user_id
+        return get_settings().rate_limit_default_user_id
+
+    def _persist_run_history(self, run_id: str) -> None:
+        status = self.get_run(run_id)
+        user_id = self._resolve_user_id_for_run(run_id)
+        self._run_history_store.upsert(
+            run_id=status.run_id,
+            user_id=user_id,
+            query=status.query,
+            status=status.status,
+            steps=list(status.steps),
+        )
+
+    def _persist_run_history_from_state(
+        self,
+        run_id: str,
+        state: dict[str, Any],
+        *,
+        status: RunLifecycleStatus,
+        steps: list[str] | tuple[str, ...] = (),
+    ) -> None:
+        user_id = str(state.get("user_id", "")).strip() or get_settings().rate_limit_default_user_id
+        self._run_history_store.upsert(
+            run_id=run_id,
+            user_id=user_id,
+            query=str(state.get("query", "")),
+            status=status,
+            steps=steps,
+        )
 
     def _resolve_idempotent_run_id(
         self, idempotency_key: str | None, candidate_run_id: str
@@ -421,12 +477,15 @@ class RunOrchestrator:
         snapshot = self._graph.get_state(config)
         with best_effort("write_token_cost_log", run_id=resolved_run_id):
             self._maybe_write_token_cost_log(snapshot.values, snapshot.next)
-        return self._to_status(
+        run_status = self._to_status(
             resolved_run_id,
             snapshot.values,
             snapshot.next,
             interrupts=_collect_interrupts(snapshot),
         )
+        with best_effort("persist_run_history", run_id=resolved_run_id):
+            self._persist_run_history(resolved_run_id)
+        return run_status
 
     def start_run(
         self,
@@ -473,6 +532,8 @@ class RunOrchestrator:
             name=f"run-{resolved_run_id}",
         )
         thread.start()
+        with best_effort("persist_run_history", run_id=resolved_run_id):
+            self._persist_run_history_from_state(resolved_run_id, state, status="running")
         return self._pending_status(resolved_run_id, state)
 
     def get_run(self, run_id: str) -> RunStatus:
