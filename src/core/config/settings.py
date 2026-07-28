@@ -106,6 +106,12 @@ class Settings(BaseSettings):
     max_planner_attempts: int = 2
     fix_reasoning_planner_attempts: int = 1
 
+    # Hybrid Supervisor routing: the Supervisor node proposes the next capability
+    # via an LLM judge (core.agents.supervisor_router_judge) and a deterministic
+    # Policy Engine (core.capabilities.policy_engine) validates/overrides that
+    # proposal before routing. supervisor_max_hops is the loop-prevention guardrail.
+    supervisor_max_hops: int = 12
+
     # Wall-clock deadline for a single graph.invoke() call (background run
     # execution, resume, continue, and profile-form resume). Bounds a run
     # even if a node hangs on something with no timeout of its own.
@@ -114,14 +120,6 @@ class Settings(BaseSettings):
     # How often the background orphan-reconciliation sweep runs while the API
     # process is up (in addition to the one that always runs at startup).
     reconciliation_interval_seconds: float = 300.0
-
-    classify_request_narrows_domains: bool = True
-
-    run_execution_plan_enabled: bool = True
-
-    verify_workflow_enabled: bool = True
-
-    edit_workflow_v2_enabled: bool = True
 
     # LLM payload observability (debug only; does not change business logic)
     llm_payload_debug: bool = False
