@@ -11,6 +11,7 @@ from langgraph.errors import GraphInterrupt
 from core.agents.state import OrchestrationState
 
 _trace_run_id: ContextVar[str | None] = ContextVar("langfuse_trace_run_id", default=None)
+_trace_thread_id: ContextVar[str | None] = ContextVar("langfuse_trace_thread_id", default=None)
 
 SUBGRAPH_SPAN_NAMES: dict[str, str] = {
     "planning": "Planning",
@@ -39,6 +40,18 @@ def get_trace_run_id() -> str | None:
     return _trace_run_id.get()
 
 
+def set_trace_thread_id(thread_id: str | None) -> Token[str | None]:
+    return _trace_thread_id.set(thread_id)
+
+
+def reset_trace_thread_id(token: Token[str | None]) -> None:
+    _trace_thread_id.reset(token)
+
+
+def get_trace_thread_id() -> str | None:
+    return _trace_thread_id.get()
+
+
 def resolve_subgraph_span_name(node_key: str) -> str:
     return SUBGRAPH_SPAN_NAMES.get(node_key, node_key)
 
@@ -51,7 +64,8 @@ def _run_traced_node(
 ) -> dict:
     from core.observability.langfuse import subgraph_span_context
 
-    token = set_trace_run_id(state["run_id"])
+    run_token = set_trace_run_id(state["run_id"])
+    thread_token = set_trace_thread_id(state["thread_id"])
     span_name = resolve_subgraph_span_name(node_key)
     tier = SUBGRAPH_TIERS.get(node_key)
     pending_interrupt: GraphInterrupt | None = None
@@ -79,7 +93,8 @@ def _run_traced_node(
         assert pending_interrupt is not None
         raise pending_interrupt
     finally:
-        reset_trace_run_id(token)
+        reset_trace_thread_id(thread_token)
+        reset_trace_run_id(run_token)
 
 
 def wrap_traced_subgraph_node(
@@ -113,7 +128,12 @@ def tavily_mcp_span_context(
     run_id = get_trace_run_id()
     if run_id is None:
         return nullcontext()
-    return tavily_tool_span_context(run_id, tool_name, input_data=input_data)
+    return tavily_tool_span_context(
+        run_id,
+        tool_name,
+        thread_id=get_trace_thread_id(),
+        input_data=input_data,
+    )
 
 
 @contextmanager
@@ -136,7 +156,12 @@ def fitness_mcp_span_context(
     run_id = get_trace_run_id()
     if run_id is None:
         return nullcontext()
-    return fitness_mcp_tool_span_context(run_id, tool_name, input_data=input_data)
+    return fitness_mcp_tool_span_context(
+        run_id,
+        tool_name,
+        thread_id=get_trace_thread_id(),
+        input_data=input_data,
+    )
 
 
 @contextmanager

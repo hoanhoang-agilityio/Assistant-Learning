@@ -3,7 +3,8 @@ from __future__ import annotations
 import base64
 import logging
 import os
-from contextlib import AbstractContextManager, nullcontext
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, contextmanager
 from typing import Any
 
 import httpx
@@ -12,6 +13,15 @@ from langfuse.langchain import CallbackHandler
 
 from core.agents.state import OrchestrationState
 from core.config.settings import Settings, get_settings
+from core.observability.hierarchy import (
+    LANGFUSE_ORCHESTRATION_TAGS,
+    LANGFUSE_SESSION_METADATA_KEY,
+    LangfuseHierarchyIds,
+    langfuse_thread_context,
+    map_run_to_trace_seed,
+    map_thread_to_session_id,
+    resolve_hierarchy_ids,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,11 +118,24 @@ def get_langfuse_client(settings: Settings | None = None) -> Langfuse | None:
 
 
 def create_trace_id_for_run(run_id: str, settings: Settings | None = None) -> str:
-    """Create a deterministic Langfuse trace id seeded by run_id."""
+    """Create a deterministic Langfuse Trace id seeded by ``run_id`` (Run → Trace)."""
     client = get_langfuse_client(settings)
     if client is None:
-        return run_id
-    return client.create_trace_id(seed=run_id)
+        return map_run_to_trace_seed(run_id)
+    return client.create_trace_id(seed=map_run_to_trace_seed(run_id))
+
+
+def resolve_run_hierarchy(
+    state: OrchestrationState,
+    *,
+    settings: Settings | None = None,
+) -> LangfuseHierarchyIds:
+    """Resolve Runs → Traces → Threads ids for ``state`` (trace id may be deterministic)."""
+    return resolve_hierarchy_ids(
+        run_id=state["run_id"],
+        thread_id=state["thread_id"],
+        trace_id=create_trace_id_for_run(state["run_id"], settings=settings),
+    )
 
 
 def _trace_context(run_id: str, settings: Settings | None = None) -> dict[str, str]:
@@ -124,7 +147,7 @@ def build_langfuse_callbacks(
     *,
     settings: Settings | None = None,
 ) -> list[CallbackHandler]:
-    """Build LangChain callbacks that attach graph execution to a root trace."""
+    """Build LangChain callbacks that attach graph execution to a root Trace (Run)."""
     if not is_langfuse_enabled(settings):
         return []
     client = get_langfuse_client(settings)
@@ -144,16 +167,23 @@ def build_graph_invoke_config(
     settings: Settings | None = None,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build LangGraph invoke config with thread_id and Langfuse callbacks."""
+    """Build LangGraph invoke config with thread_id and Langfuse hierarchy bindings.
+
+    Hierarchy (see ``core.observability.hierarchy``):
+    - ``thread_id`` → Langfuse Session (Thread) via ``langfuse_session_id`` metadata
+      (CallbackHandler Sessions write path) and ``propagate_attributes`` on spans
+    - ``run_id`` → Langfuse Trace via deterministic ``create_trace_id(seed=run_id)``
+    """
+    hierarchy = resolve_run_hierarchy(state, settings=settings)
     config: dict[str, Any] = {
-        "configurable": {"thread_id": state["thread_id"]},
+        "configurable": {"thread_id": hierarchy.thread_id},
         "metadata": {
-            "langfuse_session_id": state["thread_id"],
-            "run_id": state["run_id"],
-            "langfuse_tags": ["pt-ai-core", "orchestration"],
+            **hierarchy.langfuse_session_metadata,
+            "langfuse_tags": list(LANGFUSE_ORCHESTRATION_TAGS),
+            "langfuse_trace_id": hierarchy.trace_id,
         },
     }
-    callbacks = build_langfuse_callbacks(state["run_id"], settings=settings)
+    callbacks = build_langfuse_callbacks(hierarchy.run_id, settings=settings)
     if callbacks:
         config["callbacks"] = callbacks
     if extra:
@@ -161,27 +191,93 @@ def build_graph_invoke_config(
     return config
 
 
+def fetch_langfuse_thread(
+    thread_id: str,
+    *,
+    settings: Settings | None = None,
+) -> dict[str, Any] | None:
+    """Fetch a Langfuse Session for an app thread via the public Sessions API.
+
+    Langfuse Sessions are the product "Threads" grouping. Returns ``None`` when
+    tracing is disabled, credentials fail, or the session is missing (404).
+    """
+    resolved = settings or get_settings()
+    if not is_langfuse_enabled(resolved):
+        return None
+    public_key = resolved.langfuse_public_key
+    secret_key = resolved.langfuse_secret_key
+    if not public_key or not secret_key:
+        return None
+    session_id = map_thread_to_session_id(thread_id)
+    base_url = resolved.langfuse_base_url.rstrip("/")
+    try:
+        response = httpx.get(
+            f"{base_url}/api/public/sessions/{session_id}",
+            headers=_build_langfuse_auth_headers(public_key, secret_key),
+            timeout=5.0,
+        )
+    except httpx.HTTPError as exc:
+        logger.warning("Langfuse Sessions API unreachable for thread %s: %s", thread_id, exc)
+        return None
+    if response.status_code == 404:
+        return None
+    if response.status_code >= 400:
+        logger.warning(
+            "Langfuse Sessions API error %s for thread %s",
+            response.status_code,
+            thread_id,
+        )
+        return None
+    payload = response.json()
+    return payload if isinstance(payload, dict) else None
+
+
+@contextmanager
+def _traced_span(
+    *,
+    run_id: str,
+    thread_id: str,
+    name: str,
+    input_data: dict[str, Any] | None,
+    metadata: dict[str, Any],
+    settings: Settings | None = None,
+) -> Iterator[Any]:
+    """Open a span under Run→Trace and bind Thread→Session via propagate_attributes."""
+    client = get_langfuse_client(settings)
+    if client is None:
+        yield None
+        return
+    with langfuse_thread_context(thread_id, run_id=run_id):
+        with client.start_as_current_span(
+            trace_context=_trace_context(run_id, settings=settings),
+            name=name,
+            input=input_data,
+            metadata={
+                **metadata,
+                "run_id": run_id,
+                "thread_id": thread_id,
+                LANGFUSE_SESSION_METADATA_KEY: map_thread_to_session_id(thread_id),
+            },
+        ) as span:
+            yield span
+
+
 def supervisor_span_context(
     state: OrchestrationState,
     *,
     settings: Settings | None = None,
 ) -> AbstractContextManager[Any]:
-    """Open a supervisor span on the root trace for the current run."""
-    client = get_langfuse_client(settings)
-    if client is None:
-        return nullcontext()
-    return client.start_as_current_span(
-        trace_context=_trace_context(state["run_id"], settings=settings),
+    """Open a supervisor span on the root Trace, bound to the thread's Langfuse Session."""
+    return _traced_span(
+        run_id=state["run_id"],
+        thread_id=state["thread_id"],
         name="Supervisor",
-        input={
+        input_data={
             "query": state["query"],
             "current_node": state["current_node"],
         },
-        metadata={
-            "run_id": state["run_id"],
-            "thread_id": state["thread_id"],
-            "span_type": "supervisor",
-        },
+        metadata={"span_type": "supervisor"},
+        settings=settings,
     )
 
 
@@ -192,19 +288,14 @@ def supervisor_routing_span_context(
     settings: Settings | None = None,
 ) -> AbstractContextManager[Any]:
     """Open a child span for one Supervisor routing decision (Router Judge proposal +
-    Policy Engine verdict), nested under the run's root trace."""
-    client = get_langfuse_client(settings)
-    if client is None:
-        return nullcontext()
-    return client.start_as_current_span(
-        trace_context=_trace_context(state["run_id"], settings=settings),
+    Policy Engine verdict), nested under the run's root Trace / thread Session."""
+    return _traced_span(
+        run_id=state["run_id"],
+        thread_id=state["thread_id"],
         name="SupervisorRouting",
-        input=routing_context,
-        metadata={
-            "run_id": state["run_id"],
-            "thread_id": state["thread_id"],
-            "span_type": "supervisor_routing",
-        },
+        input_data=routing_context,
+        metadata={"span_type": "supervisor_routing"},
+        settings=settings,
     )
 
 
@@ -216,26 +307,23 @@ def subgraph_span_context(
     subgraph: str | None = None,
     settings: Settings | None = None,
 ) -> AbstractContextManager[Any]:
-    """Open a subgraph span on the root trace."""
-    client = get_langfuse_client(settings)
-    if client is None:
-        return nullcontext()
+    """Open a subgraph span on the root Trace, bound to the thread's Langfuse Session."""
     metadata: dict[str, Any] = {
-        "run_id": state["run_id"],
-        "thread_id": state["thread_id"],
         "subgraph": subgraph,
         "span_type": "subgraph",
     }
     if tier:
         metadata["reasoning_tier"] = tier
-    return client.start_as_current_span(
-        trace_context=_trace_context(state["run_id"], settings=settings),
+    return _traced_span(
+        run_id=state["run_id"],
+        thread_id=state["thread_id"],
         name=span_name,
-        input={
+        input_data={
             "query": state["query"],
             "current_node": state["current_node"],
         },
         metadata=metadata,
+        settings=settings,
     )
 
 
@@ -243,22 +331,22 @@ def tavily_tool_span_context(
     run_id: str,
     tool_name: str,
     *,
+    thread_id: str | None = None,
     input_data: dict[str, Any] | None = None,
     settings: Settings | None = None,
 ) -> AbstractContextManager[Any]:
-    """Open a Tavily MCP tool span as a child under the research trace."""
-    client = get_langfuse_client(settings)
-    if client is None:
-        return nullcontext()
-    return client.start_as_current_span(
-        trace_context=_trace_context(run_id, settings=settings),
+    """Open a Tavily MCP tool span as a child under the research Trace / Session."""
+    resolved_thread_id = thread_id or run_id
+    return _traced_span(
+        run_id=run_id,
+        thread_id=resolved_thread_id,
         name=tool_name,
-        input=input_data,
+        input_data=input_data,
         metadata={
-            "run_id": run_id,
             "provider": "tavily-mcp",
             "span_type": "mcp_tool",
         },
+        settings=settings,
     )
 
 
@@ -266,24 +354,26 @@ def fitness_mcp_tool_span_context(
     run_id: str,
     tool_name: str,
     *,
+    thread_id: str | None = None,
     input_data: dict[str, Any] | None = None,
     settings: Settings | None = None,
 ) -> AbstractContextManager[Any]:
-    """Open a Fitness MCP tool span as a child of the current trace -- mirrors
-    tavily_tool_span_context so a Fitness MCP failure is exactly as visible as a
-    Tavily failure, not a blind spot relative to every other external call."""
-    client = get_langfuse_client(settings)
-    if client is None:
-        return nullcontext()
-    return client.start_as_current_span(
-        trace_context=_trace_context(run_id, settings=settings),
+    """Open a Fitness MCP tool span as a child of the current Trace / Session.
+
+    Mirrors ``tavily_tool_span_context`` so a Fitness MCP failure is exactly as
+    visible as a Tavily failure, not a blind spot relative to every other external call.
+    """
+    resolved_thread_id = thread_id or run_id
+    return _traced_span(
+        run_id=run_id,
+        thread_id=resolved_thread_id,
         name=tool_name,
-        input=input_data,
+        input_data=input_data,
         metadata={
-            "run_id": run_id,
             "provider": "fitness-mcp",
             "span_type": "mcp_tool",
         },
+        settings=settings,
     )
 
 
