@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     # (verification.utils.heuristic_faithfulness_data). Benchmark-only --
     # production's _ragas_faithfulness_node always uses the heuristic
     # regardless of this flag. See known_limitations_remediation_plan.md, L1.
-    verification_use_real_ragas: bool = False
+    verification_use_real_ragas: bool = True
 
     # LangFuse — prefer LANGFUSE_BASE_URL; LANGFUSE_HOST is a legacy alias
     langfuse_public_key: str | None = None

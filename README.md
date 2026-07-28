@@ -125,6 +125,8 @@ Reports are written to `src/workspace/benchmarks/`.
 
 For evaluation workflow details (golden dataset, integration tests, optional Ragas SDK smoke test), see `src/docs/ragas-evaluation.md`.
 
+LangFuse Runs → Traces → Threads (Sessions) mapping: `src/docs/langfuse-hierarchy.md`.
+
 ## Project layout
 
 ```text

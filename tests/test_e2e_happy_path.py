@@ -72,10 +72,18 @@ def test_build_graph_invoke_config_includes_thread_and_callbacks(
     orchestration_state: OrchestrationState,
     langfuse_settings: Settings,
 ) -> None:
-    with patch("core.observability.langfuse.build_langfuse_callbacks", return_value=["handler"]):
+    with (
+        patch("core.observability.langfuse.build_langfuse_callbacks", return_value=["handler"]),
+        patch(
+            "core.observability.langfuse.create_trace_id_for_run",
+            return_value="trace-from-run",
+        ),
+    ):
         config = build_graph_invoke_config(orchestration_state, settings=langfuse_settings)
     assert config["configurable"]["thread_id"] == orchestration_state["thread_id"]
     assert config["metadata"]["langfuse_session_id"] == orchestration_state["thread_id"]
+    assert config["metadata"]["run_id"] == orchestration_state["run_id"]
+    assert config["metadata"]["langfuse_trace_id"] == "trace-from-run"
     assert config["callbacks"] == ["handler"]
 
 
