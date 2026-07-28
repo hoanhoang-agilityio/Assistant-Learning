@@ -2,33 +2,14 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
+from core.agents.execution_context import Intent
 from core.agents.topic_scope_judge import ScopeDecision, ScopeRequest
 
-RouteDecision = Literal["FIX_REASONING", "REPLAN", "RERESEARCH", "HITL", "COMPLETE", "REFUSED"]
-RequestType = Literal[
-    "training_plan",
-    "macro_calculation",
-    "fat_loss",
-    "muscle_gain",
-    "strength",
-    "endurance",
-    "general_fitness",
-]
-AffectedDomain = Literal["planning", "research", "fitness", "verify"]
 ApprovalStatus = Literal["pending", "approved", "rejected", "revision_requested"]
 
 
 class ScopeResult(BaseModel):
-    """Orchestration-level record of the scope guardrail's verdict for this run.
-
-    Deliberately a separate type from `TopicScopeJudgement` (the LLM judge's own output
-    contract in topic_scope_judge.py): this is what gets persisted in checkpointed state
-    and exposed to logging/analytics, so it must stay stable even if the judge's prompt
-    or schema changes. `check_topic_scope` (core/agents/tools.py) is the translation
-    boundary between the two -- it partitions the judge's `requests` into
-    supported/unsupported here. Keeping full ScopeRequest objects (not just text) retains
-    action_type for future analytics/guardrails without revisiting this layer.
-    """
+    """Orchestration-level record of the scope guardrail's verdict for this run."""
 
     decision: ScopeDecision
     supported_requests: list[ScopeRequest]
@@ -45,33 +26,39 @@ class OrchestrationState(TypedDict):
     current_node: str
 
     query: str
-
     fitness_query: str | None
 
     scope_result: dict | None
+    execution_context: dict | None
+    intent: Intent | None
+
     profile_complete: bool
     profile_valid: bool
     days_per_week_explicit: bool
 
-    request_type: RequestType | None
-    affected_domains: list[AffectedDomain]
-    execution_plan: dict | None
     submitted_plan_text: str | None
 
-    route_decision: RouteDecision | None
-    retry_count: int
-    replan_count: int
+    active_capability: str | None
+    capability_results: dict[str, dict]
+    last_capability_result: dict | None
 
     verification_passed: bool
     faithfulness_score: float | None
+
+    hop_count: int
+    agent_trail: list[str]
+    next_agent: str | None
 
     waiting_for_user: bool
     approval_status: ApprovalStatus | None
     user_response: str | None
     revision_feedback: str | None
+    revision_count: int
 
     workspace_path: str
     final_artifact_path: str | None
+    final_response: str | None
     refusal_message: str | None
+    run_complete: bool
 
     steps: list[str]
