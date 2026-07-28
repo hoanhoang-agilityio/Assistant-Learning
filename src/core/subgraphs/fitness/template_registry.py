@@ -144,11 +144,7 @@ def resolve_workout_template(
         }
 
     revision_feedback = load_revision_feedback(workspace_path)
-    is_edit_mode = (
-        fitness_mode == "edit"
-        if get_settings().edit_workflow_v2_enabled
-        else bool(revision_feedback)
-    )
+    is_edit_mode = fitness_mode == "edit" if fitness_mode is not None else bool(revision_feedback)
     if is_edit_mode:
         prior_workout = load_prior_workout(workspace_path)
         if prior_workout is None:

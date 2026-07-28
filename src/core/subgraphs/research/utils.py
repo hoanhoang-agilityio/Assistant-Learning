@@ -189,7 +189,6 @@ def build_goal_context(profile: dict[str, Any], goal_spec: GoalSpec) -> dict[str
 def build_research_context_payload(
     *,
     query: str,
-    request_type: str | None,
     profile: dict[str, Any],
     goal_spec: GoalSpec,
     execution_plan: ExecutionPlan | None = None,
@@ -204,8 +203,6 @@ def build_research_context_payload(
     stripped_query = query.strip()
     if stripped_query:
         payload["query"] = stripped_query
-    if request_type and request_type != profile.get("goal"):
-        payload["request_type"] = request_type
     if execution_plan is not None:
         payload.update(
             compact_execution_plan_for_llm(

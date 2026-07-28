@@ -128,14 +128,12 @@ def _invoke_with_node[T](node: str, schema: type[T], messages: list) -> T:
 def _plan_search_queries(
     *,
     query: str,
-    request_type: str | None,
     profile: dict[str, Any],
     goal_spec: GoalSpec,
     execution_plan: ExecutionPlan,
 ) -> SearchQueryBatch:
     payload = build_research_context_payload(
         query=query,
-        request_type=request_type,
         profile=profile,
         goal_spec=goal_spec,
         execution_plan=execution_plan,
@@ -359,7 +357,6 @@ def _evaluate_evidence(
 
     payload = build_research_context_payload(
         query=query,
-        request_type=None,
         profile=profile,
         goal_spec=goal_spec,
         execution_plan=execution_plan,
@@ -379,7 +376,6 @@ def _evaluate_evidence(
 def _run_react_loop(
     *,
     query: str,
-    request_type: str | None,
     profile: dict[str, Any],
     goal_spec: GoalSpec,
     execution_plan: ExecutionPlan,
@@ -401,7 +397,6 @@ def _run_react_loop(
 
     context_payload = build_research_context_payload(
         query=query,
-        request_type=request_type,
         profile=profile,
         goal_spec=goal_spec,
     )
@@ -479,7 +474,6 @@ def _synthesize_findings(
 ) -> ResearchFindings:
     payload = build_research_context_payload(
         query=query,
-        request_type=None,
         profile=profile,
         goal_spec=goal_spec,
         extra=build_synthesis_llm_extra(sources, evidence),
@@ -497,7 +491,6 @@ def _synthesize_findings(
 def run_research_agent(
     *,
     query: str,
-    request_type: str | None,
     profile: dict[str, Any],
     goal_spec: GoalSpec,
     execution_plan: ExecutionPlan,
@@ -512,7 +505,6 @@ def run_research_agent(
     if _AGENT_OVERRIDE is not None:
         return _AGENT_OVERRIDE(
             query=query,
-            request_type=request_type,
             profile=profile,
             execution_plan=execution_plan,
         )
@@ -532,7 +524,6 @@ def run_research_agent(
     if not skip_tavily:
         query_batch = _plan_search_queries(
             query=query,
-            request_type=request_type,
             profile=profile,
             goal_spec=goal_spec,
             execution_plan=execution_plan,
@@ -545,7 +536,6 @@ def run_research_agent(
         if should_run_react:
             _run_react_loop(
                 query=query,
-                request_type=request_type,
                 profile=profile,
                 goal_spec=goal_spec,
                 execution_plan=execution_plan,

@@ -64,6 +64,11 @@ class SafetyResult(BaseModel):
 
     passed: bool
     feedback: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(
+        default_factory=list,
+        description="Informational, non-failing notes -- e.g. a check that was skipped "
+        "rather than run. Never affects `passed`.",
+    )
 
 
 class EditOperation(BaseModel):

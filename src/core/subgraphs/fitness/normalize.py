@@ -20,6 +20,7 @@ from core.llm.factory import invoke_standard_structured_output
 from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
 from core.subgraphs.fitness.schema import StructuredWorkout
+from core.subgraphs.fitness.utils import compute_weekly_sets
 
 
 class SubmittedPlanExtraction(BaseModel):
@@ -104,6 +105,145 @@ def extract_submitted_plan(submitted_plan_text: str) -> SubmittedPlanExtraction:
         reset_llm_metrics_node(token)
 
 
+class SubmittedPlanQualitativeReview(BaseModel):
+    """LLM verdict used only when no structured workout could be extracted at all.
+
+    A free-text fallback, not a substitute for the structured safety checks -- it exists so
+    the internal `missing_structured_workout` diagnostic (see fitness/utils.py) never has to
+    be shown to the user verbatim; this gives them something useful instead.
+    """
+
+    review: str = Field(
+        description=(
+            "A short (2-4 sentence), direct, friendly response: state plainly that no "
+            "structured day-by-day workout was found in the text, comment briefly on "
+            "anything fitness-related that was present, and ask for the plan in a "
+            "day/exercise/sets/reps format. Never invent or imply a workout that isn't there."
+        )
+    )
+
+
+QualitativeReviewer = Callable[[str], SubmittedPlanQualitativeReview]
+
+_QUALITATIVE_REVIEWER_OVERRIDE: QualitativeReviewer | None = None
+
+_QUALITATIVE_REVIEW_SYSTEM_PROMPT = (
+    """The user submitted text asking you to check their workout plan, but it contains no
+recognizable training-day/exercise structure. Respond directly to them: say plainly you
+couldn't find a structured plan in what they sent, briefly note anything fitness-related
+that was present (if any), and ask them to resend it with clear days, exercises, sets, and
+reps. Do not fabricate a workout or imply one exists."""
+    + JSON_ONLY_INSTRUCTION
+    + "\n"
+)
+
+
+def configure_qualitative_reviewer(reviewer: QualitativeReviewer | None) -> None:
+    """Override the unparseable-plan qualitative reviewer (used in tests)."""
+    global _QUALITATIVE_REVIEWER_OVERRIDE
+    _QUALITATIVE_REVIEWER_OVERRIDE = reviewer
+
+
+def qualitative_review_unparseable_plan(submitted_plan_text: str) -> str:
+    """Produce a user-facing fallback message when `structured_workout` couldn't be extracted.
+
+    Never raises and never returns the raw `missing_structured_workout` code -- that stays an
+    internal diagnostic in `SafetyResult.feedback`. Skips the LLM call entirely for empty
+    input, since there's nothing to review.
+    """
+    if not submitted_plan_text.strip():
+        return (
+            "I didn't receive any plan text to review. Please paste the workout you'd like checked."
+        )
+    if _QUALITATIVE_REVIEWER_OVERRIDE is not None:
+        return _QUALITATIVE_REVIEWER_OVERRIDE(submitted_plan_text).review
+    token = set_llm_metrics_node("submitted_plan_qualitative_reviewer")
+    try:
+        result = invoke_standard_structured_output(
+            SubmittedPlanQualitativeReview,
+            [
+                SystemMessage(content=_QUALITATIVE_REVIEW_SYSTEM_PROMPT),
+                HumanMessage(content=submitted_plan_text),
+            ],
+            prompt_cache_key="submitted_plan_qualitative_reviewer",
+        )
+        return result.review
+    finally:
+        reset_llm_metrics_node(token)
+
+
+class SubmittedPlanVerificationReview(BaseModel):
+    """LLM-authored natural-language explanation of a completed verify_plan safety check.
+
+    Every fact handed to this call (goal, archetype, macro targets, computed weekly sets,
+    the plain-English safety findings, the pass/fail verdict itself) is already trusted,
+    deterministically-computed data -- this call's only job is synthesizing it into a
+    user-facing explanation and adding qualitative commentary on whether the exercise
+    selection/volume actually suit the goal, which no rule in validate_workout_safety_data
+    checks (it only enforces safety bounds, not goal-appropriateness quality).
+    """
+
+    explanation: str = Field(
+        description=(
+            "A natural-language verification summary, 3-6 sentences, covering: (1) whether "
+            "the plan overall suits the stated goal, (2) whether training volume and "
+            "exercise selection are sufficient to support it, (3) whether sets/reps/"
+            "frequency are appropriate, and (4) if there are weaknesses (from the given "
+            "safety findings or your own read of the exercise selection), name them with a "
+            "concrete, actionable suggestion. Never contradict the given pass/fail verdict "
+            "or safety findings, and never invent numbers not present in the input."
+        )
+    )
+
+
+VerificationExplainer = Callable[[str], SubmittedPlanVerificationReview]
+
+_VERIFICATION_EXPLAINER_OVERRIDE: VerificationExplainer | None = None
+
+_VERIFICATION_EXPLANATION_SYSTEM_PROMPT = (
+    """You explain the result of checking a user's submitted workout plan against their
+fitness goal. You are given already-verified facts: the goal, the plan's structure (days,
+exercises, sets, reps), macro targets if available, and the deterministic safety check's
+pass/fail verdict plus any findings. Write a natural, direct explanation covering whether
+the plan suits the goal, whether volume and exercise selection support it, whether
+sets/reps/frequency look appropriate, and any weaknesses with a concrete suggested fix.
+Ground everything in the given facts -- never contradict the verdict/findings, never
+invent numbers, never claim a problem the findings don't support."""
+    + JSON_ONLY_INSTRUCTION
+    + "\n"
+)
+
+
+def configure_verification_explainer(explainer: VerificationExplainer | None) -> None:
+    """Override the verified-plan explanation LLM call (used in tests)."""
+    global _VERIFICATION_EXPLAINER_OVERRIDE
+    _VERIFICATION_EXPLAINER_OVERRIDE = explainer
+
+
+def explain_verified_plan(context: str) -> str:
+    """Turn a verify_plan safety-check result into a user-facing natural-language summary.
+
+    `context` is a pre-formatted, plain-text digest of trusted facts (see
+    fitness/tools.py:explain_verified_plan) -- this call only synthesizes/explains them, it
+    never recomputes or second-guesses the pass/fail verdict itself.
+    """
+    if _VERIFICATION_EXPLAINER_OVERRIDE is not None:
+        return _VERIFICATION_EXPLAINER_OVERRIDE(context).explanation
+    token = set_llm_metrics_node("submitted_plan_verification_explainer")
+    try:
+        result = invoke_standard_structured_output(
+            SubmittedPlanVerificationReview,
+            [
+                SystemMessage(content=_VERIFICATION_EXPLANATION_SYSTEM_PROMPT),
+                HumanMessage(content=context),
+            ],
+            prompt_cache_key="submitted_plan_verification_explainer",
+        )
+        return result.explanation
+    finally:
+        reset_llm_metrics_node(token)
+
+
 def normalize_submitted_plan(
     submitted_plan_text: str,
     training_constraints: dict[str, Any],
@@ -130,6 +270,14 @@ def normalize_submitted_plan(
         return {"structured_workout": None, "normalization_findings": findings}
 
     workout_dict = extraction.workout.model_dump()
+    # The extraction LLM is asked to transcribe weekly_sets as a sum, but -- like the
+    # generation-mode LLM (see template_registry.py/planner.py, which never trust it either
+    # and always recompute) -- it's unreliable at that arithmetic even when every individual
+    # exercise's sets were transcribed correctly. This isn't content the "preserve the
+    # submitted shape" rule (see docstring) protects: it's a redundant summary already fully
+    # determined by `days`, so it's corrected here rather than surfaced as a spurious
+    # weekly_sets_mismatch safety failure.
+    workout_dict["weekly_sets"] = compute_weekly_sets(workout_dict)
     expected_days = int(training_constraints.get("days_per_week") or 0)
     actual_days = len(workout_dict.get("days", []))
     if expected_days and actual_days != expected_days:
