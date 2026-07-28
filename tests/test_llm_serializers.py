@@ -5,7 +5,7 @@ from core.llm.serializers import (
     compact_macro_targets_for_llm,
     compact_profile_for_llm,
 )
-from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
+from core.planning.schema import ExecutionPlan, PlanTask
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
 _MIN_PLAN_RATIONALE = "Test plan rationale with enough characters for validation."

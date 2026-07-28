@@ -18,13 +18,13 @@ from core.mcp.tavily_client import (
     get_tavily_client,
 )
 from core.observability.tracing import traced_tavily_call
-from core.profile.goal_spec import GoalSpec
-from core.profile.store import load_run_profile
-from core.subgraphs.planning.schema import ExecutionPlan
-from core.subgraphs.planning.utils import (
+from core.planning.schema import ExecutionPlan
+from core.planning.utils import (
     has_execution_plan,
     load_execution_plan,
 )
+from core.profile.goal_spec import GoalSpec
+from core.profile.store import load_run_profile
 from core.subgraphs.research.query_cache import get_cached_search_result, store_search_result
 from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.schema import ResearchFindings

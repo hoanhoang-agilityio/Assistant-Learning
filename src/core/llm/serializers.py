@@ -56,7 +56,7 @@ def compact_execution_plan_for_llm(
     include_task_rationale: bool = True,
 ) -> dict[str, Any]:
     """Return execution plan fields needed by downstream LLM calls (no plan_markdown)."""
-    from core.subgraphs.planning.schema import ExecutionPlan
+    from core.planning.schema import ExecutionPlan
 
     if isinstance(plan, ExecutionPlan):
         tasks = (

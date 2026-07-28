@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+from core.planning.utils import persist_revision_feedback
 from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.fitness.blueprint import build_plan_blueprint
 from core.subgraphs.fitness.schema import EditOperation
@@ -14,7 +15,6 @@ from core.subgraphs.fitness.template_registry import (
     store_workout_template,
 )
 from core.subgraphs.fitness.utils import BENCHMARK_WORKOUT_NOTE, build_default_structured_workout
-from core.subgraphs.planning.utils import persist_revision_feedback
 from core.vfs import VFS
 from tests.helpers.fitness import default_structured_workout
 

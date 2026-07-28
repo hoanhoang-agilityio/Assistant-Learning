@@ -4,7 +4,7 @@ Implements `core.capabilities.executor.CapabilityExecutor`. Planning owns
 goal specification only: it computes from the validated profile + request,
 never calculates macros, retrieves evidence, selects exercises, or generates
 workouts. Swappable via `configure_planning_executor` for a future
-LLM-assisted executor without touching `capability.py`, the dispatcher, or
+LLM-assisted executor without touching `node.py`, the dispatcher, or
 the graph.
 """
 
@@ -17,9 +17,9 @@ from core.agents.execution_context import CapabilityResult, ExecutionContext
 from core.agents.state import OrchestrationState
 from core.capabilities.dispatcher import make_capability_request
 from core.capabilities.executor import CapabilityExecutor
+from core.planning.output import PlanningOutput
 from core.profile.goal_spec import derive_goal_spec
 from core.profile.store import load_run_profile, split_constraints
-from core.subgraphs.planning.output import PlanningOutput
 from core.vfs import VFS
 from core.vfs.layout import PLAN_MARKDOWN
 

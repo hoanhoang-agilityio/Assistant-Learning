@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from core.subgraphs.planning.schema import ExecutionPlan
+from core.planning.schema import ExecutionPlan
 from core.vfs import (
     PLAN_EXECUTION_PLAN,
     PLAN_PROFILE,

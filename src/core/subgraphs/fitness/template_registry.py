@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from core.config.settings import get_settings
+from core.planning.utils import load_revision_feedback
 from core.subgraphs.fitness.blueprint import PlanBlueprint, session_duration_bucket_from_profile
 from core.subgraphs.fitness.edit_classifier import classify_edit_operation
 from core.subgraphs.fitness.schema import StructuredWorkout
@@ -14,7 +15,6 @@ from core.subgraphs.fitness.utils import (
     flatten_exercise_names,
     is_cacheable_workout,
 )
-from core.subgraphs.planning.utils import load_revision_feedback
 from core.vfs import VFS
 
 _registry_root_override: Path | None = None

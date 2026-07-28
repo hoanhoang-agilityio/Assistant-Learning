@@ -18,8 +18,8 @@ from core.llm.factory import (
 )
 from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.payload import compact_json
+from core.planning.schema import ExecutionPlan
 from core.profile.goal_spec import GoalSpec
-from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.research.prompts import (
     EVALUATION_SYSTEM_PROMPT,
     QUERY_PLANNING_SYSTEM_PROMPT,

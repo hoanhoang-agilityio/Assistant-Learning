@@ -15,12 +15,12 @@ from core.llm.serializers import (
     compact_profile_for_llm,
     compact_structured_findings,
 )
+from core.planning.schema import ExecutionPlan
 from core.subgraphs.fitness.prompts import (
     FITNESS_PLANNER_SYSTEM_PROMPT,
     build_fitness_edit_system_prompt,
 )
 from core.subgraphs.fitness.schema import EditOperation, StructuredWorkout
-from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.research.schema import ResearchFindings
 
 PlannerOverride = Callable[..., StructuredWorkout]
