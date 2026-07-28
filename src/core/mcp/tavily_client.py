@@ -1,6 +1,5 @@
 import asyncio
-import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -8,6 +7,7 @@ from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from core.config.settings import Settings, get_settings
+from core.mcp._transport import invoke_tool, resolve_tool_name
 
 TAVILY_SEARCH_TOOL = "tavily_search"
 TAVILY_EXTRACT_TOOL = "tavily_extract"
@@ -15,58 +15,11 @@ TAVILY_SEARCH_TOOL_ALIASES = (TAVILY_SEARCH_TOOL, "tavily-search")
 TAVILY_EXTRACT_TOOL_ALIASES = (TAVILY_EXTRACT_TOOL, "tavily-extract")
 
 
-def _resolve_tool_name(
-    tools_by_name: dict[str, BaseTool],
-    aliases: tuple[str, ...],
-) -> str | None:
-    for name in aliases:
-        if name in tools_by_name:
-            return name
-    return None
-
-
-def _parse_text_payload(text: str) -> dict[str, Any]:
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
-        return {"results": [{"content": text}]}
-    if isinstance(parsed, dict):
-        return parsed
-    return {"results": parsed}
-
-
-def _parse_tool_payload(result: Any) -> dict[str, Any]:
-    if isinstance(result, dict):
-        return result
-    if isinstance(result, list):
-        text_parts = [
-            str(block.get("text", ""))
-            for block in result
-            if isinstance(block, dict) and block.get("type") == "text"
-        ]
-        if text_parts:
-            return _parse_text_payload("\n".join(text_parts))
-        return {"results": result}
-    if isinstance(result, str):
-        return _parse_text_payload(result)
-    return {"results": [{"content": str(result)}]}
-
-
-def _run_async(coro: Awaitable[Any]) -> Any:
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    import concurrent.futures
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        return executor.submit(asyncio.run, coro).result()
-
-
 def _invoke_tool(tool: BaseTool, payload: dict[str, Any]) -> dict[str, Any]:
-    timeout = get_settings().tavily_tool_timeout_seconds
-    result = _run_async(asyncio.wait_for(tool.ainvoke(payload), timeout=timeout))
-    return _parse_tool_payload(result)
+    """Reads the timeout fresh from settings on every call (not resolved once and
+    closed over) -- this is what lets tests monkeypatch get_settings and call this
+    directly without rebuilding the whole client (see tests/test_tavily_client.py)."""
+    return invoke_tool(tool, payload, timeout=get_settings().tavily_tool_timeout_seconds)
 
 
 @dataclass(frozen=True)
@@ -100,8 +53,8 @@ async def create_tavily_mcp_client(settings: Settings | None = None) -> TavilyMC
     )
     tools_by_name = {tool.name: tool for tool in tools}
 
-    search_tool_name = _resolve_tool_name(tools_by_name, TAVILY_SEARCH_TOOL_ALIASES)
-    extract_tool_name = _resolve_tool_name(tools_by_name, TAVILY_EXTRACT_TOOL_ALIASES)
+    search_tool_name = resolve_tool_name(tools_by_name, TAVILY_SEARCH_TOOL_ALIASES)
+    extract_tool_name = resolve_tool_name(tools_by_name, TAVILY_EXTRACT_TOOL_ALIASES)
     missing_tools = [
         tool_name
         for tool_name, resolved in (

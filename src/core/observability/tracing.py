@@ -124,3 +124,26 @@ def traced_tavily_call(
 ) -> Iterator[Any]:
     with tavily_mcp_span_context(tool_name, input_data=input_data) as span:
         yield span
+
+
+def fitness_mcp_span_context(
+    tool_name: str,
+    *,
+    input_data: dict[str, Any] | None = None,
+) -> AbstractContextManager[Any]:
+    from core.observability.langfuse import fitness_mcp_tool_span_context
+
+    run_id = get_trace_run_id()
+    if run_id is None:
+        return nullcontext()
+    return fitness_mcp_tool_span_context(run_id, tool_name, input_data=input_data)
+
+
+@contextmanager
+def traced_fitness_mcp_call(
+    tool_name: str,
+    *,
+    input_data: dict[str, Any] | None = None,
+) -> Iterator[Any]:
+    with fitness_mcp_span_context(tool_name, input_data=input_data) as span:
+        yield span

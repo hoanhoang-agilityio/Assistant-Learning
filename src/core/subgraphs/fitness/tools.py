@@ -177,7 +177,7 @@ def populate_template(workspace_path: str) -> dict[str, Any]:
         constraints=constraints,
         macro_targets=macros["macro_targets"],
         training_constraints=macros["training_constraints"],
-        execution_plan=context.get("execution_plan") or {},
+        execution_plan=context.get("execution_plan"),
         structured_findings=None,
         planner_feedback=[],
         verification_feedback=context.get("verification_feedback"),

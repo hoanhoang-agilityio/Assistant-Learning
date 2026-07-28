@@ -54,10 +54,18 @@ def compact_execution_plan_for_llm(
     plan: Any,
     *,
     include_task_rationale: bool = True,
-) -> dict[str, Any]:
-    """Return execution plan fields needed by downstream LLM calls (no plan_markdown)."""
+) -> dict[str, Any] | None:
+    """Return execution plan fields needed by downstream LLM calls (no plan_markdown).
+
+    Returns None when `plan` is None -- an execution plan is optional context (e.g. Fitness
+    reached directly from a build_plan intent with no prior Planning/Research hop), not a
+    required one, so absence must round-trip cleanly instead of being coerced into a fake
+    empty plan the dict branch below would then reject for lacking "tasks".
+    """
     from core.planning.schema import ExecutionPlan
 
+    if plan is None:
+        return None
     if isinstance(plan, ExecutionPlan):
         tasks = (
             [task.model_dump() for task in plan.tasks]
