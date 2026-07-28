@@ -3,12 +3,12 @@
 import json
 from pathlib import Path
 
+from core.mcp.fitness_client import FitnessMCPClient
 from core.planning.utils import persist_revision_feedback
 from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.fitness.blueprint import build_plan_blueprint
 from core.subgraphs.fitness.schema import EditOperation
 from core.subgraphs.fitness.template_registry import (
-    TemplateRegistry,
     adapt_workout_to_blueprint,
     build_template_fingerprint,
     resolve_workout_template,
@@ -34,16 +34,14 @@ def test_build_plan_blueprint_includes_horizon() -> None:
     assert blueprint.phases
 
 
-def test_template_registry_reuse_by_fingerprint() -> None:
+def test_template_registry_reuse_by_fingerprint(fitness_client: FitnessMCPClient) -> None:
     profile = {"goal": "muscle_gain", "days_per_week": 3, "equipment": "gym"}
     constraints = {"equipment": "gym", "days_per_week": 3}
     blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     fingerprint = build_template_fingerprint(profile, constraints, blueprint)
     workout = default_structured_workout(profile, constraints).model_dump()
     workout["notes"] = ["Cacheable LLM workout for registry reuse test."]
-    registry = TemplateRegistry()
-    registry.clear()
-    registry.put(fingerprint, workout)
+    fitness_client.store_training_template(fingerprint, workout)
     resolution = resolve_workout_template(
         workspace_path="/tmp/unused",
         profile=profile,
@@ -57,16 +55,16 @@ def test_template_registry_reuse_by_fingerprint() -> None:
     assert resolution["structured_workout"] is not None
 
 
-def test_template_registry_skips_cache_when_revision_feedback_present(tmp_path) -> None:
+def test_template_registry_skips_cache_when_revision_feedback_present(
+    tmp_path, fitness_client: FitnessMCPClient
+) -> None:
     profile = {"goal": "muscle_gain", "days_per_week": 3, "equipment": "gym"}
     constraints = {"equipment": "gym", "days_per_week": 3}
     blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     fingerprint = build_template_fingerprint(profile, constraints, blueprint)
     workout = default_structured_workout(profile, constraints).model_dump()
     workout["notes"] = ["Cacheable LLM workout for registry reuse test."]
-    registry = TemplateRegistry()
-    registry.clear()
-    registry.put(fingerprint, workout)
+    fitness_client.store_training_template(fingerprint, workout)
     workspace_path = str(tmp_path / "revision-workspace")
     persist_revision_feedback(workspace_path, "train 5 days per week")
     resolution = resolve_workout_template(
@@ -209,26 +207,26 @@ def test_default_workout_rotates_push_pull_legs() -> None:
     assert exercise_names_by_day[1] != exercise_names_by_day[2]
 
 
-def test_store_workout_template_skips_benchmark_and_non_llm_sources() -> None:
+def test_store_workout_template_skips_benchmark_and_non_llm_sources(
+    fitness_client: FitnessMCPClient,
+) -> None:
     profile = {"goal": "muscle_gain", "days_per_week": 3}
     constraints = {"equipment": "gym", "days_per_week": 3}
     blueprint = build_plan_blueprint(profile, constraints, derive_goal_spec(profile))
     fingerprint = build_template_fingerprint(profile, constraints, blueprint)
     benchmark_workout = default_structured_workout(profile, constraints).model_dump()
-    registry = TemplateRegistry()
-    registry.clear()
 
     store_workout_template(fingerprint, benchmark_workout, source="llm")
-    assert registry.get(fingerprint) is None
+    assert fitness_client.search_training_template(fingerprint)["workout"] is None
 
     cacheable_workout = {
         **benchmark_workout,
         "notes": ["LLM generated workout."],
     }
     store_workout_template(fingerprint, cacheable_workout, source="registry")
-    assert registry.get(fingerprint) is None
+    assert fitness_client.search_training_template(fingerprint)["workout"] is None
 
     store_workout_template(fingerprint, cacheable_workout, source="llm")
-    cached = registry.get(fingerprint)
+    cached = fitness_client.search_training_template(fingerprint)["workout"]
     assert cached is not None
     assert BENCHMARK_WORKOUT_NOTE not in str(cached.get("notes"))

@@ -66,7 +66,7 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
     evidence_summary: str | None = None
     structured_findings: dict[str, Any] | None = None
     verification_feedback: str | None = None
-    execution_plan: dict[str, Any] = {}
+    execution_plan: dict[str, Any] | None = None
 
     if has_execution_plan(workspace_path):
         execution_plan = load_execution_plan(workspace_path).model_dump()

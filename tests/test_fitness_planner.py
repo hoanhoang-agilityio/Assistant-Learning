@@ -84,6 +84,25 @@ def test_build_planner_payload_includes_feedback_and_findings(
     assert payload["verification_feedback"] == "Increase weekly volume slightly."
 
 
+def test_build_planner_payload_without_execution_plan_does_not_raise(
+    sample_findings: ResearchFindings,
+) -> None:
+    """Regression test: Fitness reached directly from a build_plan intent with no prior
+    Planning/Research hop (no plan/execution_plan.json in the run workspace) must not crash
+    -- `load_fitness_context` passes None through, not a fake {} plan lacking "tasks"."""
+    payload = build_planner_payload(
+        profile={"goal": "fat_loss"},
+        constraints={"days_per_week": 3, "equipment": "gym"},
+        macro_targets={"calories": 2200},
+        training_constraints={"days_per_week": 3, "equipment": "gym", "goal": "fat_loss"},
+        execution_plan=None,
+        structured_findings=sample_findings,
+        planner_feedback=[],
+        verification_feedback=None,
+    )
+    assert payload["execution_plan"] is None
+
+
 def test_generate_structured_workout_uses_override(
     sample_execution_plan: ExecutionPlan,
     sample_findings: ResearchFindings,
