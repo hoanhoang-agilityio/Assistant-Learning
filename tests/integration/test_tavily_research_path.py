@@ -1,12 +1,12 @@
 import json
 from pathlib import Path
 
+from core.agents.execution_context import build_execution_context
 from core.agents.state import OrchestrationState
 from core.graph.run import create_initial_state
 from core.mcp.tavily_client import TavilyMCPClient
-from core.subgraphs.research.graph import invoke_research_subgraph
+from core.subgraphs.research.capability import invoke_research_capability
 from core.vfs import VFS
-from tests.helpers.planning import seed_execution_plan
 
 
 def test_tavily_research_path_writes_artifacts(
@@ -22,21 +22,19 @@ def test_tavily_research_path_writes_artifacts(
         user_profile=complete_profile,
         workspace_root=workspace_root,
     )
-    seed_execution_plan(state["workspace_path"], complete_profile)
+    ctx = build_execution_context(intent="build_plan")
     orchestration_state: OrchestrationState = {
         **state,
-        "request_type": "fat_loss",
-        "affected_domains": ["planning", "research", "fitness", "verify"],
+        "execution_context": ctx.model_dump(mode="json"),
     }
-    updates = invoke_research_subgraph(orchestration_state)
-    assert updates["waiting_for_user"] is False
+    updates = invoke_research_capability(orchestration_state)
+    assert updates.get("run_complete") is not True
     vfs = VFS.for_run(Path(state["workspace_path"]))
     assert vfs.exists("research/sources.json")
     assert vfs.exists("research/findings.json")
     sources = json.loads(vfs.read("research/sources.json"))
     findings = json.loads(vfs.read("research/findings.json"))
     assert len(sources) >= 1
-    assert findings["source_count"] >= 1
     assert "evidence" in findings
     assert "structured_findings" in findings
     assert findings["structured_findings"]["consensus"]

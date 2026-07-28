@@ -91,8 +91,12 @@ def test_e2e_happy_path_persists_final_artifact(
     paused = graph.invoke(orchestration_state, config)
     assert paused["verification_passed"] is True
     assert paused["faithfulness_score"] >= FAITHFULNESS_PASS_THRESHOLD
-    assert paused["waiting_for_user"] is True
 
+    # `interrupt_before=["hitl"]` pauses before the HITL node itself ever runs,
+    # so `waiting_for_user` is not set yet -- readiness for approval is signaled
+    # by the graph's next node, not a state field (see
+    # core.graph.service._resolve_hitl_context, which reads `next_nodes` the
+    # same way to build the approval message from the workspace directly).
     snapshot = graph.get_state(config)
     assert snapshot.next == ("hitl",)
 

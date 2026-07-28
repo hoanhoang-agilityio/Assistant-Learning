@@ -3,7 +3,6 @@
     {
       "id": "fat_loss_strength",
       "query": "I want a 4-day training plan to lose weight with strength training.",
-      "request_type": "fat_loss",
       "profile": {
         "age": 30,
         "sex": "male",
@@ -22,7 +21,6 @@
     {
       "id": "muscle_gain_hypertrophy",
       "query": "Build muscle with a hypertrophy training plan and macro targets.",
-      "request_type": "muscle_gain",
       "profile": {
         "age": 28,
         "sex": "female",
@@ -41,7 +39,6 @@
     {
       "id": "macro_calculation_cut",
       "query": "Calculate my macros for a cutting phase with gym training.",
-      "request_type": "macro_calculation",
       "profile": {
         "age": 35,
         "sex": "male",

@@ -22,8 +22,11 @@ def _mock_mermaid_ink_response() -> MagicMock:
     return response
 
 
-def test_graph_builders_include_supervisor_and_subgraphs() -> None:
-    assert set(GRAPH_BUILDERS) == {"supervisor", "planning", "research", "fitness", "verification"}
+def test_graph_builders_include_supervisor() -> None:
+    # Capabilities are plain functions in the intent-driven architecture, not
+    # separate compiled StateGraphs, so "supervisor" (the whole top-level
+    # graph) is the only diagram-able graph left.
+    assert set(GRAPH_BUILDERS) == {"supervisor"}
 
 
 def test_get_graph_mermaid_contains_nodes() -> None:
@@ -64,7 +67,7 @@ def test_draw_graph_mermaid_png_returns_png_bytes(mock_get: MagicMock) -> None:
 @patch("langchain_core.runnables.graph_mermaid.requests.get")
 def test_export_graph_diagram_writes_png(mock_get: MagicMock, tmp_path: Path) -> None:
     mock_get.return_value = _mock_mermaid_ink_response()
-    written = export_graph_diagram("planning", tmp_path, formats=("png",))
+    written = export_graph_diagram("supervisor", tmp_path, formats=("png",))
     png_path = written["png"]
     assert png_path.exists()
     assert png_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")

@@ -8,13 +8,14 @@ import pytest
 
 from core.config.settings import get_settings
 from core.graph.idempotency_store import IdempotencyStore
-from core.graph.run import create_initial_state
 from core.graph.run_tracker import RunTracker
 from core.graph.service import RunOrchestrator, best_effort
 from core.profile.extraction import configure_profile_extractor
 from core.profile.schema import ExtractedProfile
 from core.profile.store import load_run_profile
 from core.vfs import VFS
+from core.vfs.layout import PLAN_SUBMITTED_TEXT
+from tests.helpers.hitl import pause_before_hitl
 
 
 def test_resume_run_profile_form_via_command_resume(
@@ -85,6 +86,81 @@ def test_create_run_forwards_submitted_plan_text_into_state(
     config = {"configurable": {"thread_id": run_status.run_id}}
     snapshot = orchestrator.graph.get_state(config)
     assert snapshot.values["submitted_plan_text"] == "Day 1: Squat 3x5"
+
+
+def test_resume_run_attaches_submitted_plan_text_on_profile_form_resume(
+    memory_checkpointer,
+) -> None:
+    """submitted_plan_text can be attached alongside form_data on the profile-form-resume
+    path -- Command(update={"submitted_plan_text": ...}, resume=form_data) writes to a
+    different channel than the interrupt resume, so it doesn't disturb form_data's own
+    merge into the profile."""
+    configure_profile_extractor(lambda _query: ExtractedProfile())
+    orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
+    run_status = orchestrator.create_run(
+        query="I want a 4-day training plan to lose weight.",
+        user_profile={"age": 30, "height_cm": 175},
+        constraints={"days_per_week": 4, "equipment": "gym"},
+    )
+    assert run_status.status == "waiting_hitl"
+    assert run_status.hitl_type == "profile_form"
+
+    orchestrator.resume_run(
+        run_status.run_id,
+        form_data={
+            "sex": "male",
+            "current_weight_kg": 85.0,
+            "target_weight_kg": 75.0,
+            "goal": "fat_loss",
+        },
+        submitted_plan_text="Day 1: Squat 3x5",
+    )
+
+    config = {"configurable": {"thread_id": run_status.run_id}}
+    snapshot = orchestrator.graph.get_state(config)
+    for _ in range(100):
+        if snapshot.next != ("user",):
+            break
+        time.sleep(0.02)
+        snapshot = orchestrator.graph.get_state(config)
+    else:
+        raise AssertionError("profile form resume did not complete in time")
+
+    assert snapshot.values["profile_complete"] is True
+    stored = load_run_profile(snapshot.values["workspace_path"])
+    assert stored["sex"] == "male"
+    assert snapshot.values["submitted_plan_text"] == "Day 1: Squat 3x5"
+    assert (
+        VFS.for_run(Path(snapshot.values["workspace_path"])).read(PLAN_SUBMITTED_TEXT)
+        == "Day 1: Squat 3x5"
+    )
+
+
+def test_resume_run_attaches_submitted_plan_text_on_hitl_resume(
+    memory_checkpointer,
+    tmp_path,
+) -> None:
+    """submitted_plan_text can also be attached when resuming from the HITL approval pause.
+    It's additive on top of the approval-decision update dict, not a required field --
+    resume_run must not require re-submitting the plan just to approve a run."""
+    orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
+    run_id = "hitl-resume-plan-text"
+    pause_before_hitl(orchestrator.graph, run_id, tmp_path)
+
+    status = orchestrator.resume_run(
+        run_id,
+        user_response="approve",
+        submitted_plan_text="Day 1: Deadlift 3x5",
+    )
+
+    assert status.approval_status == "approved"
+    config = {"configurable": {"thread_id": run_id}}
+    snapshot = orchestrator.graph.get_state(config)
+    assert snapshot.values["submitted_plan_text"] == "Day 1: Deadlift 3x5"
+    assert (
+        VFS.for_run(Path(snapshot.values["workspace_path"])).read(PLAN_SUBMITTED_TEXT)
+        == "Day 1: Deadlift 3x5"
+    )
 
 
 def test_get_run_reports_running_while_pending_resume_race_leaves_stale_checkpoint(
@@ -201,27 +277,6 @@ def test_start_run_records_failure_instead_of_hanging_when_execution_times_out(
     assert status.error_message is not None
 
 
-def _waiting_for_approval_state(run_id: str, tmp_path) -> dict:
-    initial = create_initial_state(
-        run_id=run_id,
-        thread_id=run_id,
-        query="Approve my plan",
-        workspace_root=tmp_path / run_id,
-    )
-    return {
-        **initial,
-        "request_type": "training_plan",
-        "affected_domains": ["planning", "research", "fitness", "verify"],
-        "current_node": "supervisor",
-        "verification_passed": True,
-        "route_decision": "COMPLETE",
-        "waiting_for_user": True,
-        "approval_status": "pending",
-        "profile_complete": True,
-        "profile_valid": True,
-    }
-
-
 def test_resume_run_free_text_approval_uses_strict_classification(
     memory_checkpointer,
     tmp_path,
@@ -234,24 +289,21 @@ def test_resume_run_free_text_approval_uses_strict_classification(
     rule (which stays exercised separately by tests/test_partial_rerun.py)."""
     orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
 
-    exact_config = {"configurable": {"thread_id": "approve-exact"}}
-    orchestrator.graph.invoke(_waiting_for_approval_state("approve-exact", tmp_path), exact_config)
+    pause_before_hitl(orchestrator.graph, "approve-exact", tmp_path)
     exact_status = orchestrator.resume_run("approve-exact", user_response="approve")
     assert exact_status.approval_status == "approved"
 
     # Under strict=True, "approving this plan" doesn't match the exact "approve"/"approved"/
     # "yes" set, so it's classified "revision_requested" -- which resume_run's revision branch
-    # then normalizes to route_decision="REPLAN"/approval_status="pending" (see
-    # core.hitl.resume.user_revision_to_replan_update). If strict matching regressed to the
-    # permissive prefix rule, this input would instead be classified "approved" and skip the
-    # revision branch entirely, leaving route_decision untouched at "COMPLETE".
-    prefix_config = {"configurable": {"thread_id": "approve-prefix"}}
-    orchestrator.graph.invoke(
-        _waiting_for_approval_state("approve-prefix", tmp_path), prefix_config
-    )
+    # leaves as approval_status="revision_requested" and routes back to Fitness via the Policy
+    # Engine's revision_requested rule (core.capabilities.policy_engine), not a pending_request
+    # transport object (see core.hitl.resume.user_revision_to_replan_update). If strict matching
+    # regressed to the permissive prefix rule, this input would instead be classified "approved"
+    # and skip the revision branch entirely.
+    pause_before_hitl(orchestrator.graph, "approve-prefix", tmp_path)
     prefix_status = orchestrator.resume_run("approve-prefix", user_response="approving this plan")
-    assert prefix_status.approval_status == "pending"
-    assert prefix_status.route_decision == "REPLAN"
+    assert prefix_status.approval_status == "revision_requested"
+    assert prefix_status.active_capability == "fitness"
 
 
 def test_concurrent_resume_calls_reject_the_second_with_conflict(
@@ -264,11 +316,7 @@ def test_concurrent_resume_calls_reject_the_second_with_conflict(
     flight, not double-processed."""
     orchestrator = RunOrchestrator(checkpointer=memory_checkpointer)
     run_id = "concurrent-resume-run"
-    config = {"configurable": {"thread_id": run_id}}
-    state = _waiting_for_approval_state(run_id, tmp_path)
-    vfs = VFS.for_run(Path(state["workspace_path"]))
-    vfs.write("fitness/final_plan.md", "# Final Plan\n\nMacro targets and training days.")
-    orchestrator.graph.invoke(state, config)
+    pause_before_hitl(orchestrator.graph, run_id, tmp_path)
 
     # Block the first resume's background thread inside graph.stream(), right where the
     # real race window sits (after the pre-resume snapshot has been read, before the graph
@@ -501,14 +549,10 @@ def test_start_resume_run_rejects_a_second_concurrent_resume_via_the_database_cl
     two worker replicas racing to resume the same run, each with its own,
     independent in-memory guard, sharing only the Postgres-backed tracker."""
     run_id = "cross-worker-resume-run"
-    config = {"configurable": {"thread_id": run_id}}
-    state = _waiting_for_approval_state(run_id, tmp_path)
-    vfs = VFS.for_run(Path(state["workspace_path"]))
-    vfs.write("fitness/final_plan.md", "# Final Plan\n\nMacro targets and training days.")
 
     worker_a = RunOrchestrator(checkpointer=memory_checkpointer, run_tracker=run_tracker)
     worker_b = RunOrchestrator(checkpointer=memory_checkpointer, run_tracker=run_tracker)
-    worker_a.graph.invoke(state, config)
+    pause_before_hitl(worker_a.graph, run_id, tmp_path)
     run_tracker.mark_waiting(run_id, query="Approve my plan")
 
     first = worker_a.start_resume_run(

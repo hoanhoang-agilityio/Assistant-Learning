@@ -9,9 +9,7 @@ from core.profile.extraction import _EXTRACTION_SYSTEM_PROMPT
 from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.fitness.planner import build_planner_payload
 from core.subgraphs.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
-from core.subgraphs.planning.planning_agent import _PLANNING_SYSTEM_PROMPT
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
-from core.subgraphs.planning.utils import build_planning_payload
 from core.subgraphs.research.prompts import (
     QUERY_PLANNING_SYSTEM_PROMPT,
     SYNTHESIS_SYSTEM_PROMPT,
@@ -71,22 +69,10 @@ def test_fixture_measurements_within_budgets() -> None:
             query,
         ),
         (
-            "planning_agent",
-            _PLANNING_SYSTEM_PROMPT,
-            build_planning_payload(
-                profile=profile,
-                goal_spec=goal_spec,
-                query=query,
-                request_type="fat_loss",
-                constraints={"equipment": "gym"},
-            ),
-        ),
-        (
             "research_query_planning",
             QUERY_PLANNING_SYSTEM_PROMPT,
             build_research_context_payload(
                 query=query,
-                request_type="fat_loss",
                 profile=profile,
                 goal_spec=goal_spec,
                 execution_plan=plan,
@@ -97,7 +83,6 @@ def test_fixture_measurements_within_budgets() -> None:
             SYNTHESIS_SYSTEM_PROMPT,
             build_research_context_payload(
                 query=query,
-                request_type=None,
                 profile=profile,
                 goal_spec=goal_spec,
                 extra=build_synthesis_llm_extra(

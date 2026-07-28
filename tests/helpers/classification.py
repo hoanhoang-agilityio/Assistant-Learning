@@ -1,14 +1,6 @@
-"""Deterministic default overrides for the topic-scope and request-type judges.
-
-Production code always calls the real LLM judges (core/agents/topic_scope_judge.py,
-core/agents/request_type_judge.py). Tests install these keyword-based stand-ins by
-default (see conftest.py) so the supervisor graph can be exercised offline; tests that
-care about a specific verdict configure their own override instead.
-"""
+"""Deterministic default overrides for topic-scope and intent judges."""
 
 from core.agents.intent_judge import UserIntentJudgement
-from core.agents.request_type_judge import RequestTypeJudgement
-from core.agents.state import RequestType
 from core.agents.topic_scope_judge import ScopeRequest, TopicScopeJudgement
 
 _FITNESS_TOPIC_KEYWORDS: tuple[str, ...] = (
@@ -20,77 +12,15 @@ _FITNESS_TOPIC_KEYWORDS: tuple[str, ...] = (
     "fitness",
     "muscle",
     "strength",
-    "cardio",
-    "endurance",
-    "hypertrophy",
-    "powerlifting",
-    "1rm",
-    "rep ",
-    "reps",
-    "set ",
-    "sets",
-    "routine",
-    "regimen",
-    "diet",
-    "nutrition",
     "macro",
     "calorie",
-    "protein",
-    "carb",
-    "fat loss",
-    "lose fat",
-    "weight loss",
-    "lose weight",
-    "bulk",
-    "cutting",
-    "cut ",
-    "recovery",
-    "stretch",
-    "mobility",
-    "flexibility",
-    "yoga",
-    "running",
-    "marathon",
-    "jog",
-    "lift",
-    "lifting",
-    "squat",
-    "deadlift",
-    "bench press",
-    "supplement",
-    "injury",
-    "warm up",
-    "warmup",
-    "cool down",
-    "hydration",
-    "bodyweight",
+    "research",
     "hiit",
-    "crossfit",
-    "pilates",
-    "sore",
-    "soreness",
-    "physique",
-)
-
-_REQUEST_TYPE_KEYWORDS: tuple[tuple[RequestType, tuple[str, ...]], ...] = (
-    ("fat_loss", ("lose weight", "fat loss", "lose fat", "cutting", "cut ")),
-    ("muscle_gain", ("muscle gain", "bulk", "hypertrophy", "build muscle")),
-    ("macro_calculation", ("macro", "calories", "protein", "macros")),
-    ("strength", ("strength", "powerlifting", "1rm")),
-    ("endurance", ("endurance", "marathon", "cardio")),
-    ("training_plan", ("training plan", "workout plan", "program")),
+    "plan",
 )
 
 
 def default_topic_scope_judge(query: str) -> TopicScopeJudgement:
-    """Keyword-based stand-in for the real topic-scope LLM judge.
-
-    This stub has no notion of "actionable request" vs. "context" or of
-    multiple distinct asks -- it only flags whether a fitness keyword appears
-    anywhere in the message and treats the whole message as one request.
-    Tests that care about MIXED/CLARIFY behavior configure their own
-    override instead.
-    """
     query_lower = query.lower()
     is_fitness_related = any(keyword in query_lower for keyword in _FITNESS_TOPIC_KEYWORDS)
     return TopicScopeJudgement(
@@ -106,33 +36,23 @@ def default_topic_scope_judge(query: str) -> TopicScopeJudgement:
     )
 
 
-def default_request_type_judge(query: str) -> RequestTypeJudgement:
-    """Keyword-based stand-in for the real request-type LLM judge."""
+def default_user_intent_judge(query: str) -> UserIntentJudgement:
     query_lower = query.lower()
-    request_type: RequestType = "general_fitness"
-    for candidate_type, keywords in _REQUEST_TYPE_KEYWORDS:
-        if any(keyword in query_lower for keyword in keywords):
-            request_type = candidate_type
-            break
-    return RequestTypeJudgement(
-        request_type=request_type,
-        reason="Keyword-based test stub verdict.",
-    )
-
-
-def default_user_intent_judge(_query: str) -> UserIntentJudgement:
-    """Stand-in for the real user-intent LLM judge.
-
-    Always classifies "generate" regardless of the query -- this is Phase 2's documented
-    default (nothing calls judge_user_intent from production code yet, and "generate" is
-    the only workflow any existing test exercises), matching
-    default_request_type_judge/default_topic_scope_judge's role as the autouse-fixture
-    default. Tests that want to exercise edit/verify classification configure their own
-    override via configure_user_intent_judge instead.
-    """
+    if "research" in query_lower or "evidence" in query_lower or "study" in query_lower:
+        intent = "research_question"
+    elif "macro" in query_lower and ("check" in query_lower or "verify" in query_lower):
+        intent = "verify_macros"
+    elif "calculate" in query_lower and ("calorie" in query_lower or "tdee" in query_lower):
+        intent = "calculate_calories"
+    elif "swap" in query_lower or "edit" in query_lower or "change" in query_lower:
+        intent = "edit_plan"
+    elif "build" in query_lower or "create" in query_lower or "plan" in query_lower:
+        intent = "build_plan"
+    else:
+        intent = "fitness_question"
     return UserIntentJudgement(
-        user_intent="generate",
-        reason="Test stub default verdict.",
-        mentions_submitted_plan=False,
-        touches_goal_or_constraints=False,
+        intent=intent,
+        reason="Keyword-based test stub verdict.",
+        mentions_submitted_plan="here's my plan" in query_lower,
+        touches_goal_or_constraints="goal" in query_lower,
     )

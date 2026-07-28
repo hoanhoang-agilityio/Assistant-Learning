@@ -218,12 +218,13 @@ def test_stream_run_events_streams_node_updates_then_settles(
     node_updates = [event for event in events if event["type"] == "node_update"]
     settled_events = [event for event in events if event["type"] == "run_settled"]
 
-    # Real node-level granularity, not just the 7 top-level subgraph names --
-    # confirms subgraphs=True is actually surfacing internal node completions.
+    # Each capability is a single top-level graph node in the intent-driven
+    # architecture (tools run as plain function calls inside it, not as
+    # separate graph nodes), so streamed granularity is per-capability.
     steps = {event["step"] for event in node_updates}
-    assert "research:research_agent" in steps
-    assert "fitness:fitness_planner" in steps
-    assert "verification:citation_check" in steps
+    assert "research" in steps
+    assert "fitness" in steps
+    assert "verification" in steps
 
     # Exactly one terminal event, and it's the last one.
     assert len(settled_events) == 1

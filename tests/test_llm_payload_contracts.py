@@ -5,36 +5,16 @@ import pytest
 from core.llm.contracts import (
     OPTIMIZATION_ROI_RANKING,
     validate_fitness_planner_payload,
-    validate_planning_payload,
     validate_research_context_payload,
 )
 from core.profile.goal_spec import derive_goal_spec
 from core.subgraphs.fitness.planner import build_planner_payload
 from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
-from core.subgraphs.planning.utils import build_planning_payload
 from core.subgraphs.research.schema import ResearchFindings
 from core.subgraphs.research.utils import build_research_context_payload
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
 _MIN_PLAN_RATIONALE = "Test plan rationale with enough characters for validation."
-
-
-def test_planning_payload_contract_forbids_duplicates() -> None:
-    with pytest.raises(ValueError, match="Forbidden payload keys"):
-        validate_planning_payload({"todos": [], "profile": {"goal": "fat_loss"}})
-
-
-def test_planning_payload_contract_strips_profile_query() -> None:
-    profile = {"query": "lose weight", "goal": "fat_loss", "age": 30}
-    payload = build_planning_payload(
-        profile=profile,
-        goal_spec=derive_goal_spec(profile),
-        query="lose weight",
-        request_type="fat_loss",
-        constraints={},
-    )
-    validate_planning_payload(payload)
-    assert "query" not in payload["profile"]
 
 
 def test_research_payload_contract_forbids_plan_markdown() -> None:
@@ -52,7 +32,6 @@ def test_research_payload_contract_forbids_plan_markdown() -> None:
     profile = {"goal": "fat_loss", "query": "Build a plan"}
     payload = build_research_context_payload(
         query="Build a plan",
-        request_type="fat_loss",
         profile=profile,
         goal_spec=derive_goal_spec(profile),
         execution_plan=plan,
