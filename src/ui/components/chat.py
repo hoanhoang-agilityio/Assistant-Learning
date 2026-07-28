@@ -20,7 +20,6 @@ from ui.api_client import (
 from ui.copy import (
     APPROVAL_STATUS_COPY,
     HITL_TYPE_COPY,
-    ROUTE_DECISION_COPY,
     STATUS_COPY,
     step_display,
 )
@@ -214,8 +213,6 @@ def _format_assistant_status_message(status: dict[str, Any]) -> str:
             f"🙅 {APPROVAL_STATUS_COPY['rejected']} "
             "Send a new message whenever you're ready for a different plan."
         )
-    if run_status == "running" and status.get("route_decision") == "REPLAN":
-        return f"🔄 {ROUTE_DECISION_COPY['REPLAN']}"
     if approval_status == "approved" and run_status == "completed":
         final_plan = status.get("final_plan")
         if final_plan:
@@ -242,6 +239,9 @@ def _format_assistant_status_message(status: dict[str, Any]) -> str:
         final_plan = status.get("final_plan")
         if final_plan:
             return final_plan
+        final_response = status.get("final_response")
+        if final_response:
+            return final_response
         return "✅ All done, but I couldn't find the final plan artifact."
     _, message = STATUS_COPY.get(
         run_status, ("⏳", "The plan is still being generated. Please wait a moment…")

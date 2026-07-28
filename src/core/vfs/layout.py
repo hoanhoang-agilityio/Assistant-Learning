@@ -116,13 +116,13 @@ VFS_ARTIFACTS: tuple[VfsArtifactSpec, ...] = (
         path=PLAN_REVISION_FEEDBACK,
         content_kind=VfsContentKind.JSON,
         producer="orchestration",
-        description="User revision feedback for REPLAN runs",
+        description="User revision feedback for a Fitness revision resume",
     ),
     VfsArtifactSpec(
         path=PLAN_SUBMITTED_TEXT,
         content_kind=VfsContentKind.MARKDOWN,
         producer="orchestration",
-        description="User-submitted existing plan text for VerifyExternalWorkflow runs",
+        description="User-submitted existing plan text for verify_plan runs",
     ),
     VfsArtifactSpec(
         path=RESEARCH_SOURCES,

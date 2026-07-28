@@ -6,10 +6,6 @@ from typing import Any
 
 FORBIDDEN_PROFILE_KEYS: frozenset[str] = frozenset({"query", "missing_fields"})
 
-FORBIDDEN_PLANNING_PAYLOAD_KEYS: frozenset[str] = frozenset(
-    {"todos", "execution_plan", "planning_output", "missing_fields"}
-)
-
 FORBIDDEN_RESEARCH_PAYLOAD_KEYS: frozenset[str] = frozenset(
     {"plan_markdown", "planning_output", "todos"}
 )
@@ -37,14 +33,6 @@ def assert_compact_execution_plan_contract(plan_payload: dict[str, Any]) -> None
         raise ValueError("plan_markdown is forbidden in compact execution plan payloads")
     if "tasks" not in plan_payload or "plan_rationale" not in plan_payload:
         raise ValueError("tasks and plan_rationale are required in execution plan payloads")
-
-
-def validate_planning_payload(payload: dict[str, Any]) -> None:
-    """Validate Planning Agent LLM payload contract."""
-    assert_no_forbidden_keys(payload, FORBIDDEN_PLANNING_PAYLOAD_KEYS)
-    assert_compact_profile_contract(payload.get("profile", {}))
-    if "query" in payload.get("profile", {}):
-        raise ValueError("query must not be duplicated inside profile")
 
 
 def validate_research_context_payload(payload: dict[str, Any]) -> None:

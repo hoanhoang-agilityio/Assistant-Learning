@@ -1,34 +1,59 @@
 import json
 from pathlib import Path
+from uuid import uuid4
 
+from core.agents.execution_context import CapabilityResult
 from core.agents.state import OrchestrationState
 from core.hitl.utils import hitl_control_data, request_approval_data
+from core.subgraphs.wrapper import merge_subgraph_updates
 from core.vfs import VFS
 
 
 def invoke_hitl_node(state: OrchestrationState) -> dict:
-    """Process HITL interrupt/resume for clarification or final approval."""
+    """Process HITL interrupt/resume for final approval.
+
+    Reports its own outcome only, via `last_capability_result` -- never sets
+    `run_complete` or decides to route to persist itself. The Supervisor's Policy
+    Engine (`core.capabilities.policy_engine`'s `_hitl_outcome` rule: approved ->
+    persist, rejected -> finish) is the actual deterministic routing.
+    """
     if state["approval_status"] == "rejected":
-        return {
-            "current_node": "hitl",
-            "waiting_for_user": False,
-            "approval_status": "rejected",
-            "hitl_type": None,
-        }
+        result = CapabilityResult(
+            request_id=uuid4(),
+            capability="hitl",
+            status="completed",
+            summary="User rejected the artifact.",
+            artifacts={"approved": False},
+        )
+        return merge_subgraph_updates(
+            state,
+            {
+                "current_node": "hitl",
+                "waiting_for_user": False,
+                "last_capability_result": result.model_dump(mode="json"),
+            },
+            subgraph="hitl",
+            steps=["rejected"],
+        )
 
     if state["approval_status"] == "approved":
-        return {
-            "current_node": "hitl",
-            "waiting_for_user": False,
-            "approval_status": "approved",
-            "hitl_type": None,
-        }
-
-    if not state["waiting_for_user"] and state.get("route_decision") == "REPLAN":
-        return {
-            "current_node": "hitl",
-            "waiting_for_user": False,
-        }
+        result = CapabilityResult(
+            request_id=uuid4(),
+            capability="hitl",
+            status="completed",
+            summary="User approved the artifact.",
+            artifacts={"approved": True},
+        )
+        return merge_subgraph_updates(
+            state,
+            {
+                "current_node": "hitl",
+                "waiting_for_user": False,
+                "last_capability_result": result.model_dump(mode="json"),
+            },
+            subgraph="hitl",
+            steps=["approved"],
+        )
 
     control = hitl_control_data(
         waiting_for_user=state["waiting_for_user"],
@@ -38,26 +63,16 @@ def invoke_hitl_node(state: OrchestrationState) -> dict:
     updates: dict = {"current_node": "hitl", **control}
 
     if control.get("waiting_for_user") is False:
-        return updates
+        return merge_subgraph_updates(state, updates, subgraph="hitl", steps=["resume"])
 
-    if state["route_decision"] == "COMPLETE" or state["verification_passed"]:
-        vfs = VFS.for_run(Path(state["workspace_path"]))
-        draft_plan = ""
-        verification_report: dict = {"passed": state["verification_passed"]}
-        if vfs.exists("fitness/final_plan.md"):
-            draft_plan = vfs.read("fitness/final_plan.md")
-        if vfs.exists("verify/verification_v1.json"):
-            verification_report = json.loads(vfs.read("verify/verification_v1.json"))
-        approval = request_approval_data(draft_plan, verification_report)
-        updates.update(approval)
-        return updates
-
-    # NOTE: there used to be a branch here checking state["user_profile"]["missing_fields"]
-    # to trigger a "clarification" HITL prompt via request_clarification. Profile
-    # completeness is now handled entirely by the User subgraph (interrupt()-based form)
-    # before this node is ever reached -- user_profile never carries a missing_fields key
-    # anymore, so that branch was unreachable dead code. See core.subgraphs.user.
-
-    updates["approval_status"] = state["approval_status"] or "pending"
+    vfs = VFS.for_run(Path(state["workspace_path"]))
+    draft_plan = ""
+    verification_report: dict = {"passed": state["verification_passed"]}
+    if vfs.exists("fitness/final_plan.md"):
+        draft_plan = vfs.read("fitness/final_plan.md")
+    if vfs.exists("verify/verification_v1.json"):
+        verification_report = json.loads(vfs.read("verify/verification_v1.json"))
+    approval = request_approval_data(draft_plan, verification_report)
+    updates.update(approval)
     updates["waiting_for_user"] = True
-    return updates
+    return merge_subgraph_updates(state, updates, subgraph="hitl", steps=["approval_request"])
