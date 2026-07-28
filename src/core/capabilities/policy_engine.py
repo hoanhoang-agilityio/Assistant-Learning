@@ -52,6 +52,23 @@ def _profile_ready(state: OrchestrationState) -> bool:
     return bool(state.get("profile_complete") and state.get("profile_valid"))
 
 
+def _apply_profile_gate(state: OrchestrationState, decision: PolicyDecision) -> PolicyDecision:
+    """Redirect profile-required targets to ``user`` when the profile is not ready.
+
+    Must run on the *final* decision, including entry-node and deterministic
+    overrides. Those paths used to return early and skip the profile gate, which
+    let Planning/Fitness run against an incomplete profile (production: Fitness
+    then crashed on ``macro_targets is None``).
+    """
+    if decision.next_agent not in _PROFILE_REQUIRED_CAPABILITIES:
+        return decision
+    if state.get("intent") in _INTENT_SKIPS_PROFILE_GATE:
+        return decision
+    if _profile_ready(state):
+        return decision
+    return PolicyDecision("user", True, "profile_incomplete")
+
+
 def _deterministic_next_after(state: OrchestrationState) -> tuple[RoutingDecision, str] | None:
     """The one valid next step after the just-completed capability's result, when
     one is actually known -- `None` means there's no hard rule for this case (first
@@ -86,8 +103,15 @@ def _deterministic_next_after(state: OrchestrationState) -> tuple[RoutingDecisio
         return "fitness", "research_requires_fitness"
 
     if capability == "fitness":
-        if status == "blocked" and "research_findings" in (last.get("missing_information") or []):
+        missing = last.get("missing_information") or []
+        if status == "blocked" and "research_findings" in missing:
             return "research", "fitness_requires_research"
+        if status == "blocked" and "profile_biometrics" in missing:
+            # Defense-in-depth when VFS profile lacks weight/height/age even if
+            # orchestration flags claimed the profile was ready.
+            if _profile_ready(state):
+                return "fitness", "profile_ready_retry_fitness"
+            return "user", "fitness_requires_profile"
         if status == "completed":
             # A freshly produced/edited artifact always needs Verification before
             # anything else; a read-only answer (verify_macros/calculate_calories/
@@ -161,7 +185,7 @@ def enforce_routing_invariants(
     if state.get("last_capability_result") is None:
         entry_node = (state.get("execution_context") or {}).get("entry_node")
         if entry_node and entry_node != proposed:
-            return PolicyDecision(entry_node, True, "premature_finish")
+            return _apply_profile_gate(state, PolicyDecision(entry_node, True, "premature_finish"))
         if entry_node is None and proposed == "finish":
             return PolicyDecision(_FALLBACK_TARGET, True, "premature_finish")
 
@@ -178,12 +202,14 @@ def enforce_routing_invariants(
     if state.get("approval_status") == "revision_requested" and "fitness" not in (
         state.get("agent_trail") or []
     ):
-        return PolicyDecision("fitness", proposed != "fitness", "revision_requested")
+        return _apply_profile_gate(
+            state, PolicyDecision("fitness", proposed != "fitness", "revision_requested")
+        )
 
     deterministic = _deterministic_next_after(state)
     if deterministic is not None:
         target, reason = deterministic
-        return PolicyDecision(target, target != proposed, reason)
+        return _apply_profile_gate(state, PolicyDecision(target, target != proposed, reason))
 
     # Defense-in-depth: catches a "persist" proposal not immediately preceded by an
     # approved HITL result (the deterministic table above already handles the
@@ -192,15 +218,7 @@ def enforce_routing_invariants(
     if proposed == "persist" and state.get("approval_status") != "approved":
         return PolicyDecision("hitl", True, "persist_requires_hitl_approval")
 
-    intent = state.get("intent")
-    if (
-        proposed in _PROFILE_REQUIRED_CAPABILITIES
-        and intent not in _INTENT_SKIPS_PROFILE_GATE
-        and not _profile_ready(state)
-    ):
-        return PolicyDecision("user", True, "profile_incomplete")
-
     if proposed != "finish" and proposed not in CAPABILITY_REGISTRY:
         return PolicyDecision(_FALLBACK_TARGET, True, "invalid_next_agent")
 
-    return PolicyDecision(proposed, False, None)
+    return _apply_profile_gate(state, PolicyDecision(proposed, False, None))

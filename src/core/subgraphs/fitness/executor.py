@@ -19,11 +19,27 @@ from core.capabilities.executor import CapabilityExecutor
 from core.subgraphs.fitness import tools as fitness_tools
 
 
+def _missing_biometrics_result() -> CapabilityResult:
+    return CapabilityResult(
+        request_id=uuid4(),
+        capability="fitness",
+        status="blocked",
+        blocking_reason="Profile biometrics required for plan generation",
+        missing_information=["profile_biometrics"],
+        summary="Need age, height, and weight before drafting a training plan.",
+    )
+
+
 def _run_build_plan(state: OrchestrationState, ctx: ExecutionContext) -> CapabilityResult:
     """Same domain sequence for build_plan/edit_plan -- the Policy Engine decides to
     route to Verification next (see `artifact_requires_verification`)."""
     workspace = state["workspace_path"]
     macros = fitness_tools.calculate_macros(workspace)
+    macro_targets = macros.get("macro_targets")
+    if macro_targets is None:
+        # calculate_macros_data returns None when weight/height/age are missing.
+        # synthesize_plan_data / the planner payload would TypeError on subscript.
+        return _missing_biometrics_result()
     blueprint = fitness_tools.generate_blueprint(workspace)
     template = fitness_tools.select_template(workspace)
     workout = template.get("structured_workout")
@@ -40,14 +56,14 @@ def _run_build_plan(state: OrchestrationState, ctx: ExecutionContext) -> Capabil
         )
     draft = fitness_tools.render_plan(
         workspace,
-        macro_targets=macros["macro_targets"],
+        macro_targets=macro_targets,
         structured_workout=workout,
         plan_blueprint=blueprint["plan_blueprint"],
     )
     correlation_id = str(uuid4())
     fitness_tools.write_artifacts(
         workspace,
-        macro_targets=macros["macro_targets"],
+        macro_targets=macro_targets,
         structured_workout=workout,
         draft_plan=draft["draft_plan"],
         plan_blueprint=blueprint["plan_blueprint"],
@@ -67,6 +83,9 @@ def _run_read_only(state: OrchestrationState, ctx: ExecutionContext) -> Capabili
     workspace = state["workspace_path"]
     if ctx.intent == "verify_macros":
         reported = judge_reported_macros(state["query"])
+        calories_data = fitness_tools.calculate_calories(workspace)
+        if calories_data["macro_targets"] is None:
+            return _missing_biometrics_result()
         result = fitness_tools.evaluate_macros(workspace, reported.model_dump())
         return CapabilityResult(
             request_id=uuid4(),
@@ -77,6 +96,8 @@ def _run_read_only(state: OrchestrationState, ctx: ExecutionContext) -> Capabili
     if ctx.intent == "calculate_calories":
         result = fitness_tools.calculate_calories(workspace)
         macros = result["macro_targets"]
+        if macros is None:
+            return _missing_biometrics_result()
         response = (
             f"Estimated TDEE: {macros['tdee']} kcal/day. "
             f"Target calories: {macros['calories']} kcal with {macros['protein_g']}g protein."

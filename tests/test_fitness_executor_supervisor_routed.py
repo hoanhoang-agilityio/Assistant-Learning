@@ -61,6 +61,51 @@ def test_build_plan_blocked_when_no_research_findings(
     assert result.artifacts == {}
 
 
+def test_build_plan_blocked_when_biometrics_missing(
+    workspace_root: Path,
+) -> None:
+    """Regression: incomplete profile made calculate_macros return macro_targets=None,
+    then render_plan crashed with TypeError: 'NoneType' object is not subscriptable."""
+    import json
+
+    from core.vfs import VFS
+
+    state = create_initial_state(
+        run_id="build-no-bio-v2",
+        thread_id="build-no-bio-thread-v2",
+        query="Build me a 4-day plan",
+        user_profile={},
+        constraints={"days_per_week": 4, "equipment": "gym"},
+        workspace_root=workspace_root,
+    )
+    vfs = VFS.for_run(Path(state["workspace_path"]))
+    vfs.write(
+        "research/findings.json",
+        json.dumps(
+            {
+                "structured_findings": {
+                    "consensus": "Resistance training supports fat loss.",
+                    "key_findings": ["Train 3-4 days per week."],
+                    "limitations": [],
+                    "confidence": "medium",
+                },
+                "evidence": [],
+                "evidence_summary": "Train consistently.",
+                "source_count": 1,
+            }
+        ),
+    )
+    ctx = build_execution_context(intent="build_plan")
+
+    result = SupervisorRoutedFitnessExecutor().execute(state, ctx)
+
+    assert result.status == "blocked"
+    assert result.missing_information == ["profile_biometrics"]
+    assert "biometrics" in (result.blocking_reason or "").lower() or "Profile" in (
+        result.blocking_reason or ""
+    )
+
+
 def test_after_verification_reports_completed_with_pass_verdict(
     workspace_root: Path, complete_profile: dict[str, Any]
 ) -> None:
