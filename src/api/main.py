@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.deps import close_orchestrator_resources, get_orchestrator
 from api.routes.runs import router as runs_router
+from api.routes.users import router as users_router
 from core.config.settings import Settings, get_settings
 from core.graph.service import RunOrchestrator
 from core.rate_limit.pricing import validate_model_pricing_coverage
@@ -70,7 +71,12 @@ def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
         # request handling, but the lifespan runs independently of that.
         reconciliation_task: asyncio.Task | None = None
         if orchestrator is None:
-            instance = get_orchestrator()  # construct eagerly: fail fast on bad DB config
+            # get_orchestrator() -> configure_fitness_client_from_settings() ->
+            # create_fitness_mcp_client_sync() calls asyncio.run() internally, which raises
+            # if invoked directly on this coroutine's own already-running event loop. Run it
+            # on a worker thread (no event loop of its own) instead, same as the
+            # reconcile_orphaned_runs offload just below.
+            instance = await asyncio.to_thread(get_orchestrator)  # fail fast on bad DB config
             # Startup reconciliation: recover runs orphaned by a crash/restart
             # of a *previous* process before this one accepts any traffic.
             await asyncio.to_thread(instance.reconcile_orphaned_runs)
@@ -93,6 +99,7 @@ def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
     )
     add_cors_middleware(app, settings)
     app.include_router(runs_router)
+    app.include_router(users_router)
 
     if orchestrator is not None:
         app.dependency_overrides[get_orchestrator] = lambda: orchestrator

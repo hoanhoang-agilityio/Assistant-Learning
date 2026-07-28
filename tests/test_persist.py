@@ -36,28 +36,20 @@ def test_persist_trigger_blocks_low_faithfulness() -> None:
     assert "faithfulness_below_threshold" in result["persist_blocked_reasons"]
 
 
-def test_persist_trigger_omits_faithfulness_reason_for_external_plan_strategy() -> None:
-    """Phase 5: EXTERNAL_PLAN never runs the faithfulness check, so faithfulness_score is
-    always None -- the diagnostic reason list must not misreport this as a failure."""
+def test_persist_trigger_blocks_missing_faithfulness_score() -> None:
+    """A capability that never ran the faithfulness check (checks are chosen
+    per-request via the verification capability's payload, not a fixed global
+    strategy) still reports faithfulness_below_threshold as a diagnostic
+    reason -- it's informational, not a hard gate, since approval_status is
+    the only thing that actually blocks persist (see persist_trigger_data
+    above and core.subgraphs.fitness.capability._after_verification)."""
     result = persist_trigger_data(
         verification_passed=True,
         faithfulness_score=None,
         approval_status="pending",
-        verification_strategy="EXTERNAL_PLAN",
-    )
-    assert "faithfulness_below_threshold" not in result["persist_blocked_reasons"]
-    assert "approval_missing" in result["persist_blocked_reasons"]
-
-
-def test_persist_trigger_still_blocks_low_faithfulness_for_full_strategy() -> None:
-    """Regression: FULL strategy (the default) keeps today's exact behavior."""
-    result = persist_trigger_data(
-        verification_passed=True,
-        faithfulness_score=None,
-        approval_status="pending",
-        verification_strategy="FULL",
     )
     assert "faithfulness_below_threshold" in result["persist_blocked_reasons"]
+    assert "approval_missing" in result["persist_blocked_reasons"]
 
 
 def test_persist_trigger_allows_approved_despite_failed_verification() -> None:
@@ -86,8 +78,7 @@ def test_save_run_writes_snapshot(tmp_path: Path) -> None:
     orchestration_state = {
         "workspace_path": str(workspace_path),
         "query": "test query",
-        "request_type": "training_plan",
-        "route_decision": "COMPLETE",
+        "execution_context": {"intent": "build_plan", "response_mode": "plan"},
         "verification_passed": True,
         "faithfulness_score": 0.95,
         "approval_status": "approved",
@@ -98,6 +89,8 @@ def test_save_run_writes_snapshot(tmp_path: Path) -> None:
     snapshot = json.loads(vfs.read("logs/run_snapshot.json"))
     assert snapshot["run_id"] == "run-1"
     assert snapshot["query"] == "test query"
+    assert snapshot["intent"] == "build_plan"
+    assert snapshot["response_mode"] == "plan"
 
 
 def test_save_metrics_returns_structured_payload() -> None:

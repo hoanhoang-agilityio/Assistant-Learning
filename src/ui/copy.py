@@ -118,14 +118,6 @@ APPROVAL_STATUS_COPY: dict[str, str] = {
     "revision_requested": "Got it — reworking your plan…",
 }
 
-ROUTE_DECISION_COPY: dict[str, str] = {
-    "REPLAN": "Refining the plan based on your feedback…",
-    "RERESEARCH": "Digging up more research to fix an issue…",
-    "FIX_REASONING": "Fixing an issue with the workout plan…",
-    "HITL": "Pausing to check in with you…",
-    "COMPLETE": "Wrapping things up…",
-}
-
 
 def phase_of(step_id: str) -> str:
     """Return the phase/subgraph a step id belongs to.

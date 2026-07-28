@@ -20,6 +20,7 @@ from ui.components.chat import (
     render_hitl_actions,
     render_messages,
     sync_active_run_if_needed,
+    sync_run_history_from_api,
 )
 from ui.components.profile_form import render_profile_form
 from ui.components.sidebar import render_sidebar
@@ -45,6 +46,7 @@ def _init_session_state() -> None:
         "is_processing": False,
         "pending_query": None,
         "constraints_days": 4,
+        "run_history_loaded": False,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -80,8 +82,23 @@ def _restore_run_from_query_params() -> None:
             st.query_params.pop("run_id", None)
 
 
+def _load_sidebar_history() -> None:
+    if st.session_state.get("run_history_loaded"):
+        return
+    with httpx.Client(
+        base_url=st.session_state.api_base_url,
+        timeout=DEFAULT_REQUEST_TIMEOUT,
+    ) as client:
+        try:
+            sync_run_history_from_api(client)
+        except httpx.HTTPError:
+            pass
+    st.session_state.run_history_loaded = True
+
+
 def main() -> None:
     _init_session_state()
+    _load_sidebar_history()
     _restore_run_from_query_params()
     inject_css()
     render_sidebar()

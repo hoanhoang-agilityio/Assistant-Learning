@@ -12,10 +12,19 @@ DEFAULT_API_BASE_URL = "http://localhost:8000"
 DEFAULT_REQUEST_TIMEOUT = 30.0
 DEFAULT_POLL_INTERVAL = 2.0
 DEFAULT_RUN_POLL_TIMEOUT = 900.0
+DEFAULT_UI_USER_ID = os.getenv("UI_USER_ID", "anonymous")
 
 
 def get_api_base_url() -> str:
     return os.getenv("API_BASE_URL", DEFAULT_API_BASE_URL).rstrip("/")
+
+
+def get_ui_user_id() -> str:
+    return os.getenv("UI_USER_ID", DEFAULT_UI_USER_ID)
+
+
+def _request_headers() -> dict[str, str]:
+    return {"X-User-Id": get_ui_user_id()}
 
 
 def create_run(
@@ -32,13 +41,28 @@ def create_run(
             "user_profile": user_profile,
             "constraints": constraints,
         },
+        headers=_request_headers(),
     )
     response.raise_for_status()
     return response.json()
 
 
 def get_run(client: httpx.Client, run_id: str) -> dict[str, Any]:
-    response = client.get(f"/runs/{run_id}")
+    response = client.get(f"/runs/{run_id}", headers=_request_headers())
+    response.raise_for_status()
+    return response.json()
+
+
+def list_runs(
+    client: httpx.Client,
+    *,
+    user_id: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {"limit": limit}
+    if user_id is not None:
+        params["user_id"] = user_id
+    response = client.get("/runs", params=params, headers=_request_headers())
     response.raise_for_status()
     return response.json()
 
@@ -144,7 +168,9 @@ def continue_run(
     interval: float = DEFAULT_POLL_INTERVAL,
     on_progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    response = client.post(f"/runs/{run_id}/continue", json={"message": message})
+    response = client.post(
+        f"/runs/{run_id}/continue", json={"message": message}, headers=_request_headers()
+    )
     response.raise_for_status()
     continued = response.json()
     if not poll:
@@ -187,7 +213,7 @@ def resume_run(
         raise ValueError("user_response, decision_type, or form_data is required")
     if approval_status is not None:
         payload["approval_status"] = approval_status
-    response = client.post(f"/runs/{run_id}/resume", json=payload)
+    response = client.post(f"/runs/{run_id}/resume", json=payload, headers=_request_headers())
     response.raise_for_status()
     resumed = response.json()
     if not poll:

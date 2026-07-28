@@ -2,12 +2,18 @@ import json
 import queue
 from collections.abc import Iterator
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 
 from api.deps import get_orchestrator
-from api.schemas import ContinueRunRequest, CreateRunRequest, ResumeRunRequest, RunStatusResponse
-from api.serializers import to_run_status_response
+from api.schemas import (
+    ContinueRunRequest,
+    CreateRunRequest,
+    ResumeRunRequest,
+    RunStatusResponse,
+    RunSummaryResponse,
+)
+from api.serializers import to_run_status_response, to_run_summary_response
 from core.graph.service import RunEvent, RunNotFoundError, RunOrchestrator, RunStatus
 from core.rate_limit import RateLimitExceededError
 
@@ -50,6 +56,26 @@ def create_run(
     return to_run_status_response(run_status)
 
 
+@router.get("", response_model=list[RunSummaryResponse])
+def list_runs(
+    user_id: str | None = Query(
+        default=None, description="Filter by user id (X-User-Id header wins)."
+    ),
+    limit: int = Query(default=50, ge=1, le=100),
+    orchestrator: RunOrchestrator = Depends(get_orchestrator),
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+) -> list[RunSummaryResponse]:
+    """Return recent runs for a user, newest first."""
+    resolved_user_id = _resolve_user_id(user_id, x_user_id)
+    if not resolved_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_id query parameter or X-User-Id header is required",
+        )
+    summaries = orchestrator.list_runs(resolved_user_id, limit=limit)
+    return [to_run_summary_response(summary) for summary in summaries]
+
+
 @router.get("/{run_id}", response_model=RunStatusResponse)
 def get_run(
     run_id: str,
@@ -78,6 +104,7 @@ def resume_run(
             decision_type=payload.decision_type,
             message=payload.message,
             form_data=payload.form_data,
+            submitted_plan_text=payload.submitted_plan_text,
         )
     except RunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

@@ -31,11 +31,6 @@ LLM_NODE_BUDGETS: dict[str, LlmNodeBudget] = {
         max_input_tokens=1100,
         exception_note="Query length may exceed normal budget.",
     ),
-    "planning_agent": LlmNodeBudget(
-        node="planning_agent",
-        max_input_tokens=500,
-        exception_note="More tasks may increase output.",
-    ),
     "research_query_planning": LlmNodeBudget(
         node="research_query_planning",
         max_input_tokens=750,
@@ -64,6 +59,12 @@ LLM_NODE_BUDGETS: dict[str, LlmNodeBudget] = {
         node="fitness_planner",
         max_input_tokens=1100,
         exception_note="Safety retry counts separately.",
+    ),
+    "supervisor_router": LlmNodeBudget(
+        node="supervisor_router",
+        max_input_tokens=1100,
+        exception_note="RoutingContext is deliberately compact -- similar order of "
+        "magnitude to intent_judge; grows only with agent_trail/available_agents length.",
     ),
     "ragas_judge": LlmNodeBudget(
         node="ragas_judge",

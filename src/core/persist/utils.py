@@ -3,7 +3,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from core.subgraphs.verification.strategies import resolve_strategy
 from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.vfs import VFS
 
@@ -22,36 +21,13 @@ def persist_trigger_data(
     verification_passed: bool,
     faithfulness_score: float | None,
     approval_status: str | None,
-    *,
-    verification_strategy: str | None = None,
 ) -> dict[str, Any]:
-    """Return whether PERSIST_RESULTS may run.
-
-    `verification_strategy` (Phase 5): the "faithfulness_below_threshold" diagnostic is
-    only meaningful for a strategy that actually runs (or, Phase 6, carries forward) a
-    faithfulness check -- for `EXTERNAL_PLAN` (which never runs it at all),
-    `faithfulness_score` is always `None`, and unconditionally reporting this reason would
-    misreport why a run isn't auto-persistable. This is a diagnostic-accuracy fix, not a
-    gating change: `can_persist` only ever becomes `True` via the `approval_status ==
-    "approved"` branch above, so `persist_blocked_reasons` is UI/diagnostic-facing only,
-    never itself a gate.
-
-    Checked by `report_key == "ragas"`, not identity with the `FAITHFULNESS` ValidatorStep:
-    `EDIT_REVIEW`'s carry-forward step produces the same `"ragas"` report key via a
-    different `ValidatorStep` instance (`CARRIED_FAITHFULNESS`), so an identity check would
-    incorrectly treat `EDIT_REVIEW` as faithfulness-less.
-    """
     if approval_status == "approved":
         return {"can_persist": True, "persist_blocked_reasons": []}
     blocked_reasons: list[str] = []
     if not verification_passed:
         blocked_reasons.append("verification_not_passed")
-    strategy_has_faithfulness_check = any(
-        step.report_key == "ragas" for step in resolve_strategy(verification_strategy)
-    )
-    if strategy_has_faithfulness_check and (
-        faithfulness_score is None or faithfulness_score < FAITHFULNESS_PASS_THRESHOLD
-    ):
+    if faithfulness_score is None or faithfulness_score < FAITHFULNESS_PASS_THRESHOLD:
         blocked_reasons.append("faithfulness_below_threshold")
     blocked_reasons.append("approval_missing")
     return {
@@ -67,12 +43,13 @@ def save_run_data(
 ) -> dict[str, Any]:
     workspace_path = orchestration_state["workspace_path"]
     vfs = VFS.for_run(Path(workspace_path))
+    ctx = orchestration_state.get("execution_context") or {}
     snapshot = {
         "run_id": run_id,
         "thread_id": thread_id,
         "query": orchestration_state.get("query"),
-        "request_type": orchestration_state.get("request_type"),
-        "route_decision": orchestration_state.get("route_decision"),
+        "intent": ctx.get("intent"),
+        "response_mode": ctx.get("response_mode"),
         "verification_passed": orchestration_state.get("verification_passed"),
         "faithfulness_score": orchestration_state.get("faithfulness_score"),
         "approval_status": orchestration_state.get("approval_status"),
@@ -107,7 +84,6 @@ def save_artifacts_data(workspace_path: str) -> dict[str, Any]:
     vfs = VFS.for_run(Path(workspace_path))
     if not vfs.exists(FINAL_PLAN_SOURCE):
         raise FileNotFoundError(f"Missing source artifact: {FINAL_PLAN_SOURCE}")
-
     draft_plan = vfs.read(FINAL_PLAN_SOURCE)
     vfs.write(FINAL_PLAN_DEST, draft_plan)
     artifacts = [FINAL_PLAN_DEST]

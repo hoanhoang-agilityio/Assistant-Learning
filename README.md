@@ -6,23 +6,34 @@ Supervisor-orchestrated LangGraph system for **training plans** and **macro coac
 
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) (recommended)
-- PostgreSQL (optional — in-memory checkpointer used by default in API tests/dev)
+- PostgreSQL with pgvector (optional for the checkpointer — in-memory checkpointer used
+  by default in API tests/dev; required for the Fitness MCP Server unless
+  `MOCK_FITNESS_KB=true`)
 - Tavily API key for live research
+- OpenAI API key (also used to embed the Fitness Knowledge Store's guideline documents)
 - LangFuse (optional — local Docker at `http://localhost:3000`)
 
 ## Setup
 
 ```bash
 cp .env.example .env
-# Fill in TAVILY_API_KEY and optional LANGFUSE_* / LLM keys
+# Fill in TAVILY_API_KEY, OPENAI_API_KEY, and optional LANGFUSE_* / LLM keys
 
 uv sync --extra dev
 ```
 
-Start Postgres (optional):
+Start Postgres (pgvector-enabled image; optional for the checkpointer, required for the
+Fitness Knowledge Store unless `MOCK_FITNESS_KB=true`):
 
 ```bash
 docker compose up -d postgres
+```
+
+One-time schema setup for the Fitness Knowledge Store (idempotent, safe to re-run):
+
+```bash
+uv run python scripts/bootstrap_fitness_db.py
+uv run python scripts/ingest_knowledge.py   # loads the checked-in guideline corpus
 ```
 
 ## Run tests
@@ -79,6 +90,19 @@ curl -X POST http://localhost:8000/runs \
     "constraints": {"days_per_week": 4, "equipment": "gym"}
   }'
 ```
+
+## Run the Fitness MCP Server
+
+In a separate terminal, before starting the API (or the API degrades gracefully --
+Tavily-only research, no template caching -- until this comes up):
+
+```bash
+uv run python -m core.mcp.fitness_server
+```
+
+Sole owner of guideline documents and workout templates, backed by Postgres + pgvector.
+The main API connects to it once at startup via `langchain-mcp-adapters`. Set
+`MOCK_FITNESS_KB=true` to skip this process entirely and use an in-memory dev double.
 
 ## Run the Streamlit UI
 

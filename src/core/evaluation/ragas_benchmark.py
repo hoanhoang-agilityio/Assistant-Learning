@@ -1,8 +1,9 @@
-"""Golden-case pipeline benchmark: runs planning->research->fitness->verification
-end to end and reports the heuristic faithfulness score each case's pipeline run
-produced. See core.evaluation.ragas for the real Ragas SDK scorer, which
-evaluate_draft_faithfulness below can also invoke for comparison when
-settings.verification_use_real_ragas is set."""
+"""Golden-case pipeline benchmark: runs the Research -> Fitness -> Verification
+capability chain end to end (bypassing Supervisor's LLM intent classification
+for deterministic, fixed-input golden cases) and reports the heuristic
+faithfulness score each case's run produced. See core.evaluation.ragas for the
+real Ragas SDK scorer, which evaluate_draft_faithfulness below can also invoke
+for comparison when settings.verification_use_real_ragas is set."""
 
 from __future__ import annotations
 
@@ -11,23 +12,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.agents.execution_context import build_execution_context
 from core.config.settings import get_settings
 from core.evaluation.ragas import ragas_faithfulness_data
 from core.graph.run import create_initial_state
 from core.llm.factory import get_standard_llm
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
-from core.subgraphs.fitness.graph import build_fitness_subgraph
+from core.subgraphs.fitness.capability import invoke_fitness_capability
 from core.subgraphs.fitness.planner import configure_fitness_planner
-from core.subgraphs.fitness.state import FitnessState
 from core.subgraphs.fitness.utils import build_default_structured_workout
-from core.subgraphs.planning.utils import seed_execution_plan
-from core.subgraphs.research.graph import build_research_subgraph
-from core.subgraphs.research.state import ResearchState
-from core.subgraphs.verification.graph import build_verification_subgraph
-from core.subgraphs.verification.state import VerificationState
+from core.subgraphs.research.capability import invoke_research_capability
+from core.subgraphs.verification.capability import invoke_verification_capability
 from core.subgraphs.verification.utils import (
     FAITHFULNESS_PASS_THRESHOLD,
     heuristic_faithfulness_data,
+    load_verification_context,
 )
 
 
@@ -39,7 +38,6 @@ class GoldenCase:
     query: str
     profile: dict[str, Any]
     constraints: dict[str, Any]
-    request_type: str
     min_faithfulness: float
 
 
@@ -48,7 +46,7 @@ class BenchmarkResult:
     """Faithfulness result for one golden case.
 
     faithfulness_score/pass_fail are always the heuristic, pipeline-authoritative
-    values (whatever the golden case's actual verification subgraph run
+    values (whatever the golden case's actual verification capability run
     produced). real_faithfulness_score/real_pass_fail are additive comparison
     data from the real Ragas SDK, populated only when
     settings.verification_use_real_ragas is on -- they never replace the
@@ -73,7 +71,6 @@ def load_golden_cases(path: Path) -> list[GoldenCase]:
             query=str(item["query"]),
             profile=dict(item["profile"]),
             constraints=dict(item.get("constraints", {})),
-            request_type=str(item.get("request_type", "general_fitness")),
             min_faithfulness=float(item.get("min_faithfulness", FAITHFULNESS_PASS_THRESHOLD)),
         )
         for item in cases
@@ -119,7 +116,12 @@ def run_golden_case(
     workspace_root: Path,
     run_id: str | None = None,
 ) -> BenchmarkResult:
-    """Execute planning → research → fitness → verification for one golden case."""
+    """Execute Research -> Fitness -> Verification for one golden case.
+
+    Seeds `execution_context` directly (intent="build_plan") rather than
+    going through Supervisor's LLM intent classification, so golden cases
+    stay deterministic and free of classification cost/variance.
+    """
     resolved_run_id = run_id or f"ragas-{case.case_id}"
     initial = create_initial_state(
         run_id=resolved_run_id,
@@ -137,65 +139,26 @@ def run_golden_case(
         )
     )
     try:
-        seed_execution_plan(initial["workspace_path"], case.profile)
-        research_state = ResearchState(
-            query=case.query,
-            request_type=case.request_type,
-            workspace_path=initial["workspace_path"],
-            profile={},
-            execution_plan={},
-            evidence=[],
-            sources=[],
-            structured_findings=None,
-            evidence_summary=None,
-            blocked_by_todos=False,
-            agent_iterations=0,
-            is_reresearch=False,
+        ctx = build_execution_context(intent="build_plan")
+        state: dict[str, Any] = {**initial, "execution_context": ctx.model_dump(mode="json")}
+
+        state = {**state, **invoke_research_capability(state)}
+        state = {**state, **invoke_fitness_capability(state)}
+        last_result = state.get("last_capability_result") or {}
+        assert (last_result.get("artifacts") or {}).get("artifact_ready"), (
+            f"expected Fitness to produce an artifact ready for Verification, got {last_result}"
         )
-        build_research_subgraph().invoke(research_state)
-        fitness_state = FitnessState(
-            workspace_path=initial["workspace_path"],
-            profile=case.profile,
-            constraints=case.constraints,
-            execution_plan={},
-            structured_findings=None,
-            evidence_summary=None,
-            verification_feedback=None,
-            macro_targets={},
-            training_constraints={},
-            structured_workout=None,
-            safety_result={"passed": False, "feedback": []},
-            planner_feedback=[],
-            planner_attempts=0,
-            max_planner_attempts=get_settings().max_planner_attempts,
-            is_verification_rerun=False,
-            draft_plan=None,
-        )
-        build_fitness_subgraph().invoke(fitness_state)
-        verification_state = VerificationState(
-            workspace_path=initial["workspace_path"],
-            draft_plan="",
-            sources=[],
-            evidence=[],
-            macro_targets={},
-            training_plan={},
-            profile=case.profile,
-            constraints=case.constraints,
-            safety_flags=[],
-            verification_report={},
-            feedback=None,
-            faithfulness_score=None,
-            pass_fail=False,
-        )
-        verification_result = build_verification_subgraph().invoke(verification_state)
-        faithfulness_score = float(verification_result["faithfulness_score"] or 0.0)
+        state = {**state, **invoke_verification_capability(state)}
+
+        faithfulness_score = float(state.get("faithfulness_score") or 0.0)
+        context = load_verification_context(initial["workspace_path"])
 
         real_faithfulness_score: float | None = None
         real_pass_fail: bool | None = None
         if get_settings().verification_use_real_ragas:
             real_result = evaluate_draft_faithfulness(
-                verification_result["draft_plan"],
-                verification_result["evidence"],
+                context["draft_plan"],
+                context["evidence"],
                 query=case.query,
             )
             real_faithfulness_score = real_result["faithfulness_score"]

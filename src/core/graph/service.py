@@ -22,6 +22,7 @@ from core.config.settings import get_settings
 from core.graph.builder import build_graph
 from core.graph.idempotency_store import IdempotencyStore
 from core.graph.run import create_initial_state
+from core.graph.run_history_store import InMemoryRunHistoryStore, RunHistoryStore, RunSummary
 from core.graph.run_tracker import RunTracker
 from core.hitl.resume import (
     create_approval_decision,
@@ -31,14 +32,15 @@ from core.hitl.resume import (
 from core.hitl.utils import classify_approval_response
 from core.llm.metrics import reset_llm_metrics, write_pipeline_cost_log
 from core.observability.langfuse import build_graph_invoke_config, flush_langfuse
+from core.planning.utils import persist_revision_feedback
 from core.profile.labels import format_missing_profile_prompt
 from core.rate_limit import (
     AIRateLimiter,
     reset_rate_limit_user_id,
     set_rate_limit_user_id,
 )
-from core.subgraphs.planning.utils import persist_revision_feedback
 from core.vfs import VFS
+from core.vfs.layout import PLAN_SUBMITTED_TEXT
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +83,10 @@ class RunStatus:
     approval_status: ApprovalStatus | None
     verification_passed: bool
     faithfulness_score: float | None
-    route_decision: str | None
-    request_type: str | None
+    intent: str | None
+    response_mode: str | None
+    active_capability: str | None
+    final_response: str | None
     final_artifact_path: str | None
     final_plan: str | None
     hitl_type: str | None
@@ -121,6 +125,7 @@ class RunOrchestrator:
         rate_limiter: AIRateLimiter | None = None,
         run_tracker: RunTracker | None = None,
         idempotency_store: IdempotencyStore | None = None,
+        run_history_store: RunHistoryStore | InMemoryRunHistoryStore | None = None,
     ) -> None:
         # Production wiring (Postgres-backed, per settings.use_postgres_checkpointer)
         # lives in api/deps.py:get_orchestrator, the only call site that constructs
@@ -138,6 +143,7 @@ class RunOrchestrator:
         # Same reasoning: idempotency needs a record that survives a restart
         # and is visible to every replica, so it's a no-op without Postgres.
         self._idempotency_store = idempotency_store
+        self._run_history_store = run_history_store or InMemoryRunHistoryStore()
         self._lock = threading.Lock()
         # One long-lived pool backs every _stream_with_timeout() call for this
         # orchestrator's lifetime (default sizing: min(32, cpu_count + 4), so it
@@ -196,6 +202,8 @@ class RunOrchestrator:
             event_queue = self._run_event_queues.pop(run_id, None)
         if event_queue is not None:
             event_queue.put(RunEvent(kind="run_settled", status=final_status))
+        with best_effort("persist_run_history", run_id=run_id):
+            self._persist_run_history(run_id)
 
     def _stream_with_timeout(
         self,
@@ -347,7 +355,58 @@ class RunOrchestrator:
                 }
                 self._pending_runs.pop(run_id, None)
         logger.warning("Reconciled %d orphaned run(s): %s", len(orphaned), [r for r, _ in orphaned])
+        for run_id, _query in orphaned:
+            with best_effort("persist_run_history", run_id=run_id):
+                self._persist_run_history(run_id)
         return len(orphaned)
+
+    def list_runs(self, user_id: str, *, limit: int = 50) -> list[RunSummary]:
+        """Return recent runs for a user, newest first."""
+        resolved_user_id = (user_id or "").strip() or get_settings().rate_limit_default_user_id
+        return self._run_history_store.list_by_user(resolved_user_id, limit=limit)
+
+    def _resolve_user_id_for_run(self, run_id: str) -> str:
+        config = self._build_config(run_id)
+        snapshot = self._graph.get_state(config)
+        if snapshot.values:
+            user_id = str(snapshot.values.get("user_id", "")).strip()
+            if user_id:
+                return user_id
+        with self._lock:
+            pending = self._pending_runs.get(run_id)
+        if pending:
+            user_id = str(pending.get("user_id", "")).strip()
+            if user_id:
+                return user_id
+        return get_settings().rate_limit_default_user_id
+
+    def _persist_run_history(self, run_id: str) -> None:
+        status = self.get_run(run_id)
+        user_id = self._resolve_user_id_for_run(run_id)
+        self._run_history_store.upsert(
+            run_id=status.run_id,
+            user_id=user_id,
+            query=status.query,
+            status=status.status,
+            steps=list(status.steps),
+        )
+
+    def _persist_run_history_from_state(
+        self,
+        run_id: str,
+        state: dict[str, Any],
+        *,
+        status: RunLifecycleStatus,
+        steps: list[str] | tuple[str, ...] = (),
+    ) -> None:
+        user_id = str(state.get("user_id", "")).strip() or get_settings().rate_limit_default_user_id
+        self._run_history_store.upsert(
+            run_id=run_id,
+            user_id=user_id,
+            query=str(state.get("query", "")),
+            status=status,
+            steps=steps,
+        )
 
     def _resolve_idempotent_run_id(
         self, idempotency_key: str | None, candidate_run_id: str
@@ -418,12 +477,15 @@ class RunOrchestrator:
         snapshot = self._graph.get_state(config)
         with best_effort("write_token_cost_log", run_id=resolved_run_id):
             self._maybe_write_token_cost_log(snapshot.values, snapshot.next)
-        return self._to_status(
+        run_status = self._to_status(
             resolved_run_id,
             snapshot.values,
             snapshot.next,
             interrupts=_collect_interrupts(snapshot),
         )
+        with best_effort("persist_run_history", run_id=resolved_run_id):
+            self._persist_run_history(resolved_run_id)
+        return run_status
 
     def start_run(
         self,
@@ -470,6 +532,8 @@ class RunOrchestrator:
             name=f"run-{resolved_run_id}",
         )
         thread.start()
+        with best_effort("persist_run_history", run_id=resolved_run_id):
+            self._persist_run_history_from_state(resolved_run_id, state, status="running")
         return self._pending_status(resolved_run_id, state)
 
     def get_run(self, run_id: str) -> RunStatus:
@@ -507,6 +571,7 @@ class RunOrchestrator:
         decision_type: Literal["approve", "reject", "revision"] | None = None,
         message: str | None = None,
         form_data: dict[str, Any] | None = None,
+        submitted_plan_text: str | None = None,
     ) -> RunStatus:
         self._acquire_resume_guard(run_id)
         release_guard = True
@@ -519,17 +584,19 @@ class RunOrchestrator:
             if snapshot.next == ("user",):
                 if form_data is None:
                     raise ValueError("form_data is required to resume the profile form")
-                result = self.start_profile_form_resume(run_id, form_data=form_data)
+                result = self.start_profile_form_resume(
+                    run_id, form_data=form_data, submitted_plan_text=submitted_plan_text
+                )
                 release_guard = False
                 return result
 
             if snapshot.next != ("hitl",) and not snapshot.values.get("waiting_for_user"):
                 raise ValueError("Run is not waiting for HITL input")
 
-            replan_count = int(snapshot.values.get("replan_count", 0))
+            revision_count = int(snapshot.values.get("revision_count", 0))
             if decision_type is not None:
                 decision = create_approval_decision(decision_type, message)
-                update = decision_to_resume_update(decision, replan_count=replan_count)
+                update = decision_to_resume_update(decision, revision_count=revision_count)
             else:
                 if not user_response:
                     raise ValueError("user_response or decision_type is required")
@@ -542,17 +609,27 @@ class RunOrchestrator:
                     "waiting_for_user": False,
                 }
 
+            # Additive only: never overwrites submitted_plan_text with nothing when the
+            # caller doesn't re-supply it on this resume -- the value already on state (or
+            # in VFS) from an earlier turn survives untouched.
+            if submitted_plan_text:
+                update["submitted_plan_text"] = submitted_plan_text
+                workspace_path = snapshot.values.get("workspace_path")
+                if workspace_path:
+                    VFS.for_run(Path(workspace_path)).write(
+                        PLAN_SUBMITTED_TEXT, submitted_plan_text
+                    )
+
             resolved_status = update.get("approval_status")
             if resolved_status == "revision_requested":
-                # Profile-relevant revisions are no longer reconstructed here -- the routing
-                # guard (route_from_supervisor) sends REPLAN runs back into the User subgraph
-                # when profile_complete/profile_valid is False, and the User subgraph's own
-                # extract/validate loop decides whether that revision text actually touched the
-                # profile (looping into its form) or can pass straight through.
+                # A resume starts execution at the paused "hitl" node directly
+                # (interrupt_before=["hitl"]), never back through Supervisor,
+                # so user_revision_to_replan_update's pending_request is what
+                # routes this back to Fitness -- not a profile-gate reset.
                 feedback = update.get("user_response") or message or ""
-                update.update(user_revision_to_replan_update(feedback, replan_count=replan_count))
-                update["profile_complete"] = False
-                update["profile_valid"] = False
+                update.update(
+                    user_revision_to_replan_update(feedback, revision_count=revision_count)
+                )
                 workspace_path = snapshot.values.get("workspace_path")
                 if workspace_path and update.get("revision_feedback"):
                     persist_revision_feedback(str(workspace_path), str(update["revision_feedback"]))
@@ -563,12 +640,21 @@ class RunOrchestrator:
             if release_guard:
                 self._release_resume_guard(run_id)
 
-    def start_profile_form_resume(self, run_id: str, *, form_data: dict[str, Any]) -> RunStatus:
+    def start_profile_form_resume(
+        self,
+        run_id: str,
+        *,
+        form_data: dict[str, Any],
+        submitted_plan_text: str | None = None,
+    ) -> RunStatus:
         """Resume a run paused at the profile form (dynamic `interrupt()`) with submitted data.
 
         Distinct from `start_resume_run` because the User subgraph pauses via `interrupt()`
         rather than the top-level `interrupt_before=["hitl"]` boundary, so resuming it means
-        `Command(resume=form_data)`, not `Command(update=...)`.
+        `Command(resume=form_data)`, not `Command(update=...)` alone -- though the two combine
+        fine (they write to different channels; see `_execute_profile_form_resume`), which is
+        how `submitted_plan_text` can be attached on this same call without disturbing
+        `form_data`'s own merge into the profile.
         """
         config = self._build_config(run_id)
         snapshot = self._graph.get_state(config)
@@ -587,7 +673,7 @@ class RunOrchestrator:
         self._open_event_stream(run_id)
         thread = threading.Thread(
             target=self._execute_profile_form_resume,
-            args=(run_id, form_data, config),
+            args=(run_id, form_data, config, submitted_plan_text),
             daemon=True,
             name=f"profile-form-resume-{run_id}",
         )
@@ -599,6 +685,7 @@ class RunOrchestrator:
         run_id: str,
         form_data: dict[str, Any],
         config: dict[str, Any],
+        submitted_plan_text: str | None = None,
     ) -> None:
         snapshot = self._graph.get_state(config)
         user_id = str(snapshot.values.get("user_id", ""))
@@ -606,7 +693,21 @@ class RunOrchestrator:
         with best_effort("mark_run_tracked", run_id=run_id):
             self._mark_run_tracked(run_id, query=str(snapshot.values.get("query", "")))
         try:
-            self._stream_with_timeout(Command(resume=form_data), config, run_id=run_id)
+            # Additive: only ever adds submitted_plan_text alongside the form-data resume,
+            # never replaces state wholesale -- omitted, it leaves whatever's already on
+            # state (or in VFS) from an earlier turn untouched.
+            resume_command = (
+                Command(update={"submitted_plan_text": submitted_plan_text}, resume=form_data)
+                if submitted_plan_text
+                else Command(resume=form_data)
+            )
+            if submitted_plan_text:
+                workspace_path = snapshot.values.get("workspace_path")
+                if workspace_path:
+                    VFS.for_run(Path(workspace_path)).write(
+                        PLAN_SUBMITTED_TEXT, submitted_plan_text
+                    )
+            self._stream_with_timeout(resume_command, config, run_id=run_id)
         except Exception as exc:
             logger.exception("Profile form resume for run %s failed", run_id)
             with self._lock:
@@ -656,12 +757,15 @@ class RunOrchestrator:
             # reserving rate-limit quota -- a rejected revision request shouldn't
             # consume a request from the user's daily cap.
             update = user_revision_to_replan_update(
-                feedback, replan_count=int(snapshot.values.get("replan_count", 0))
+                feedback, revision_count=int(snapshot.values.get("revision_count", 0))
             )
             self._rate_limiter.reserve_request(str(snapshot.values.get("user_id", "")) or None)
-            # The routing guard (route_from_supervisor) re-enters the User subgraph for this
-            # REPLAN since profile_complete/profile_valid is now False -- see resume_run's
-            # revision_requested branch for the same pattern.
+            # Unlike resume_run's in-flight revision (which resumes directly at the
+            # paused "hitl" node), this re-enters at Supervisor (goto="supervisor" in
+            # _execute_continue_run below) -- route_initial_from_supervisor's profile
+            # gate then re-enters the User subgraph since profile_complete/profile_valid
+            # is now False, so the revision text gets a chance to update the profile
+            # before Fitness re-runs.
             update["profile_complete"] = False
             update["profile_valid"] = False
             update["current_node"] = "hitl"
@@ -884,8 +988,10 @@ class RunOrchestrator:
             approval_status=None,
             verification_passed=False,
             faithfulness_score=None,
-            route_decision=None,
-            request_type=None,
+            intent=None,
+            response_mode=None,
+            active_capability=None,
+            final_response=None,
             final_artifact_path=None,
             final_plan=None,
             hitl_type=None,
@@ -907,8 +1013,10 @@ class RunOrchestrator:
             approval_status=None,
             verification_passed=False,
             faithfulness_score=None,
-            route_decision=None,
-            request_type=None,
+            intent=None,
+            response_mode=None,
+            active_capability=None,
+            final_response=None,
             final_artifact_path=None,
             final_plan=None,
             hitl_type=None,
@@ -941,6 +1049,7 @@ class RunOrchestrator:
         profile_form = (
             _extract_profile_form_payload(interrupts) if hitl_type == "profile_form" else None
         )
+        ctx = state.get("execution_context") or {}
         return RunStatus(
             run_id=run_id,
             thread_id=str(state.get("thread_id", run_id)),
@@ -951,8 +1060,10 @@ class RunOrchestrator:
             approval_status=state.get("approval_status"),
             verification_passed=bool(state.get("verification_passed")),
             faithfulness_score=state.get("faithfulness_score"),
-            route_decision=state.get("route_decision"),
-            request_type=state.get("request_type"),
+            intent=ctx.get("intent"),
+            response_mode=ctx.get("response_mode"),
+            active_capability=state.get("active_capability"),
+            final_response=state.get("final_response"),
             final_artifact_path=state.get("final_artifact_path"),
             final_plan=final_plan,
             hitl_type=hitl_type,
@@ -986,7 +1097,7 @@ def _resolve_lifecycle_status(
     next_nodes: tuple[str, ...],
     interrupts: tuple[Any, ...] = (),
 ) -> RunLifecycleStatus:
-    if state.get("route_decision") == "REFUSED":
+    if state.get("refusal_message") or state.get("run_complete") and state.get("refusal_message"):
         return "refused"
     if state.get("approval_status") == "rejected" and not next_nodes:
         return "completed"
@@ -1012,6 +1123,8 @@ def _resolve_lifecycle_status(
         return "completed"
     if next_nodes:
         return "running"
+    if state.get("run_complete") and state.get("final_response") and not next_nodes:
+        return "completed"
     if state.get("final_artifact_path"):
         return "completed"
     return "running"
@@ -1072,7 +1185,7 @@ def _resolve_hitl_context(
     draft_plan = _read_final_plan(state)
     if draft_plan:
         preview = draft_plan[:500]
-        if state.get("verification_passed") or state.get("route_decision") == "COMPLETE":
+        if state.get("verification_passed"):
             return (
                 "approval",
                 f"Review the draft fitness plan. Approve to save, or reject with feedback to replan.\n\n{preview}",

@@ -8,8 +8,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from core.config.settings import get_settings
-from core.knowledge.ingest import seed_default_corpus
-from core.knowledge.retriever import LocalKnowledgeRetriever
+from core.knowledge.schema import GuidelineHit
 from core.llm.budgets import LLM_NODE_BUDGETS
 from core.llm.factory import (
     get_standard_llm,
@@ -18,8 +17,8 @@ from core.llm.factory import (
 )
 from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.payload import compact_json
+from core.planning.schema import ExecutionPlan
 from core.profile.goal_spec import GoalSpec
-from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.research.prompts import (
     EVALUATION_SYSTEM_PROMPT,
     QUERY_PLANNING_SYSTEM_PROMPT,
@@ -40,10 +39,13 @@ from core.subgraphs.research.utils import (
     compact_sources_for_llm,
     derive_evidence_summary,
     extract_tavily_data,
+    guideline_hits_to_evidence,
+    guideline_hits_to_sources,
     has_sufficient_research_coverage,
     is_local_kb_url,
     load_existing_research,
     post_process_sources,
+    search_guideline_documents,
     search_tavily_data,
 )
 
@@ -128,14 +130,12 @@ def _invoke_with_node[T](node: str, schema: type[T], messages: list) -> T:
 def _plan_search_queries(
     *,
     query: str,
-    request_type: str | None,
     profile: dict[str, Any],
     goal_spec: GoalSpec,
     execution_plan: ExecutionPlan,
 ) -> SearchQueryBatch:
     payload = build_research_context_payload(
         query=query,
-        request_type=request_type,
         profile=profile,
         goal_spec=goal_spec,
         execution_plan=execution_plan,
@@ -244,33 +244,38 @@ def _plan_tavily_calls(
     session: _ResearchSession,
     *,
     profile: dict[str, Any],
-    retriever: LocalKnowledgeRetriever,
-) -> tuple[bool, list[tuple[str, str, list[dict[str, Any]]]]]:
+) -> tuple[bool, list[tuple[str, str, list[GuidelineHit]]]]:
     """Decide which Tavily queries to run, reserving the search budget sequentially.
 
     session.can_search()/record_search() is a check-then-increment against a
     shared counter and must stay sequential — only the network calls
     themselves (fetched afterward) are safe to parallelize. Returns
-    (used_tavily, planned): an ordered list of (query, task, local_documents)
-    to fetch. local_documents is attached per query to preserve the existing
+    (used_tavily, planned): an ordered list of (query, task, local_hits)
+    to fetch. local_hits is attached per query to preserve the existing
     multiplicity (added once per executed query, same as before this
     refactor — post_process_sources dedupes by URL downstream).
+
+    search_guideline_documents() resolves hits + sufficiency in a single Fitness MCP
+    round trip (the old LocalKnowledgeRetriever called retrieve_for_task() twice per
+    task -- once directly, once again inside has_sufficient_coverage()).
     """
     settings = get_settings()
     used_tavily = False
-    planned: list[tuple[str, str, list[dict[str, Any]]]] = []
+    planned: list[tuple[str, str, list[GuidelineHit]]] = []
 
     for task_plan in query_batch.task_plans:
-        local_documents = retriever.retrieve_for_task(task=task_plan.task, profile=profile)
-        if retriever.has_sufficient_coverage(task=task_plan.task, profile=profile):
-            session.add_sources(
-                retriever.documents_to_sources(local_documents, task=task_plan.task)
-            )
-            session.add_evidence(retriever.documents_to_evidence(local_documents))
+        local_hits, sufficient = search_guideline_documents(
+            task=task_plan.task,
+            goal=str(profile.get("goal", "")),
+            equipment=str(profile.get("equipment", "")),
+        )
+        if sufficient:
+            session.add_sources(guideline_hits_to_sources(local_hits, task=task_plan.task))
+            session.add_evidence(guideline_hits_to_evidence(local_hits))
             continue
 
         used_tavily = True
-        attach_local = local_documents if settings.local_kb_enabled else []
+        attach_local = local_hits if settings.local_kb_enabled else []
         for search_query in task_plan.queries:
             if not session.can_search():
                 return used_tavily, planned
@@ -281,9 +286,8 @@ def _plan_tavily_calls(
 
 
 def _fetch_planned_tavily_calls(
-    planned: list[tuple[str, str, list[dict[str, Any]]]],
+    planned: list[tuple[str, str, list[GuidelineHit]]],
     session: _ResearchSession,
-    retriever: LocalKnowledgeRetriever,
 ) -> None:
     """Run planned Tavily searches concurrently; merge results back in order.
 
@@ -300,19 +304,15 @@ def _fetch_planned_tavily_calls(
     with ThreadPoolExecutor(max_workers=len(planned)) as executor:
         futures = [
             executor.submit(contextvars.copy_context().run, search_tavily_data, search_query)
-            for search_query, _task, _local_documents in planned
+            for search_query, _task, _local_hits in planned
         ]
         results = [future.result() for future in futures]
 
-    for (_search_query, task_description, local_documents), result in zip(
-        planned, results, strict=True
-    ):
+    for (_search_query, task_description, local_hits), result in zip(planned, results, strict=True):
         session.add_sources(result["sources"])
-        if local_documents:
-            session.add_sources(
-                retriever.documents_to_sources(local_documents, task=task_description)
-            )
-            session.add_evidence(retriever.documents_to_evidence(local_documents))
+        if local_hits:
+            session.add_sources(guideline_hits_to_sources(local_hits, task=task_description))
+            session.add_evidence(guideline_hits_to_evidence(local_hits))
 
 
 def _run_planned_searches(
@@ -328,12 +328,8 @@ def _run_planned_searches(
 
     Returns True when at least one task required Tavily fallback.
     """
-    seed_default_corpus()
-    retriever = LocalKnowledgeRetriever()
-    used_tavily, planned = _plan_tavily_calls(
-        query_batch, session, profile=profile, retriever=retriever
-    )
-    _fetch_planned_tavily_calls(planned, session, retriever)
+    used_tavily, planned = _plan_tavily_calls(query_batch, session, profile=profile)
+    _fetch_planned_tavily_calls(planned, session)
     return used_tavily
 
 
@@ -359,7 +355,6 @@ def _evaluate_evidence(
 
     payload = build_research_context_payload(
         query=query,
-        request_type=None,
         profile=profile,
         goal_spec=goal_spec,
         execution_plan=execution_plan,
@@ -379,7 +374,6 @@ def _evaluate_evidence(
 def _run_react_loop(
     *,
     query: str,
-    request_type: str | None,
     profile: dict[str, Any],
     goal_spec: GoalSpec,
     execution_plan: ExecutionPlan,
@@ -401,7 +395,6 @@ def _run_react_loop(
 
     context_payload = build_research_context_payload(
         query=query,
-        request_type=request_type,
         profile=profile,
         goal_spec=goal_spec,
     )
@@ -479,7 +472,6 @@ def _synthesize_findings(
 ) -> ResearchFindings:
     payload = build_research_context_payload(
         query=query,
-        request_type=None,
         profile=profile,
         goal_spec=goal_spec,
         extra=build_synthesis_llm_extra(sources, evidence),
@@ -497,7 +489,6 @@ def _synthesize_findings(
 def run_research_agent(
     *,
     query: str,
-    request_type: str | None,
     profile: dict[str, Any],
     goal_spec: GoalSpec,
     execution_plan: ExecutionPlan,
@@ -512,7 +503,6 @@ def run_research_agent(
     if _AGENT_OVERRIDE is not None:
         return _AGENT_OVERRIDE(
             query=query,
-            request_type=request_type,
             profile=profile,
             execution_plan=execution_plan,
         )
@@ -532,7 +522,6 @@ def run_research_agent(
     if not skip_tavily:
         query_batch = _plan_search_queries(
             query=query,
-            request_type=request_type,
             profile=profile,
             goal_spec=goal_spec,
             execution_plan=execution_plan,
@@ -545,7 +534,6 @@ def run_research_agent(
         if should_run_react:
             _run_react_loop(
                 query=query,
-                request_type=request_type,
                 profile=profile,
                 goal_spec=goal_spec,
                 execution_plan=execution_plan,

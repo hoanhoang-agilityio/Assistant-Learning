@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -15,11 +16,7 @@ class CreateRunRequest(BaseModel):
     )
     submitted_plan_text: str | None = Field(
         default=None,
-        description=(
-            "An existing plan the user wants checked, not regenerated. The sole "
-            "authoritative source of the submitted plan's text -- never inferred or "
-            "transcribed by the intent classifier (design review F2)."
-        ),
+        description="An existing plan the user wants checked, not regenerated.",
     )
     idempotency_key: str | None = Field(
         default=None,
@@ -49,6 +46,15 @@ class ResumeRunRequest(BaseModel):
         default=None,
         description="Submitted profile form fields, required when hitl_type is 'profile_form'.",
     )
+    submitted_plan_text: str | None = Field(
+        default=None,
+        description=(
+            "An existing plan the user wants checked, not regenerated. Optional here so it "
+            "can be attached on any resume call (e.g. after completing the profile form) "
+            "without requiring it at initial run creation; existing state is left untouched "
+            "when omitted."
+        ),
+    )
 
 
 class ContinueRunRequest(BaseModel):
@@ -57,6 +63,14 @@ class ContinueRunRequest(BaseModel):
         max_length=4000,
         description="Plan change request in an ongoing conversation (replan without re-asking profile).",
     )
+
+
+class RunSummaryResponse(BaseModel):
+    run_id: str
+    query: str
+    status: Literal["running", "waiting_hitl", "completed", "failed", "refused", "not_found"]
+    steps: list[str]
+    updated_at: datetime | None = None
 
 
 class RunStatusResponse(BaseModel):
@@ -69,8 +83,10 @@ class RunStatusResponse(BaseModel):
     approval_status: ApprovalStatus | None
     verification_passed: bool
     faithfulness_score: float | None
-    route_decision: str | None
-    request_type: str | None
+    intent: str | None
+    response_mode: str | None
+    active_capability: str | None
+    final_response: str | None
     final_artifact_path: str | None
     final_plan: str | None
     hitl_type: str | None

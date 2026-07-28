@@ -15,12 +15,12 @@ from core.llm.serializers import (
     compact_profile_for_llm,
     compact_structured_findings,
 )
+from core.planning.schema import ExecutionPlan
 from core.subgraphs.fitness.prompts import (
     FITNESS_PLANNER_SYSTEM_PROMPT,
     build_fitness_edit_system_prompt,
 )
 from core.subgraphs.fitness.schema import EditOperation, StructuredWorkout
-from core.subgraphs.planning.schema import ExecutionPlan
 from core.subgraphs.research.schema import ResearchFindings
 
 PlannerOverride = Callable[..., StructuredWorkout]
@@ -39,7 +39,7 @@ def build_planner_context_payload(
     profile: dict[str, Any],
     macro_targets: dict[str, Any],
     training_constraints: dict[str, Any],
-    execution_plan: ExecutionPlan,
+    execution_plan: ExecutionPlan | dict[str, Any] | None,
     structured_findings: ResearchFindings | None,
 ) -> dict[str, Any]:
     """Build the stable part of the planner payload (identical across retries).
@@ -86,7 +86,7 @@ def build_planner_payload(
     constraints: dict[str, Any],
     macro_targets: dict[str, Any],
     training_constraints: dict[str, Any],
-    execution_plan: ExecutionPlan,
+    execution_plan: ExecutionPlan | dict[str, Any] | None,
     structured_findings: ResearchFindings | None,
     planner_feedback: list[str],
     verification_feedback: str | None,
@@ -118,7 +118,7 @@ def generate_structured_workout(
     constraints: dict[str, Any],
     macro_targets: dict[str, Any],
     training_constraints: dict[str, Any],
-    execution_plan: ExecutionPlan,
+    execution_plan: ExecutionPlan | dict[str, Any] | None,
     structured_findings: ResearchFindings | None,
     planner_feedback: list[str],
     verification_feedback: str | None,

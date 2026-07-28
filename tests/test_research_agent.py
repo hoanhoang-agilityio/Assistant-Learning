@@ -5,8 +5,8 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
+from core.planning.schema import ExecutionPlan, PlanTask
 from core.profile.goal_spec import derive_goal_spec
-from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.research_agent import (
     _evaluate_evidence,
@@ -179,7 +179,6 @@ def test_run_research_agent_uses_override_without_llm() -> None:
     profile = {"goal": "fat_loss"}
     result = run_research_agent(
         query="lose weight",
-        request_type="fat_loss",
         profile=profile,
         goal_spec=derive_goal_spec(profile),
         execution_plan=_sample_plan(),
@@ -196,7 +195,6 @@ def test_configure_research_agent_override() -> None:
     profile: dict = {}
     result = run_research_agent(
         query="lose weight",
-        request_type="fat_loss",
         profile=profile,
         goal_spec=derive_goal_spec(profile),
         execution_plan=_sample_plan(),

@@ -176,12 +176,34 @@ def supervisor_span_context(
         input={
             "query": state["query"],
             "current_node": state["current_node"],
-            "route_decision": state["route_decision"],
         },
         metadata={
             "run_id": state["run_id"],
             "thread_id": state["thread_id"],
             "span_type": "supervisor",
+        },
+    )
+
+
+def supervisor_routing_span_context(
+    state: OrchestrationState,
+    *,
+    routing_context: dict[str, Any],
+    settings: Settings | None = None,
+) -> AbstractContextManager[Any]:
+    """Open a child span for one Supervisor routing decision (Router Judge proposal +
+    Policy Engine verdict), nested under the run's root trace."""
+    client = get_langfuse_client(settings)
+    if client is None:
+        return nullcontext()
+    return client.start_as_current_span(
+        trace_context=_trace_context(state["run_id"], settings=settings),
+        name="SupervisorRouting",
+        input=routing_context,
+        metadata={
+            "run_id": state["run_id"],
+            "thread_id": state["thread_id"],
+            "span_type": "supervisor_routing",
         },
     )
 
@@ -192,10 +214,9 @@ def subgraph_span_context(
     *,
     tier: str | None = None,
     subgraph: str | None = None,
-    is_partial_rerun: bool = False,
     settings: Settings | None = None,
 ) -> AbstractContextManager[Any]:
-    """Open a subgraph or partial-rerun span on the root trace."""
+    """Open a subgraph span on the root trace."""
     client = get_langfuse_client(settings)
     if client is None:
         return nullcontext()
@@ -203,19 +224,16 @@ def subgraph_span_context(
         "run_id": state["run_id"],
         "thread_id": state["thread_id"],
         "subgraph": subgraph,
-        "span_type": "partial_rerun" if is_partial_rerun else "subgraph",
+        "span_type": "subgraph",
     }
     if tier:
         metadata["reasoning_tier"] = tier
-    if state.get("route_decision"):
-        metadata["route_decision"] = state["route_decision"]
     return client.start_as_current_span(
         trace_context=_trace_context(state["run_id"], settings=settings),
         name=span_name,
         input={
             "query": state["query"],
             "current_node": state["current_node"],
-            "route_decision": state["route_decision"],
         },
         metadata=metadata,
     )
@@ -239,6 +257,31 @@ def tavily_tool_span_context(
         metadata={
             "run_id": run_id,
             "provider": "tavily-mcp",
+            "span_type": "mcp_tool",
+        },
+    )
+
+
+def fitness_mcp_tool_span_context(
+    run_id: str,
+    tool_name: str,
+    *,
+    input_data: dict[str, Any] | None = None,
+    settings: Settings | None = None,
+) -> AbstractContextManager[Any]:
+    """Open a Fitness MCP tool span as a child of the current trace -- mirrors
+    tavily_tool_span_context so a Fitness MCP failure is exactly as visible as a
+    Tavily failure, not a blind spot relative to every other external call."""
+    client = get_langfuse_client(settings)
+    if client is None:
+        return nullcontext()
+    return client.start_as_current_span(
+        trace_context=_trace_context(run_id, settings=settings),
+        name=tool_name,
+        input=input_data,
+        metadata={
+            "run_id": run_id,
+            "provider": "fitness-mcp",
             "span_type": "mcp_tool",
         },
     )

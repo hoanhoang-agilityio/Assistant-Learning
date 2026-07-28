@@ -4,6 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from core.planning.utils import has_execution_plan, load_execution_plan
 from core.profile.goal_spec import GoalSpec, rate_to_calorie_adjustment
 from core.profile.normalize import resolve_activity_level
 from core.profile.store import load_run_profile, split_constraints
@@ -14,8 +15,6 @@ from core.subgraphs.fitness.schema import (
     WorkoutDay,
     WorkoutExercise,
 )
-from core.subgraphs.planning.schema import ExecutionPlan
-from core.subgraphs.planning.utils import has_execution_plan, load_execution_plan
 from core.vfs import VFS
 
 ACTIVITY_MULTIPLIERS = {
@@ -67,7 +66,7 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
     evidence_summary: str | None = None
     structured_findings: dict[str, Any] | None = None
     verification_feedback: str | None = None
-    execution_plan: dict[str, Any] = {}
+    execution_plan: dict[str, Any] | None = None
 
     if has_execution_plan(workspace_path):
         execution_plan = load_execution_plan(workspace_path).model_dump()
@@ -139,15 +138,38 @@ def _minimum_calories(profile: dict[str, Any]) -> float:
     return MIN_CALORIES_MALE
 
 
+_REQUIRED_BIOMETRIC_FIELDS = ("current_weight_kg", "height_cm", "age")
+
+
+def _has_required_biometrics(profile: dict[str, Any]) -> bool:
+    return all(profile.get(field) is not None for field in _REQUIRED_BIOMETRIC_FIELDS)
+
+
 def calculate_macros_data(
     profile: dict[str, Any],
     constraints: dict[str, Any],
     goal_spec: GoalSpec,
 ) -> dict[str, Any]:
     """`goal_spec` must be derived by the caller from this same `profile` -- see the
-    single-derivation threading rule in core/profile/goal_spec.py."""
+    single-derivation threading rule in core/profile/goal_spec.py.
+
+    `macro_targets` is None when `profile` is missing weight/height/age (e.g. verify_plan,
+    which has requires_profile=False) -- personalized calorie/macro math is meaningless
+    without them, so this degrades gracefully instead of raising, matching how `goal`/
+    `activity_level` above already default rather than requiring a complete profile.
+    `training_constraints` never needs biometrics, so it's always computed.
+    """
     goal = str(profile.get("goal", "general_fitness"))
     activity_level = resolve_activity_level(profile.get("days_per_week"))
+    training_constraints = {
+        "days_per_week": _parse_training_days(activity_level, constraints, profile),
+        "session_duration_minutes": int(constraints.get("session_duration_minutes", 60)),
+        "equipment": constraints.get("equipment", "gym"),
+        "goal": goal,
+    }
+    if not _has_required_biometrics(profile):
+        return {"macro_targets": None, "training_constraints": training_constraints}
+
     weight_kg = float(profile["current_weight_kg"])
     weekly_rate_kg = goal_spec.weekly_rate_kg
 
@@ -177,12 +199,6 @@ def calculate_macros_data(
         "fat_g": fat_g,
         "goal": goal,
         "activity_level": activity_level,
-    }
-    training_constraints = {
-        "days_per_week": _parse_training_days(activity_level, constraints, profile),
-        "session_duration_minutes": int(constraints.get("session_duration_minutes", 60)),
-        "equipment": constraints.get("equipment", "gym"),
-        "goal": goal,
     }
     return {
         "macro_targets": macro_targets,
@@ -250,22 +266,35 @@ def _check_equipment_mismatch(
 
 def validate_workout_safety_data(
     profile: dict[str, Any],
-    macro_targets: dict[str, Any],
+    macro_targets: dict[str, Any] | None,
     training_constraints: dict[str, Any],
     structured_workout: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Validate macro targets and LLM workout output with deterministic rules."""
-    feedback: list[str] = _check_macro_safety(profile, macro_targets)
+    """Validate macro targets and LLM workout output with deterministic rules.
+
+    `macro_targets` is None when the profile has no weight/height/age on file (verify_plan
+    without a completed profile) -- the macro-safety check is skipped rather than run
+    against fabricated numbers, and that's recorded as a note, not a failure.
+    """
+    notes: list[str] = []
+    if macro_targets is not None:
+        feedback: list[str] = _check_macro_safety(profile, macro_targets)
+    else:
+        feedback = []
+        notes.append(
+            "macro_safety_skipped: no weight/height/age on file, so macro targets "
+            "couldn't be checked"
+        )
 
     if structured_workout is None:
         feedback.append("missing_structured_workout")
-        return SafetyResult(passed=False, feedback=sorted(set(feedback))).model_dump()
+        return SafetyResult(passed=False, feedback=sorted(set(feedback)), notes=notes).model_dump()
 
     try:
         workout = StructuredWorkout.model_validate(structured_workout)
     except Exception:
         feedback.append("invalid_workout_schema")
-        return SafetyResult(passed=False, feedback=sorted(set(feedback))).model_dump()
+        return SafetyResult(passed=False, feedback=sorted(set(feedback)), notes=notes).model_dump()
 
     expected_days = int(training_constraints["days_per_week"])
     actual_days = len(workout.days)
@@ -301,7 +330,66 @@ def validate_workout_safety_data(
                 feedback.append(f"duplicate_exercise:{day.name}:{name}")
 
     unique_feedback = sorted(set(feedback))
-    return SafetyResult(passed=not unique_feedback, feedback=unique_feedback).model_dump()
+    return SafetyResult(
+        passed=not unique_feedback, feedback=unique_feedback, notes=notes
+    ).model_dump()
+
+
+def humanize_safety_feedback(codes: list[str]) -> list[str]:
+    """Translate `SafetyResult.feedback`'s internal codes into plain-English sentences.
+
+    Used to keep raw codes (missing_structured_workout, training_day_count_mismatch:*, ...)
+    out of anything user-facing -- either directly, or as clean input for an LLM asked to
+    write a fuller natural-language explanation (see normalize.explain_verified_plan), so it
+    never has to guess what a code means.
+    """
+    readable: list[str] = []
+    for code in codes:
+        prefix, _, rest = code.partition(":")
+        if prefix == "training_day_count_mismatch":
+            expected, _, got = rest.replace("expected_", "").replace("got_", "").partition("_")
+            readable.append(
+                f"The plan has {got} training day(s), but {expected} day(s) per week were expected."
+            )
+        elif prefix == "training_frequency_too_high":
+            readable.append(
+                f"Training frequency exceeds the safe maximum of {MAX_TRAINING_DAYS} days/week."
+            )
+        elif prefix == "weekly_sets_mismatch":
+            readable.append("The declared weekly set total didn't match the actual sum of sets.")
+        elif prefix == "weekly_training_volume_too_high":
+            readable.append(
+                f"Total weekly training volume is above the safe maximum of {MAX_WEEKLY_SETS} sets/week."
+            )
+        elif prefix == "empty_exercises":
+            readable.append(f"'{rest}' has no exercises listed.")
+        elif prefix == "invalid_set_count":
+            exercise, _, sets = rest.rpartition(":")
+            readable.append(
+                f"'{exercise}' has an unusual set count ({sets}); expected between "
+                f"{MIN_EXERCISE_SETS} and {MAX_EXERCISE_SETS}."
+            )
+        elif prefix == "equipment_mismatch":
+            setting, _, exercise = rest.partition(":")
+            readable.append(f"'{exercise}' needs equipment that may not fit a {setting} setup.")
+        elif prefix == "duplicate_exercise":
+            day, _, name = rest.partition(":")
+            readable.append(f"'{name}' appears more than once on {day}.")
+        elif prefix == "calories_below_safe_minimum":
+            readable.append("The calorie target is below the safe minimum.")
+        elif prefix == "calories_above_recommended_maximum":
+            readable.append("The calorie target is above the recommended maximum.")
+        elif prefix == "aggressive_calorie_deficit":
+            readable.append("The calorie target is an aggressive deficit relative to maintenance.")
+        elif prefix == "protein_intake_too_high":
+            readable.append("The protein target is unusually high relative to body weight.")
+        elif prefix == "invalid_workout_schema":
+            readable.append("The submitted plan didn't match the expected workout format.")
+        elif prefix == "missing_structured_workout":
+            readable.append("No structured workout could be found in the submitted text.")
+        else:
+            readable.append(code.replace("_", " ").replace(":", ": "))
+    return readable
 
 
 EDIT_FAILED_NOTICE = (
@@ -478,15 +566,6 @@ def write_fitness_artifacts(
         json.dumps(normalization_findings or [], indent=2),
     )
     vfs.write("fitness/final_plan.md", draft_plan)
-
-
-def default_execution_plan_for_fitness(execution_plan: dict[str, Any]) -> ExecutionPlan:
-    """Return a valid execution plan, using a minimal fallback when VFS plan is absent."""
-    if execution_plan:
-        return ExecutionPlan.model_validate(execution_plan)
-    from core.subgraphs.planning.utils import build_default_execution_plan
-
-    return build_default_execution_plan()
 
 
 BENCHMARK_WORKOUT_NOTE = "Default deterministic workout for tests and benchmarks."

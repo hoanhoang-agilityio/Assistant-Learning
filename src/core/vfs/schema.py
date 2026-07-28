@@ -26,7 +26,7 @@ from core.vfs.layout import (
 
 
 class RevisionFeedback(BaseModel):
-    """User revision text persisted between REPLAN runs."""
+    """User revision text persisted for a Fitness revision resume."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -195,8 +195,8 @@ class RunSnapshot(BaseModel):
     run_id: str
     thread_id: str
     query: str | None = None
-    request_type: str | None = None
-    route_decision: str | None = None
+    intent: str | None = None
+    response_mode: str | None = None
     verification_passed: bool | None = None
     faithfulness_score: float | None = None
     approval_status: str | None = None
@@ -226,8 +226,8 @@ class PersistResult(BaseModel):
 
 
 def _vfs_json_schemas() -> dict[str, type[BaseModel]]:
+    from core.planning.schema import ExecutionPlan
     from core.subgraphs.fitness.schema import StructuredWorkout
-    from core.subgraphs.planning.schema import ExecutionPlan
 
     return {
         PLAN_EXECUTION_PLAN: ExecutionPlan,

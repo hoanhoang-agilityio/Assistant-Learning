@@ -9,19 +9,11 @@ from langchain_core.runnables.graph import MermaidDrawMethod
 from langgraph.graph.state import CompiledStateGraph
 
 from core.graph.builder import build_graph
-from core.subgraphs.fitness.graph import build_fitness_subgraph
-from core.subgraphs.planning.graph import build_planning_subgraph
-from core.subgraphs.research.graph import build_research_subgraph
-from core.subgraphs.verification.graph import build_verification_subgraph
 
 GraphBuilder = Callable[[], CompiledStateGraph]
 
 GRAPH_BUILDERS: dict[str, GraphBuilder] = {
     "supervisor": build_graph,
-    "planning": build_planning_subgraph,
-    "research": build_research_subgraph,
-    "fitness": build_fitness_subgraph,
-    "verification": build_verification_subgraph,
 }
 
 

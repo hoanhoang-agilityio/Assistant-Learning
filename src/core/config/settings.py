@@ -95,16 +95,39 @@ class Settings(BaseSettings):
     research_min_evidence_docs_for_skip_eval: int = 1
     research_query_cache_ttl_seconds: int = 3600
 
-    # Local fitness knowledge base
+    # Local fitness knowledge base (retrieval tuning -- storage moved to Fitness MCP Server)
     local_kb_enabled: bool = True
-    local_kb_path: str = ""
     local_kb_top_k: int = 3
     local_kb_min_documents: int = 1
     local_kb_min_trust_score: float = 0.85
 
+    # Fitness MCP Server (own process: `uv run python -m core.mcp.fitness_server`;
+    # sole owner of guideline documents + workout templates, backed by Postgres + pgvector)
+    fitness_mcp_host: str = "127.0.0.1"
+    fitness_mcp_port: int = 8100
+    fitness_mcp_tool_timeout_seconds: float = 20.0
+    # Set true to skip the real Fitness MCP server/Postgres and use an in-memory dev double
+    mock_fitness_kb: bool = False
+    fitness_kb_embedding_model: str = "text-embedding-3-small"
+    # Measured against the real ingested corpus (text-embedding-3-small): genuinely
+    # correct matches for realistic queries score 0.5-0.78 cosine similarity, not
+    # near 1.0 -- this model's embedding space isn't calibrated that way for short
+    # text. 0.75 (an unvalidated guess) returned zero hits for 2 of 3 realistic test
+    # queries despite an obviously correct match existing. 0.4 keeps genuine matches
+    # while still filtering clearly unrelated content (which drops to ~0.35-0.45).
+    fitness_kb_min_similarity: float = 0.4
+    fitness_kb_chunk_max_chars: int = 2000
+    fitness_kb_chunk_overlap: int = 200
+
     # Orchestration / Fitness retry budgets
     max_planner_attempts: int = 2
     fix_reasoning_planner_attempts: int = 1
+
+    # Hybrid Supervisor routing: the Supervisor node proposes the next capability
+    # via an LLM judge (core.agents.supervisor_router_judge) and a deterministic
+    # Policy Engine (core.capabilities.policy_engine) validates/overrides that
+    # proposal before routing. supervisor_max_hops is the loop-prevention guardrail.
+    supervisor_max_hops: int = 12
 
     # Wall-clock deadline for a single graph.invoke() call (background run
     # execution, resume, continue, and profile-form resume). Bounds a run
@@ -114,14 +137,6 @@ class Settings(BaseSettings):
     # How often the background orphan-reconciliation sweep runs while the API
     # process is up (in addition to the one that always runs at startup).
     reconciliation_interval_seconds: float = 300.0
-
-    classify_request_narrows_domains: bool = True
-
-    run_execution_plan_enabled: bool = True
-
-    verify_workflow_enabled: bool = True
-
-    edit_workflow_v2_enabled: bool = True
 
     # LLM payload observability (debug only; does not change business logic)
     llm_payload_debug: bool = False

@@ -40,7 +40,7 @@ def test_apply_revision_overrides_updates_days_per_week() -> None:
 
 def test_extract_profile_applies_revision_without_reasking_profile(complete_profile: dict) -> None:
     """Relocated from planning: revision-feedback re-extraction is now owned by the User
-    subgraph (core.subgraphs.user.utils.extract_profile). End-to-end pause/resume/REPLAN
+    subgraph (core.subgraphs.user.utils.extract_profile). End-to-end pause/resume/continue-run
     coverage for this behavior lives in tests/test_user_subgraph.py.
     """
     configure_profile_extractor(

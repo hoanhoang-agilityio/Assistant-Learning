@@ -1,7 +1,5 @@
-from core.agents.request_type_judge import judge_request_type
-from core.agents.state import AffectedDomain, RequestType, ScopeResult
+from core.agents.state import ScopeResult
 from core.agents.topic_scope_judge import judge_topic_scope
-from core.config.settings import get_settings
 
 OFF_TOPIC_REFUSAL_MESSAGE = (
     "I'm your fitness planning assistant, so I can only help with "
@@ -16,58 +14,8 @@ CLARIFY_MESSAGE = (
     "or recovery advice? Send a new message with a bit more detail."
 )
 
-VERIFY_WORKFLOW_UNAVAILABLE_MESSAGE = (
-    "Checking an existing plan isn't available yet -- that's coming soon. In the "
-    "meantime, I can build you a new plan from scratch if you'd like."
-)
-
-SUBMITTED_PLAN_MISSING_MESSAGE = (
-    "I didn't receive the plan you'd like me to check. Please resend your request with "
-    "the plan's text included."
-)
-
-DEFAULT_AFFECTED_DOMAINS: list[AffectedDomain] = [
-    "planning",
-    "research",
-    "fitness",
-    "verify",
-]
-
-
-REQUEST_TYPE_DOMAIN_OVERRIDES: dict[RequestType, list[AffectedDomain]] = {}
-
 
 def check_topic_scope(query: str) -> ScopeResult:
-    """Classify the fitness/nutrition scope of a query via an LLM judge.
-
-    This is the translation boundary between the judge's own output contract
-    (TopicScopeJudgement, topic_scope_judge.py) and the orchestration-level
-    ScopeResult persisted in state: it partitions `judgement.requests` into
-    supported/unsupported here so the judge's schema can evolve independently
-    of what gets checkpointed.
-
-    `decision` is the sole routing signal callers should act on (see
-    supervisor.py):
-
-    - ALLOW: every actionable request is supported -- the caller should
-      proceed with the original query untouched.
-    - REJECT: no actionable request is supported (this also covers a message
-      that only wraps an unsupported ask in fitness-sounding context, e.g.
-      "I want to train at the beach, give me the weather of Danang city" --
-      "train at the beach" isn't itself a request, so the only actionable
-      request is the unsupported weather lookup) -- the caller should
-      terminate the run.
-    - CLARIFY: no concrete actionable request yet -- the caller should
-      terminate the run the same as REJECT (see refusal_message_for for the
-      distinct copy); the user is expected to start a new message, not
-      resume this run.
-    - MIXED: a genuinely separate supported request and unsupported request
-      both present -- the caller should terminate the run rather than
-      silently continuing with only the supported part. supported_requests/
-      unsupported_requests are preserved on the result so the unsupported
-      ask is never silently discarded from logs/UI even though the run
-      never reaches planning.
-    """
     judgement = judge_topic_scope(query)
     return ScopeResult(
         decision=judgement.decision,
@@ -78,17 +26,12 @@ def check_topic_scope(query: str) -> ScopeResult:
 
 
 def refusal_message_for(scope_result: ScopeResult) -> str | None:
-    """User-facing copy for a non-ALLOW scope decision. None for ALLOW."""
     if scope_result.decision == "ALLOW":
         return None
     if scope_result.decision == "REJECT":
         return OFF_TOPIC_REFUSAL_MESSAGE
     if scope_result.decision == "CLARIFY":
         return CLARIFY_MESSAGE
-
-    # MIXED: name the specific parts so the user knows what to resend, rather than a
-    # generic refusal -- the structured supported/unsupported lists already exist, so
-    # not using them here would waste the one part of this that's user-facing.
     supported = "; ".join(request.text for request in scope_result.supported_requests)
     unsupported = "; ".join(request.text for request in scope_result.unsupported_requests)
     return (
@@ -96,20 +39,3 @@ def refusal_message_for(scope_result: ScopeResult) -> str | None:
         f'but I can\'t assist with unrelated requests such as "{unsupported}". '
         "Please resend only your fitness-related request, and I'll be happy to help."
     )
-
-
-def classify_request(query: str) -> dict:
-    """Classify request into request_type and affected_domains via an LLM judge."""
-    judgement = judge_request_type(query)
-    request_type = judgement.request_type
-
-    affected_domains = list(DEFAULT_AFFECTED_DOMAINS)
-    if get_settings().classify_request_narrows_domains:
-        override = REQUEST_TYPE_DOMAIN_OVERRIDES.get(request_type)
-        if override is not None:
-            affected_domains = list(override)
-
-    return {
-        "request_type": request_type,
-        "affected_domains": affected_domains,
-    }

@@ -105,6 +105,49 @@ def test_get_run_status(api_client: TestClient, complete_profile: dict) -> None:
     assert response.json()["status"] == payload["status"] == "waiting_hitl"
 
 
+def test_list_runs_for_user(api_client: TestClient, complete_profile: dict) -> None:
+    headers = {"X-User-Id": "sidebar-user"}
+    first = api_client.post(
+        "/runs",
+        json={
+            "query": "First sidebar history run.",
+            "user_profile": complete_profile,
+            "constraints": {"days_per_week": 4, "equipment": "gym"},
+        },
+        headers=headers,
+    ).json()
+    _wait_for_settled(api_client, first["run_id"])
+    second = api_client.post(
+        "/runs",
+        json={
+            "query": "Second sidebar history run.",
+            "user_profile": complete_profile,
+            "constraints": {"days_per_week": 4, "equipment": "gym"},
+        },
+        headers=headers,
+    ).json()
+    settled_second = _wait_for_settled(api_client, second["run_id"])
+
+    list_response = api_client.get("/runs", headers=headers)
+    assert list_response.status_code == 200
+    summaries = list_response.json()
+    assert len(summaries) >= 2
+    assert summaries[0]["run_id"] == second["run_id"]
+    assert summaries[0]["query"] == "Second sidebar history run."
+    assert summaries[0]["status"] == settled_second["status"]
+    assert isinstance(summaries[0]["steps"], list)
+    assert len(summaries[0]["steps"]) > 0
+
+    user_route_response = api_client.get("/users/sidebar-user/runs")
+    assert user_route_response.status_code == 200
+    assert user_route_response.json()[0]["run_id"] == second["run_id"]
+
+
+def test_list_runs_requires_user_id(api_client: TestClient) -> None:
+    response = api_client.get("/runs")
+    assert response.status_code == 400
+
+
 def test_resume_run_with_decision_type(api_client: TestClient, complete_profile: dict) -> None:
     created = api_client.post(
         "/runs",
@@ -218,12 +261,13 @@ def test_stream_run_events_streams_node_updates_then_settles(
     node_updates = [event for event in events if event["type"] == "node_update"]
     settled_events = [event for event in events if event["type"] == "run_settled"]
 
-    # Real node-level granularity, not just the 7 top-level subgraph names --
-    # confirms subgraphs=True is actually surfacing internal node completions.
+    # Each capability is a single top-level graph node in the intent-driven
+    # architecture (tools run as plain function calls inside it, not as
+    # separate graph nodes), so streamed granularity is per-capability.
     steps = {event["step"] for event in node_updates}
-    assert "research:research_agent" in steps
-    assert "fitness:fitness_planner" in steps
-    assert "verification:citation_check" in steps
+    assert "research" in steps
+    assert "fitness" in steps
+    assert "verification" in steps
 
     # Exactly one terminal event, and it's the last one.
     assert len(settled_events) == 1

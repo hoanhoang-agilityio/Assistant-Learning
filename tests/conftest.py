@@ -5,36 +5,44 @@ import pytest
 from langgraph.checkpoint.memory import MemorySaver
 
 from core.agents.intent_judge import configure_user_intent_judge
-from core.agents.request_type_judge import configure_request_type_judge
 from core.agents.state import OrchestrationState
+from core.agents.supervisor_router_judge import configure_supervisor_routing_judge
 from core.agents.topic_scope_judge import configure_topic_scope_judge
 from core.config.settings import get_settings
 from core.graph.run import create_initial_state
+from core.mcp.fitness_client import FitnessMCPClient, configure_fitness_client
+from core.mcp.mock_fitness import build_fake_fitness_client
 from core.mcp.mock_tavily import build_mock_tavily_client
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.observability.langfuse import reset_langfuse_client
 from core.profile.extraction import configure_profile_extractor
 from core.subgraphs.fitness.planner import configure_fitness_planner
-from core.subgraphs.fitness.template_registry import configure_template_registry
-from core.subgraphs.planning.planning_agent import configure_planning_agent
-from core.subgraphs.planning.utils import build_default_execution_plan
 from core.subgraphs.research.query_cache import reset_tavily_search_cache
 from core.subgraphs.research.research_agent import configure_research_agent
 from tests.helpers.classification import (
-    default_request_type_judge,
     default_topic_scope_judge,
     default_user_intent_judge,
 )
 from tests.helpers.fitness import default_structured_workout
 from tests.helpers.research import research_agent_override
+from tests.helpers.routing import default_supervisor_routing_judge
 
 
 @pytest.fixture(autouse=True)
-def isolated_template_registry(tmp_path: Path) -> None:
-    """Keep workout template cache out of src/workspace/templates during tests."""
-    configure_template_registry(tmp_path / "template_registry")
+def reset_fitness_client() -> None:
+    configure_fitness_client(None)
     yield
-    configure_template_registry(None)
+    configure_fitness_client(None)
+
+
+@pytest.fixture
+def fitness_client() -> FitnessMCPClient:
+    """Fresh in-memory fake Fitness MCP client -- request by name to seed guideline
+    documents or template state before calling production code (mirrors
+    mock_tavily_client's not-autouse, returns-the-client shape)."""
+    client = build_fake_fitness_client()
+    configure_fitness_client(client)
+    return client
 
 
 @pytest.fixture
@@ -70,13 +78,6 @@ def reset_topic_scope_judge() -> None:
 
 
 @pytest.fixture(autouse=True)
-def reset_request_type_judge() -> None:
-    configure_request_type_judge(default_request_type_judge)
-    yield
-    configure_request_type_judge(None)
-
-
-@pytest.fixture(autouse=True)
 def reset_user_intent_judge() -> None:
     configure_user_intent_judge(default_user_intent_judge)
     yield
@@ -84,10 +85,10 @@ def reset_user_intent_judge() -> None:
 
 
 @pytest.fixture(autouse=True)
-def reset_planning_agent() -> None:
-    configure_planning_agent(lambda **kwargs: build_default_execution_plan(kwargs.get("profile")))
+def reset_supervisor_routing_judge() -> None:
+    configure_supervisor_routing_judge(default_supervisor_routing_judge)
     yield
-    configure_planning_agent(None)
+    configure_supervisor_routing_judge(None)
 
 
 @pytest.fixture(autouse=True)

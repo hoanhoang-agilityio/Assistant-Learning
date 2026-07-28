@@ -2,6 +2,28 @@
 
 import streamlit as st
 
+_WEIGHT_GAIN_PLAN_REVIEW = (
+    "Help me check whether this fitness plan is suitable for weight gain. "
+    "Fitness Plan Draft Program Blueprint Archetype: fat_loss_moderate "
+    "Phases: Weeks 1-4: metabolic (volume x1.0) Weeks 5-8: metabolic (volume x0.95) "
+    "Increase load or reps when all sets reach the top of the prescribed rep range. "
+    "Use a deload if performance or recovery drops for two consecutive weeks. "
+    "Macro Targets Calories: 2087 kcal Protein: 131 g Carbs: 260 g Fat: 58 g "
+    "Training Plan Split: Upper/Lower (4-day) (Fat loss with lean-mass retention)\n\n"
+    "Day 1 — Day 1 Focus: Upper Push/Pull\n\n"
+    "Barbell Bench Press: 4 x 6-8 Chest-Supported Row: 4 x 8-10 "
+    "Incline Dumbbell Press: 3 x 8-12 Lat Pulldown: 3 x 8-12 "
+    "Cable Lateral Raise: 2 x 12-15 Day 2 — Day 2 Focus: Lower Squat Emphasis\n\n"
+    "Back Squat: 4 x 5-8 Romanian Deadlift: 3 x 6-10 Leg Press: 3 x 10-12 "
+    "Leg Curl: 3 x 10-15 Standing Calf Raise: 2 x 12-15 "
+    "Day 3 — Day 3 Focus: Upper Vertical Push/Pull\n\n"
+    "Overhead Press: 4 x 6-8 Pull-Up: 4 x 6-10 Dumbbell Bench Press: 3 x 8-12 "
+    "Seated Cable Row: 3 x 8-12 Face Pull: 2 x 12-15 "
+    "Day 4 — Day 4 Focus: Lower Hinge Emphasis\n\n"
+    "Deadlift: 3 x 3-5 Front Squat: 3 x 6-8 Bulgarian Split Squat: 3 x 8-10 "
+    "Hip Thrust: 3 x 8-12 Hanging Knee Raise: 2 x 10-15"
+)
+
 SUGGESTIONS = [
     (
         "🔥",
@@ -11,18 +33,21 @@ SUGGESTIONS = [
     ),
     (
         "🧮",
-        "Daily calories",
-        "Help me calculate my daily calorie and protein needs for fat loss.",
+        "Weight loss macro check",
+        "I want to know if my current macros are appropriate for weight loss. "
+        "I'm currently consuming 3,000 calories per day.",
     ),
     (
-        "🥗",
-        "High-protein meals",
-        "Suggest high-protein meals that support muscle recovery.",
+        "📋",
+        "Weight gain plan check",
+        _WEIGHT_GAIN_PLAN_REVIEW,
     ),
     (
-        "🏃",
-        "Endurance block",
-        "I want to improve cardiovascular endurance over 8 weeks.",
+        "🔬",
+        "Endurance training research",
+        "What does current research say about the most effective training approach "
+        "for improving cardiovascular endurance over 8 weeks — zone 2, HIIT, or "
+        "polarized periodization? Please cite recent evidence and guidelines.",
     ),
 ]
 
