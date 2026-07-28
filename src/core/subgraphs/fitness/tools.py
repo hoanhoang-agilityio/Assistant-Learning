@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from core.planning.executor import PLANNING_OUTPUT_PATH
+from core.planning.output import PlanningOutput
 from core.profile.goal_spec import derive_goal_spec
 from core.profile.store import load_run_profile, split_constraints
 from core.subgraphs.fitness.blueprint import PlanBlueprint, build_plan_blueprint
@@ -29,8 +31,6 @@ from core.subgraphs.fitness.utils import (
     validate_workout_safety_data,
     write_fitness_artifacts,
 )
-from core.subgraphs.planning.capability import PLANNING_OUTPUT_PATH
-from core.subgraphs.planning.output import PlanningOutput
 from core.vfs import VFS
 from core.vfs.layout import PLAN_SUBMITTED_TEXT
 
@@ -177,7 +177,7 @@ def populate_template(workspace_path: str) -> dict[str, Any]:
         constraints=constraints,
         macro_targets=macros["macro_targets"],
         training_constraints=macros["training_constraints"],
-        execution_plan=context.get("execution_plan") or {},
+        execution_plan=context.get("execution_plan"),
         structured_findings=None,
         planner_feedback=[],
         verification_feedback=context.get("verification_feedback"),

@@ -135,6 +135,53 @@ def test_policy_engine_forces_fitness_right_after_planning_completes() -> None:
     assert decision.override_reason == "planning_requires_fitness"
 
 
+def test_policy_engine_profile_gate_overrides_planning_requires_fitness() -> None:
+    """Deterministic planning→fitness must still yield to the profile gate."""
+    state = _base_state(
+        profile_complete=False,
+        profile_valid=False,
+        last_capability_result={
+            "capability": "planning",
+            "status": "completed",
+            "summary": "Goal specification complete.",
+        },
+    )
+    decision = enforce_routing_invariants(state, _proposal("fitness"), max_hops=12)
+    assert decision.next_agent == "user"
+    assert decision.override_reason == "profile_incomplete"
+
+
+def test_policy_engine_profile_gate_overrides_entry_node_on_first_hop() -> None:
+    """entry_node enforcement must not bypass the profile gate on hop 1."""
+    from core.agents.execution_context import build_execution_context
+
+    ctx = build_execution_context(intent="build_plan")
+    state = _base_state(
+        profile_complete=False,
+        profile_valid=False,
+        last_capability_result=None,
+        execution_context=ctx.model_dump(mode="json"),
+    )
+    decision = enforce_routing_invariants(state, _proposal("user"), max_hops=12)
+    assert decision.next_agent == "user"
+    assert decision.override_reason == "profile_incomplete"
+
+
+def test_policy_engine_routes_fitness_biometrics_block_to_user() -> None:
+    state = _base_state(
+        profile_complete=False,
+        profile_valid=False,
+        last_capability_result={
+            "capability": "fitness",
+            "status": "blocked",
+            "missing_information": ["profile_biometrics"],
+        },
+    )
+    decision = enforce_routing_invariants(state, _proposal("finish"), max_hops=12)
+    assert decision.next_agent == "user"
+    assert decision.override_reason == "fitness_requires_profile"
+
+
 def test_policy_engine_accepts_valid_proposal_unchanged() -> None:
     state = _base_state()
     decision = enforce_routing_invariants(state, _proposal("research"), max_hops=12)

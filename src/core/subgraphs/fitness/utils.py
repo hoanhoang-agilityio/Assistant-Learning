@@ -4,6 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from core.planning.utils import has_execution_plan, load_execution_plan
 from core.profile.goal_spec import GoalSpec, rate_to_calorie_adjustment
 from core.profile.normalize import resolve_activity_level
 from core.profile.store import load_run_profile, split_constraints
@@ -14,7 +15,6 @@ from core.subgraphs.fitness.schema import (
     WorkoutDay,
     WorkoutExercise,
 )
-from core.subgraphs.planning.utils import has_execution_plan, load_execution_plan
 from core.vfs import VFS
 
 ACTIVITY_MULTIPLIERS = {
@@ -66,7 +66,7 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
     evidence_summary: str | None = None
     structured_findings: dict[str, Any] | None = None
     verification_feedback: str | None = None
-    execution_plan: dict[str, Any] = {}
+    execution_plan: dict[str, Any] | None = None
 
     if has_execution_plan(workspace_path):
         execution_plan = load_execution_plan(workspace_path).model_dump()

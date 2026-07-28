@@ -14,9 +14,9 @@ from core.llm.factory import (
     invoke_standard_structured_output,
     invoke_xhigh_structured_output,
 )
+from core.planning.schema import ExecutionPlan, PlanTask
 from core.rate_limit import AIRateLimiter, InMemoryUsageStore
 from core.rate_limit.context import reset_rate_limit_user_id, set_rate_limit_user_id
-from core.subgraphs.planning.schema import ExecutionPlan, PlanTask
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
 _MIN_PLAN_RATIONALE = "Test plan rationale with enough characters for validation."

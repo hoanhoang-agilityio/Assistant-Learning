@@ -7,7 +7,6 @@ from core.agents.state import OrchestrationState
 from core.agents.supervisor import supervisor_node
 from core.capabilities.nodes import (
     invoke_fitness_node,
-    invoke_planning_node,
     invoke_research_node,
     invoke_user_node,
     invoke_verification_node,
@@ -18,6 +17,7 @@ from core.hitl.node import invoke_hitl_node
 from core.observability.langfuse import supervisor_span_context
 from core.observability.tracing import wrap_traced_subgraph_node
 from core.persist.node import invoke_persist_node
+from core.planning.node import invoke_planning_node
 from core.subgraphs.wrapper import append_pipeline_steps
 
 

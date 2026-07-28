@@ -95,12 +95,29 @@ class Settings(BaseSettings):
     research_min_evidence_docs_for_skip_eval: int = 1
     research_query_cache_ttl_seconds: int = 3600
 
-    # Local fitness knowledge base
+    # Local fitness knowledge base (retrieval tuning -- storage moved to Fitness MCP Server)
     local_kb_enabled: bool = True
-    local_kb_path: str = ""
     local_kb_top_k: int = 3
     local_kb_min_documents: int = 1
     local_kb_min_trust_score: float = 0.85
+
+    # Fitness MCP Server (own process: `uv run python -m core.mcp.fitness_server`;
+    # sole owner of guideline documents + workout templates, backed by Postgres + pgvector)
+    fitness_mcp_host: str = "127.0.0.1"
+    fitness_mcp_port: int = 8100
+    fitness_mcp_tool_timeout_seconds: float = 20.0
+    # Set true to skip the real Fitness MCP server/Postgres and use an in-memory dev double
+    mock_fitness_kb: bool = False
+    fitness_kb_embedding_model: str = "text-embedding-3-small"
+    # Measured against the real ingested corpus (text-embedding-3-small): genuinely
+    # correct matches for realistic queries score 0.5-0.78 cosine similarity, not
+    # near 1.0 -- this model's embedding space isn't calibrated that way for short
+    # text. 0.75 (an unvalidated guess) returned zero hits for 2 of 3 realistic test
+    # queries despite an obviously correct match existing. 0.4 keeps genuine matches
+    # while still filtering clearly unrelated content (which drops to ~0.35-0.45).
+    fitness_kb_min_similarity: float = 0.4
+    fitness_kb_chunk_max_chars: int = 2000
+    fitness_kb_chunk_overlap: int = 200
 
     # Orchestration / Fitness retry budgets
     max_planner_attempts: int = 2

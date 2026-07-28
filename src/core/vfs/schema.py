@@ -226,8 +226,8 @@ class PersistResult(BaseModel):
 
 
 def _vfs_json_schemas() -> dict[str, type[BaseModel]]:
+    from core.planning.schema import ExecutionPlan
     from core.subgraphs.fitness.schema import StructuredWorkout
-    from core.subgraphs.planning.schema import ExecutionPlan
 
     return {
         PLAN_EXECUTION_PLAN: ExecutionPlan,

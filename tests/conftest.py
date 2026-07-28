@@ -10,12 +10,13 @@ from core.agents.supervisor_router_judge import configure_supervisor_routing_jud
 from core.agents.topic_scope_judge import configure_topic_scope_judge
 from core.config.settings import get_settings
 from core.graph.run import create_initial_state
+from core.mcp.fitness_client import FitnessMCPClient, configure_fitness_client
+from core.mcp.mock_fitness import build_fake_fitness_client
 from core.mcp.mock_tavily import build_mock_tavily_client
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.observability.langfuse import reset_langfuse_client
 from core.profile.extraction import configure_profile_extractor
 from core.subgraphs.fitness.planner import configure_fitness_planner
-from core.subgraphs.fitness.template_registry import configure_template_registry
 from core.subgraphs.research.query_cache import reset_tavily_search_cache
 from core.subgraphs.research.research_agent import configure_research_agent
 from tests.helpers.classification import (
@@ -28,10 +29,20 @@ from tests.helpers.routing import default_supervisor_routing_judge
 
 
 @pytest.fixture(autouse=True)
-def isolated_template_registry(tmp_path: Path) -> None:
-    configure_template_registry(tmp_path / "template_registry")
+def reset_fitness_client() -> None:
+    configure_fitness_client(None)
     yield
-    configure_template_registry(None)
+    configure_fitness_client(None)
+
+
+@pytest.fixture
+def fitness_client() -> FitnessMCPClient:
+    """Fresh in-memory fake Fitness MCP client -- request by name to seed guideline
+    documents or template state before calling production code (mirrors
+    mock_tavily_client's not-autouse, returns-the-client shape)."""
+    client = build_fake_fitness_client()
+    configure_fitness_client(client)
+    return client
 
 
 @pytest.fixture

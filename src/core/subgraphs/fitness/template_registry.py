@@ -1,11 +1,17 @@
-"""Workout template fingerprinting, registry, and reuse helpers."""
+"""Workout template fingerprinting and reuse helpers.
+
+Template storage lives behind the Fitness MCP Server (core.mcp.fitness_client) --
+this module owns fingerprinting/reuse decision logic only.
+"""
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
-from core.config.settings import get_settings
+from core.mcp.fitness_client import get_fitness_client
+from core.planning.utils import load_revision_feedback
 from core.subgraphs.fitness.blueprint import PlanBlueprint, session_duration_bucket_from_profile
 from core.subgraphs.fitness.edit_classifier import classify_edit_operation
 from core.subgraphs.fitness.schema import StructuredWorkout
@@ -14,22 +20,9 @@ from core.subgraphs.fitness.utils import (
     flatten_exercise_names,
     is_cacheable_workout,
 )
-from core.subgraphs.planning.utils import load_revision_feedback
 from core.vfs import VFS
 
-_registry_root_override: Path | None = None
-
-
-def configure_template_registry(registry_root: Path | None) -> None:
-    """Override the global template registry root (used in tests)."""
-    global _registry_root_override
-    _registry_root_override = registry_root
-
-
-def _resolve_registry_root() -> Path:
-    if _registry_root_override is not None:
-        return _registry_root_override
-    return get_settings().workspace_root / "templates"
+logger = logging.getLogger(__name__)
 
 
 def workout_template_fingerprint(
@@ -64,34 +57,6 @@ def build_template_fingerprint(
         equipment=equipment,
         session_duration_bucket=session_duration_bucket_from_profile(profile, constraints),
     )
-
-
-class TemplateRegistry:
-    """File-backed registry for reusable structured workouts."""
-
-    def __init__(self, registry_root: Path | None = None) -> None:
-        self._registry_root = registry_root or _resolve_registry_root()
-
-    def clear(self) -> None:
-        if self._registry_root.exists():
-            for path in self._registry_root.glob("*.json"):
-                path.unlink()
-
-    def _template_path(self, fingerprint: str) -> Path:
-        return self._registry_root / f"{fingerprint}.json"
-
-    def get(self, fingerprint: str) -> dict[str, Any] | None:
-        path = self._template_path(fingerprint)
-        if not path.exists():
-            return None
-        return json.loads(path.read_text(encoding="utf-8"))
-
-    def put(self, fingerprint: str, workout: dict[str, Any]) -> None:
-        self._registry_root.mkdir(parents=True, exist_ok=True)
-        self._template_path(fingerprint).write_text(
-            json.dumps(workout, indent=2),
-            encoding="utf-8",
-        )
 
 
 def load_prior_workout(workspace_path: str) -> dict[str, Any] | None:
@@ -205,8 +170,15 @@ def resolve_workout_template(
             "reused_workout": True,
         }
 
-    registry = TemplateRegistry()
-    cached = registry.get(fingerprint)
+    cached = None
+    client = get_fitness_client()
+    if client is not None:
+        try:
+            cached = client.search_training_template(fingerprint).get("workout")
+        except Exception:
+            logger.warning(
+                "Fitness MCP template lookup failed; treating as cache miss", exc_info=True
+            )
     if cached is not None and is_cacheable_workout(cached):
         return {
             "structured_workout": cached,
@@ -234,7 +206,13 @@ def store_workout_template(
         return
     if not is_cacheable_workout(workout):
         return
-    TemplateRegistry().put(fingerprint, workout)
+    client = get_fitness_client()
+    if client is None:
+        return
+    try:
+        client.store_training_template(fingerprint, workout)
+    except Exception:
+        logger.warning("Fitness MCP template store failed; will regenerate next run", exc_info=True)
 
 
 def adapt_workout_to_blueprint(

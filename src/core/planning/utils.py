@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from core.llm.serializers import compact_profile_for_llm
-from core.subgraphs.planning.schema import ExecutionPlan
+from core.planning.schema import ExecutionPlan
 from core.subgraphs.user.utils import load_stored_profile
 from core.vfs import VFS
 

@@ -262,6 +262,31 @@ def tavily_tool_span_context(
     )
 
 
+def fitness_mcp_tool_span_context(
+    run_id: str,
+    tool_name: str,
+    *,
+    input_data: dict[str, Any] | None = None,
+    settings: Settings | None = None,
+) -> AbstractContextManager[Any]:
+    """Open a Fitness MCP tool span as a child of the current trace -- mirrors
+    tavily_tool_span_context so a Fitness MCP failure is exactly as visible as a
+    Tavily failure, not a blind spot relative to every other external call."""
+    client = get_langfuse_client(settings)
+    if client is None:
+        return nullcontext()
+    return client.start_as_current_span(
+        trace_context=_trace_context(run_id, settings=settings),
+        name=tool_name,
+        input=input_data,
+        metadata={
+            "run_id": run_id,
+            "provider": "fitness-mcp",
+            "span_type": "mcp_tool",
+        },
+    )
+
+
 def flush_langfuse(settings: Settings | None = None) -> None:
     """Flush pending Langfuse events — call after graph completion in workers."""
     client = get_langfuse_client(settings)
