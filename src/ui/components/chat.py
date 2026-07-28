@@ -14,6 +14,8 @@ from ui.api_client import (
     continue_run,
     create_run,
     get_run,
+    get_ui_user_id,
+    list_runs,
     resume_run,
     stream_run_until_settled,
 )
@@ -287,7 +289,9 @@ def sync_active_run_if_needed(client: httpx.Client) -> bool:
 
         st.session_state.run_status = settled
         st.session_state.messages = _rebuild_messages_from_run(settled)
-        update_run_history_status(run_id, settled.get("status", "unknown"))
+        update_run_history_status(
+            run_id, settled.get("status", "unknown"), steps=settled.get("steps")
+        )
         return settled.get("status") != "running"
     except httpx.TimeoutException:
         latest = get_run(client, run_id)
@@ -324,8 +328,12 @@ def assistant_message_from_status(status: dict[str, Any]) -> str:
     return _format_assistant_status_message(status)
 
 
-def _add_to_run_history(run_id: str, query: str, status: str) -> None:
-    entry = {"run_id": run_id, "query": query, "status": status}
+def _add_to_run_history(
+    run_id: str, query: str, status: str, steps: list[str] | None = None
+) -> None:
+    entry: dict[str, Any] = {"run_id": run_id, "query": query, "status": status}
+    if steps:
+        entry["steps"] = steps
     history: list[dict[str, str]] = st.session_state.run_history
     for index, item in enumerate(history):
         if item["run_id"] == run_id:
@@ -334,10 +342,35 @@ def _add_to_run_history(run_id: str, query: str, status: str) -> None:
     history.append(entry)
 
 
-def update_run_history_status(run_id: str, status: str) -> None:
+def replace_run_history(entries: list[dict[str, Any]]) -> None:
+    st.session_state.run_history = [
+        {
+            "run_id": item["run_id"],
+            "query": item.get("query", item["run_id"]),
+            "status": item.get("status", "unknown"),
+            **({"steps": item["steps"]} if item.get("steps") else {}),
+        }
+        for item in entries
+    ]
+
+
+def sync_run_history_from_api(client: httpx.Client) -> None:
+    """Hydrate sidebar history from the backend after a page reload."""
+    summaries = list_runs(client, user_id=get_ui_user_id())
+    replace_run_history(summaries)
+
+
+def update_run_history_status(
+    run_id: str,
+    status: str,
+    *,
+    steps: list[str] | None = None,
+) -> None:
     for item in st.session_state.run_history:
         if item["run_id"] == run_id:
             item["status"] = status
+            if steps:
+                item["steps"] = steps
             return
 
 
@@ -447,7 +480,11 @@ def render_hitl_actions(
             st.session_state.messages.append(
                 build_timeline_message(updated, assistant_message_from_status(updated))
             )
-            update_run_history_status(run_id, updated.get("status", "unknown"))
+            update_run_history_status(
+                run_id,
+                updated.get("status", "unknown"),
+                steps=updated.get("steps") or updated.get("_timeline_steps"),
+            )
 
         run_guarded_backend_action(
             do_approve,
@@ -481,7 +518,11 @@ def render_hitl_actions(
             st.session_state.messages.append(
                 build_timeline_message(updated, assistant_message_from_status(updated))
             )
-            update_run_history_status(run_id, updated.get("status", "unknown"))
+            update_run_history_status(
+                run_id,
+                updated.get("status", "unknown"),
+                steps=updated.get("steps") or updated.get("_timeline_steps"),
+            )
 
         run_guarded_backend_action(
             do_reject,
@@ -527,7 +568,11 @@ def _handle_plan_change(client: httpx.Client, run_id: str, query: str) -> None:
         st.session_state.messages.append(
             build_timeline_message(updated, assistant_message_from_status(updated))
         )
-        update_run_history_status(run_id, updated.get("status", "unknown"))
+        update_run_history_status(
+            run_id,
+            updated.get("status", "unknown"),
+            steps=updated.get("steps") or updated.get("_timeline_steps"),
+        )
 
     run_guarded_backend_action(
         do_call,
@@ -559,7 +604,11 @@ def _handle_clarification(client: httpx.Client, run_id: str, query: str) -> None
         st.session_state.messages.append(
             build_timeline_message(updated, assistant_message_from_status(updated))
         )
-        update_run_history_status(run_id, updated.get("status", "unknown"))
+        update_run_history_status(
+            run_id,
+            updated.get("status", "unknown"),
+            steps=updated.get("steps") or updated.get("_timeline_steps"),
+        )
 
     run_guarded_backend_action(
         do_call,
@@ -651,6 +700,7 @@ def handle_user_input(
             new_run_id,
             query,
             settled.get("status", "unknown"),
+            steps=settled.get("steps") or settled.get("_timeline_steps"),
         )
 
     except httpx.TimeoutException:
@@ -666,6 +716,7 @@ def handle_user_input(
                     new_run_id,
                     query,
                     poll_status.get("status", "running"),
+                    steps=poll_status.get("steps") or poll_status.get("_timeline_steps"),
                 )
         st.session_state.pending_query = None
     except httpx.HTTPError as exc:
