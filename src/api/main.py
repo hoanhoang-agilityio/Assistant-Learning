@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.deps import close_orchestrator_resources, get_orchestrator
 from api.routes.runs import router as runs_router
+from api.routes.users import router as users_router
 from core.config.settings import Settings, get_settings
 from core.graph.service import RunOrchestrator
 from core.rate_limit.pricing import validate_model_pricing_coverage
@@ -98,6 +99,7 @@ def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
     )
     add_cors_middleware(app, settings)
     app.include_router(runs_router)
+    app.include_router(users_router)
 
     if orchestrator is not None:
         app.dependency_overrides[get_orchestrator] = lambda: orchestrator

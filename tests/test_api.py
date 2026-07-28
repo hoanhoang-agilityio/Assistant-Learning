@@ -105,6 +105,49 @@ def test_get_run_status(api_client: TestClient, complete_profile: dict) -> None:
     assert response.json()["status"] == payload["status"] == "waiting_hitl"
 
 
+def test_list_runs_for_user(api_client: TestClient, complete_profile: dict) -> None:
+    headers = {"X-User-Id": "sidebar-user"}
+    first = api_client.post(
+        "/runs",
+        json={
+            "query": "First sidebar history run.",
+            "user_profile": complete_profile,
+            "constraints": {"days_per_week": 4, "equipment": "gym"},
+        },
+        headers=headers,
+    ).json()
+    _wait_for_settled(api_client, first["run_id"])
+    second = api_client.post(
+        "/runs",
+        json={
+            "query": "Second sidebar history run.",
+            "user_profile": complete_profile,
+            "constraints": {"days_per_week": 4, "equipment": "gym"},
+        },
+        headers=headers,
+    ).json()
+    settled_second = _wait_for_settled(api_client, second["run_id"])
+
+    list_response = api_client.get("/runs", headers=headers)
+    assert list_response.status_code == 200
+    summaries = list_response.json()
+    assert len(summaries) >= 2
+    assert summaries[0]["run_id"] == second["run_id"]
+    assert summaries[0]["query"] == "Second sidebar history run."
+    assert summaries[0]["status"] == settled_second["status"]
+    assert isinstance(summaries[0]["steps"], list)
+    assert len(summaries[0]["steps"]) > 0
+
+    user_route_response = api_client.get("/users/sidebar-user/runs")
+    assert user_route_response.status_code == 200
+    assert user_route_response.json()[0]["run_id"] == second["run_id"]
+
+
+def test_list_runs_requires_user_id(api_client: TestClient) -> None:
+    response = api_client.get("/runs")
+    assert response.status_code == 400
+
+
 def test_resume_run_with_decision_type(api_client: TestClient, complete_profile: dict) -> None:
     created = api_client.post(
         "/runs",

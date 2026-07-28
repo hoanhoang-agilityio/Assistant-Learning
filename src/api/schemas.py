@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -62,6 +63,14 @@ class ContinueRunRequest(BaseModel):
         max_length=4000,
         description="Plan change request in an ongoing conversation (replan without re-asking profile).",
     )
+
+
+class RunSummaryResponse(BaseModel):
+    run_id: str
+    query: str
+    status: Literal["running", "waiting_hitl", "completed", "failed", "refused", "not_found"]
+    steps: list[str]
+    updated_at: datetime | None = None
 
 
 class RunStatusResponse(BaseModel):

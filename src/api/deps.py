@@ -7,6 +7,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from core.config.settings import Settings, get_settings
 from core.graph.checkpointer import postgres_checkpointer
 from core.graph.idempotency_store import IdempotencyStore
+from core.graph.run_history_store import InMemoryRunHistoryStore, RunHistoryStore
 from core.graph.run_tracker import RunTracker
 from core.graph.service import RunOrchestrator
 from core.llm.factory import configure_rate_limiter
@@ -26,6 +27,7 @@ _usage_store: UsageStore = InMemoryUsageStore()
 _postgres_checkpointer_cm = None
 _run_tracker: RunTracker | None = None
 _idempotency_store: IdempotencyStore | None = None
+_run_history_store: RunHistoryStore | InMemoryRunHistoryStore | None = None
 
 
 def configure_research_client() -> None:
@@ -116,6 +118,15 @@ def get_rate_limiter() -> AIRateLimiter:
     return AIRateLimiter(settings=settings, store=store)
 
 
+def _build_run_history_store(settings: Settings) -> RunHistoryStore | InMemoryRunHistoryStore:
+    global _run_history_store
+    if settings.use_postgres_checkpointer:
+        _run_history_store = RunHistoryStore(settings.checkpointer_dsn)
+    else:
+        _run_history_store = InMemoryRunHistoryStore()
+    return _run_history_store
+
+
 @lru_cache
 def get_orchestrator() -> RunOrchestrator:
     configure_research_client()
@@ -128,21 +139,23 @@ def get_orchestrator() -> RunOrchestrator:
     )
     # Orphan reconciliation and idempotency both need a record that survives a
     # restart and is visible to every replica, so it's a no-op without Postgres.
-    global _run_tracker, _idempotency_store
+    global _run_tracker, _idempotency_store, _run_history_store
     if settings.use_postgres_checkpointer:
         _run_tracker = RunTracker(settings.checkpointer_dsn)
         _idempotency_store = IdempotencyStore(settings.checkpointer_dsn)
+    run_history_store = _build_run_history_store(settings)
     return RunOrchestrator(
         rate_limiter=limiter,
         checkpointer=checkpointer,
         run_tracker=_run_tracker,
         idempotency_store=_idempotency_store,
+        run_history_store=run_history_store,
     )
 
 
 def close_orchestrator_resources() -> None:
     """Close long-lived Postgres connections — call from the app's shutdown/lifespan."""
-    global _postgres_checkpointer_cm, _run_tracker, _idempotency_store
+    global _postgres_checkpointer_cm, _run_tracker, _idempotency_store, _run_history_store
     if _postgres_checkpointer_cm is not None:
         _postgres_checkpointer_cm.__exit__(None, None, None)
         _postgres_checkpointer_cm = None
@@ -154,6 +167,9 @@ def close_orchestrator_resources() -> None:
     if _idempotency_store is not None:
         _idempotency_store.close()
         _idempotency_store = None
+    if isinstance(_run_history_store, RunHistoryStore):
+        _run_history_store.close()
+        _run_history_store = None
     configure_fitness_client(None)
 
 
