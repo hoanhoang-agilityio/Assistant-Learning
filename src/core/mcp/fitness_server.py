@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 
 from core.config.settings import Settings, get_settings
 from core.knowledge.embeddings import get_embedding_provider
-from core.knowledge.retrieval_service import RetrievalService
+from core.knowledge.retrieval_service import build_retrieval_service
 from core.repositories.guideline_repository import GuidelineRepository
 from core.repositories.template_repository import TemplateRepository
 
@@ -40,7 +40,7 @@ def build_server(settings: Settings) -> tuple[FastMCP, FitnessServerTools]:
     embeddings = get_embedding_provider(settings)
     guideline_repo = GuidelineRepository(settings.checkpointer_dsn)
     template_repo = TemplateRepository(settings.checkpointer_dsn)
-    retrieval = RetrievalService(guideline_repo, embeddings)
+    retrieval = build_retrieval_service(guideline_repo, embeddings, settings)
 
     @mcp.tool()
     def search_guidelines(

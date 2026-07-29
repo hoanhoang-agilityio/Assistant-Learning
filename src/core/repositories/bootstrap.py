@@ -65,6 +65,20 @@ _DDL_STATEMENTS: tuple[str, ...] = (
         "CREATE INDEX IF NOT EXISTS fitness_kb_chunks_document_idx "
         "ON fitness_kb_chunks (document_id)"
     ),
+    # Expression GIN index for BM25-style keyword search (tsvector over content).
+    # Avoids a stored column migration while still accelerating @@ / ts_rank_cd.
+    (
+        "CREATE INDEX IF NOT EXISTS fitness_kb_chunks_content_tsv_idx "
+        "ON fitness_kb_chunks USING GIN (to_tsvector('english', content))"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS fitness_kb_documents_goal_idx "
+        "ON fitness_kb_documents USING GIN (goal_applicability)"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS fitness_kb_documents_equipment_idx "
+        "ON fitness_kb_documents USING GIN (equipment_applicability)"
+    ),
     """
     CREATE TABLE IF NOT EXISTS fitness_kb_templates (
         fingerprint TEXT PRIMARY KEY,

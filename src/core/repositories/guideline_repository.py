@@ -1,8 +1,14 @@
 """Postgres+pgvector persistence and retrieval for guideline documents.
 
 Pure SQL, no embedding calls (vectors are always supplied by the caller -- see
-core.knowledge.embeddings / core.knowledge.retrieval_service), no DDL at construction
+core.knowledge.embeddings / core.knowledge.retrieval), no DDL at construction
 (schema must already exist -- see core.repositories.bootstrap).
+
+Owns two search channels used by HybridRetriever:
+  - search: dense cosine similarity over pgvector embeddings
+  - search_keyword: BM25-style lexical ranking via Postgres FTS (ts_rank_cd)
+Both accept optional metadata filters (goal / equipment / category). Fusion and
+reranking stay outside this class.
 """
 
 from typing import Any
@@ -11,9 +17,62 @@ from psycopg_pool import ConnectionPool
 
 from core.knowledge.schema import GuidelineHit, KnowledgeChunk, KnowledgeDocument, KnowledgeSource
 
+_HIT_SELECT = """
+    d.id AS document_id, c.id AS chunk_id, d.title, c.content, d.category,
+    d.tags, d.goal_applicability, d.equipment_applicability,
+    s.url AS source_url, s.source_type, s.trust_score
+"""
+
 
 def _format_vector(vector: list[float]) -> str:
     return "[" + ",".join(str(value) for value in vector) + "]"
+
+
+def _metadata_filter_sql(*, goal_key: str, equipment_key: str, category_key: str) -> str:
+    """Documents with empty applicability arrays match any filter (universal notes).
+
+    Parameters are cast to text so psycopg can bind NULL without AmbiguousParameter.
+    """
+    return f"""
+      AND (
+            %({goal_key})s::text IS NULL
+            OR cardinality(d.goal_applicability) = 0
+            OR %({goal_key})s::text = ANY(d.goal_applicability)
+          )
+      AND (
+            %({equipment_key})s::text IS NULL
+            OR cardinality(d.equipment_applicability) = 0
+            OR %({equipment_key})s::text = ANY(d.equipment_applicability)
+          )
+      AND (
+            %({category_key})s::text IS NULL
+            OR d.category = %({category_key})s::text
+          )
+    """
+
+
+def _normalize_filter(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _row_to_hit(row: tuple[Any, ...]) -> GuidelineHit:
+    return GuidelineHit(
+        document_id=row[0],
+        chunk_id=row[1],
+        title=row[2],
+        content=row[3],
+        category=row[4],
+        tags=list(row[5]),
+        goal_applicability=list(row[6]),
+        equipment_applicability=list(row[7]),
+        source_url=row[8],
+        source_type=row[9],
+        trust_score=row[10],
+        similarity=float(row[11]),
+    )
 
 
 class GuidelineRepository:
@@ -129,38 +188,38 @@ class GuidelineRepository:
         query_embedding: list[float],
         limit: int,
         min_similarity: float,
+        goal: str | None = None,
+        equipment: str | None = None,
+        category: str | None = None,
     ) -> list[GuidelineHit]:
-        """JOIN chunks -> documents -> sources, filter by kind + cosine-similarity floor,
-        dedupe to the best-scoring chunk per document, return the top `limit` documents
-        by similarity. Takes a ready-made vector -- never embeds text itself.
-
-        DISTINCT ON requires its leading ORDER BY expressions to match (d.id here), so
-        the dedupe pass is a subquery: the inner query collapses to one row per document
-        (best chunk), the outer query re-sorts by similarity and applies LIMIT -- doing
-        both in one ORDER BY would apply LIMIT to rows ordered by document id, not by
-        relevance.
-        """
+        """Dense cosine search. Optional metadata filters narrow the candidate set
+        before ranking so goal/equipment mismatches do not crowd the top-k."""
         vector_literal = _format_vector(query_embedding)
         params: dict[str, Any] = {
             "query_vec": vector_literal,
             "kind": kind,
             "min_similarity": min_similarity,
             "limit": limit,
+            "goal": _normalize_filter(goal),
+            "equipment": _normalize_filter(equipment),
+            "category": _normalize_filter(category),
         }
+        metadata_sql = _metadata_filter_sql(
+            goal_key="goal", equipment_key="equipment", category_key="category"
+        )
         with self._pool.connection() as conn:
             rows = conn.execute(
-                """
+                f"""
                 SELECT * FROM (
                     SELECT DISTINCT ON (d.id)
-                        d.id AS document_id, c.id AS chunk_id, d.title, c.content, d.category,
-                        d.tags, d.goal_applicability, d.equipment_applicability,
-                        s.url AS source_url, s.source_type, s.trust_score,
+                        {_HIT_SELECT},
                         1 - (c.embedding <=> %(query_vec)s::vector) AS similarity
                     FROM fitness_kb_chunks c
                     JOIN fitness_kb_documents d ON d.id = c.document_id
                     JOIN fitness_kb_sources s ON s.id = d.source_id
                     WHERE d.kind = %(kind)s
                       AND 1 - (c.embedding <=> %(query_vec)s::vector) >= %(min_similarity)s
+                      {metadata_sql}
                     ORDER BY d.id, similarity DESC
                 ) AS best_chunk_per_document
                 ORDER BY similarity DESC
@@ -168,23 +227,64 @@ class GuidelineRepository:
                 """,
                 params,
             ).fetchall()
-        return [
-            GuidelineHit(
-                document_id=row[0],
-                chunk_id=row[1],
-                title=row[2],
-                content=row[3],
-                category=row[4],
-                tags=list(row[5]),
-                goal_applicability=list(row[6]),
-                equipment_applicability=list(row[7]),
-                source_url=row[8],
-                source_type=row[9],
-                trust_score=row[10],
-                similarity=row[11],
-            )
-            for row in rows
-        ]
+        return [_row_to_hit(row) for row in rows]
+
+    def search_keyword(
+        self,
+        *,
+        kind: str,
+        query: str,
+        limit: int,
+        goal: str | None = None,
+        equipment: str | None = None,
+        category: str | None = None,
+    ) -> list[GuidelineHit]:
+        """Lexical / BM25-style channel using Postgres full-text search.
+
+        ``ts_rank_cd`` approximates BM25-like term weighting without a separate
+        search engine. Empty or unparseable queries return no hits. Similarity on
+        the hit is the FTS rank so RRF can still prefer stronger lexical matches
+        when choosing the payload for a fused chunk id.
+        """
+        cleaned = query.strip()
+        if not cleaned or limit <= 0:
+            return []
+        params: dict[str, Any] = {
+            "kind": kind,
+            "query": cleaned,
+            "limit": limit,
+            "goal": _normalize_filter(goal),
+            "equipment": _normalize_filter(equipment),
+            "category": _normalize_filter(category),
+        }
+        metadata_sql = _metadata_filter_sql(
+            goal_key="goal", equipment_key="equipment", category_key="category"
+        )
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM (
+                    SELECT DISTINCT ON (d.id)
+                        {_HIT_SELECT},
+                        ts_rank_cd(
+                            to_tsvector('english', c.content),
+                            plainto_tsquery('english', %(query)s)
+                        ) AS similarity
+                    FROM fitness_kb_chunks c
+                    JOIN fitness_kb_documents d ON d.id = c.document_id
+                    JOIN fitness_kb_sources s ON s.id = d.source_id
+                    WHERE d.kind = %(kind)s
+                      AND to_tsvector('english', c.content)
+                          @@ plainto_tsquery('english', %(query)s)
+                      {metadata_sql}
+                    ORDER BY d.id, similarity DESC
+                ) AS best_chunk_per_document
+                ORDER BY similarity DESC
+                LIMIT %(limit)s
+                """,
+                params,
+            ).fetchall()
+        return [_row_to_hit(row) for row in rows]
 
     def reset(self) -> None:
         """Clear all rows -- used in tests."""

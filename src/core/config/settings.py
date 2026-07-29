@@ -118,6 +118,11 @@ class Settings(BaseSettings):
     fitness_kb_min_similarity: float = 0.4
     fitness_kb_chunk_max_chars: int = 2000
     fitness_kb_chunk_overlap: int = 200
+    # Hybrid RAG retrieval tuning (rewrite → dense+keyword RRF pool → rerank → top-k)
+    fitness_kb_candidate_pool: int = 50
+    fitness_kb_rrf_k: int = 60
+    fitness_kb_query_rewrite_enabled: bool = True
+    fitness_kb_rerank_enabled: bool = True
 
     # Orchestration / Fitness retry budgets
     max_planner_attempts: int = 2

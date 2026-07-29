@@ -154,3 +154,89 @@ def test_search_dedupes_to_best_chunk_per_document(
     )
     assert len(hits) == 1
     assert hits[0].chunk_id == "doc-1::1"
+
+
+def test_search_keyword_finds_lexical_match(guideline_repository: GuidelineRepository) -> None:
+    guideline_repository.upsert(
+        _source("doc-1"),
+        _document("doc-1"),
+        [
+            (
+                _chunk("doc-1", 0, "Progressive overload increases weekly training volume"),
+                _one_hot(0),
+            )
+        ],
+    )
+    hits = guideline_repository.search_keyword(
+        kind="guideline", query="progressive overload volume", limit=3
+    )
+    assert len(hits) == 1
+    assert hits[0].document_id == "doc-1"
+    assert hits[0].similarity > 0
+
+
+def test_search_keyword_empty_query_returns_empty(
+    guideline_repository: GuidelineRepository,
+) -> None:
+    guideline_repository.upsert(
+        _source("doc-1"), _document("doc-1"), [(_chunk("doc-1", 0, "volume"), _one_hot(0))]
+    )
+    assert guideline_repository.search_keyword(kind="guideline", query="  ", limit=3) == []
+
+
+def test_search_applies_goal_metadata_filter(guideline_repository: GuidelineRepository) -> None:
+    muscle_doc = KnowledgeDocument(
+        id="doc-muscle",
+        source_id="doc-muscle",
+        kind="guideline",
+        title="Muscle",
+        category="volume",
+        goal_applicability=["muscle_gain"],
+    )
+    fat_doc = KnowledgeDocument(
+        id="doc-fat",
+        source_id="doc-fat",
+        kind="guideline",
+        title="Fat loss",
+        category="volume",
+        goal_applicability=["fat_loss"],
+    )
+    guideline_repository.upsert(
+        _source("doc-muscle"), muscle_doc, [(_chunk("doc-muscle", 0, "volume"), _one_hot(0))]
+    )
+    guideline_repository.upsert(
+        _source("doc-fat"), fat_doc, [(_chunk("doc-fat", 0, "volume"), _one_hot(0))]
+    )
+    hits = guideline_repository.search(
+        kind="guideline",
+        query_embedding=_one_hot(0),
+        limit=5,
+        min_similarity=0.5,
+        goal="muscle_gain",
+    )
+    assert [hit.document_id for hit in hits] == ["doc-muscle"]
+
+
+def test_search_allows_universal_docs_when_goal_filter_set(
+    guideline_repository: GuidelineRepository,
+) -> None:
+    """Empty goal_applicability means the note applies to any goal."""
+    universal = KnowledgeDocument(
+        id="doc-all",
+        source_id="doc-all",
+        kind="guideline",
+        title="Universal",
+        category="general",
+        goal_applicability=[],
+    )
+    guideline_repository.upsert(
+        _source("doc-all"), universal, [(_chunk("doc-all", 0, "volume"), _one_hot(0))]
+    )
+    hits = guideline_repository.search(
+        kind="guideline",
+        query_embedding=_one_hot(0),
+        limit=5,
+        min_similarity=0.5,
+        goal="muscle_gain",
+    )
+    assert [hit.document_id for hit in hits] == ["doc-all"]
