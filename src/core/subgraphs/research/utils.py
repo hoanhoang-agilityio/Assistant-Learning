@@ -468,8 +468,8 @@ def derive_evidence_summary(findings: ResearchFindings) -> str:
     if findings.key_findings:
         lines.append("")
         lines.append("Key findings:")
-        for finding in findings.key_findings[:3]:
-            lines.append(f"- {finding}")
+        for finding in findings.key_findings[:5]:
+            lines.append(f"- {finding.claim} ({finding.source_url})")
     return "\n".join(lines)
 
 

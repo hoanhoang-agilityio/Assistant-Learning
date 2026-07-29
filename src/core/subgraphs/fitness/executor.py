@@ -69,6 +69,8 @@ def _run_build_plan(state: OrchestrationState, ctx: ExecutionContext) -> Capabil
         plan_blueprint=blueprint["plan_blueprint"],
         safety_result=safety,
         correlation_id=correlation_id,
+        grounded_claims_markdown=draft.get("grounded_claims_markdown"),
+        grounded_claims_json=draft.get("grounded_claims_json"),
     )
     return CapabilityResult(
         request_id=uuid4(),

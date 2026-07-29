@@ -554,6 +554,13 @@ def run_research_agent(
         sources=ranked_sources,
         evidence=merged_evidence,
     )
+    from core.grounding.finalize import finalize_structured_findings
+
+    structured_findings = finalize_structured_findings(
+        structured_findings,
+        evidence=merged_evidence,
+        sources=ranked_sources,
+    )
     evidence_summary = derive_evidence_summary(structured_findings)
 
     return ResearchAgentResult(

@@ -59,8 +59,10 @@ class DeterministicVerificationExecutor:
                 fitness_safety_passed=context.get("fitness_safety_passed"),
             )
         if "faithfulness" in requested_checks:
+            grounded_text = context.get("grounded_claims") or ""
             checks["ragas"] = heuristic_faithfulness_data(
-                context["draft_plan"], context["evidence"]
+                grounded_text,
+                context["evidence"],
             )
         report = build_verification_report_for_checks(checks)
         write_verification_artifacts(
@@ -107,7 +109,10 @@ class SupervisorRoutedVerificationExecutor:
                 context["safety_flags"],
                 fitness_safety_passed=context.get("fitness_safety_passed"),
             ),
-            "ragas": heuristic_faithfulness_data(context["draft_plan"], context["evidence"]),
+            "ragas": heuristic_faithfulness_data(
+                context.get("grounded_claims") or "",
+                context["evidence"],
+            ),
         }
         report = build_verification_report_for_checks(checks)
         write_verification_artifacts(

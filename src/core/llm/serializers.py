@@ -108,8 +108,9 @@ def compact_structured_findings(structured_findings: Any) -> dict[str, Any] | No
         raise TypeError("structured_findings must be ResearchFindings or None")
     return {
         "consensus": structured_findings.consensus,
-        "key_findings": structured_findings.key_findings[:3],
+        "key_findings": [item.model_dump() for item in structured_findings.key_findings[:5]],
         "limitations": structured_findings.limitations[:2],
+        "recommended_sources": structured_findings.recommended_sources[:5],
     }
 
 

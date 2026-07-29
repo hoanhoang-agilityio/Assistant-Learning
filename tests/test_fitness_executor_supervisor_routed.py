@@ -84,12 +84,22 @@ def test_build_plan_blocked_when_biometrics_missing(
         json.dumps(
             {
                 "structured_findings": {
-                    "consensus": "Resistance training supports fat loss.",
-                    "key_findings": ["Train 3-4 days per week."],
+                    "consensus": "Resistance training supports fat loss outcomes for adults.",
+                    "key_findings": [
+                        {
+                            "claim": "Train 3-4 days per week.",
+                            "source_url": "https://example.edu/fitness-training",
+                        }
+                    ],
                     "limitations": [],
-                    "confidence": "medium",
+                    "recommended_sources": ["https://example.edu/fitness-training"],
                 },
-                "evidence": [],
+                "evidence": [
+                    {
+                        "url": "https://example.edu/fitness-training",
+                        "content": "Train 3-4 days per week for fat loss.",
+                    }
+                ],
                 "evidence_summary": "Train consistently.",
                 "source_count": 1,
             }

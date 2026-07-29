@@ -44,9 +44,11 @@ Rules:
 - Note conflicting evidence when sources disagree.
 - List limitations (e.g. limited RCTs, population mismatch).
 - Return JSON arrays for key_findings, conflicting_evidence, limitations, and recommended_sources.
-- Each array item must be one short string (one finding, limitation, or source URL/title per element).
+- key_findings must be an array of objects: {{"claim": "...", "source_url": "..."}} where
+  source_url is copied exactly from an input evidence/source URL (never invent a URL).
+- conflicting_evidence, limitations: each array item must be one short string.
 - Do not return numbered prose blocks or markdown lists as a single string.
-- recommended_sources should list URLs or titles from the highest-ranked sources.
+- recommended_sources should list URLs from the highest-ranked sources (prefer bare URLs).
 - Do not invent citations or studies not present in the input.
 - {JSON_ONLY_INSTRUCTION}"""
 

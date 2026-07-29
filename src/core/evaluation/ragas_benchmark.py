@@ -157,7 +157,7 @@ def run_golden_case(
         real_pass_fail: bool | None = None
         if get_settings().verification_use_real_ragas:
             real_result = evaluate_draft_faithfulness(
-                context["draft_plan"],
+                context.get("grounded_claims") or context["draft_plan"],
                 context["evidence"],
                 query=case.query,
             )

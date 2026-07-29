@@ -28,13 +28,10 @@ def test_vfs_subdirs_match_bootstrap_alias() -> None:
     assert VFS_SUBDIRS == RUN_SUBDIRS
 
 
-def test_registry_contains_core_pipeline_artifacts() -> None:
+def test_registry_contains_grounded_claims_artifacts() -> None:
     paths = {spec.path for spec in VFS_ARTIFACTS}
-    assert PLAN_EXECUTION_PLAN in paths
-    assert "research/findings.json" in paths
-    assert "fitness/final_plan.md" in paths
-    assert "verify/verification_v1.json" in paths
-    assert "final/final_plan.md" in paths
+    assert "fitness/grounded_claims.json" in paths
+    assert "fitness/grounded_claims.md" in paths
 
 
 def test_get_artifact_spec_returns_metadata() -> None:

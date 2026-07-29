@@ -1,8 +1,11 @@
 """Pydantic schemas for Fitness Planner structured outputs."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from core.grounding.schema import GroundedClaim
+from core.grounding.validate import normalize_grounded_claim_items
 
 
 class WorkoutExercise(BaseModel):
@@ -45,7 +48,16 @@ class StructuredWorkout(BaseModel):
     progression: str | None = None
     substitutions: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
-    evidence_applied: list[str] = Field(default_factory=list)
+    evidence_applied: list[GroundedClaim] = Field(default_factory=list)
+
+    @field_validator("evidence_applied", mode="before")
+    @classmethod
+    def coerce_evidence_applied(cls, value: Any) -> Any:
+        """Accept GroundedClaim objects, dicts, or legacy bare strings (dropped later)."""
+        items = normalize_grounded_claim_items(value)
+        # Keep only items that already have a source_url; legacy strings become {}
+        # with empty URL and are removed so model validation does not fail.
+        return [item for item in items if str(item.get("source_url", "")).strip()]
 
     @field_validator("days")
     @classmethod

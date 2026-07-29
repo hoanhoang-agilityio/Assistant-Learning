@@ -53,8 +53,14 @@ def sample_findings() -> ResearchFindings:
     return ResearchFindings(
         consensus="10-20 weekly sets per muscle group supports hypertrophy during fat loss phases.",
         key_findings=[
-            "Full-body or upper/lower splits work well for 3-day schedules.",
-            "Avoid overhead pressing with shoulder pain.",
+            {
+                "claim": "Full-body or upper/lower splits work well for 3-day schedules.",
+                "source_url": "https://example.com/hypertrophy",
+            },
+            {
+                "claim": "Avoid overhead pressing with shoulder pain.",
+                "source_url": "https://example.com/hypertrophy",
+            },
         ],
         limitations=["Limited sport-specific data"],
         conflicting_evidence=[],
@@ -129,7 +135,7 @@ def test_generate_structured_workout_uses_override(
     assert captured["structured_findings"] == sample_findings
 
 
-def test_planner_context_payload_excludes_feedback_keys(
+def test_planner_context_payload_includes_evidence_snippets(
     sample_execution_plan: ExecutionPlan,
     sample_findings: ResearchFindings,
 ) -> None:
@@ -139,7 +145,16 @@ def test_planner_context_payload_excludes_feedback_keys(
         training_constraints={"days_per_week": 3, "equipment": "gym", "goal": "fat_loss"},
         execution_plan=sample_execution_plan,
         structured_findings=sample_findings,
+        evidence=[
+            {
+                "url": "https://example.com/hypertrophy",
+                "content": "Full-body splits work well for 3-day schedules.",
+            }
+        ],
     )
+    assert context["evidence_snippets"][0]["url"] == "https://example.com/hypertrophy"
+    assert context["structured_findings"]["key_findings"][0]["source_url"]
+    assert "recommended_sources" in context["structured_findings"]
     assert "planner_feedback" not in context
     assert "verification_feedback" not in context
 

@@ -44,6 +44,7 @@ def _draft_text_for_safety_scan(draft_plan: str) -> str:
 def load_verification_context(workspace_path: str) -> dict[str, Any]:
     vfs = VFS.for_run(Path(workspace_path))
     draft_plan = ""
+    grounded_claims = ""
     sources: list[dict[str, Any]] = []
     evidence: list[dict[str, Any]] = []
     macro_targets: dict[str, Any] = {}
@@ -53,6 +54,8 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
 
     if vfs.exists("fitness/final_plan.md"):
         draft_plan = vfs.read("fitness/final_plan.md")
+    if vfs.exists("fitness/grounded_claims.md"):
+        grounded_claims = vfs.read("fitness/grounded_claims.md")
     if vfs.exists("research/sources.json"):
         sources = json.loads(vfs.read("research/sources.json"))
     if vfs.exists("research/findings.json"):
@@ -78,6 +81,7 @@ def load_verification_context(workspace_path: str) -> dict[str, Any]:
 
     return {
         "draft_plan": draft_plan,
+        "grounded_claims": grounded_claims,
         "sources": sources,
         "evidence": evidence,
         "macro_targets": macro_targets,
@@ -210,6 +214,9 @@ def heuristic_faithfulness_score(draft_plan: str, evidence: list[dict[str, Any]]
     Ragas SDK faithfulness scorer, gated behind
     settings.verification_use_real_ragas and wired only into the benchmark
     script so far (docs/reports/known_limitations_remediation_plan.md, L1).
+
+    Callers should pass grounded_claims text (not the full final_plan) so
+    engine-authored macros/training sections are not scored as research claims.
     """
     if not draft_plan.strip():
         return 0.0
@@ -228,7 +235,14 @@ def heuristic_faithfulness_score(draft_plan: str, evidence: list[dict[str, Any]]
     overlap_ratio = matched_tokens / len(evidence_tokens)
     grounded_sections = sum(
         1
-        for marker in ("macro targets", "training plan", "evidence summary")
+        for marker in (
+            "macro targets",
+            "training plan",
+            "evidence summary",
+            "evidence applied",
+            "grounded claims",
+            "source:",
+        )
         if marker in draft_lower
     )
     section_bonus = min(grounded_sections * 0.08, 0.24)

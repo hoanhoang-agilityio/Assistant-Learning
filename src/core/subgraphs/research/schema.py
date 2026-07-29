@@ -3,7 +3,11 @@
 import re
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from core.grounding.finalize import extract_source_url
+from core.grounding.schema import GroundedClaim
+from core.grounding.validate import normalize_grounded_claim_items
 
 
 def _coerce_string_list(value: Any) -> list[str]:
@@ -103,20 +107,46 @@ class ResearchFindings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     consensus: str = Field(min_length=20)
-    key_findings: list[str]
+    key_findings: list[GroundedClaim]
     conflicting_evidence: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     recommended_sources: list[str] = Field(default_factory=list)
     goal_applicability: str | None = None
     timeline_notes: list[str] = Field(default_factory=list)
 
-    @field_validator(
-        "key_findings",
-        "conflicting_evidence",
-        "limitations",
-        "recommended_sources",
-        mode="before",
-    )
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_grounded_key_findings(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        recommended = data.get("recommended_sources") or []
+        if isinstance(recommended, str):
+            recommended = _coerce_string_list(recommended)
+            data["recommended_sources"] = recommended
+        fallback_urls = [extract_source_url(item) for item in recommended]
+        fallback_urls = [url for url in fallback_urls if url]
+        items = normalize_grounded_claim_items(data.get("key_findings"))
+        resolved: list[dict[str, Any]] = []
+        for index, item in enumerate(items):
+            claim = str(item.get("claim", "")).strip()
+            if not claim:
+                continue
+            url = extract_source_url(item.get("source_url"))
+            if not url:
+                if index < len(fallback_urls):
+                    url = fallback_urls[index]
+                elif fallback_urls:
+                    url = fallback_urls[0]
+            if not url:
+                continue
+            payload: dict[str, Any] = {"claim": claim, "source_url": url}
+            if item.get("finding_id"):
+                payload["finding_id"] = item["finding_id"]
+            resolved.append(payload)
+        data["key_findings"] = resolved
+        return data
+
+    @field_validator("conflicting_evidence", "limitations", "recommended_sources", mode="before")
     @classmethod
     def coerce_list_fields(cls, value: Any) -> Any:
         if isinstance(value, str):
@@ -125,7 +155,7 @@ class ResearchFindings(BaseModel):
 
     @field_validator("key_findings")
     @classmethod
-    def validate_key_findings(cls, findings: list[str]) -> list[str]:
+    def validate_key_findings(cls, findings: list[GroundedClaim]) -> list[GroundedClaim]:
         if not findings:
             raise ValueError("key_findings must contain at least one item")
         return findings

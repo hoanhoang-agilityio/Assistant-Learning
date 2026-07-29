@@ -85,7 +85,16 @@ def sample_execution_plan() -> ExecutionPlan:
 def sample_findings() -> ResearchFindings:
     return ResearchFindings(
         consensus="Consensus statement with enough characters for validation.",
-        key_findings=["Finding one with enough detail.", "Finding two with enough detail."],
+        key_findings=[
+            {
+                "claim": "Finding one with enough detail.",
+                "source_url": "https://example.com",
+            },
+            {
+                "claim": "Finding two with enough detail.",
+                "source_url": "https://example.com",
+            },
+        ],
         limitations=["Limited data"],
         conflicting_evidence=[],
         recommended_sources=["https://example.com"],

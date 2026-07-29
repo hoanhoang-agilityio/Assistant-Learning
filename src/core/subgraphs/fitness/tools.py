@@ -61,6 +61,8 @@ def load_research_result(workspace_path: str) -> dict[str, Any]:
     return {
         "structured_findings": context.get("structured_findings"),
         "evidence_summary": context.get("evidence_summary"),
+        "evidence": context.get("evidence") or [],
+        "sources": context.get("sources") or [],
     }
 
 
@@ -178,7 +180,8 @@ def populate_template(workspace_path: str) -> dict[str, Any]:
         macro_targets=macros["macro_targets"],
         training_constraints=macros["training_constraints"],
         execution_plan=context.get("execution_plan"),
-        structured_findings=None,
+        structured_findings=context.get("structured_findings"),
+        evidence=context.get("evidence") or [],
         planner_feedback=[],
         verification_feedback=context.get("verification_feedback"),
         mode="generate",
@@ -207,15 +210,34 @@ def render_plan(
     structured_workout: dict[str, Any],
     plan_blueprint: dict[str, Any],
 ) -> dict[str, Any]:
+    from core.grounding.render import (
+        render_grounded_claims_json,
+        render_grounded_claims_markdown,
+    )
+    from core.subgraphs.fitness.planner import resolve_grounded_claims_for_render
+
+    context = load_fitness_context(workspace_path)
+    claims = resolve_grounded_claims_for_render(
+        structured_workout=structured_workout,
+        structured_findings=context.get("structured_findings"),
+        evidence=context.get("evidence") or [],
+    )
+    grounded_markdown = render_grounded_claims_markdown(claims)
+    grounded_json = render_grounded_claims_json(claims)
     synthesized = synthesize_plan_data(
         macro_targets=macro_targets,
         structured_workout=structured_workout,
-        evidence_summary=load_fitness_context(workspace_path).get("evidence_summary"),
+        evidence_summary=None,
         verification_feedback=None,
         safety_result={"passed": True, "feedback": []},
         plan_blueprint=plan_blueprint,
+        grounded_claims_markdown=grounded_markdown,
     )
-    return {"draft_plan": synthesized["draft_plan"]}
+    return {
+        "draft_plan": synthesized["draft_plan"],
+        "grounded_claims_markdown": grounded_markdown,
+        "grounded_claims_json": grounded_json,
+    }
 
 
 def write_artifacts(
@@ -227,6 +249,8 @@ def write_artifacts(
     plan_blueprint: dict[str, Any],
     safety_result: dict[str, Any],
     correlation_id: str,
+    grounded_claims_markdown: str | None = None,
+    grounded_claims_json: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     fingerprint_path = Path(workspace_path) / "fitness" / f".write_{correlation_id}.done"
     if fingerprint_path.exists():
@@ -238,6 +262,8 @@ def write_artifacts(
         draft_plan=draft_plan,
         safety_result=safety_result,
         plan_blueprint=plan_blueprint,
+        grounded_claims_markdown=grounded_claims_markdown,
+        grounded_claims_json=grounded_claims_json,
     )
     fingerprint_path.parent.mkdir(parents=True, exist_ok=True)
     fingerprint_path.write_text("done", encoding="utf-8")

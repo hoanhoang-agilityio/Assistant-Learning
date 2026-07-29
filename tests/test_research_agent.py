@@ -117,7 +117,8 @@ def test_research_findings_coerces_numbered_string_lists() -> None:
         ),
     )
     assert len(findings.key_findings) == 2
-    assert findings.key_findings[0].startswith("Higher protein")
+    assert findings.key_findings[0].claim.startswith("Higher protein")
+    assert findings.key_findings[0].source_url == "https://example.com/study"
     assert len(findings.recommended_sources) == 2
     assert "PMC9285060" in findings.recommended_sources[1]
     assert findings.conflicting_evidence == []
