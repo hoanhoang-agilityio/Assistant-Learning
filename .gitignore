@@ -33,8 +33,7 @@ docs
 .DS_Store
 
 # Project artifacts (VFS runtime output)
-src/workspace/run_*/
-src/workspace/templates/*.json
+src/workspace/
 
 # Streamlit
 .streamlit/secrets.toml
