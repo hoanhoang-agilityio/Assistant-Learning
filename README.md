@@ -127,6 +127,30 @@ For evaluation workflow details (golden dataset, integration tests, optional Rag
 
 LangFuse Runs → Traces → Threads (Sessions) mapping: `src/docs/langfuse-hierarchy.md`.
 
+## OWASP system-prompt benchmark
+
+Two suites mapped to [OWASP LLM Top 10 2025](https://owasp.org/www-project-top-10-for-large-language-model-applications/):
+
+1. **scope** — decision-oriented probes (`topic_scope_judge` / `intent_judge`)
+2. **robustness** — property-based probes against production prompts (planner, edit, research, rewriter, router)
+
+```bash
+# Inventory (no LLM)
+uv run python scripts/owasp_prompt_benchmark.py --suite scope
+uv run python scripts/owasp_prompt_benchmark.py --suite robustness
+uv run pytest tests/test_owasp_prompt_benchmark.py tests/test_owasp_prompt_robustness.py -v
+
+# Live (costs tokens)
+uv run python scripts/owasp_prompt_benchmark.py --suite scope --live
+uv run python scripts/owasp_prompt_benchmark.py --suite robustness --live --target fitness_planner
+```
+
+Fixtures:
+- `tests/fixtures/owasp_system_prompt_benchmark.json`
+- `tests/fixtures/owasp_system_prompt_robustness.json`
+
+Report + fix plan: `docs/reports/owasp_system_prompt_benchmark_live_report_and_fix_plan_2026-07-29.md`.
+
 ## Project layout
 
 ```text
