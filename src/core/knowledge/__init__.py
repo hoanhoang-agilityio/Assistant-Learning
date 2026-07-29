@@ -1,7 +1,8 @@
-"""Fitness Knowledge Store domain models and ingestion pipeline.
+"""Fitness Knowledge Store domain models, ingestion, and retrieval pipeline.
 
-Persistence and retrieval live in core.repositories / core.mcp.fitness_server --
-this package only owns the data model and the offline ingestion pipeline that feeds it.
+Persistence lives in core.repositories; the Fitness MCP Server exposes tools.
+This package owns the data model, offline ingestion, and the retrieval pipeline
+(query rewrite → hybrid → rerank) orchestrated by RetrievalService.
 """
 
 from core.knowledge.schema import GuidelineHit, KnowledgeChunk, KnowledgeDocument, KnowledgeSource

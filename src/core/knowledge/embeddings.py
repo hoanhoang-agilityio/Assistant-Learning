@@ -3,7 +3,7 @@
 Reuses langchain_core.embeddings.Embeddings -- the interface this repo already depends
 on and already uses for this purpose (core.evaluation.ragas._default_embeddings()) --
 rather than inventing a parallel provider abstraction. Swapping to Voyage/Gemini/a
-local model later is a change to this one function only: every caller (RetrievalService,
+local model later is a change to this one function only: every caller (HybridRetriever,
 the ingestion pipeline) depends on Embeddings, never on OpenAI specifically.
 """
 
