@@ -24,6 +24,8 @@ FITNESS_BLUEPRINT = "fitness/blueprint.json"
 FITNESS_TEMPLATE_FINGERPRINT = "fitness/template_fingerprint.json"
 FITNESS_SAFETY_FLAGS = "fitness/safety_flags.json"
 FITNESS_NORMALIZATION_FINDINGS = "fitness/normalization_findings.json"
+FITNESS_GROUNDED_CLAIMS_JSON = "fitness/grounded_claims.json"
+FITNESS_GROUNDED_CLAIMS_MD = "fitness/grounded_claims.md"
 FITNESS_FINAL_PLAN = "fitness/final_plan.md"
 
 VERIFY_REPORT = "verify/verification_v1.json"
@@ -57,6 +59,8 @@ type VfsArtifactPath = Literal[
     "fitness/template_fingerprint.json",
     "fitness/safety_flags.json",
     "fitness/normalization_findings.json",
+    "fitness/grounded_claims.json",
+    "fitness/grounded_claims.md",
     "fitness/final_plan.md",
     "verify/verification_v1.json",
     "verify/ragas.json",
@@ -175,6 +179,18 @@ VFS_ARTIFACTS: tuple[VfsArtifactSpec, ...] = (
             "the profile-derived blueprint (design review F7); always written by evaluate "
             "mode, possibly empty"
         ),
+    ),
+    VfsArtifactSpec(
+        path=FITNESS_GROUNDED_CLAIMS_JSON,
+        content_kind=VfsContentKind.JSON,
+        producer="fitness",
+        description="Validated grounded claims used for faithfulness scoring",
+    ),
+    VfsArtifactSpec(
+        path=FITNESS_GROUNDED_CLAIMS_MD,
+        content_kind=VfsContentKind.MARKDOWN,
+        producer="fitness",
+        description="Deterministic markdown render of grounded claims (RAGAS response)",
     ),
     VfsArtifactSpec(
         path=FITNESS_FINAL_PLAN,

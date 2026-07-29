@@ -65,6 +65,8 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
     profile = load_run_profile(workspace_path)
     evidence_summary: str | None = None
     structured_findings: dict[str, Any] | None = None
+    evidence: list[dict[str, Any]] = []
+    sources: list[dict[str, Any]] = []
     verification_feedback: str | None = None
     execution_plan: dict[str, Any] | None = None
 
@@ -79,6 +81,14 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
             evidence_summary = _format_structured_evidence_summary(structured)
         else:
             evidence_summary = findings.get("evidence_summary")
+        raw_evidence = findings.get("evidence") or []
+        if isinstance(raw_evidence, list):
+            evidence = raw_evidence
+
+    if vfs.exists("research/sources.json"):
+        raw_sources = json.loads(vfs.read("research/sources.json"))
+        if isinstance(raw_sources, list):
+            sources = raw_sources
 
     if vfs.exists("verify/verification_v1.json"):
         verification = json.loads(vfs.read("verify/verification_v1.json"))
@@ -90,6 +100,8 @@ def load_fitness_context(workspace_path: str) -> dict[str, Any]:
         "execution_plan": execution_plan,
         "structured_findings": structured_findings,
         "evidence_summary": evidence_summary,
+        "evidence": evidence,
+        "sources": sources,
         "verification_feedback": verification_feedback,
     }
 
@@ -112,7 +124,15 @@ def _format_structured_evidence_summary(structured: dict[str, Any]) -> str:
         lines.append("")
         lines.append("Key findings:")
         for finding in key_findings:
-            lines.append(f"- {finding}")
+            if isinstance(finding, dict):
+                claim = str(finding.get("claim", "")).strip()
+                source_url = str(finding.get("source_url", "")).strip()
+                if claim and source_url:
+                    lines.append(f"- {claim} ({source_url})")
+                elif claim:
+                    lines.append(f"- {claim}")
+            else:
+                lines.append(f"- {finding}")
     return "\n".join(line for line in lines if line)
 
 
@@ -407,6 +427,7 @@ def synthesize_plan_data(
     safety_result: dict[str, Any],
     plan_blueprint: dict[str, Any] | None = None,
     edit_failed: bool = False,
+    grounded_claims_markdown: str | None = None,
 ) -> dict[str, Any]:
     if structured_workout is None:
         return {"draft_plan": "# Fitness Plan Draft\n\nWorkout plan unavailable.\n"}
@@ -438,19 +459,21 @@ def synthesize_plan_data(
         note_lines = "\n".join(f"- {note}" for note in notes)
         notes_section = f"\n## Notes\n\n{note_lines}\n"
 
-    evidence_applied = structured_workout.get("evidence_applied") or []
-    evidence_applied_section = ""
-    if evidence_applied:
-        applied_lines = "\n".join(f"- {item}" for item in evidence_applied)
-        evidence_applied_section = f"\n## Evidence Applied\n\n{applied_lines}\n"
+    # Evidence sections come only from the deterministic grounded-claims renderer.
+    # Never trust free-form evidence_applied strings or LLM-written Evidence Summary.
+    del evidence_summary
+    evidence_section = ""
+    if grounded_claims_markdown and grounded_claims_markdown.strip():
+        # Strip the top-level "# Grounded Claims" heading; embed body under the plan.
+        body = grounded_claims_markdown.strip()
+        if body.startswith("# Grounded Claims"):
+            body = body.split("\n", 1)[1].lstrip() if "\n" in body else ""
+        if body:
+            evidence_section = f"\n{body}\n"
 
     feedback_section = ""
     if verification_feedback:
         feedback_section = f"\n## Verification Feedback Applied\n\n{verification_feedback}\n"
-
-    evidence_section = ""
-    if evidence_summary:
-        evidence_section = f"\n## Evidence Summary\n\n{evidence_summary}\n"
 
     safety_section = ""
     safety_feedback = safety_result.get("feedback") or []
@@ -495,7 +518,6 @@ def synthesize_plan_data(
         f"{progression_section}"
         f"{substitutions_section}"
         f"{notes_section}"
-        f"{evidence_applied_section}"
         f"{evidence_section}"
         f"{feedback_section}"
         f"{safety_section}"
@@ -527,6 +549,8 @@ def write_fitness_artifacts(
     template_fingerprint: str | None = None,
     workout_source: str | None = None,
     normalization_findings: list[str] | None = None,
+    grounded_claims_markdown: str | None = None,
+    grounded_claims_json: dict[str, Any] | None = None,
 ) -> None:
     vfs = VFS.for_run(Path(workspace_path))
     workout_summary = build_workout_summary(structured_workout)
@@ -565,6 +589,10 @@ def write_fitness_artifacts(
         "fitness/normalization_findings.json",
         json.dumps(normalization_findings or [], indent=2),
     )
+    if grounded_claims_json is not None:
+        vfs.write("fitness/grounded_claims.json", json.dumps(grounded_claims_json, indent=2))
+    if grounded_claims_markdown is not None:
+        vfs.write("fitness/grounded_claims.md", grounded_claims_markdown)
     vfs.write("fitness/final_plan.md", draft_plan)
 
 
@@ -846,5 +874,5 @@ def build_default_structured_workout(
         progression="Add 2.5-5 kg or 1-2 reps when all sets hit the top of the rep range.",
         substitutions=["Swap barbell movements for dumbbells when equipment is limited."],
         notes=[BENCHMARK_WORKOUT_NOTE],
-        evidence_applied=["Applied general hypertrophy volume guidance."],
+        evidence_applied=[],
     )
