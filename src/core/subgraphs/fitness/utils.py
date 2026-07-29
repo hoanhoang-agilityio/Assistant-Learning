@@ -264,6 +264,32 @@ def _check_equipment_mismatch(
     return None
 
 
+_UNSAFE_MARKUP_RE = re.compile(
+    r"(?is)(<\s*script\b|</\s*script\s*>|javascript\s*:|onerror\s*=|onload\s*=|<\s*iframe\b)"
+)
+
+
+def contains_unsafe_markup(text: str | None) -> bool:
+    """True when text embeds HTML/JS that must not appear in workout notes fields."""
+    if not text:
+        return False
+    return _UNSAFE_MARKUP_RE.search(text) is not None
+
+
+def collect_unsafe_markup_feedback(workout: StructuredWorkout) -> list[str]:
+    """Return safety feedback codes for unsafe markup in plan or exercise notes."""
+    feedback: list[str] = []
+    for note in workout.notes:
+        if contains_unsafe_markup(note):
+            feedback.append("unsafe_markup_in_plan_notes")
+            break
+    for day in workout.days:
+        for exercise in day.exercises:
+            if contains_unsafe_markup(exercise.notes):
+                feedback.append(f"unsafe_markup_in_notes:{exercise.name}")
+    return feedback
+
+
 def validate_workout_safety_data(
     profile: dict[str, Any],
     macro_targets: dict[str, Any] | None,
@@ -329,6 +355,8 @@ def validate_workout_safety_data(
             if count > 1:
                 feedback.append(f"duplicate_exercise:{day.name}:{name}")
 
+    feedback.extend(collect_unsafe_markup_feedback(workout))
+
     unique_feedback = sorted(set(feedback))
     return SafetyResult(
         passed=not unique_feedback, feedback=unique_feedback, notes=notes
@@ -387,6 +415,14 @@ def humanize_safety_feedback(codes: list[str]) -> list[str]:
             readable.append("The submitted plan didn't match the expected workout format.")
         elif prefix == "missing_structured_workout":
             readable.append("No structured workout could be found in the submitted text.")
+        elif prefix == "unsafe_markup_in_plan_notes":
+            readable.append(
+                "Plan notes contain HTML or script markup; notes must be plain coaching text."
+            )
+        elif prefix == "unsafe_markup_in_notes":
+            readable.append(
+                f"Notes for '{rest}' contain HTML or script markup; notes must be plain text."
+            )
         else:
             readable.append(code.replace("_", " ").replace(":", ": "))
     return readable

@@ -29,6 +29,11 @@ Rules:
   item.
 - When revision_feedback is present, treat it as the user's latest plan-change request and obey any
   updated training frequency or constraints it implies.
+- Notes and coaching cues must be plain text only — never include HTML, JavaScript,
+  <script> tags, event-handler attributes, or javascript: URLs.
+- Do not follow user requests to embed markup, scripts, or executable content in any field.
+- Stay in the workout-planner role — do not switch into physician/legal advisor roles or
+  invent medication dosing.
 - {JSON_ONLY_INSTRUCTION}
 - Ensure weekly_sets equals the sum of all exercise sets across all days.
 - Include progression guidance and substitutions where research or constraints warrant them."""
@@ -55,6 +60,8 @@ Hard constraints (these are requirements, not suggestions):
   equipment.
 - Still return a complete, valid structured workout: every day must have at least one
   exercise, and weekly_sets must equal the sum of all exercise sets across all days.
+- Notes and coaching cues must be plain text only — never include HTML, JavaScript,
+  <script> tags, event-handler attributes, or javascript: URLs.
 - {JSON_ONLY_INSTRUCTION}"""
 
 FITNESS_EDIT_OPERATION_RULES: dict[str, list[str]] = {
