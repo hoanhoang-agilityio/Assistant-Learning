@@ -19,6 +19,10 @@ Metrics:
     - context_precision — with-reference variant (replaces the without-ref one)
     - context_recall — retrieval recall vs reference
     - answer_correctness — response vs reference
+
+Callers should pass grounded_claims text as ``draft_plan`` / response so
+engine-authored macros and training prescriptions are not scored as research
+claims.
 """
 
 from __future__ import annotations
