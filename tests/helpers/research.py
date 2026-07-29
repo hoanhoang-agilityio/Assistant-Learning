@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from core.grounding.schema import GroundedClaim
 from core.subgraphs.research.schema import ResearchAgentResult, ResearchFindings
 
 
@@ -13,9 +14,21 @@ def default_structured_findings() -> ResearchFindings:
             "training evidence from peer-reviewed literature."
         ),
         key_findings=[
-            "Progressive resistance training 3-4 days per week supports fat loss outcomes.",
-            "Protein intake near 1.6-2.2 g/kg/day aids lean mass retention during cutting.",
-            "Training volume should match recovery capacity and activity level.",
+            GroundedClaim(
+                claim="Progressive resistance training 3-4 days per week supports fat loss outcomes.",
+                source_url="https://example.edu/fitness-training-hypertrophy",
+                finding_id="kf_0",
+            ),
+            GroundedClaim(
+                claim="Protein intake near 1.6-2.2 g/kg/day aids lean mass retention during cutting.",
+                source_url="https://example.org/resistance-training-nutrition",
+                finding_id="kf_1",
+            ),
+            GroundedClaim(
+                claim="Training volume should match recovery capacity and activity level.",
+                source_url="https://example.edu/fitness-training-hypertrophy",
+                finding_id="kf_2",
+            ),
         ],
         conflicting_evidence=[
             "Optimal weekly set counts vary across meta-analyses and populations.",
@@ -75,7 +88,7 @@ def default_research_agent_result(
         }
     ]
     summary = f"{structured.consensus}\n\nKey findings:\n" + "\n".join(
-        f"- {item}" for item in structured.key_findings[:3]
+        f"- {item.claim} ({item.source_url})" for item in structured.key_findings[:3]
     )
     return ResearchAgentResult(
         sources=resolved_sources,
