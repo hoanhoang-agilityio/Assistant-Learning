@@ -58,6 +58,7 @@ def write_reports(output_dir: Path, payload: dict) -> tuple[Path, Path]:
                 "faithfulness_score",
                 "pass_fail",
                 "min_faithfulness",
+                "method",
                 "workspace_path",
             ],
         )
@@ -90,6 +91,7 @@ def main() -> int:
                 "faithfulness_score": result.faithfulness_score,
                 "pass_fail": result.pass_fail,
                 "min_faithfulness": result.min_faithfulness,
+                "method": result.method,
                 "workspace_path": result.workspace_path,
             }
             for result in results
