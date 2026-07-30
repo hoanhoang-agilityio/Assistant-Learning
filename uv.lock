@@ -2223,6 +2223,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "langchain" },
     { name = "langchain-anthropic" },
     { name = "langchain-community" },
     { name = "langchain-core" },
@@ -2255,6 +2256,7 @@ eval = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1.0" },
     { name = "httpx", specifier = ">=0.28,<1.0" },
+    { name = "langchain", specifier = ">=1.0,<2.0" },
     { name = "langchain-anthropic", specifier = ">=1.0,<2.0" },
     { name = "langchain-community", specifier = ">=0.3,<0.4.2" },
     { name = "langchain-core", specifier = ">=1.0,<2.0" },

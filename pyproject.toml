@@ -8,6 +8,11 @@ dependencies = [
     # Orchestration
     "langgraph>=1.0,<2.0",
     "langgraph-checkpoint-postgres>=2.0,<4.0",
+    # Required by langfuse.langchain.CallbackHandler, which
+    # core/observability/langfuse.py imports at module scope. Previously present
+    # only transitively via ragas; when ragas became an optional extra this had
+    # to become explicit, or a production install cannot start the API.
+    "langchain>=1.0,<2.0",
     "langchain-core>=1.0,<2.0",
     "langchain-openai>=1.0,<2.0",
     "langchain-anthropic>=1.0,<2.0",
