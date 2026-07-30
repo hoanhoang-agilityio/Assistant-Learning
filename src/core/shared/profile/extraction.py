@@ -7,7 +7,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from core.llm.factory import invoke_standard_structured_output
 from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
-from core.profile.schema import ExtractedProfile
+from core.shared.profile.schema import ExtractedProfile
 
 ProfileExtractor = Callable[[str], ExtractedProfile]
 

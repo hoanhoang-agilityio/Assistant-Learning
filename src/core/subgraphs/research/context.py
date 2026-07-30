@@ -10,7 +10,7 @@ from core.planning.utils import (
     has_execution_plan,
     load_execution_plan,
 )
-from core.profile.store import load_run_profile
+from core.shared.profile.store import load_run_profile
 from core.vfs import VFS
 
 logger = logging.getLogger(__name__)

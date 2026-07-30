@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from core.grounding.validate import (
+from core.shared.grounding.validate import (
     allowed_source_urls,
     assign_finding_ids,
     filter_grounded_claims,

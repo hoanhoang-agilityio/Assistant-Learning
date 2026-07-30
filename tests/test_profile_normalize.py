@@ -1,9 +1,9 @@
-from core.profile.normalize import (
+from core.shared.profile.normalize import (
     merge_profile_sources,
     normalize_extracted_profile,
     resolve_activity_level,
 )
-from core.profile.schema import Constraints, ExtractedProfile, Goal, Profile
+from core.shared.profile.schema import Constraints, ExtractedProfile, Goal, Profile
 
 
 def test_normalize_rounds_measurements() -> None:

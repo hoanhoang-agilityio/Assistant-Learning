@@ -2,9 +2,9 @@ from pathlib import Path
 from typing import Any
 
 from core.graph.run import create_initial_state
-from core.profile.extraction import configure_profile_extractor
-from core.profile.goal_spec import derive_goal_spec
-from core.profile.schema import Constraints, ExtractedProfile, Goal, Profile
+from core.shared.profile.extraction import configure_profile_extractor
+from core.shared.profile.goal_spec import derive_goal_spec
+from core.shared.profile.schema import Constraints, ExtractedProfile, Goal, Profile
 from core.subgraphs.user.agent import UserAgent
 from core.subgraphs.user.utils import (
     extract_profile,

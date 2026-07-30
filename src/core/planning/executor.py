@@ -18,8 +18,8 @@ from core.agents.state import OrchestrationState
 from core.capabilities.executor import CapabilityExecutor
 from core.planning.output import PlanningOutput
 from core.planning.schema import ExecutionPlan, PlanTask
-from core.profile.goal_spec import derive_goal_spec
-from core.profile.store import load_run_profile, split_constraints
+from core.shared.profile.goal_spec import derive_goal_spec
+from core.shared.profile.store import load_run_profile, split_constraints
 from core.vfs import VFS
 from core.vfs.layout import PLAN_EXECUTION_PLAN, PLAN_MARKDOWN
 

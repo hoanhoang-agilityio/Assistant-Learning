@@ -38,7 +38,7 @@ class ProfileSnapshot(BaseModel):
 
     Raw user inputs only -- `extra="forbid"` so a regression that tries to persist a
     derived goal metric (weight_delta_kg, weekly_rate_kg, feasibility_level,
-    goal_archetype, activity_level -- see core.profile.goal_spec.GoalSpec) fails loudly
+    goal_archetype, activity_level -- see core.shared.profile.goal_spec.GoalSpec) fails loudly
     here instead of silently round-tripping through the run workspace.
     """
 

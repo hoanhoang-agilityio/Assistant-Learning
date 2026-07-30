@@ -4,8 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from core.grounding.schema import GroundedClaim
-from core.grounding.validate import normalize_grounded_claim_items
+from core.shared.grounding.schema import GroundedClaim
+from core.shared.grounding.validate import normalize_grounded_claim_items
 
 
 class WorkoutExercise(BaseModel):

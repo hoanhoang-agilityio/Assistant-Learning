@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from core.grounding.schema import GroundedClaim
+from core.shared.grounding.schema import GroundedClaim
 
 
 def render_grounded_claims_markdown(claims: list[GroundedClaim]) -> str:

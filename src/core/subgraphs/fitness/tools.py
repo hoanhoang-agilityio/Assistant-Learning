@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from core.profile.goal_spec import derive_goal_spec
-from core.profile.store import load_run_profile, split_constraints
+from core.shared.profile.goal_spec import derive_goal_spec
+from core.shared.profile.store import load_run_profile, split_constraints
 from core.subgraphs.fitness.blueprint import PlanBlueprint, build_plan_blueprint
 from core.subgraphs.fitness.normalize import (
     explain_verified_plan as _explain_verified_plan_llm,
@@ -190,7 +190,7 @@ def render_plan(
     structured_workout: dict[str, Any],
     plan_blueprint: dict[str, Any],
 ) -> dict[str, Any]:
-    from core.grounding.render import (
+    from core.shared.grounding.render import (
         render_grounded_claims_json,
         render_grounded_claims_markdown,
     )

@@ -13,7 +13,7 @@ from core.agents.execution_context import CapabilityResult, ExecutionContext
 from core.agents.state import OrchestrationState
 from core.capabilities.executor import CapabilityExecutor
 from core.planning.schema import ExecutionPlan, PlanTask
-from core.profile.goal_spec import derive_goal_spec
+from core.shared.profile.goal_spec import derive_goal_spec
 from core.subgraphs.research.research_agent import run_research_agent
 from core.subgraphs.research.schema import ResearchFindings
 from core.subgraphs.research.utils import (

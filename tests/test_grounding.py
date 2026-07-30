@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.grounding import (
+from core.shared.grounding import (
     GroundedClaim,
     allowed_source_urls,
     filter_grounded_claims,

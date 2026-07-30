@@ -1,6 +1,6 @@
 from core.llm.serializers import compact_execution_plan_for_llm, compact_profile_for_llm
 from core.planning.schema import ExecutionPlan, PlanTask
-from core.profile.goal_spec import derive_goal_spec
+from core.shared.profile.goal_spec import derive_goal_spec
 from core.subgraphs.research.utils import (
     build_eval_llm_extra,
     build_research_context_payload,

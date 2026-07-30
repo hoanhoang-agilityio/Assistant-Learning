@@ -2,7 +2,7 @@ from pathlib import Path
 
 from core.agents.state import OrchestrationState
 from core.config.settings import get_settings
-from core.profile.store import seed_profile
+from core.shared.profile.store import seed_profile
 from core.vfs import VFS
 from core.vfs.bootstrap import init_run_workspace
 from core.vfs.layout import PLAN_SUBMITTED_TEXT

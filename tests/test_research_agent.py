@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from core.planning.schema import ExecutionPlan, PlanTask
-from core.profile.goal_spec import derive_goal_spec
+from core.shared.profile.goal_spec import derive_goal_spec
 from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.research_agent import (
     _evaluate_evidence,

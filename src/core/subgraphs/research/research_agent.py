@@ -18,7 +18,7 @@ from core.llm.factory import (
 from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.payload import compact_json
 from core.planning.schema import ExecutionPlan
-from core.profile.goal_spec import GoalSpec
+from core.shared.profile.goal_spec import GoalSpec
 from core.subgraphs.research.compression import compress_content, query_terms
 from core.subgraphs.research.prompts import (
     EVALUATION_SYSTEM_PROMPT,
@@ -573,7 +573,7 @@ def run_research_agent(
         evidence=merged_evidence,
         verification_feedback=verification_feedback,
     )
-    from core.grounding.finalize import finalize_structured_findings
+    from core.shared.grounding.finalize import finalize_structured_findings
 
     structured_findings = finalize_structured_findings(
         structured_findings,

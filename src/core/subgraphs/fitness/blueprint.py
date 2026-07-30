@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.profile.goal_spec import GoalSpec
+from core.shared.profile.goal_spec import GoalSpec
 
 
 class PlanPhase(BaseModel):

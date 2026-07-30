@@ -1,6 +1,6 @@
-from core.profile.extraction import configure_profile_extractor
-from core.profile.normalize import resolve_activity_level
-from core.profile.schema import Constraints, ExtractedProfile
+from core.shared.profile.extraction import configure_profile_extractor
+from core.shared.profile.normalize import resolve_activity_level
+from core.shared.profile.schema import Constraints, ExtractedProfile
 from core.subgraphs.fitness.schema import (
     EditOperation,
     StructuredWorkout,

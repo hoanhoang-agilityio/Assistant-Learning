@@ -1,6 +1,6 @@
 """Tests for GoalSpec derivation and feasibility."""
 
-from core.profile.goal_spec import (
+from core.shared.profile.goal_spec import (
     assess_goal_feasibility,
     derive_goal_spec,
     rate_to_calorie_adjustment,

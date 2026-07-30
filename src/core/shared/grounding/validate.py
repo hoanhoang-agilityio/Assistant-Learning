@@ -6,7 +6,7 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
-from core.grounding.schema import GroundedClaim
+from core.shared.grounding.schema import GroundedClaim
 
 
 def allowed_source_urls(*, evidence: list[dict[str, Any]] | None = None) -> set[str]:

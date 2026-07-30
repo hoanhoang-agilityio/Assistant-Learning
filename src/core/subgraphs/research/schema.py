@@ -5,9 +5,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from core.grounding.finalize import extract_source_url
-from core.grounding.schema import GroundedClaim
-from core.grounding.validate import normalize_grounded_claim_items
+from core.shared.grounding.finalize import extract_source_url
+from core.shared.grounding.schema import GroundedClaim
+from core.shared.grounding.validate import normalize_grounded_claim_items
 
 
 def _coerce_string_list(value: Any) -> list[str]:

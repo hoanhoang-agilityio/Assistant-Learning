@@ -12,7 +12,7 @@ from core.llm.serializers import (
     compact_profile_for_llm,
 )
 from core.planning.schema import ExecutionPlan
-from core.profile.goal_spec import GoalSpec
+from core.shared.profile.goal_spec import GoalSpec
 from core.subgraphs.research.compression import compress_content, query_terms, score_content
 
 logger = logging.getLogger(__name__)

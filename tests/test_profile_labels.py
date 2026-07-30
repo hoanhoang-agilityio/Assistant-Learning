@@ -1,4 +1,4 @@
-from core.profile.labels import (
+from core.shared.profile.labels import (
     format_activity_label,
     format_goal_label,
     format_missing_profile_prompt,

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from core.graph.runs.models import RunLifecycleStatus
-from core.profile.labels import format_missing_profile_prompt
+from core.shared.profile.labels import format_missing_profile_prompt
 from core.vfs import VFS
 
 

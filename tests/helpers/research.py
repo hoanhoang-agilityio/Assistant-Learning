@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from core.grounding.schema import GroundedClaim
+from core.shared.grounding.schema import GroundedClaim
 from core.subgraphs.research.schema import ResearchAgentResult, ResearchFindings
 
 

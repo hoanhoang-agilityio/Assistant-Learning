@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from core.profile.schema import Constraints, ExtractedProfile, Profile
+from core.shared.profile.schema import Constraints, ExtractedProfile, Profile
 
 
 def test_extracted_profile_defaults_to_empty_sections() -> None:

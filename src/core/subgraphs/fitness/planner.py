@@ -5,8 +5,6 @@ from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from core.grounding.schema import GroundedClaim
-from core.grounding.validate import allowed_source_urls, filter_grounded_claims
 from core.llm.contracts import validate_fitness_planner_payload
 from core.llm.factory import invoke_standard_structured_output
 from core.llm.metrics import set_llm_metrics_node
@@ -19,6 +17,8 @@ from core.llm.serializers import (
     compact_structured_findings,
 )
 from core.planning.schema import ExecutionPlan
+from core.shared.grounding.schema import GroundedClaim
+from core.shared.grounding.validate import allowed_source_urls, filter_grounded_claims
 from core.subgraphs.fitness.prompts import (
     FITNESS_PLANNER_SYSTEM_PROMPT,
     build_fitness_edit_system_prompt,

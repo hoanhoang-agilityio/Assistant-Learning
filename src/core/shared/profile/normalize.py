@@ -10,7 +10,7 @@ equivalent (target_weight_kg, days_per_week) once, at intake time, then discarde
 
 from typing import Any
 
-from core.profile.schema import CONSTRAINT_FIELDS, ExtractedProfile
+from core.shared.profile.schema import CONSTRAINT_FIELDS, ExtractedProfile
 
 GYM_ACTIVITY_PREFIX = "gym_"
 GYM_ACTIVITY_SUFFIX = "x_week"

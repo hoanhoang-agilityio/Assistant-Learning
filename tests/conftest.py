@@ -15,7 +15,7 @@ from core.mcp.mock_fitness import build_fake_fitness_client
 from core.mcp.mock_tavily import build_mock_tavily_client
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.observability.langfuse import reset_langfuse_client
-from core.profile.extraction import configure_profile_extractor
+from core.shared.profile.extraction import configure_profile_extractor
 from core.subgraphs.fitness.planner import configure_fitness_planner
 from core.subgraphs.research.query_cache import reset_tavily_search_cache
 from core.subgraphs.research.research_agent import configure_research_agent

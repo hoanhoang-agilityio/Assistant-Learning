@@ -5,7 +5,7 @@ from pathlib import Path
 
 from core.mcp.fitness_client import FitnessMCPClient
 from core.planning.utils import persist_revision_feedback
-from core.profile.goal_spec import derive_goal_spec
+from core.shared.profile.goal_spec import derive_goal_spec
 from core.subgraphs.fitness.blueprint import build_plan_blueprint
 from core.subgraphs.fitness.schema import EditOperation
 from core.subgraphs.fitness.template_registry import (

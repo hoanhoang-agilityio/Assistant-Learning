@@ -2,10 +2,10 @@
 
 from typing import TYPE_CHECKING, Any
 
-from core.profile.schema import CONSTRAINT_FIELDS, PROFILE_FIELDS
+from core.shared.profile.schema import CONSTRAINT_FIELDS, PROFILE_FIELDS
 
 if TYPE_CHECKING:
-    from core.profile.goal_spec import GoalSpec
+    from core.shared.profile.goal_spec import GoalSpec
 
 _PROFILE_LLM_FIELDS: tuple[str, ...] = (*PROFILE_FIELDS, *CONSTRAINT_FIELDS)
 

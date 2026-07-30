@@ -3,8 +3,8 @@
 import re
 from typing import Any
 
-from core.profile.goal_spec import GoalSpec, rate_to_calorie_adjustment
-from core.profile.normalize import resolve_activity_level
+from core.shared.profile.goal_spec import GoalSpec, rate_to_calorie_adjustment
+from core.shared.profile.normalize import resolve_activity_level
 from core.subgraphs.fitness.constants import (
     ACTIVITY_MULTIPLIERS,
     DEFAULT_ACTIVITY_MULTIPLIER,

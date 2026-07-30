@@ -3,14 +3,14 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from core.profile.extraction import extract_profile_from_query
-from core.profile.goal_spec import GoalSpec, derive_goal_spec
-from core.profile.normalize import (
+from core.shared.profile.extraction import extract_profile_from_query
+from core.shared.profile.goal_spec import GoalSpec, derive_goal_spec
+from core.shared.profile.normalize import (
     _normalize_days_per_week,
     merge_profile_sources,
     resolve_target_weight,
 )
-from core.profile.schema import (
+from core.shared.profile.schema import (
     CONSTRAINT_FIELDS,
     GOAL_REQUIRED_FIELDS,
     REQUIRED_PROFILE_FIELDS,
@@ -18,8 +18,8 @@ from core.profile.schema import (
     ExtractedProfile,
     Profile,
 )
-from core.profile.store import load_run_profile
-from core.profile.store import persist_profile as persist_profile
+from core.shared.profile.store import load_run_profile
+from core.shared.profile.store import persist_profile as persist_profile
 
 REVISION_OVERRIDE_FIELDS: tuple[str, ...] = (
     *CONSTRAINT_FIELDS,
@@ -70,7 +70,7 @@ def apply_revision_overrides(
     stripped = revision_feedback.strip()
     if not stripped:
         return profile
-    from core.profile.normalize import normalize_extracted_profile
+    from core.shared.profile.normalize import normalize_extracted_profile
 
     extracted = extract_profile_from_query(stripped)
     overrides = normalize_extracted_profile(extracted)
@@ -197,7 +197,7 @@ def merge_form_submission(profile: dict[str, Any], submission: dict[str, Any]) -
     return merged
 
 
-# `persist_profile` is imported directly from `core.profile.store` above; `load_stored_profile`
+# `persist_profile` is imported directly from `core.shared.profile.store` above; `load_stored_profile`
 # is its pre-existing name in this module, kept as an alias so other call sites (e.g. planning)
 # don't need to change import paths in this pass.
 load_stored_profile = load_run_profile
