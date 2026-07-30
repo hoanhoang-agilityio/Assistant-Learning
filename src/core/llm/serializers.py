@@ -62,7 +62,7 @@ def compact_execution_plan_for_llm(
     required one, so absence must round-trip cleanly instead of being coerced into a fake
     empty plan the dict branch below would then reject for lacking "tasks".
     """
-    from core.planning.schema import ExecutionPlan
+    from core.shared.planning.schema import ExecutionPlan
 
     if plan is None:
         return None

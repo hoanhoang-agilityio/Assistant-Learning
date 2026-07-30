@@ -5,8 +5,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from core.planning.schema import ExecutionPlan
-from core.planning.utils import (
+from core.shared.planning.schema import ExecutionPlan
+from core.shared.planning.utils import (
     has_execution_plan,
     load_execution_plan,
 )

@@ -12,7 +12,7 @@ from core.capabilities.fitness.planner import (
 )
 from core.capabilities.research.schema import ResearchFindings
 from core.llm.payload import compact_json
-from core.planning.schema import ExecutionPlan, PlanTask
+from core.shared.planning.schema import ExecutionPlan, PlanTask
 from tests.helpers.fitness import default_structured_workout
 
 

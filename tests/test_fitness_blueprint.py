@@ -13,7 +13,7 @@ from core.capabilities.fitness.template_registry import (
 )
 from core.capabilities.fitness.utils import BENCHMARK_WORKOUT_NOTE, build_default_structured_workout
 from core.mcp.fitness_client import FitnessMCPClient
-from core.planning.utils import persist_revision_feedback
+from core.shared.planning.utils import persist_revision_feedback
 from core.shared.profile.goal_spec import derive_goal_spec
 from core.vfs import VFS
 from tests.helpers.fitness import default_structured_workout

@@ -4,7 +4,7 @@ from core.capabilities.research.utils import (
     build_synthesis_llm_extra,
 )
 from core.llm.serializers import compact_execution_plan_for_llm, compact_profile_for_llm
-from core.planning.schema import ExecutionPlan, PlanTask
+from core.shared.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.goal_spec import derive_goal_spec
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"

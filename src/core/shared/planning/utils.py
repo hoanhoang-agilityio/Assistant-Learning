@@ -3,7 +3,7 @@ from pathlib import Path
 
 from core.capabilities.user.utils import load_stored_profile
 from core.llm.serializers import compact_profile_for_llm
-from core.planning.schema import ExecutionPlan
+from core.shared.planning.schema import ExecutionPlan
 from core.vfs import VFS
 
 __all__ = [

@@ -22,9 +22,9 @@ from core.llm.serializers import (
     compact_profile_for_llm,
     compact_structured_findings,
 )
-from core.planning.schema import ExecutionPlan
 from core.shared.grounding.schema import GroundedClaim
 from core.shared.grounding.validate import allowed_source_urls, filter_grounded_claims
+from core.shared.planning.schema import ExecutionPlan
 
 PlannerOverride = Callable[..., StructuredWorkout]
 

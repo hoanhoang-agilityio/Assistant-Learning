@@ -12,7 +12,7 @@ from core.llm.serializers import (
     compact_goal_spec_for_llm,
     compact_profile_for_llm,
 )
-from core.planning.schema import ExecutionPlan
+from core.shared.planning.schema import ExecutionPlan
 from core.shared.profile.goal_spec import GoalSpec
 
 logger = logging.getLogger(__name__)

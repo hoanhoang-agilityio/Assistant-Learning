@@ -16,7 +16,7 @@ from core.capabilities.research.utils import (
 from core.llm.budgets import LLM_NODE_BUDGETS, check_payload_budget, measure_fixture_baseline
 from core.llm.metrics import estimate_payload_tokens, reset_llm_metrics
 from core.llm.payload import compact_json
-from core.planning.schema import ExecutionPlan, PlanTask
+from core.shared.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.extraction import _EXTRACTION_SYSTEM_PROMPT
 from core.shared.profile.goal_spec import derive_goal_spec
 

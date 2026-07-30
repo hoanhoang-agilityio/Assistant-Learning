@@ -19,7 +19,7 @@ from core.capabilities.research.utils import (
 from core.orchestration.agents.execution_context import CapabilityResult, ExecutionContext
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.routing.executor import CapabilityExecutor
-from core.planning.schema import ExecutionPlan, PlanTask
+from core.shared.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.goal_spec import derive_goal_spec
 
 

@@ -19,7 +19,7 @@ from core.capabilities.fitness.utils import (
     is_cacheable_workout,
 )
 from core.mcp.fitness_client import get_fitness_client
-from core.planning.utils import load_revision_feedback
+from core.shared.planning.utils import load_revision_feedback
 from core.vfs import VFS
 
 logger = logging.getLogger(__name__)

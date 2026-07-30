@@ -10,7 +10,7 @@ from core.llm.contracts import (
     validate_fitness_planner_payload,
     validate_research_context_payload,
 )
-from core.planning.schema import ExecutionPlan, PlanTask
+from core.shared.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.goal_spec import derive_goal_spec
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"

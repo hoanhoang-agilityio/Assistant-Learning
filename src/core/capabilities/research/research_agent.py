@@ -47,7 +47,7 @@ from core.llm.factory import (
 )
 from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.payload import compact_json
-from core.planning.schema import ExecutionPlan
+from core.shared.planning.schema import ExecutionPlan
 from core.shared.profile.goal_spec import GoalSpec
 
 ResearchAgentOverride = Callable[..., ResearchAgentResult]

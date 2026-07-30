@@ -15,7 +15,7 @@ from core.capabilities.research.research_agent import (
 )
 from core.capabilities.research.schema import ResearchFindings, SearchQueryBatch, TaskQueryPlan
 from core.capabilities.research.verification import verify_sources_data
-from core.planning.schema import ExecutionPlan, PlanTask
+from core.shared.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.goal_spec import derive_goal_spec
 from tests.helpers.research import default_research_agent_result, research_agent_override
 

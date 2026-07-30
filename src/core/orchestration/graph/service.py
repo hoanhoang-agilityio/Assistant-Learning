@@ -86,12 +86,12 @@ from core.orchestration.hitl.resume import (
     user_revision_to_replan_update,
 )
 from core.orchestration.hitl.utils import classify_approval_response
-from core.planning.utils import persist_revision_feedback
 from core.rate_limit import (
     AIRateLimiter,
     reset_rate_limit_user_id,
     set_rate_limit_user_id,
 )
+from core.shared.planning.utils import persist_revision_feedback
 from core.vfs import VFS
 from core.vfs.layout import PLAN_SUBMITTED_TEXT
 
