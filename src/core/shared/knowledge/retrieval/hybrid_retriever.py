@@ -11,9 +11,9 @@ from typing import Protocol
 
 from langchain_core.embeddings import Embeddings
 
-from core.knowledge.retrieval.fusion import DEFAULT_RRF_K, reciprocal_rank_fusion
-from core.knowledge.retrieval.types import MetadataFilters, RewrittenQuery
-from core.knowledge.schema import GuidelineHit
+from core.shared.knowledge.retrieval.fusion import DEFAULT_RRF_K, reciprocal_rank_fusion
+from core.shared.knowledge.retrieval.types import MetadataFilters, RewrittenQuery
+from core.shared.knowledge.schema import GuidelineHit
 
 
 class GuidelineSearchStore(Protocol):

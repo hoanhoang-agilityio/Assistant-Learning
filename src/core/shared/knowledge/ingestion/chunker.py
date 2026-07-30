@@ -8,7 +8,7 @@ from typing import Protocol
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from core.knowledge.schema import KnowledgeChunk
+from core.shared.knowledge.schema import KnowledgeChunk
 
 
 class Chunker(Protocol):

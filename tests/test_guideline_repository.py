@@ -16,9 +16,9 @@ from __future__ import annotations
 import pytest
 
 from core.config.settings import get_settings
-from core.knowledge.schema import KnowledgeChunk, KnowledgeDocument, KnowledgeSource
 from core.repositories.bootstrap import bootstrap_schema
 from core.repositories.guideline_repository import GuidelineRepository
+from core.shared.knowledge.schema import KnowledgeChunk, KnowledgeDocument, KnowledgeSource
 
 _DIM = 1536
 

@@ -18,10 +18,10 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from core.config.settings import Settings, get_settings
-from core.knowledge.embeddings import get_embedding_provider
-from core.knowledge.retrieval_service import build_retrieval_service
 from core.repositories.guideline_repository import GuidelineRepository
 from core.repositories.template_repository import TemplateRepository
+from core.shared.knowledge.embeddings import get_embedding_provider
+from core.shared.knowledge.retrieval_service import build_retrieval_service
 
 mcp = FastMCP("fitness-knowledge")
 

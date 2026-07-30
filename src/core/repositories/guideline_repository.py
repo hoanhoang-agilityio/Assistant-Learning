@@ -1,7 +1,7 @@
 """Postgres+pgvector persistence and retrieval for guideline documents.
 
 Pure SQL, no embedding calls (vectors are always supplied by the caller -- see
-core.knowledge.embeddings / core.knowledge.retrieval), no DDL at construction
+core.shared.knowledge.embeddings / core.shared.knowledge.retrieval), no DDL at construction
 (schema must already exist -- see core.repositories.bootstrap).
 
 Owns two search channels used by HybridRetriever:
@@ -15,7 +15,12 @@ from typing import Any
 
 from psycopg_pool import ConnectionPool
 
-from core.knowledge.schema import GuidelineHit, KnowledgeChunk, KnowledgeDocument, KnowledgeSource
+from core.shared.knowledge.schema import (
+    GuidelineHit,
+    KnowledgeChunk,
+    KnowledgeDocument,
+    KnowledgeSource,
+)
 
 _HIT_SELECT = """
     d.id AS document_id, c.id AS chunk_id, d.title, c.content, d.category,

@@ -14,11 +14,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from core.config.settings import get_settings
-from core.knowledge.embeddings import get_embedding_provider
-from core.knowledge.ingestion.chunker import SimpleChunker
-from core.knowledge.ingestion.loader import JSONLLoader
-from core.knowledge.ingestion.pipeline import run_ingestion_pipeline
 from core.repositories.guideline_repository import GuidelineRepository
+from core.shared.knowledge.embeddings import get_embedding_provider
+from core.shared.knowledge.ingestion.chunker import SimpleChunker
+from core.shared.knowledge.ingestion.loader import JSONLLoader
+from core.shared.knowledge.ingestion.pipeline import run_ingestion_pipeline
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 

@@ -639,7 +639,7 @@ class _QueryRewriterRunner:
         return response
 
     def run_with_schema(self, case: RobustnessCase) -> tuple[str, bool | None]:
-        from core.knowledge.retrieval.query_rewriter import LlmQueryRewriter
+        from core.shared.knowledge.retrieval.query_rewriter import LlmQueryRewriter
 
         query = str(case.payload.get("query") or "")
         rewritten = LlmQueryRewriter().rewrite(query=query)

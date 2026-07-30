@@ -1,7 +1,7 @@
 """Unit tests for Reciprocal Rank Fusion."""
 
-from core.knowledge.retrieval.fusion import reciprocal_rank_fusion
-from core.knowledge.schema import GuidelineHit
+from core.shared.knowledge.retrieval.fusion import reciprocal_rank_fusion
+from core.shared.knowledge.schema import GuidelineHit
 
 
 def _hit(chunk_id: str, similarity: float) -> GuidelineHit:

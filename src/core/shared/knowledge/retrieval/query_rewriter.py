@@ -13,7 +13,7 @@ from typing import Protocol
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.knowledge.retrieval.types import MetadataFilters, RewrittenQuery
+from core.shared.knowledge.retrieval.types import MetadataFilters, RewrittenQuery
 
 logger = logging.getLogger(__name__)
 

@@ -2,12 +2,12 @@
 
 from langchain_core.embeddings import Embeddings
 
-from core.knowledge.retrieval.hybrid_retriever import HybridRetriever
-from core.knowledge.retrieval.query_rewriter import PassthroughQueryRewriter
-from core.knowledge.retrieval.reranker import IdentityReranker
-from core.knowledge.retrieval.types import MetadataFilters, RewrittenQuery
-from core.knowledge.retrieval_service import RetrievalService
-from core.knowledge.schema import GuidelineHit
+from core.shared.knowledge.retrieval.hybrid_retriever import HybridRetriever
+from core.shared.knowledge.retrieval.query_rewriter import PassthroughQueryRewriter
+from core.shared.knowledge.retrieval.reranker import IdentityReranker
+from core.shared.knowledge.retrieval.types import MetadataFilters, RewrittenQuery
+from core.shared.knowledge.retrieval_service import RetrievalService
+from core.shared.knowledge.schema import GuidelineHit
 
 
 class _FakeEmbeddings(Embeddings):

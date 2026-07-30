@@ -3,9 +3,9 @@
 from langchain_core.embeddings import Embeddings
 
 from core.config.settings import Settings
-from core.knowledge.retrieval.query_rewriter import PassthroughQueryRewriter
-from core.knowledge.retrieval.reranker import HeuristicReranker, IdentityReranker
-from core.knowledge.retrieval_service import RetrievalService, build_retrieval_service
+from core.shared.knowledge.retrieval.query_rewriter import PassthroughQueryRewriter
+from core.shared.knowledge.retrieval.reranker import HeuristicReranker, IdentityReranker
+from core.shared.knowledge.retrieval_service import RetrievalService, build_retrieval_service
 
 
 class _FakeEmbeddings(Embeddings):

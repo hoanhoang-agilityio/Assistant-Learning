@@ -18,7 +18,7 @@ from typing import Protocol
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.knowledge.schema import GuidelineHit
+from core.shared.knowledge.schema import GuidelineHit
 
 logger = logging.getLogger(__name__)
 

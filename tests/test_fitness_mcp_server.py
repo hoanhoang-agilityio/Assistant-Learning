@@ -10,12 +10,12 @@ from __future__ import annotations
 import pytest
 
 from core.config.settings import get_settings
-from core.knowledge.embeddings import get_embedding_provider
-from core.knowledge.schema import KnowledgeChunk, KnowledgeDocument, KnowledgeSource
 from core.mcp.fitness_server import build_server
 from core.repositories.bootstrap import bootstrap_schema
 from core.repositories.guideline_repository import GuidelineRepository
 from core.repositories.template_repository import TemplateRepository
+from core.shared.knowledge.embeddings import get_embedding_provider
+from core.shared.knowledge.schema import KnowledgeChunk, KnowledgeDocument, KnowledgeSource
 
 pytestmark = pytest.mark.skipif(
     not get_settings().openai_api_key,

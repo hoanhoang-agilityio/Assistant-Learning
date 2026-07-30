@@ -13,21 +13,21 @@ import logging
 from langchain_core.embeddings import Embeddings
 
 from core.config.settings import Settings, get_settings
-from core.knowledge.retrieval.fusion import DEFAULT_RRF_K
-from core.knowledge.retrieval.hybrid_retriever import HybridRetriever
-from core.knowledge.retrieval.query_rewriter import (
+from core.repositories.guideline_repository import GuidelineRepository
+from core.shared.knowledge.retrieval.fusion import DEFAULT_RRF_K
+from core.shared.knowledge.retrieval.hybrid_retriever import HybridRetriever
+from core.shared.knowledge.retrieval.query_rewriter import (
     LlmQueryRewriter,
     PassthroughQueryRewriter,
     QueryRewriter,
 )
-from core.knowledge.retrieval.reranker import (
+from core.shared.knowledge.retrieval.reranker import (
     HeuristicReranker,
     IdentityReranker,
     LlmRelevanceReranker,
     Reranker,
 )
-from core.knowledge.schema import GuidelineHit
-from core.repositories.guideline_repository import GuidelineRepository
+from core.shared.knowledge.schema import GuidelineHit
 
 logger = logging.getLogger(__name__)
 

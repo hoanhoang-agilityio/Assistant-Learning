@@ -4,11 +4,11 @@ import json
 
 from langchain_core.embeddings import Embeddings
 
-from core.knowledge.ingestion.chunker import SimpleChunker
-from core.knowledge.ingestion.loader import JSONLLoader
-from core.knowledge.ingestion.pipeline import run_ingestion_pipeline
-from core.knowledge.ingestion.validator import validate_record
-from core.knowledge.schema import KnowledgeChunk, KnowledgeDocument, KnowledgeSource
+from core.shared.knowledge.ingestion.chunker import SimpleChunker
+from core.shared.knowledge.ingestion.loader import JSONLLoader
+from core.shared.knowledge.ingestion.pipeline import run_ingestion_pipeline
+from core.shared.knowledge.ingestion.validator import validate_record
+from core.shared.knowledge.schema import KnowledgeChunk, KnowledgeDocument, KnowledgeSource
 
 
 def _write_corpus(tmp_path, records: list[dict]) -> None:

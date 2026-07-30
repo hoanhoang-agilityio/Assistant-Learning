@@ -7,8 +7,8 @@ function's contract (return one Source + one Document + content per record) is w
 future loaders must satisfy, not what they're limited to internally.
 """
 
-from core.knowledge.ingestion.loader import RawKnowledgeRecord
-from core.knowledge.schema import KnowledgeDocument, KnowledgeSource
+from core.shared.knowledge.ingestion.loader import RawKnowledgeRecord
+from core.shared.knowledge.schema import KnowledgeDocument, KnowledgeSource
 
 
 def validate_record(record: RawKnowledgeRecord) -> tuple[KnowledgeSource, KnowledgeDocument, str]:

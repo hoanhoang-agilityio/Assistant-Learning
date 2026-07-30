@@ -1,6 +1,6 @@
 """Rank fusion utilities for hybrid retrieval."""
 
-from core.knowledge.schema import GuidelineHit
+from core.shared.knowledge.schema import GuidelineHit
 
 # Classic RRF constant from Cormack et al.; smooths contribution of deep ranks.
 DEFAULT_RRF_K = 60
