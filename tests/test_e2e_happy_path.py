@@ -6,7 +6,7 @@ import pytest
 from langgraph.types import Command
 
 from core.agents.state import OrchestrationState
-from core.config.settings import Settings, get_settings
+from core.config.settings import Settings
 from core.graph.builder import build_graph
 from core.mcp.tavily_client import TavilyMCPClient
 from core.observability.langfuse import (
@@ -90,8 +90,16 @@ def test_build_langfuse_callbacks_uses_run_trace_id(
     assert len(callbacks) == 1
 
 
-def test_create_trace_id_for_run_falls_back_to_run_id() -> None:
-    assert create_trace_id_for_run("run-fallback", settings=get_settings()) == "run-fallback"
+def test_create_trace_id_for_run_falls_back_to_run_id(
+    langfuse_disabled_settings: Settings,
+) -> None:
+    # Same global-cache race as the two tests above: with Langfuse enabled there
+    # is a real client to mint a trace id, so reading get_settings() here made
+    # the fallback assertion order-dependent.
+    assert (
+        create_trace_id_for_run("run-fallback", settings=langfuse_disabled_settings)
+        == "run-fallback"
+    )
 
 
 def test_build_graph_invoke_config_includes_thread_and_callbacks(
