@@ -106,6 +106,13 @@ def test_search_query_batch_json_schema_omits_min_items() -> None:
 
 
 def test_research_findings_coerces_numbered_string_lists() -> None:
+    # key_findings arrives as a bare numbered string with no embedded URL on
+    # either line. normalize_grounded_claim_items deliberately leaves such
+    # items with source_url="" (see grounding/validate.py docstring) rather
+    # than inventing one, and coerce_grounded_key_findings (schema.py) drops
+    # any claim without its own valid source_url instead of borrowing one
+    # from recommended_sources -- so both claims are dropped, not laundered
+    # through a URL they were never actually checked against.
     findings = ResearchFindings(
         consensus="Resistance training supports fat loss with adequate protein intake.",
         key_findings="1. Higher protein preserves lean mass\n2. Strength training aids fat loss",
@@ -116,13 +123,40 @@ def test_research_findings_coerces_numbered_string_lists() -> None:
             "2. Protein during caloric deficit (https://pmc.ncbi.nlm.nih.gov/articles/PMC9285060)"
         ),
     )
-    assert len(findings.key_findings) == 2
-    assert findings.key_findings[0].claim.startswith("Higher protein")
-    assert findings.key_findings[0].source_url == "https://example.com/study"
+    assert findings.key_findings == []
     assert len(findings.recommended_sources) == 2
     assert "PMC9285060" in findings.recommended_sources[1]
     assert findings.conflicting_evidence == []
     assert len(findings.limitations) == 1
+
+
+def test_research_findings_drops_claims_missing_their_own_source_url() -> None:
+    """A claim dict with no source_url of its own must be dropped, not
+    backfilled from recommended_sources -- the fallback was a citation-
+    laundering hole (2026-07-30), the same pattern Phase 4 closed in
+    grounding/validate.py's evidence-only allowlist."""
+    findings = ResearchFindings(
+        consensus="Resistance training supports fat loss with adequate protein intake.",
+        key_findings=[
+            {"claim": "Higher protein preserves lean mass", "source_url": ""},
+            {"claim": "Strength training aids fat loss", "source_url": "https://example.com/real"},
+        ],
+        recommended_sources=["https://example.com/unrelated"],
+    )
+    assert len(findings.key_findings) == 1
+    assert findings.key_findings[0].claim == "Strength training aids fat loss"
+    assert findings.key_findings[0].source_url == "https://example.com/real"
+
+
+def test_research_findings_allows_empty_key_findings() -> None:
+    """A run with no fully evidence-supported claim is a legitimate, honest
+    result -- not an error. See SYNTHESIS_SYSTEM_PROMPT's instruction to omit
+    a claim entirely rather than fabricate one (2026-07-30)."""
+    findings = ResearchFindings(
+        consensus="No evidence document in this run supported a specific claim.",
+        key_findings=[],
+    )
+    assert findings.key_findings == []
 
 
 def test_hybrid_ranking_orders_by_composite_score() -> None:

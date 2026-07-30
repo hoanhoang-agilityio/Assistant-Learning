@@ -15,7 +15,7 @@ _MOCK_EVIDENCE_BODY = (
 def build_mock_tavily_client() -> TavilyMCPClient:
     """Return a Tavily client with deterministic research responses for local dev."""
 
-    def search(query: str) -> dict[str, Any]:
+    def search(query: str, include_domains: list[str] | None = None) -> dict[str, Any]:
         return {
             "results": [
                 {

@@ -19,6 +19,7 @@ from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
 from core.llm.payload import compact_json
 from core.planning.schema import ExecutionPlan
 from core.profile.goal_spec import GoalSpec
+from core.subgraphs.research.compression import compress_content, query_terms
 from core.subgraphs.research.prompts import (
     EVALUATION_SYSTEM_PROMPT,
     QUERY_PLANNING_SYSTEM_PROMPT,
@@ -65,7 +66,7 @@ def configure_research_agent(override: ResearchAgentOverride | None) -> None:
 class _ResearchSession:
     """Mutable accumulator for sources and evidence during agent execution."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, query: str = "") -> None:
         self.sources: list[dict[str, Any]] = []
         self.evidence: list[dict[str, Any]] = []
         self.iterations: int = 0
@@ -73,6 +74,7 @@ class _ResearchSession:
         self.extract_count: int = 0
         self.extracted_urls: set[str] = set()
         self.failed_extract_urls: set[str] = set()
+        self.relevance_terms: frozenset[str] = query_terms(query)
         settings = get_settings()
         self.max_total_searches: int = settings.research_max_total_searches
         self.max_total_extracts: int = settings.research_max_total_extracts
@@ -227,7 +229,11 @@ def _execute_tool_call(
                 "evidence": [
                     {
                         "url": item.get("url"),
-                        "content_preview": str(item.get("content", ""))[:preview_limit],
+                        "content_preview": compress_content(
+                            str(item.get("content", "")),
+                            max_chars=preview_limit,
+                            terms=session.relevance_terms,
+                        ),
                     }
                     for item in result["evidence"]
                 ],
@@ -359,7 +365,7 @@ def _evaluate_evidence(
         goal_spec=goal_spec,
         execution_plan=execution_plan,
         include_task_rationale=False,
-        extra=build_eval_llm_extra(sources, evidence),
+        extra=build_eval_llm_extra(sources, evidence, query=query),
     )
     return _invoke_with_node(
         "research_evidence_eval",
@@ -469,12 +475,15 @@ def _synthesize_findings(
     goal_spec: GoalSpec,
     sources: list[dict[str, Any]],
     evidence: list[dict[str, Any]],
+    verification_feedback: str | None = None,
 ) -> ResearchFindings:
     payload = build_research_context_payload(
         query=query,
         profile=profile,
         goal_spec=goal_spec,
-        extra=build_synthesis_llm_extra(sources, evidence),
+        extra=build_synthesis_llm_extra(
+            sources, evidence, query=query, verification_feedback=verification_feedback
+        ),
     )
     return _invoke_with_node(
         "research_synthesis",
@@ -494,11 +503,20 @@ def run_research_agent(
     execution_plan: ExecutionPlan,
     workspace_path: str | None = None,
     is_reresearch: bool = False,
+    verification_feedback: str | None = None,
 ) -> ResearchAgentResult:
     """Execute the full Research Agent pipeline.
 
     `goal_spec` must be derived by the caller (`_research_agent_node`) from this same
     `profile` -- passed through, never recomputed inside this module.
+
+    `verification_feedback` (L1 Phase 4): set only when the Policy Engine
+    routed here via `verification_failed_auto_retry` (see policy_engine.py) --
+    threaded into synthesis so this attempt can actually address the specific
+    citation/faithfulness problem the previous attempt caused, not just retry
+    blindly. Not passed to `_AGENT_OVERRIDE` (matches `is_reresearch`'s
+    existing precedent -- the test override only ever receives the args tests
+    actually inspect).
     """
     if _AGENT_OVERRIDE is not None:
         return _AGENT_OVERRIDE(
@@ -507,7 +525,7 @@ def run_research_agent(
             execution_plan=execution_plan,
         )
 
-    session = _ResearchSession()
+    session = _ResearchSession(query=query)
     skip_tavily = False
     if is_reresearch and workspace_path:
         existing = load_existing_research(workspace_path)
@@ -553,13 +571,13 @@ def run_research_agent(
         goal_spec=goal_spec,
         sources=ranked_sources,
         evidence=merged_evidence,
+        verification_feedback=verification_feedback,
     )
     from core.grounding.finalize import finalize_structured_findings
 
     structured_findings = finalize_structured_findings(
         structured_findings,
         evidence=merged_evidence,
-        sources=ranked_sources,
     )
     evidence_summary = derive_evidence_summary(structured_findings)
 

@@ -24,9 +24,18 @@ def _invoke_tool(tool: BaseTool, payload: dict[str, Any]) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class TavilyMCPClient:
-    """Thin wrapper around official Tavily MCP tools."""
+    """Thin wrapper around official Tavily MCP tools.
 
-    search: Callable[[str], dict[str, Any]]
+    `search`'s second (optional) argument is `include_domains` -- only ever
+    passed a non-None value when `research_trusted_domains` is explicitly
+    configured (see search_tavily_data in research/utils.py); the built-in
+    default domain list is deliberately never sent to Tavily itself, since
+    `include_domains` is a literal-domain hard filter with no `.edu`/`.gov`
+    wildcard, and hard-restricting every search by default would cut real
+    recall for a scoping tool most callers never opted into.
+    """
+
+    search: Callable[..., dict[str, Any]]
     extract: Callable[[list[str]], dict[str, Any]]
 
 
@@ -70,11 +79,15 @@ async def create_tavily_mcp_client(settings: Settings | None = None) -> TavilyMC
 
     search_tool = tools_by_name[search_tool_name]
     extract_tool = tools_by_name[extract_tool_name]
+
+    def _search(query: str, include_domains: list[str] | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"query": query, "max_results": 5, "search_depth": "advanced"}
+        if include_domains:
+            payload["include_domains"] = include_domains
+        return _invoke_tool(search_tool, payload)
+
     return TavilyMCPClient(
-        search=lambda query: _invoke_tool(
-            search_tool,
-            {"query": query, "max_results": 5, "search_depth": "advanced"},
-        ),
+        search=_search,
         extract=lambda urls: _invoke_tool(extract_tool, {"urls": urls}),
     )
 

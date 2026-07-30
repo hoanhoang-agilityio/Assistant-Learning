@@ -44,12 +44,26 @@ Rules:
 - Note conflicting evidence when sources disagree.
 - List limitations (e.g. limited RCTs, population mismatch).
 - Return JSON arrays for key_findings, conflicting_evidence, limitations, and recommended_sources.
-- key_findings must be an array of objects: {{"claim": "...", "source_url": "..."}} where
-  source_url is copied exactly from an input evidence/source URL (never invent a URL).
+- key_findings must be an array of objects: {{"claim": "...", "source_url": "..."}}. Each
+  claim's source_url MUST be copied exactly from the "url" field of one of the "evidence"
+  documents (the documents whose full content you were actually given) -- never from
+  "source_catalog" (search results found but never retrieved -- title/snippet only, no
+  verified content) and never invented from memory. If no evidence document actually
+  supports a specific number or claim, do not include that claim at all -- a smaller,
+  fully-supported key_findings list is correct; a padded one with an uncited-in-evidence
+  claim is not.
 - conflicting_evidence, limitations: each array item must be one short string.
 - Do not return numbered prose blocks or markdown lists as a single string.
-- recommended_sources should list URLs from the highest-ranked sources (prefer bare URLs).
+- recommended_sources should list URLs from the highest-ranked sources (prefer bare URLs) --
+  this list may include source_catalog URLs (they're a "worth checking" pointer, not a
+  grounding citation), but key_findings' source_url may not.
 - Do not invent citations or studies not present in the input.
+- If the input includes "verification_feedback", it describes a specific problem an
+  independent verification step found in your own synthesis from an earlier attempt in
+  this same run (e.g. a claim's source_url pointed at a URL whose actual content did not
+  support it). Read it carefully and make sure this attempt does not repeat that exact
+  mistake -- in particular, re-check that every source_url you use this time actually
+  appears in "evidence", not "source_catalog" or memory.
 - {JSON_ONLY_INSTRUCTION}"""
 
 EVALUATION_SYSTEM_PROMPT = f"""You are a fitness evidence quality evaluator.

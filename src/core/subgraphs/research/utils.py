@@ -27,25 +27,18 @@ from core.planning.utils import (
 )
 from core.profile.goal_spec import GoalSpec
 from core.profile.store import load_run_profile
+from core.subgraphs.research.compression import compress_content, query_terms, score_content
 from core.subgraphs.research.query_cache import get_cached_search_result, store_search_result
 from core.subgraphs.research.ranking import rank_sources_data
 from core.subgraphs.research.schema import ResearchFindings
-from core.subgraphs.research.verification import verify_sources_data
+from core.subgraphs.research.verification import (
+    has_explicit_trusted_domains,
+    resolve_trusted_domains,
+    verify_sources_data,
+)
 from core.vfs import VFS
 
 logger = logging.getLogger(__name__)
-
-
-class ResearchTodosGateError(ValueError):
-    """Raised when research is invoked before a planning execution plan exists."""
-
-
-def assert_todos_gate(todos: list[str]) -> None:
-    """Raise when research is invoked without planning todos."""
-    if not todos:
-        raise ResearchTodosGateError(
-            "Research blocked: plan/execution_plan.json is required before retrieval"
-        )
 
 
 def load_profile_for_research(workspace_path: str) -> dict[str, Any]:
@@ -194,16 +187,32 @@ def compact_sources_for_llm(
     return [compact_source_for_llm(source, snippet_chars=snippet_chars) for source in selected]
 
 
+def _rank_evidence_by_relevance(
+    evidence: list[dict[str, Any]], terms: frozenset[str]
+) -> list[dict[str, Any]]:
+    """Order evidence docs by relevance to the query before truncating to a
+    limit, instead of keeping whichever docs happened to be extracted/merged
+    first -- a document's position here has never meant "most relevant"."""
+    return sorted(
+        evidence,
+        key=lambda item: score_content(str(item.get("content", "")), terms),
+        reverse=True,
+    )
+
+
 def build_eval_llm_extra(
     sources: list[dict[str, Any]],
     evidence: list[dict[str, Any]],
     *,
+    query: str = "",
     sources_limit: int = 10,
     evidence_limit: int = 5,
     snippet_chars: int = 200,
     content_chars: int = 300,
 ) -> dict[str, Any]:
     """Build compact eval-phase extra fields without redundant metadata."""
+    terms = query_terms(query)
+    ranked_evidence = _rank_evidence_by_relevance(evidence, terms)
     return {
         "sources_preview": compact_sources_for_llm(
             sources,
@@ -213,9 +222,11 @@ def build_eval_llm_extra(
         "evidence_preview": [
             {
                 "url": item.get("url"),
-                "content_preview": str(item.get("content", ""))[:content_chars],
+                "content_preview": compress_content(
+                    str(item.get("content", "")), max_chars=content_chars, terms=terms
+                ),
             }
-            for item in evidence[:evidence_limit]
+            for item in ranked_evidence[:evidence_limit]
         ],
     }
 
@@ -223,17 +234,37 @@ def build_eval_llm_extra(
 def build_synthesis_llm_extra(
     sources: list[dict[str, Any]],
     evidence: list[dict[str, Any]],
+    *,
+    query: str = "",
+    verification_feedback: str | None = None,
 ) -> dict[str, Any]:
-    """Build synthesis extra fields with URL deduplication between sources and evidence."""
+    """Build synthesis extra fields with URL deduplication between sources and evidence.
+
+    `verification_feedback` (L1 Phase 4) is only ever set by the Policy Engine's
+    automatic retry (`verification_failed_auto_retry`, see policy_engine.py) --
+    a previous synthesis in this same run produced a citation/faithfulness
+    problem, and this is that failure's feedback text so the LLM can actually
+    address the specific issue instead of blindly retrying the same mistake.
+
+    `query` (L1 Phase 4, evidence compression) scores relevance for both which
+    evidence docs make the cut and which sentences within each survive
+    truncation -- see core.subgraphs.research.compression for why blind
+    first-N-docs/first-N-chars truncation was a real faithfulness risk, not
+    just a cost-control detail.
+    """
     settings = get_settings()
     evidence_limit = settings.research_synthesis_evidence_limit
     content_chars = settings.research_synthesis_content_chars
+    terms = query_terms(query)
+    ranked_evidence = _rank_evidence_by_relevance(evidence, terms)
     evidence_docs = [
         {
             "url": item.get("url"),
-            "content": str(item.get("content", ""))[:content_chars],
+            "content": compress_content(
+                str(item.get("content", "")), max_chars=content_chars, terms=terms
+            ),
         }
-        for item in evidence[:evidence_limit]
+        for item in ranked_evidence[:evidence_limit]
     ]
     evidence_urls = {str(item.get("url", "")) for item in evidence_docs if item.get("url")}
     source_catalog = compact_sources_for_llm(
@@ -244,10 +275,13 @@ def build_synthesis_llm_extra(
         ],
         limit=5,
     )
-    return {
+    extra: dict[str, Any] = {
         "evidence": evidence_docs,
         "source_catalog": source_catalog,
     }
+    if verification_feedback:
+        extra["verification_feedback"] = verification_feedback
+    return extra
 
 
 def build_goal_context(profile: dict[str, Any], goal_spec: GoalSpec) -> dict[str, Any]:
@@ -323,14 +357,20 @@ def search_tavily_data(query: str) -> dict[str, Any]:
 
     Cached by normalized query text for a short TTL — catches identical
     queries issued from different execution-plan tasks or different runs.
+    Cache key intentionally ignores include_domains: it's derived from a
+    single process-wide setting, not a per-call variable, so it can never
+    differ between two calls with the same query text.
     """
     cached = get_cached_search_result(query)
     if cached is not None:
         return cached
 
     client = get_tavily_client()
-    with traced_tavily_call(TAVILY_SEARCH_TOOL, input_data={"query": query}) as span:
-        search_result = client.search(query)
+    include_domains = list(resolve_trusted_domains()) if has_explicit_trusted_domains() else None
+    with traced_tavily_call(
+        TAVILY_SEARCH_TOOL, input_data={"query": query, "include_domains": include_domains}
+    ) as span:
+        search_result = client.search(query, include_domains)
         sources = normalize_search_results(search_result, query)
         if span is not None:
             raw_keys = sorted(search_result.keys()) if isinstance(search_result, dict) else []
