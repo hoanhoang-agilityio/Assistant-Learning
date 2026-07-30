@@ -329,7 +329,7 @@ def test_post_process_skips_tavily_when_local_evidence_is_sufficient(
         return {"evidence": []}
 
     monkeypatch.setattr(
-        "core.subgraphs.research.utils.extract_tavily_data",
+        "core.subgraphs.research.sources.extract_tavily_data",
         fake_extract,
     )
     sources = [

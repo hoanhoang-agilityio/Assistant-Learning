@@ -139,15 +139,15 @@ class TestSearchTavilyDataIncludeDomainsThreading:
             return {"results": []}
 
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.get_tavily_client",
+            "core.subgraphs.research.tavily.get_tavily_client",
             lambda: type("_C", (), {"search": staticmethod(fake_search)})(),
         )
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.get_cached_search_result", lambda query: None
+            "core.subgraphs.research.tavily.get_cached_search_result", lambda query: None
         )
-        monkeypatch.setattr("core.subgraphs.research.utils.store_search_result", lambda *a: None)
+        monkeypatch.setattr("core.subgraphs.research.tavily.store_search_result", lambda *a: None)
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.has_explicit_trusted_domains", lambda: False
+            "core.subgraphs.research.tavily.has_explicit_trusted_domains", lambda: False
         )
 
         search_tavily_data("progressive overload training volume")
@@ -164,18 +164,18 @@ class TestSearchTavilyDataIncludeDomainsThreading:
             return {"results": []}
 
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.get_tavily_client",
+            "core.subgraphs.research.tavily.get_tavily_client",
             lambda: type("_C", (), {"search": staticmethod(fake_search)})(),
         )
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.get_cached_search_result", lambda query: None
+            "core.subgraphs.research.tavily.get_cached_search_result", lambda query: None
         )
-        monkeypatch.setattr("core.subgraphs.research.utils.store_search_result", lambda *a: None)
+        monkeypatch.setattr("core.subgraphs.research.tavily.store_search_result", lambda *a: None)
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.has_explicit_trusted_domains", lambda: True
+            "core.subgraphs.research.tavily.has_explicit_trusted_domains", lambda: True
         )
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.resolve_trusted_domains",
+            "core.subgraphs.research.tavily.resolve_trusted_domains",
             lambda: ("example.edu", "example.org"),
         )
 
