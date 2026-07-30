@@ -2,8 +2,8 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
-from core.orchestration.agents.execution_context import Intent
 from core.orchestration.agents.topic_scope_judge import ScopeDecision, ScopeRequest
+from core.shared.execution_context import Intent
 
 ApprovalStatus = Literal["pending", "approved", "rejected", "revision_requested"]
 

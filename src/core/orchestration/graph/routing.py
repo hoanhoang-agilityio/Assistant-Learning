@@ -1,6 +1,6 @@
 from langgraph.graph import END
 
-from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.state import OrchestrationState
 
 
 def route_from_supervisor(state: OrchestrationState) -> str:

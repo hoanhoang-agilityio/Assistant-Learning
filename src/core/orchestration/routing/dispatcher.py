@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.orchestration.agents.execution_context import CapabilityResult
-from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.state import OrchestrationState
+from core.shared.execution_context import CapabilityResult
 
 
 def apply_capability_result(

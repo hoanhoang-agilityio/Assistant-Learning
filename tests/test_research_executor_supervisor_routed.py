@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from core.capabilities.research.executor import SupervisorRoutedResearchExecutor
-from core.orchestration.agents.execution_context import build_execution_context
 from core.orchestration.graph.run import create_initial_state
+from core.shared.execution_context import build_execution_context
 
 
 def test_research_question_reports_summary_only(

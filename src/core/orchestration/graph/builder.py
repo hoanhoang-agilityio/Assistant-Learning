@@ -7,7 +7,6 @@ from core.adapters.observability.langfuse import supervisor_span_context
 from core.adapters.observability.tracing import wrap_traced_subgraph_node
 from core.capabilities.planning.node import invoke_planning_node
 from core.capabilities.wrapper import append_pipeline_steps
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.agents.supervisor import supervisor_node
 from core.orchestration.graph.routing import route_from_supervisor
 from core.orchestration.hitl.node import invoke_hitl_node
@@ -19,6 +18,7 @@ from core.orchestration.routing.nodes import (
     invoke_verification_node,
 )
 from core.orchestration.routing.registry import capability_node_map
+from core.orchestration.state import OrchestrationState
 
 
 def traced_supervisor_node(state: OrchestrationState) -> dict:

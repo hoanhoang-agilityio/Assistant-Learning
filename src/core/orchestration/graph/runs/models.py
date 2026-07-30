@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from core.orchestration.agents.state import ApprovalStatus
+from core.orchestration.state import ApprovalStatus
 
 RunLifecycleStatus = Literal[
     "running", "waiting_hitl", "completed", "failed", "refused", "not_found"

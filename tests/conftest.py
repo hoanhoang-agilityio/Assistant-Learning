@@ -14,10 +14,10 @@ from core.capabilities.research.query_cache import reset_tavily_search_cache
 from core.capabilities.research.research_agent import configure_research_agent
 from core.config.settings import get_settings
 from core.orchestration.agents.intent_judge import configure_user_intent_judge
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.agents.supervisor_router_judge import configure_supervisor_routing_judge
 from core.orchestration.agents.topic_scope_judge import configure_topic_scope_judge
 from core.orchestration.graph.run import create_initial_state
+from core.orchestration.state import OrchestrationState
 from core.shared.profile.extraction import configure_profile_extractor
 from tests.helpers.classification import (
     default_topic_scope_judge,

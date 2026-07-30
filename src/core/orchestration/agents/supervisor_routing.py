@@ -12,7 +12,6 @@ from __future__ import annotations
 from typing import Any
 
 from core.adapters.observability.langfuse import supervisor_routing_span_context
-from core.orchestration.agents.execution_context import CapabilityResult
 from core.orchestration.agents.routing_context import (
     AgentDescriptor,
     AgentResultSummary,
@@ -21,7 +20,6 @@ from core.orchestration.agents.routing_context import (
     append_agent_trail,
     summarize_agent_result,
 )
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.agents.supervisor_log import append_supervisor_decision
 from core.orchestration.agents.supervisor_router_judge import (
     SUPERVISOR_ROUTER_PROMPT_VERSION,
@@ -29,6 +27,8 @@ from core.orchestration.agents.supervisor_router_judge import (
 )
 from core.orchestration.routing.policy_engine import enforce_routing_invariants
 from core.orchestration.routing.registry import CAPABILITY_REGISTRY
+from core.orchestration.state import OrchestrationState
+from core.shared.execution_context import CapabilityResult
 
 
 def _available_agents() -> list[AgentDescriptor]:

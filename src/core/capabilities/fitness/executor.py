@@ -13,10 +13,10 @@ from __future__ import annotations
 from uuid import uuid4
 
 from core.capabilities.fitness import tools as fitness_tools
-from core.orchestration.agents.execution_context import CapabilityResult, ExecutionContext
 from core.orchestration.agents.macro_report_judge import judge_reported_macros
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.routing.executor import CapabilityExecutor
+from core.orchestration.state import OrchestrationState
+from core.shared.execution_context import CapabilityResult, ExecutionContext
 
 
 def _missing_biometrics_result() -> CapabilityResult:

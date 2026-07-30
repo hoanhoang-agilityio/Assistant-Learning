@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-from core.orchestration.agents.execution_context import CapabilityName
+from core.shared.execution_context import CapabilityName
 
 CAPABILITY_REGISTRY: dict[CapabilityName, CapabilityDefinition] = {}
 

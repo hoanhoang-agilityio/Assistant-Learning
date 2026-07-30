@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.orchestration.agents.execution_context import (
+from core.shared.execution_context import (
     CapabilityName,
     CapabilityResult,
     CapabilityStatus,

@@ -20,9 +20,9 @@ from core.capabilities.verification.utils import (
     write_verification_artifacts,
 )
 from core.config.settings import get_settings
-from core.orchestration.agents.execution_context import CapabilityResult, ExecutionContext
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.routing.executor import CapabilityExecutor
+from core.orchestration.state import OrchestrationState
+from core.shared.execution_context import CapabilityResult, ExecutionContext
 
 
 def _production_use_real_ragas() -> bool:

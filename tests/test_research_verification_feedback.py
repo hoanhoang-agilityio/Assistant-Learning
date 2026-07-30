@@ -17,8 +17,8 @@ from core.capabilities.research.executor import SupervisorRoutedResearchExecutor
 from core.capabilities.research.research_agent import _synthesize_findings
 from core.capabilities.research.schema import ResearchFindings
 from core.capabilities.research.utils import build_synthesis_llm_extra
-from core.orchestration.agents.execution_context import build_execution_context
 from core.orchestration.graph.run import create_initial_state
+from core.shared.execution_context import build_execution_context
 from core.shared.profile.goal_spec import derive_goal_spec
 
 

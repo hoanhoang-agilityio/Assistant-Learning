@@ -21,12 +21,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.agents.supervisor_router_judge import (
     RoutingDecision,
     SupervisorRoutingJudgement,
 )
 from core.orchestration.routing.registry import CAPABILITY_REGISTRY
+from core.orchestration.state import OrchestrationState
 
 # Capabilities that need a validated user profile to operate correctly. Mirrors
 # what `build_execution_context` used to compute per-intent -- relocated here

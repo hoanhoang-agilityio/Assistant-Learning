@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from core.orchestration.agents.state import ApprovalStatus
+from core.orchestration.state import ApprovalStatus
 
 HitlDecisionType = Literal["approve", "reject", "revision"]
 MAX_REVISION_COUNT = 1

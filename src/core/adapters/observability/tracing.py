@@ -8,7 +8,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langgraph.errors import GraphInterrupt
 
-from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.state import OrchestrationState
 
 _trace_run_id: ContextVar[str | None] = ContextVar("langfuse_trace_run_id", default=None)
 _trace_thread_id: ContextVar[str | None] = ContextVar("langfuse_trace_thread_id", default=None)

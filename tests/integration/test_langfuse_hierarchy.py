@@ -12,8 +12,8 @@ from core.adapters.observability.langfuse import reset_langfuse_client
 from core.adapters.observability.tracing import reset_trace_run_id, set_trace_run_id
 from core.capabilities.research.utils import extract_tavily_data, search_tavily_data
 from core.config.settings import get_settings
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.graph.builder import build_graph
+from core.orchestration.state import OrchestrationState
 
 
 class _RecordingSpan:

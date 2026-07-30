@@ -6,8 +6,8 @@ from uuid import uuid4
 from langgraph.graph.state import CompiledStateGraph
 
 from core.adapters.vfs import VFS
-from core.orchestration.agents.execution_context import CapabilityResult, build_execution_context
 from core.orchestration.graph.run import create_initial_state
+from core.shared.execution_context import CapabilityResult, build_execution_context
 
 
 def pause_before_hitl(

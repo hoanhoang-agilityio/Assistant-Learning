@@ -15,7 +15,7 @@ from core.capabilities.user.utils import (
     validate_profile_schema,
 )
 from core.capabilities.wrapper import merge_subgraph_updates
-from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.state import OrchestrationState
 from core.shared.profile.goal_spec import derive_goal_spec
 from core.shared.profile.store import load_run_profile
 

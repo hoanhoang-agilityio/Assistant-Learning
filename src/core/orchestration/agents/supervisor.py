@@ -4,11 +4,11 @@ from typing import Any
 from core.adapters.vfs import VFS
 from core.adapters.vfs.layout import FITNESS_WORKOUT, PLAN_SUBMITTED_TEXT
 from core.config.settings import get_settings
-from core.orchestration.agents.execution_context import build_execution_context
 from core.orchestration.agents.intent_judge import judge_user_intent
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.agents.supervisor_routing import run_supervisor_routing_decision
 from core.orchestration.agents.tools import check_topic_scope, refusal_message_for
+from core.orchestration.state import OrchestrationState
+from core.shared.execution_context import build_execution_context
 
 
 def _classify_and_build_context(state: OrchestrationState) -> dict[str, Any]:

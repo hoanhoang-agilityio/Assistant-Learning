@@ -25,8 +25,8 @@ from core.capabilities.verification.utils import (
     load_verification_context,
 )
 from core.config.settings import get_settings
-from core.orchestration.agents.execution_context import build_execution_context
 from core.orchestration.graph.run import create_initial_state
+from core.shared.execution_context import build_execution_context
 
 
 @dataclass(frozen=True)

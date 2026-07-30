@@ -16,9 +16,9 @@ from core.capabilities.research.utils import (
     load_profile_for_research,
     write_research_artifacts,
 )
-from core.orchestration.agents.execution_context import CapabilityResult, ExecutionContext
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.routing.executor import CapabilityExecutor
+from core.orchestration.state import OrchestrationState
+from core.shared.execution_context import CapabilityResult, ExecutionContext
 from core.shared.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.goal_spec import derive_goal_spec
 

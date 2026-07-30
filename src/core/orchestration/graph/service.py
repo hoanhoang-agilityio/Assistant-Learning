@@ -70,7 +70,6 @@ from core.adapters.rate_limit import (
 from core.adapters.vfs import VFS
 from core.adapters.vfs.layout import PLAN_SUBMITTED_TEXT
 from core.config.settings import get_settings
-from core.orchestration.agents.state import ApprovalStatus
 from core.orchestration.graph.builder import build_graph
 from core.orchestration.graph.run import create_initial_state
 from core.orchestration.graph.runs.models import (
@@ -93,6 +92,7 @@ from core.orchestration.hitl.resume import (
     user_revision_to_replan_update,
 )
 from core.orchestration.hitl.utils import classify_approval_response
+from core.orchestration.state import ApprovalStatus
 from core.shared.planning.utils import persist_revision_feedback
 
 logger = logging.getLogger(__name__)

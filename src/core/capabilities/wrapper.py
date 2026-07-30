@@ -1,6 +1,6 @@
 from typing import Any
 
-from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.state import OrchestrationState
 
 
 def append_pipeline_steps(

@@ -15,8 +15,8 @@ from core.adapters.observability.langfuse import (
 from core.adapters.vfs import VFS
 from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.config.settings import Settings
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.graph.builder import build_graph
+from core.orchestration.state import OrchestrationState
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, StateSnapshot
 
 from core.capabilities.user.graph import invoke_user_subgraph
-from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.state import OrchestrationState
 
 
 def _build_standalone_wrapper() -> CompiledStateGraph:

@@ -8,7 +8,7 @@ from core.capabilities.fitness.capability import invoke_fitness_capability
 from core.capabilities.research.capability import invoke_research_capability
 from core.capabilities.user.graph import invoke_user_subgraph
 from core.capabilities.verification.capability import invoke_verification_capability
-from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.state import OrchestrationState
 
 
 def invoke_research_node(state: OrchestrationState) -> dict:

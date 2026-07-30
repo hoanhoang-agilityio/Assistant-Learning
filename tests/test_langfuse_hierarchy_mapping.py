@@ -20,7 +20,7 @@ from core.adapters.observability.langfuse import (
     subgraph_span_context,
 )
 from core.config.settings import Settings
-from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.state import OrchestrationState
 
 
 def test_map_thread_to_session_id_is_identity() -> None:

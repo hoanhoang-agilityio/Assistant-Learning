@@ -6,8 +6,8 @@ from langgraph.types import Command
 from core.adapters.mcp.tavily_client import TavilyMCPClient
 from core.adapters.vfs import VFS
 from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.graph.builder import build_graph
+from core.orchestration.state import OrchestrationState
 
 
 def test_integration_happy_path_hitl_to_persist(

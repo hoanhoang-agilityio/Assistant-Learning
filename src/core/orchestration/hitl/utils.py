@@ -1,6 +1,6 @@
 from typing import Any
 
-from core.orchestration.agents.state import ApprovalStatus
+from core.orchestration.state import ApprovalStatus
 
 
 def request_approval_data(draft_plan: str, verification_report: dict[str, Any]) -> dict[str, Any]:

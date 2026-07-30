@@ -4,12 +4,12 @@ from uuid import uuid4
 
 import pytest
 
-from core.orchestration.agents.execution_context import (
+from core.orchestration.agents.intent_judge import UserIntentJudgement
+from core.shared.execution_context import (
     CapabilityRequest,
     CapabilityResult,
     build_execution_context,
 )
-from core.orchestration.agents.intent_judge import UserIntentJudgement
 
 
 def test_execution_context_is_frozen() -> None:

@@ -21,7 +21,7 @@ from core.adapters.observability.hierarchy import (
     resolve_hierarchy_ids,
 )
 from core.config.settings import Settings, get_settings
-from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.state import OrchestrationState
 
 logger = logging.getLogger(__name__)
 

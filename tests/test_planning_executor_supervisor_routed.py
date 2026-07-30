@@ -8,8 +8,8 @@ from core.capabilities.planning.executor import (
     PLANNING_OUTPUT_PATH,
     SupervisorRoutedPlanningExecutor,
 )
-from core.orchestration.agents.execution_context import build_execution_context
 from core.orchestration.graph.run import create_initial_state
+from core.shared.execution_context import build_execution_context
 
 
 def test_planning_executor_reports_completed_with_no_next_request(

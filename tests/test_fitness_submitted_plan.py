@@ -31,13 +31,13 @@ from core.capabilities.fitness.normalize import (
 )
 from core.capabilities.fitness.schema import StructuredWorkout, WorkoutDay, WorkoutExercise
 from core.capabilities.fitness.utils import humanize_safety_feedback
-from core.orchestration.agents.execution_context import ExecutionContext, build_execution_context
 from core.orchestration.agents.macro_report_judge import (
     ReportedMacros,
     configure_reported_macros_judge,
 )
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.graph.run import create_initial_state
+from core.orchestration.state import OrchestrationState
+from core.shared.execution_context import ExecutionContext, build_execution_context
 from tests.helpers.fitness import default_structured_workout
 
 

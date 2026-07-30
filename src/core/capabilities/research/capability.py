@@ -11,9 +11,9 @@ from __future__ import annotations
 
 from core.capabilities.research.executor import get_research_executor
 from core.capabilities.wrapper import merge_subgraph_updates
-from core.orchestration.agents.execution_context import parse_execution_context
-from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.routing.dispatcher import apply_capability_result
+from core.orchestration.state import OrchestrationState
+from core.shared.execution_context import parse_execution_context
 
 
 def invoke_research_capability(state: OrchestrationState) -> dict:

@@ -1,5 +1,5 @@
-from core.orchestration.agents.state import ScopeResult
 from core.orchestration.agents.topic_scope_judge import judge_topic_scope
+from core.orchestration.state import ScopeResult
 
 OFF_TOPIC_REFUSAL_MESSAGE = (
     "I'm your fitness planning assistant, so I can only help with "
