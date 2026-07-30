@@ -86,3 +86,17 @@ build:
   artifacts:
     paths:
       - dist/*.whl
+
+# Catches "works in dev, cannot start in production": the runtime dependency set
+# being incomplete because something arrived transitively via a dev/optional
+# package. That is exactly how `langchain` went missing when ragas moved to the
+# `eval` extra -- langfuse.langchain.CallbackHandler needs it, the dev venv had
+# it, and the whole test suite passed while a production install could not boot.
+# Runs without dev *and* without eval, then imports the real app entrypoint.
+runtime-deps:
+  stage: build
+  before_script:
+    - pip install --no-cache-dir uv
+    - uv sync --frozen --no-dev
+  script:
+    - uv run python -c "import api.main; import ui.app; print('production dependency set is complete')"
