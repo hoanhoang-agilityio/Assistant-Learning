@@ -7,7 +7,7 @@ from core.agents.topic_scope_judge import configure_topic_scope_judge
 from core.graph.routing import route_from_supervisor
 from core.vfs import VFS
 from core.vfs.layout import PLAN_SUBMITTED_TEXT
-from tests.helpers.classification import default_topic_scope_judge
+from tests.helpers.classification import default_topic_scope_judge, default_user_intent_judge
 
 
 def _base_state(**overrides) -> OrchestrationState:
@@ -72,6 +72,23 @@ def test_supervisor_refuses_off_topic() -> None:
     updates = supervisor_node(_base_state(query="what is the weather"))
     assert updates.get("run_complete") is True
     assert updates.get("refusal_message")
+
+
+def test_supervisor_allows_weight_loss_macro_check_suggestion() -> None:
+    """Regression: the welcome-card macro check was CLARIFY-rejected by topic_scope_judge
+    because the LLM treated the weight-loss goal as background instead of recognizing
+    the macro-verification ask as actionable."""
+    query = (
+        "I want to know if my current macros are appropriate for weight loss. "
+        "I'm currently consuming 3,000 calories per day."
+    )
+    configure_topic_scope_judge(default_topic_scope_judge)
+    configure_user_intent_judge(default_user_intent_judge)
+    updates = supervisor_node(_base_state(query=query))
+    assert updates.get("run_complete") is not True
+    assert updates.get("refusal_message") is None
+    assert updates["execution_context"]["intent"] == "verify_macros"
+    assert updates["execution_context"]["entry_node"] == "fitness"
 
 
 def test_route_to_user_when_profile_incomplete() -> None:

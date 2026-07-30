@@ -298,6 +298,98 @@ def test_policy_engine_forces_hitl_after_verification_completes() -> None:
     assert decision.override_reason == "verification_requires_hitl"
 
 
+# --- Policy Engine: L1 Phase 4 automatic verification-failure retry --------
+
+
+def _failed_verification_state(retry_target: str | None, **overrides) -> dict:
+    overrides.setdefault("verification_retry_count", 0)
+    return _base_state(
+        last_capability_result={
+            "capability": "verification",
+            "status": "completed",
+            "artifacts": {"passed": False, "retry_target": retry_target},
+        },
+        **overrides,
+    )
+
+
+def test_policy_engine_auto_retries_research_for_a_research_owned_failure() -> None:
+    """citation/faithfulness failures are research-owned (see
+    verification.utils._determine_retry_target) -- Verify -> Fix should target
+    research directly, not surface every failure to HITL first."""
+    state = _failed_verification_state(retry_target="research")
+    decision = enforce_routing_invariants(
+        state, _proposal("hitl"), max_hops=12, max_verification_retry_attempts=1
+    )
+    assert decision.next_agent == "research"
+    assert decision.overridden is True
+    assert decision.override_reason == "verification_failed_auto_retry"
+
+
+def test_policy_engine_auto_retries_fitness_for_a_fitness_owned_failure() -> None:
+    """safety/consistency failures are fitness-owned."""
+    state = _failed_verification_state(retry_target="fitness")
+    decision = enforce_routing_invariants(
+        state, _proposal("hitl"), max_hops=12, max_verification_retry_attempts=1
+    )
+    assert decision.next_agent == "fitness"
+    assert decision.override_reason == "verification_failed_auto_retry"
+
+
+def test_policy_engine_falls_through_to_hitl_once_retry_cap_is_exhausted() -> None:
+    """A second consecutive failure (verification_retry_count already at the cap)
+    must not retry again -- it has to reach a human, not loop forever."""
+    state = _failed_verification_state(retry_target="research", verification_retry_count=1)
+    decision = enforce_routing_invariants(
+        state, _proposal("hitl"), max_hops=12, max_verification_retry_attempts=1
+    )
+    assert decision.next_agent == "hitl"
+    assert decision.override_reason == "verification_requires_hitl"
+
+
+def test_policy_engine_falls_through_to_hitl_when_no_retry_target_known() -> None:
+    """A failure with no owning capability (retry_target=None) has nothing to
+    usefully retry -- must still reach HITL, not get stuck with no valid route."""
+    state = _failed_verification_state(retry_target=None)
+    decision = enforce_routing_invariants(
+        state, _proposal("hitl"), max_hops=12, max_verification_retry_attempts=1
+    )
+    assert decision.next_agent == "hitl"
+    assert decision.override_reason == "verification_requires_hitl"
+
+
+def test_policy_engine_passed_verification_never_auto_retries() -> None:
+    """Sanity check: a passing report always goes to HITL, never treated as a
+    retry candidate, regardless of what retry_target happens to contain."""
+    state = _base_state(
+        last_capability_result={
+            "capability": "verification",
+            "status": "completed",
+            "artifacts": {"passed": True, "retry_target": "research"},
+        },
+        verification_retry_count=0,
+    )
+    decision = enforce_routing_invariants(
+        state, _proposal("hitl"), max_hops=12, max_verification_retry_attempts=1
+    )
+    assert decision.next_agent == "hitl"
+    assert decision.override_reason == "verification_requires_hitl"
+
+
+def test_policy_engine_auto_retry_to_fitness_still_honors_profile_gate() -> None:
+    """The auto-retry decision flows through the same _apply_profile_gate every
+    other deterministic rule does -- an incomplete profile must still redirect
+    to `user`, even for a fitness-owned auto-retry."""
+    state = _failed_verification_state(
+        retry_target="fitness", profile_complete=False, profile_valid=False
+    )
+    decision = enforce_routing_invariants(
+        state, _proposal("hitl"), max_hops=12, max_verification_retry_attempts=1
+    )
+    assert decision.next_agent == "user"
+    assert decision.override_reason == "profile_incomplete"
+
+
 def test_policy_engine_forces_finish_after_readonly_fitness_answer() -> None:
     state = _base_state(
         last_capability_result={

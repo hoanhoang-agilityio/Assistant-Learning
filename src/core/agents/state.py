@@ -44,6 +44,15 @@ class OrchestrationState(TypedDict):
 
     verification_passed: bool
     faithfulness_score: float | None
+    # L1 Phase 4: which capability owns fixing the last verification failure
+    # ("research" | "fitness" | None), the report's feedback text, and how many
+    # times the Policy Engine has already auto-retried because of it. Set by
+    # verification/capability.py from the executor's report; consumed by
+    # policy_engine.enforce_routing_invariants to decide whether to route back
+    # automatically instead of straight to HITL.
+    verification_retry_target: str | None
+    verification_feedback: str | None
+    verification_retry_count: int
 
     hop_count: int
     agent_trail: list[str]
