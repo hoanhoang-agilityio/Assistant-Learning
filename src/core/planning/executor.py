@@ -1,4 +1,4 @@
-"""Deterministic Planning capability executor.
+"""Planning capability executor.
 
 Implements `core.capabilities.executor.CapabilityExecutor`. Planning owns
 goal specification only: it computes from the validated profile + request,
@@ -15,7 +15,6 @@ from uuid import uuid4
 
 from core.agents.execution_context import CapabilityResult, ExecutionContext
 from core.agents.state import OrchestrationState
-from core.capabilities.dispatcher import make_capability_request
 from core.capabilities.executor import CapabilityExecutor
 from core.planning.output import PlanningOutput
 from core.planning.schema import ExecutionPlan, PlanTask
@@ -141,48 +140,11 @@ def persist_execution_plan(workspace_path: str, plan: ExecutionPlan) -> None:
     vfs.write(PLAN_EXECUTION_PLAN, plan.model_dump_json(indent=2))
 
 
-class DeterministicPlanningExecutor:
-    """Computes PlanningOutput straight from the validated profile -- no LLM call."""
-
-    def execute(self, state: OrchestrationState, ctx: ExecutionContext | None) -> CapabilityResult:
-        workspace = state["workspace_path"]
-        query = state.get("fitness_query") or state["query"]
-        output = build_planning_output(workspace, query)
-        persist_planning_output(workspace, output)
-        persist_execution_plan(workspace, build_execution_plan(workspace))
-        request_id = uuid4()
-        if state.get("resume_capability"):
-            return CapabilityResult(
-                request_id=request_id,
-                capability="planning",
-                status="completed",
-                output={
-                    "planning_output_path": PLANNING_OUTPUT_PATH,
-                    "execution_plan_path": PLAN_EXECUTION_PLAN,
-                },
-                next_request=None,
-            )
-        return CapabilityResult(
-            request_id=request_id,
-            capability="planning",
-            status="needs_capability",
-            output={
-                "planning_output_path": PLANNING_OUTPUT_PATH,
-                "execution_plan_path": PLAN_EXECUTION_PLAN,
-            },
-            next_request=make_capability_request(
-                capability="fitness",
-                reason="Goal specification complete",
-                payload={"planning_output_path": PLANNING_OUTPUT_PATH},
-            ),
-        )
-
-
 class SupervisorRoutedPlanningExecutor:
     """AgentResult-only Planning executor for the hybrid Supervisor routing design
-    (see docs/reports plan). Same goal-specification computation as
-    `DeterministicPlanningExecutor` -- it never decides what runs next; the
-    Supervisor + Policy Engine route to Fitness from here."""
+    (see docs/reports plan). Computes the goal specification and hands off --
+    it never decides what runs next; the Supervisor + Policy Engine route to
+    Fitness from here."""
 
     def execute(self, state: OrchestrationState, ctx: ExecutionContext | None) -> CapabilityResult:
         workspace = state["workspace_path"]

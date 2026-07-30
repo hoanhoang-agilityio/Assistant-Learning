@@ -1,6 +1,6 @@
 """Capability registry and result-recording."""
 
-from core.capabilities.dispatcher import apply_capability_result, make_capability_request
+from core.capabilities.dispatcher import apply_capability_result
 from core.capabilities.registry import (
     CAPABILITY_REGISTRY,
     CapabilityDefinition,
@@ -15,6 +15,5 @@ __all__ = [
     "apply_capability_result",
     "capability_node_map",
     "get_capability",
-    "make_capability_request",
     "validate_handoff_target",
 ]

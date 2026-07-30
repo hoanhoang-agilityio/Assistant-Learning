@@ -37,8 +37,6 @@ class ReportedMacros(BaseModel):
 
 MacroReportJudge = Callable[[str], ReportedMacros]
 
-_JUDGE_OVERRIDE: MacroReportJudge | None = None
-
 _JUDGE_SYSTEM_PROMPT = (
     """A user is asking whether their own daily macro/calorie numbers are
 appropriate for their fitness goal. Extract only the figures they stated
@@ -55,14 +53,7 @@ Examples:
 )
 
 
-def configure_macro_report_judge(judge: MacroReportJudge | None) -> None:
-    global _JUDGE_OVERRIDE
-    _JUDGE_OVERRIDE = judge
-
-
 def judge_reported_macros(query: str) -> ReportedMacros:
-    if _JUDGE_OVERRIDE is not None:
-        return _JUDGE_OVERRIDE(query)
     token = set_llm_metrics_node("macro_report_judge")
     try:
         return invoke_standard_structured_output(
