@@ -20,7 +20,7 @@ from core.evaluation.ragas_benchmark import (  # noqa: E402
 )
 
 DEFAULT_FIXTURE = _PROJECT_ROOT / "tests" / "fixtures" / "ragas_golden.json"
-DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "src" / "workspace" / "benchmarks"
+DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "var" / "workspace" / "benchmarks"
 
 
 def parse_args() -> argparse.Namespace:

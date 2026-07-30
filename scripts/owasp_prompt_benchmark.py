@@ -45,7 +45,7 @@ DEFAULT_SCOPE_FIXTURE = _PROJECT_ROOT / "tests" / "fixtures" / "owasp_system_pro
 DEFAULT_ROBUSTNESS_FIXTURE = (
     _PROJECT_ROOT / "tests" / "fixtures" / "owasp_system_prompt_robustness.json"
 )
-DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "src" / "workspace" / "benchmarks"
+DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "var" / "workspace" / "benchmarks"
 
 
 def parse_args() -> argparse.Namespace:

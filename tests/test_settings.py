@@ -17,7 +17,7 @@ def test_checkpointer_dsn_from_components(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_workspace_root_resolves() -> None:
-    settings = Settings(workspace_root="./src/workspace")
+    settings = Settings(workspace_root="./var/workspace")
     assert settings.workspace_root.is_absolute()
     assert settings.workspace_root.name == "workspace"
 
