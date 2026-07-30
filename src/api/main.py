@@ -11,6 +11,7 @@ from api.routes.users import router as users_router
 from core.config.settings import Settings, get_settings
 from core.evaluation.shadow_eval import run_shadow_evaluation_batch
 from core.graph.service import RunOrchestrator
+from core.observability.logging import configure_logging
 from core.rate_limit.pricing import validate_model_pricing_coverage
 
 
@@ -77,6 +78,10 @@ def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        # Configure logging first so every later startup step (pricing
+        # validation, orphan reconciliation, MCP wiring) is captured at the
+        # configured level and format instead of Python's bare default.
+        configure_logging(settings.log_level, settings.log_format)
         # Fail fast on bad DB config and on unpriced models (silent cost
         # mis-reporting/mis-enforcement is worse than a startup crash).
         validate_model_pricing_coverage(

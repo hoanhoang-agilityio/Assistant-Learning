@@ -195,6 +195,9 @@ class Settings(BaseSettings):
     streamlit_port: int = 8501
     api_base_url: str = "http://localhost:8000"
     log_level: str = "INFO"
+    # "json" for machine-parseable production logs, "text" for readable local
+    # output. Applied by core.observability.logging.configure_logging.
+    log_format: str = "json"
 
     @model_validator(mode="before")
     @classmethod
