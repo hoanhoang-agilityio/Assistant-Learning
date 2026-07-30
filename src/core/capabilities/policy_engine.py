@@ -69,7 +69,9 @@ def _apply_profile_gate(state: OrchestrationState, decision: PolicyDecision) -> 
     return PolicyDecision("user", True, "profile_incomplete")
 
 
-def _deterministic_next_after(state: OrchestrationState) -> tuple[RoutingDecision, str] | None:
+def _deterministic_next_after(
+    state: OrchestrationState, *, max_verification_retry_attempts: int
+) -> tuple[RoutingDecision, str] | None:
     """The one valid next step after the just-completed capability's result, when
     one is actually known -- `None` means there's no hard rule for this case (first
     hop, or a genuinely novel situation), so the Router Judge's proposal stands.
@@ -121,9 +123,26 @@ def _deterministic_next_after(state: OrchestrationState) -> tuple[RoutingDecisio
             return "finish", "fitness_answer_complete"
 
     if capability == "verification" and status == "completed":
-        # Verification is only ever invoked in service of an eventual HITL+persist
-        # cycle (see the `artifact_requires_verification` rule above) -- it always
-        # continues to HITL.
+        # L1 Phase 4: a failed check with a known owner (research: citation/
+        # faithfulness; fitness: consistency/safety -- see
+        # verification.utils._determine_retry_target) routes back to that
+        # owner automatically, once, before falling through to HITL --
+        # "Build -> Verify -> Fix" targeting the actual root cause instead of
+        # surfacing every failure to a human first. Capped by
+        # max_verification_retry_attempts (separate from MAX_REVISION_COUNT,
+        # which caps *human*-requested revisions) and backstopped by
+        # supervisor_max_hops regardless.
+        retry_target = artifacts.get("retry_target")
+        retry_count = int(state.get("verification_retry_count") or 0)
+        if (
+            not artifacts.get("passed", True)
+            and retry_target
+            and retry_count < max_verification_retry_attempts
+        ):
+            return retry_target, "verification_failed_auto_retry"
+        # Otherwise, verification is invoked in service of an eventual
+        # HITL+persist cycle (see the `artifact_requires_verification` rule
+        # above) -- it continues to HITL.
         return "hitl", "verification_requires_hitl"
 
     if capability == "hitl" and status == "completed":
@@ -144,6 +163,7 @@ def enforce_routing_invariants(
     proposal: SupervisorRoutingJudgement,
     *,
     max_hops: int,
+    max_verification_retry_attempts: int = 1,
 ) -> PolicyDecision:
     """Validate/override the Supervisor's proposal. Called once per hop, after the
     Router Judge and before the graph actually routes anywhere.
@@ -206,7 +226,9 @@ def enforce_routing_invariants(
             state, PolicyDecision("fitness", proposed != "fitness", "revision_requested")
         )
 
-    deterministic = _deterministic_next_after(state)
+    deterministic = _deterministic_next_after(
+        state, max_verification_retry_attempts=max_verification_retry_attempts
+    )
     if deterministic is not None:
         target, reason = deterministic
         return _apply_profile_gate(state, PolicyDecision(target, target != proposed, reason))

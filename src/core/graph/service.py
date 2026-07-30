@@ -9,6 +9,7 @@ from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -364,6 +365,15 @@ class RunOrchestrator:
         """Return recent runs for a user, newest first."""
         resolved_user_id = (user_id or "").strip() or get_settings().rate_limit_default_user_id
         return self._run_history_store.list_by_user(resolved_user_id, limit=limit)
+
+    def list_recent_completed(self, *, since: datetime, limit: int = 50) -> list[RunSummary]:
+        """All users' completed runs updated since `since`, oldest first.
+
+        Used by core.evaluation.shadow_eval's periodic sweep to find runs
+        eligible for shadow faithfulness scoring -- unlike list_runs, not
+        scoped to one user_id.
+        """
+        return self._run_history_store.list_recent_completed(since=since, limit=limit)
 
     def _resolve_user_id_for_run(self, run_id: str) -> str:
         config = self._build_config(run_id)

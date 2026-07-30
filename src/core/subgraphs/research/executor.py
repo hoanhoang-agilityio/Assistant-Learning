@@ -63,6 +63,11 @@ class DeterministicResearchExecutor:
             execution_plan=execution_plan,
             workspace_path=workspace,
             is_reresearch=False,
+            # L1 Phase 4: set only when the Policy Engine routed here via
+            # verification_failed_auto_retry (verification/capability.py lifts
+            # it from the failed report); None on a first pass or any other
+            # entry into Research.
+            verification_feedback=state.get("verification_feedback"),
         )
         write_research_artifacts(
             workspace_path=workspace,
@@ -116,6 +121,11 @@ class SupervisorRoutedResearchExecutor:
             execution_plan=execution_plan,
             workspace_path=workspace,
             is_reresearch=False,
+            # L1 Phase 4: set only when the Policy Engine routed here via
+            # verification_failed_auto_retry (verification/capability.py lifts
+            # it from the failed report); None on a first pass or any other
+            # entry into Research.
+            verification_feedback=state.get("verification_feedback"),
         )
         write_research_artifacts(
             workspace_path=workspace,

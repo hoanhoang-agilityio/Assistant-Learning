@@ -74,7 +74,11 @@ def supervisor_node(state: OrchestrationState) -> dict:
     settings = get_settings()
     merged_state: OrchestrationState = {**state, **updates}  # type: ignore[typeddict-item]
     updates.update(
-        run_supervisor_routing_decision(merged_state, max_hops=settings.supervisor_max_hops)
+        run_supervisor_routing_decision(
+            merged_state,
+            max_hops=settings.supervisor_max_hops,
+            max_verification_retry_attempts=settings.max_verification_retry_attempts,
+        )
     )
 
     return updates

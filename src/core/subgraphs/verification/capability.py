@@ -22,6 +22,11 @@ def invoke_verification_capability(state: OrchestrationState) -> dict:
     faithfulness_score = result.artifacts.get("faithfulness_score")
     if faithfulness_score is not None:
         updates["faithfulness_score"] = faithfulness_score
+    # L1 Phase 4: which capability owns fixing this failure (if any) and the
+    # report's feedback text -- consumed by policy_engine to decide whether to
+    # auto-retry instead of routing straight to HITL.
+    updates["verification_retry_target"] = result.artifacts.get("retry_target")
+    updates["verification_feedback"] = result.metadata.get("feedback")
     checks_run = result.metadata.get("checks_run") or []
     return merge_subgraph_updates(
         state,

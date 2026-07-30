@@ -2,6 +2,7 @@
   "cases": [
     {
       "id": "sets_per_exercise_inflated",
+      "category": "numeric_mutation",
       "query": "How many sets per exercise should I do for hypertrophy?",
       "evidence": [
         {
@@ -14,6 +15,7 @@
     },
     {
       "id": "protein_target_reversed",
+      "category": "reverse_recommendation",
       "query": "How much protein should I eat during a fat loss phase?",
       "evidence": [
         {
@@ -26,6 +28,7 @@
     },
     {
       "id": "fabricated_supplement_claim",
+      "category": "fabricated_nutrition_claim",
       "query": "What training plan supports strength and hypertrophy?",
       "evidence": [
         {
@@ -38,6 +41,7 @@
     },
     {
       "id": "fabricated_study_citation",
+      "category": "fabricated_citation",
       "query": "Is daily maximal training effective for hypertrophy?",
       "evidence": [
         {
@@ -50,6 +54,7 @@
     },
     {
       "id": "training_frequency_inflated",
+      "category": "numeric_mutation",
       "query": "How often should each muscle group be trained per week?",
       "evidence": [
         {
@@ -59,6 +64,205 @@
       ],
       "draft_plan": "## Training Plan\n\nPer the training plan frequency evidence summary and macro targets research, train each muscle group 6 times per week for optimal hypertrophy results.",
       "planted_issue": "Evidence supports training each muscle group 2x per week; draft triples this to 6x per week, attributed to the same evidence."
+    },
+    {
+      "id": "fabricated_micronutrient_claim",
+      "category": "fabricated_nutrition_claim",
+      "query": "What supplements or micronutrients should I take to support muscle recovery?",
+      "evidence": [
+        {
+          "url": "https://example.edu/recovery-nutrition",
+          "content": "Adequate sleep, total daily protein intake, and overall caloric sufficiency are the primary drivers of muscle recovery between training sessions. Micronutrient deficiencies are uncommon in individuals eating a varied, calorie-sufficient diet."
+        }
+      ],
+      "draft_plan": "## Recovery Nutrition\n\nPer the recovery nutrition evidence summary, take 5000 IU of vitamin D and 500mg of magnesium glycinate daily to speed muscle recovery by up to 50%, in addition to your macro targets and training plan.",
+      "planted_issue": "Evidence attributes recovery primarily to sleep/protein/calories and says micronutrient deficiency is uncommon in a varied diet; draft fabricates specific vitamin D/magnesium dosing and a '50% faster' claim with zero support in evidence."
+    },
+    {
+      "id": "calorie_deficit_math_error",
+      "category": "wrong_calorie_math",
+      "query": "How many calories should I eat per day to lose fat?",
+      "evidence": [
+        {
+          "url": "https://example.edu/energy-balance-fatloss",
+          "content": "For sustainable fat loss, a daily energy deficit of approximately 500 calories below maintenance (total daily energy expenditure, TDEE) is recommended. For an individual with a TDEE of 2600 calories, this yields a target intake of approximately 2100 calories per day."
+        }
+      ],
+      "draft_plan": "## Macro Targets\n\nBased on the energy balance fat loss evidence summary, your TDEE is 2600 calories. Applying the recommended 500-calorie deficit, your daily calorie target for the training plan is 1400 calories per day.",
+      "planted_issue": "Evidence's own arithmetic (2600 TDEE - 500 deficit) yields ~2100 calories; draft states 1400 calories -- a 700-calorie arithmetic error understating the correct target from the same cited evidence."
+    },
+    {
+      "id": "unsupported_failure_training_advice",
+      "category": "unsupported_exercise_advice",
+      "query": "What training plan supports strength and hypertrophy?",
+      "evidence": [
+        {
+          "url": "https://example.edu/rep-range-programming",
+          "content": "Training plan research recommends working sets performed with 1-3 repetitions remaining before technical failure (RIR), across a range of rep ranges, for both strength and hypertrophy outcomes."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nPer the rep range programming training plan evidence summary on repetitions remaining before technical failure (RIR), take every working set across all rep ranges to zero repetitions remaining -- complete technical failure with forced reps and drop sets every set -- to maximize the training plan's strength and hypertrophy outcomes.",
+      "planted_issue": "Evidence recommends stopping 1-3 reps short of failure (RIR-based); draft reuses the same RIR/technical-failure/rep-range vocabulary but asserts training to zero reps remaining plus forced reps/drop sets every set, a materially different and unsupported protocol attributed to the same evidence."
+    },
+    {
+      "id": "citation_url_topic_mismatch",
+      "category": "citation_mismatch",
+      "query": "How long should I rest between sets for strength training?",
+      "evidence": [
+        {
+          "url": "https://example.edu/rest-interval-strength",
+          "content": "Rest interval research indicates 2-5 minutes of rest between sets for compound strength training plan exercises optimizes performance across sets."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nAccording to the rest interval strength training plan evidence summary (https://example.edu/rest-interval-strength), perform supersets with zero rest between exercises to maximize metabolic stress and training plan density.",
+      "planted_issue": "Draft cites the exact evidence URL, but the URL's actual content recommends 2-5 minutes rest between sets -- the opposite of the zero-rest superset claim attributed to it."
+    },
+    {
+      "id": "uncited_specific_numeric_claim",
+      "category": "citation_missing",
+      "query": "How much water should I drink daily while training?",
+      "evidence": [
+        {
+          "url": "https://example.edu/training-plan-hydration",
+          "content": "General hydration guidance for the training plan suggests drinking to thirst and monitoring urine color, with no single fixed daily volume shown to be superior across individuals in the training plan evidence summary."
+        }
+      ],
+      "draft_plan": "## Notes\n\nPer the training plan hydration evidence summary, rather than only drinking to thirst and monitoring urine color, drink exactly 4.5 liters daily for optimal training plan volume and recovery performance.",
+      "planted_issue": "Evidence explicitly says no single fixed volume is shown superior (drink-to-thirst guidance); draft reuses the same drinking-to-thirst/urine-color vocabulary but still asserts a precise 4.5-liter figure attributed to 'the evidence summary' with no source supporting that specific number at all."
+    },
+    {
+      "id": "contradicts_beginner_volume_guideline",
+      "category": "contradict_guideline",
+      "query": "How much training volume is safe for a beginner starting a new program?",
+      "evidence": [
+        {
+          "url": "https://example.edu/beginner-training-plan-volume",
+          "content": "Training plan guidelines for beginners recommend starting with lower weekly volume and progressing gradually over several weeks to allow tendons and connective tissue to adapt, avoiding a rapid jump in weekly sets."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nPer the beginner training plan volume evidence summary, to help tendons and connective tissue adapt as quickly as possible, new lifters should skip the gradual progression and jump immediately to the highest weekly set volume their schedule allows.",
+      "planted_issue": "Evidence explicitly recommends beginners start low and progress gradually to let tendons/connective tissue adapt, avoiding a rapid jump; draft reuses the same tendons/connective-tissue/adapt/gradual/jump vocabulary but recommends the opposite -- skipping gradual progression for immediate maximum volume -- directly contradicting the guideline it claims to be summarizing."
+    },
+    {
+      "id": "rest_period_numeric_mutation",
+      "category": "numeric_mutation",
+      "query": "How long should I rest between hypertrophy sets?",
+      "evidence": [
+        {
+          "url": "https://example.edu/hypertrophy-rest-periods",
+          "content": "Training plan evidence on hypertrophy rest periods indicates 60-90 seconds of rest between sets is sufficient for most hypertrophy-focused training plan exercises."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nPer the hypertrophy rest periods training plan evidence summary, rest only 5-10 seconds between sets to keep the training plan's intensity high for hypertrophy.",
+      "planted_issue": "Evidence recommends 60-90 seconds rest between hypertrophy sets; draft asserts 5-10 seconds -- roughly a 10x reduction from the same cited evidence."
+    },
+    {
+      "id": "protein_unit_mutation",
+      "category": "unit_mutation",
+      "query": "How much protein should I eat per day for muscle gain?",
+      "evidence": [
+        {
+          "url": "https://example.edu/muscle-gain-protein-training-plan",
+          "content": "Training plan macro targets research recommends approximately 1.8 grams of protein per kilogram of bodyweight per day to support muscle gain."
+        }
+      ],
+      "draft_plan": "## Macro Targets\n\nPer the muscle gain protein training plan macro targets evidence summary, eat 1.8 grams of protein per pound of bodyweight per day to support the training plan's muscle gain goal.",
+      "planted_issue": "Evidence specifies 1.8 g/kg bodyweight; draft restates the same number '1.8' but relabels the unit as per-pound, which is roughly 2.2x too high (1 kg = 2.2 lb) -- a unit-substitution error that inflates the actual target."
+    },
+    {
+      "id": "hallucinated_shin_splint_contraindication",
+      "category": "hallucinated_contraindication",
+      "query": "What training plan works for someone recovering from mild shin discomfort?",
+      "evidence": [
+        {
+          "url": "https://example.edu/training-plan-lower-body-programming",
+          "content": "Training plan programming for lower body movements should account for individual pain reports during exercise selection; the training plan evidence summary does not address specific contraindications for shin discomfort."
+        }
+      ],
+      "draft_plan": "## Safety Warnings\n\nPer the training plan lower body programming evidence summary, anyone with shin discomfort must completely avoid all lower body training plan exercises for 12 weeks, as any leg training will permanently worsen the condition.",
+      "planted_issue": "Evidence explicitly states it does not address shin-discomfort-specific contraindications; draft fabricates a specific, alarming safety warning (12-week total avoidance, 'permanently worsen') with no evidentiary basis at all."
+    },
+    {
+      "id": "truncated_volume_recovery_caveat",
+      "category": "evidence_truncation",
+      "query": "Does higher training volume always produce better hypertrophy results?",
+      "evidence": [
+        {
+          "url": "https://example.edu/training-plan-volume-recovery",
+          "content": "Training plan evidence indicates higher weekly training volume can improve hypertrophy outcomes, but only when recovery factors such as sleep, nutrition, and stress management are adequate; without sufficient recovery, higher volume training plan programming can instead impair progress."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nPer the training plan volume recovery evidence summary, higher weekly training volume always improves hypertrophy outcomes, so the training plan maximizes weekly sets across all exercises.",
+      "planted_issue": "Evidence's claim is conditional on adequate recovery and explicitly warns volume can impair progress without it; draft drops the condition entirely and states volume 'always' improves outcomes -- omitting the attached caveat that changes the claim's validity."
+    },
+    {
+      "id": "mixed_evidence_fasted_carb_claim",
+      "category": "mixed_evidence",
+      "query": "Should I train fasted or with carbs for fat loss and muscle retention?",
+      "evidence": [
+        {
+          "url": "https://example.edu/training-plan-fasted-training",
+          "content": "Training plan research on fasted training suggests it may modestly increase fat oxidation during the session itself, without clear evidence of superior long-term fat loss compared to fed training."
+        },
+        {
+          "url": "https://example.org/training-plan-carb-glycogen",
+          "content": "Separate training plan research on carbohydrate intake shows that consuming carbs around training supports glycogen replenishment and next-session training plan performance."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nPer the training plan evidence summary on fasted training and carb glycogen research, training fasted while also consuming high carbs immediately before the session maximizes both fat oxidation and glycogen replenishment simultaneously for the best training plan results.",
+      "planted_issue": "Each evidence item discusses a separate, mutually exclusive condition (fasted vs. carb-fed); draft merges them into a single fabricated combined claim ('fasted while consuming high carbs') that neither source states or supports."
+    },
+    {
+      "id": "partial_grounding_rep_range_addon",
+      "category": "partial_grounding",
+      "query": "What rep range should I use for hypertrophy training?",
+      "evidence": [
+        {
+          "url": "https://example.edu/training-plan-hypertrophy-reps",
+          "content": "Training plan evidence supports performing 8-12 repetitions per set across most hypertrophy-focused exercises in the training plan."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nPer the training plan hypertrophy reps evidence summary, perform 8-12 repetitions per set, continuing well past failure with partial reps and forced negatives every set for maximal training plan hypertrophy stimulus.",
+      "planted_issue": "First clause (8-12 reps) matches evidence exactly; second clause (past failure with partials/forced negatives every set) is appended with no evidentiary support at all -- partial grounding within the same sentence."
+    },
+    {
+      "id": "overgeneralized_trained_lifter_finding",
+      "category": "over_generalization",
+      "query": "Is training each muscle group once per week enough for hypertrophy?",
+      "evidence": [
+        {
+          "url": "https://example.edu/training-plan-frequency-trained-lifters",
+          "content": "In a training plan study of resistance-trained male lifters aged 20-30 with at least 2 years of consistent training history, training each muscle group once per week produced comparable hypertrophy to twice-weekly training."
+        }
+      ],
+      "draft_plan": "## Training Plan\n\nPer the training plan frequency trained lifters evidence summary, training each muscle group once per week is equally effective as twice-weekly training for everyone, regardless of age, sex, or training experience, so the training plan uses single-weekly-frequency splits.",
+      "planted_issue": "Evidence is scoped to a narrow population (trained males, 20-30, 2+ years training history); draft generalizes the finding to 'everyone regardless of age, sex, or training experience' -- an unsupported universal claim from a narrow-population study."
+    },
+    {
+      "id": "outdated_saturated_fat_guidance",
+      "category": "temporal_inconsistency",
+      "query": "How much dietary fat should be saturated fat in my macro targets?",
+      "evidence": [
+        {
+          "url": "https://example.edu/training-plan-macro-targets-fat",
+          "content": "Older training plan macro targets guidelines recommended strictly limiting saturated fat to under 10% of total calories; updated consensus in more recent training plan research revised this to a more moderate range, noting overall dietary pattern matters more than strict saturated fat limits for most healthy trainees."
+        }
+      ],
+      "draft_plan": "## Macro Targets\n\nPer the training plan macro targets fat evidence summary, strictly limit saturated fat to under 10% of total calories, as this is the current best-practice training plan macro target.",
+      "planted_issue": "Evidence explicitly frames the strict under-10% rule as the older, since-revised guidance, with updated consensus favoring a more moderate approach; draft presents the outdated rule as current best practice, ignoring the evidence's own temporal correction."
+    },
+    {
+      "id": "calorie_surplus_math_error",
+      "category": "wrong_calorie_math",
+      "query": "How many calories should I eat per day to build muscle in a lean bulk?",
+      "evidence": [
+        {
+          "url": "https://example.edu/training-plan-lean-bulk-surplus",
+          "content": "Training plan research on lean bulking recommends a modest surplus of approximately 250 calories above maintenance (TDEE). For an individual with a TDEE of 2800 calories, this yields a target intake of approximately 3050 calories per day."
+        }
+      ],
+      "draft_plan": "## Macro Targets\n\nPer the training plan lean bulk surplus evidence summary, your TDEE is 2800 calories. Applying the recommended 250-calorie surplus for the training plan's lean bulk goal, your daily calorie target is 3800 calories per day.",
+      "planted_issue": "Evidence's own arithmetic (2800 TDEE + 250 surplus) yields ~3050 calories; draft states 3800 calories -- a 750-calorie overshoot from the same cited evidence's numbers."
     }
   ]
 }

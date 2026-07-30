@@ -60,7 +60,9 @@ def build_routing_context(state: OrchestrationState, *, max_hops: int) -> Routin
     )
 
 
-def run_supervisor_routing_decision(state: OrchestrationState, *, max_hops: int) -> dict[str, Any]:
+def run_supervisor_routing_decision(
+    state: OrchestrationState, *, max_hops: int, max_verification_retry_attempts: int = 1
+) -> dict[str, Any]:
     """Propose + enforce the next routing hop.
 
     Returns a state update dict with `next_agent`, `hop_count`, `agent_trail`, and
@@ -72,7 +74,12 @@ def run_supervisor_routing_decision(state: OrchestrationState, *, max_hops: int)
         state, routing_context=ctx.model_dump(mode="json")
     ) as span:
         proposal = judge_next_route(ctx)
-        decision = enforce_routing_invariants(state, proposal, max_hops=max_hops)
+        decision = enforce_routing_invariants(
+            state,
+            proposal,
+            max_hops=max_hops,
+            max_verification_retry_attempts=max_verification_retry_attempts,
+        )
         if span is not None:
             span.update(
                 output={"next_agent": decision.next_agent, "overridden": decision.overridden}
@@ -103,6 +110,8 @@ def run_supervisor_routing_decision(state: OrchestrationState, *, max_hops: int)
         # now just reflects the Supervisor's own resolved decision.
         "active_capability": None if decision.next_agent == "finish" else decision.next_agent,
     }
+    if decision.override_reason == "verification_failed_auto_retry":
+        updates["verification_retry_count"] = int(state.get("verification_retry_count") or 0) + 1
     if decision.next_agent == "finish":
         updates["run_complete"] = True
         last_result = state.get("last_capability_result") or {}

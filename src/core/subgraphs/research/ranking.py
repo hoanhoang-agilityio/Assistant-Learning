@@ -8,6 +8,15 @@ WEIGHT_AUTHORITY = 0.30
 WEIGHT_SOURCE_TYPE = 0.20
 WEIGHT_FRESHNESS = 0.10
 
+# A source that fails the topical-relevance check (verification.py's
+# `topically_relevant`, 2026-07-30) should rank near the bottom regardless of
+# how authoritative/fresh/well-typed it otherwise looks -- a prestigious
+# domain hosting an off-topic paper is the exact bug this penalty closes.
+# Multiplicative (not folded into the 4 weights above) so existing weight
+# tuning is untouched; defaults to "relevant" for any source that was never
+# run through verify_source (e.g. synthetic sources in a direct unit test).
+_OFF_TOPIC_PENALTY = 0.15
+
 SOURCE_TYPE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "systematic_review": ("systematic review", "meta-analysis", "meta analysis"),
     "guideline": ("guideline", "position stand", "consensus statement", "recommendation"),
@@ -74,6 +83,8 @@ def compute_composite_score(source: dict[str, Any]) -> float:
         + WEIGHT_SOURCE_TYPE * type_score
         + WEIGHT_FRESHNESS * freshness
     )
+    if not source.get("topically_relevant", True):
+        composite *= _OFF_TOPIC_PENALTY
     return round(_clamp(composite), 4)
 
 

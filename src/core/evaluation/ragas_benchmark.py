@@ -14,9 +14,7 @@ from typing import Any
 
 from core.agents.execution_context import build_execution_context
 from core.config.settings import get_settings
-from core.evaluation.ragas import ragas_faithfulness_data
 from core.graph.run import create_initial_state
-from core.llm.factory import get_standard_llm
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.subgraphs.fitness.capability import invoke_fitness_capability
 from core.subgraphs.fitness.planner import configure_fitness_planner
@@ -25,6 +23,7 @@ from core.subgraphs.research.capability import invoke_research_capability
 from core.subgraphs.verification.capability import invoke_verification_capability
 from core.subgraphs.verification.utils import (
     FAITHFULNESS_PASS_THRESHOLD,
+    evaluate_faithfulness,
     heuristic_faithfulness_data,
     load_verification_context,
 )
@@ -39,6 +38,7 @@ class GoldenCase:
     profile: dict[str, Any]
     constraints: dict[str, Any]
     min_faithfulness: float
+    reference: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,10 +47,12 @@ class BenchmarkResult:
 
     faithfulness_score/pass_fail are always the heuristic, pipeline-authoritative
     values (whatever the golden case's actual verification capability run
-    produced). real_faithfulness_score/real_pass_fail are additive comparison
-    data from the real Ragas SDK, populated only when
-    settings.verification_use_real_ragas is on -- they never replace the
-    heuristic values or change this case's pass/fail verdict.
+    produced). real_faithfulness_score/real_pass_fail and the other real_*_score
+    fields are additive comparison data from the real Ragas SDK, populated only
+    when settings.verification_use_real_ragas is on -- they never replace the
+    heuristic values or change this case's pass/fail verdict. context_recall and
+    answer_correctness are only populated when the golden case has a
+    `reference` (ground-truth answer); otherwise they stay None.
     """
 
     case_id: str
@@ -60,6 +62,10 @@ class BenchmarkResult:
     workspace_path: str
     real_faithfulness_score: float | None = None
     real_pass_fail: bool | None = None
+    real_answer_relevancy_score: float | None = None
+    real_context_precision_score: float | None = None
+    real_context_recall_score: float | None = None
+    real_answer_correctness_score: float | None = None
 
 
 def load_golden_cases(path: Path) -> list[GoldenCase]:
@@ -72,22 +78,35 @@ def load_golden_cases(path: Path) -> list[GoldenCase]:
             profile=dict(item["profile"]),
             constraints=dict(item.get("constraints", {})),
             min_faithfulness=float(item.get("min_faithfulness", FAITHFULNESS_PASS_THRESHOLD)),
+            reference=(str(item["reference"]) if item.get("reference") else None),
         )
         for item in cases
     ]
 
 
 def _build_mock_tavily_client() -> TavilyMCPClient:
-    def search(query: str) -> dict[str, Any]:
+    # Concrete, citable claims rather than keyword-salad filler -- the
+    # synthesis prompt now explicitly instructs the LLM to omit a claim
+    # rather than fabricate one when evidence doesn't support anything
+    # specific (see research/prompts.py SYNTHESIS_SYSTEM_PROMPT), so vague
+    # filler content reliably produced an empty (and, pre-2026-07-30,
+    # schema-rejected) key_findings list instead of exercising real citation.
+    _MOCK_EVIDENCE_CONTENT = (
+        "Position-stand guidance for hypertrophy recommends training each "
+        "muscle group at least twice per week with loads of 65-85% of "
+        "one-rep max for 3-5 sets of 6-12 reps, and consuming 1.6-2.2g of "
+        "protein per kg of bodyweight per day. For fat loss, a moderate "
+        "deficit of roughly 500 kcal/day preserves lean mass better than "
+        "an aggressive deficit."
+    )
+
+    def search(query: str, include_domains: list[str] | None = None) -> dict[str, Any]:
         return {
             "results": [
                 {
                     "title": f"Evidence for {query}",
                     "url": "https://example.edu/fitness-training",
-                    "content": (
-                        "hypertrophy training evidence macro targets training plan "
-                        "strength programming nutrition"
-                    ),
+                    "content": _MOCK_EVIDENCE_CONTENT,
                     "score": 0.92,
                 }
             ]
@@ -98,10 +117,7 @@ def _build_mock_tavily_client() -> TavilyMCPClient:
             "results": [
                 {
                     "url": url,
-                    "raw_content": (
-                        "hypertrophy training evidence macro targets training plan "
-                        "strength programming nutrition evidence summary"
-                    ),
+                    "raw_content": _MOCK_EVIDENCE_CONTENT,
                 }
                 for url in urls
             ]
@@ -155,14 +171,23 @@ def run_golden_case(
 
         real_faithfulness_score: float | None = None
         real_pass_fail: bool | None = None
+        real_answer_relevancy_score: float | None = None
+        real_context_precision_score: float | None = None
+        real_context_recall_score: float | None = None
+        real_answer_correctness_score: float | None = None
         if get_settings().verification_use_real_ragas:
             real_result = evaluate_draft_faithfulness(
                 context.get("grounded_claims") or context["draft_plan"],
                 context["evidence"],
                 query=case.query,
+                reference=case.reference,
             )
             real_faithfulness_score = real_result["faithfulness_score"]
             real_pass_fail = real_result["pass_fail"]
+            real_answer_relevancy_score = real_result.get("answer_relevancy_score")
+            real_context_precision_score = real_result.get("context_precision_score")
+            real_context_recall_score = real_result.get("context_recall_score")
+            real_answer_correctness_score = real_result.get("answer_correctness_score")
 
         return BenchmarkResult(
             case_id=case.case_id,
@@ -172,6 +197,10 @@ def run_golden_case(
             workspace_path=initial["workspace_path"],
             real_faithfulness_score=real_faithfulness_score,
             real_pass_fail=real_pass_fail,
+            real_answer_relevancy_score=real_answer_relevancy_score,
+            real_context_precision_score=real_context_precision_score,
+            real_context_recall_score=real_context_recall_score,
+            real_answer_correctness_score=real_answer_correctness_score,
         )
     finally:
         configure_tavily_client(None)
@@ -203,22 +232,23 @@ def evaluate_draft_faithfulness(
 
     Uses the real Ragas SDK (core.evaluation.ragas) when
     settings.verification_use_real_ragas is on, else the same heuristic
-    proxy production verification uses. This is the only place in this
-    plan's scope that reads verification_use_real_ragas -- production's
-    _ragas_faithfulness_node always uses the heuristic regardless.
+    proxy production verification uses -- both paths now go through
+    verification.utils.evaluate_faithfulness, the single dispatch point
+    production's executor.py also calls (2026-07-30 Phase 1 unification),
+    so this and production can no longer silently drift onto different
+    dispatch logic. Production's own use_real is hardcoded False regardless
+    of this setting -- see executor.py's _PRODUCTION_USE_REAL_RAGAS.
 
     ``reference`` (ground-truth answer) enables context_recall and
     answer_correctness on the real-SDK path; ignored by the heuristic.
     """
-    if get_settings().verification_use_real_ragas:
-        return ragas_faithfulness_data(
-            draft_plan,
-            evidence,
-            query=query,
-            judge_llm=get_standard_llm(),
-            reference=reference,
-        )
-    return heuristic_faithfulness_data(draft_plan, evidence)
+    return evaluate_faithfulness(
+        draft_plan,
+        evidence,
+        query=query,
+        reference=reference,
+        use_real=get_settings().verification_use_real_ragas,
+    )
 
 
 @dataclass(frozen=True)
@@ -233,6 +263,7 @@ class AdversarialCase:
     evidence: list[dict[str, Any]]
     draft_plan: str
     planted_issue: str
+    category: str = "uncategorized"
 
 
 def load_adversarial_cases(path: Path) -> list[AdversarialCase]:
@@ -245,6 +276,7 @@ def load_adversarial_cases(path: Path) -> list[AdversarialCase]:
             evidence=list(item["evidence"]),
             draft_plan=str(item["draft_plan"]),
             planted_issue=str(item.get("planted_issue", "")),
+            category=str(item.get("category", "uncategorized")),
         )
         for item in cases
     ]
@@ -268,13 +300,14 @@ def compare_faithfulness_scorers(
         heuristic_result = heuristic_faithfulness_data(case.draft_plan, case.evidence)
         row: dict[str, Any] = {
             "case_id": case.case_id,
+            "category": case.category,
             "planted_issue": case.planted_issue,
             "heuristic_faithfulness_score": heuristic_result["faithfulness_score"],
             "heuristic_pass_fail": heuristic_result["pass_fail"],
         }
         if include_real:
-            real_result = ragas_faithfulness_data(
-                case.draft_plan, case.evidence, query=case.query, judge_llm=get_standard_llm()
+            real_result = evaluate_faithfulness(
+                case.draft_plan, case.evidence, query=case.query, use_real=True
             )
             row["real_faithfulness_score"] = real_result["faithfulness_score"]
             row["real_pass_fail"] = real_result["pass_fail"]
