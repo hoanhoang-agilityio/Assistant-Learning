@@ -5,10 +5,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.deps import close_orchestrator_resources, get_orchestrator
+from api.deps import close_orchestrator_resources, get_orchestrator, get_shadow_eval_store
 from api.routes.runs import router as runs_router
 from api.routes.users import router as users_router
 from core.config.settings import Settings, get_settings
+from core.evaluation.shadow_eval import run_shadow_evaluation_batch
 from core.graph.service import RunOrchestrator
 from core.rate_limit.pricing import validate_model_pricing_coverage
 
@@ -23,6 +24,25 @@ async def _run_periodic_reconciliation(instance: RunOrchestrator, interval_secon
     while True:
         await asyncio.sleep(interval_seconds)
         await asyncio.to_thread(instance.reconcile_orphaned_runs)
+
+
+async def _run_periodic_shadow_evaluation(
+    instance: RunOrchestrator, interval_seconds: float
+) -> None:
+    """Score recently-completed runs with the real Ragas SDK on a timer, for the
+    lifetime of the process (L1 remediation, Phase 2 -- see
+    core.evaluation.shadow_eval's module docstring for why this is pull-based).
+
+    Off by default (settings.verification_shadow_eval_enabled) -- this task is
+    only ever created when the caller has opted in; production's synchronous
+    verification path and pass/fail verdict are untouched either way.
+    """
+    shadow_store = get_shadow_eval_store()
+    while True:
+        await asyncio.sleep(interval_seconds)
+        await asyncio.to_thread(
+            run_shadow_evaluation_batch, history_store=instance, shadow_store=shadow_store
+        )
 
 
 def resolve_cors_origins(settings: Settings) -> list[str]:
@@ -70,6 +90,7 @@ def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
         # (tests) — dependency_overrides bypasses get_orchestrator() for
         # request handling, but the lifespan runs independently of that.
         reconciliation_task: asyncio.Task | None = None
+        shadow_eval_task: asyncio.Task | None = None
         if orchestrator is None:
             # get_orchestrator() -> configure_fitness_client_from_settings() ->
             # create_fitness_mcp_client_sync() calls asyncio.run() internally, which raises
@@ -83,11 +104,21 @@ def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
             reconciliation_task = asyncio.create_task(
                 _run_periodic_reconciliation(instance, settings.reconciliation_interval_seconds)
             )
+            if settings.verification_shadow_eval_enabled:
+                shadow_eval_task = asyncio.create_task(
+                    _run_periodic_shadow_evaluation(
+                        instance, settings.verification_shadow_eval_interval_seconds
+                    )
+                )
         yield
         if reconciliation_task is not None:
             reconciliation_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await reconciliation_task
+        if shadow_eval_task is not None:
+            shadow_eval_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await shadow_eval_task
         if orchestrator is None:
             close_orchestrator_resources()
 

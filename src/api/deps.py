@@ -5,6 +5,7 @@ from functools import lru_cache
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from core.config.settings import Settings, get_settings
+from core.evaluation.shadow_eval import InMemoryShadowEvalStore, ShadowEvalStore
 from core.graph.checkpointer import postgres_checkpointer
 from core.graph.idempotency_store import IdempotencyStore
 from core.graph.run_history_store import InMemoryRunHistoryStore, RunHistoryStore
@@ -28,6 +29,7 @@ _postgres_checkpointer_cm = None
 _run_tracker: RunTracker | None = None
 _idempotency_store: IdempotencyStore | None = None
 _run_history_store: RunHistoryStore | InMemoryRunHistoryStore | None = None
+_shadow_eval_store: ShadowEvalStore | InMemoryShadowEvalStore | None = None
 
 
 def configure_research_client() -> None:
@@ -128,6 +130,21 @@ def _build_run_history_store(settings: Settings) -> RunHistoryStore | InMemoryRu
 
 
 @lru_cache
+def get_shadow_eval_store() -> ShadowEvalStore | InMemoryShadowEvalStore:
+    """Built lazily, only when the shadow-eval periodic task actually runs
+    (main.py checks settings.verification_shadow_eval_enabled before calling
+    this) -- no connection opened at all when the feature is off, which is
+    the default."""
+    global _shadow_eval_store
+    settings = get_settings()
+    if settings.use_postgres_checkpointer:
+        _shadow_eval_store = ShadowEvalStore(settings.checkpointer_dsn)
+    else:
+        _shadow_eval_store = InMemoryShadowEvalStore()
+    return _shadow_eval_store
+
+
+@lru_cache
 def get_orchestrator() -> RunOrchestrator:
     configure_research_client()
     configure_fitness_client_from_settings()
@@ -156,6 +173,7 @@ def get_orchestrator() -> RunOrchestrator:
 def close_orchestrator_resources() -> None:
     """Close long-lived Postgres connections — call from the app's shutdown/lifespan."""
     global _postgres_checkpointer_cm, _run_tracker, _idempotency_store, _run_history_store
+    global _shadow_eval_store
     if _postgres_checkpointer_cm is not None:
         _postgres_checkpointer_cm.__exit__(None, None, None)
         _postgres_checkpointer_cm = None
@@ -170,6 +188,9 @@ def close_orchestrator_resources() -> None:
     if isinstance(_run_history_store, RunHistoryStore):
         _run_history_store.close()
         _run_history_store = None
+    if isinstance(_shadow_eval_store, ShadowEvalStore):
+        _shadow_eval_store.close()
+        _shadow_eval_store = None
     configure_fitness_client(None)
 
 
@@ -177,6 +198,7 @@ def reset_orchestrator() -> None:
     close_orchestrator_resources()
     get_orchestrator.cache_clear()
     get_rate_limiter.cache_clear()
+    get_shadow_eval_store.cache_clear()
     configure_rate_limiter(None)
     global _usage_store
     _usage_store = InMemoryUsageStore()

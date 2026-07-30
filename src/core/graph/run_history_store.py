@@ -31,6 +31,10 @@ _INDEX_DDL = """
 CREATE INDEX IF NOT EXISTS run_history_user_updated_idx
     ON run_history (user_id, updated_at DESC)
 """
+_STATUS_INDEX_DDL = """
+CREATE INDEX IF NOT EXISTS run_history_status_updated_idx
+    ON run_history (status, updated_at)
+"""
 
 
 @dataclass(frozen=True)
@@ -74,6 +78,15 @@ class InMemoryRunHistoryStore:
         rows.sort(key=lambda row: row.updated_at, reverse=True)
         return rows[:limit]
 
+    def list_recent_completed(self, *, since: datetime, limit: int = 50) -> list[RunSummary]:
+        rows = [
+            row
+            for row in self._rows.values()
+            if row.status == "completed" and row.updated_at >= since
+        ]
+        rows.sort(key=lambda row: row.updated_at)
+        return rows[:limit]
+
     def reset(self) -> None:
         self._rows.clear()
 
@@ -99,6 +112,7 @@ class RunHistoryStore:
         with self._pool.connection() as conn:
             conn.execute(_TABLE_DDL)
             conn.execute(_INDEX_DDL)
+            conn.execute(_STATUS_INDEX_DDL)
             conn.commit()
 
     def upsert(
@@ -137,6 +151,33 @@ class RunHistoryStore:
                 LIMIT %s
                 """,
                 (user_id, limit),
+            ).fetchall()
+        return [
+            RunSummary(
+                run_id=row[0],
+                user_id=row[1],
+                query=row[2],
+                status=row[3],
+                steps=tuple(row[4] or []),
+                updated_at=row[5],
+            )
+            for row in rows
+        ]
+
+    def list_recent_completed(self, *, since: datetime, limit: int = 50) -> list[RunSummary]:
+        """All users' completed runs updated since `since`, oldest first (so a
+        capped batch always makes progress through a backlog instead of
+        re-fetching the same newest rows every tick)."""
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT run_id, user_id, query, status, steps, updated_at
+                FROM run_history
+                WHERE status = 'completed' AND updated_at >= %s
+                ORDER BY updated_at ASC
+                LIMIT %s
+                """,
+                (since, limit),
             ).fetchall()
         return [
             RunSummary(
