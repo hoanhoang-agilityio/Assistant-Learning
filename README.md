@@ -36,7 +36,7 @@ One-time schema setup for the Fitness Knowledge Store (idempotent, safe to re-ru
 
 ```bash
 uv run python scripts/bootstrap_fitness_db.py
-uv run python scripts/ingest_knowledge.py   # loads the checked-in guideline corpus
+uv run python scripts/ingest_knowledge.py   # embeds the guideline corpus — see below
 ```
 
 ### Optional extras
@@ -113,6 +113,102 @@ curl -X POST http://localhost:8000/runs \
     "constraints": {"days_per_week": 4, "equipment": "gym"}
   }'
 ```
+
+## Embedding data for RAG
+
+The Fitness Knowledge Store is the curated corpus the agent prefers over live web
+research. Getting data into it is one command, but what that command does is worth
+knowing before you add your own documents.
+
+### The pipeline
+
+```text
+corpus.jsonl → JSONLLoader → Validator → SimpleChunker → OpenAI embeddings → Postgres (pgvector)
+```
+
+```bash
+uv run python scripts/bootstrap_fitness_db.py   # creates tables + the vector/FTS indexes
+uv run python scripts/ingest_knowledge.py       # embeds and upserts every record
+# -> Ingested 9 sources, 9 documents, 9 chunks.
+```
+
+Both are **idempotent** (`ON CONFLICT DO UPDATE` throughout) — re-run them after editing the
+corpus and existing rows are replaced, not duplicated. Ingestion writes straight to Postgres,
+bypassing MCP: it is an admin/seeding operation, not something an agent does at runtime.
+
+Requires `OPENAI_API_KEY` — every chunk is embedded for real.
+
+### The corpus
+
+`src/core/shared/knowledge/data/corpus.jsonl` — one JSON object per line:
+
+```json
+{
+  "id": "hypertrophy-volume-guideline",
+  "title": "Hypertrophy Weekly Set Volume",
+  "content": "Most muscle groups respond well to roughly 10-20 hard sets per week ...",
+  "category": "hypertrophy",
+  "tags": ["volume", "sets", "hypertrophy"],
+  "goal_applicability": ["muscle_gain", "recomposition", "general_fitness"],
+  "equipment_applicability": ["gym", "home", "bodyweight"],
+  "source_type": "guideline",
+  "source_url": "local-kb://hypertrophy-volume-guideline",
+  "published_year": null,
+  "reviewed_at": null,
+  "trust_score": 0.95
+}
+```
+
+To add your own data, append records and re-run `ingest_knowledge.py`. Three fields do more
+work than they look like they do:
+
+- **`category`** is a retrieval **filter**, not a label. The query rewriter infers a category
+  from the user's question and it is applied as a hard SQL constraint, so a document whose
+  category does not match is excluded outright. Keep the vocabulary small and consistent.
+  (If a filtered search returns nothing, retrieval now retries once without the inferred
+  category — otherwise a mismatch would silently return zero results.)
+- **`goal_applicability` / `equipment_applicability`** are filtered against the caller's
+  profile. Leave them broad unless a document genuinely only applies to one setup.
+- **`trust_score`** feeds `has_sufficient_coverage`, which decides whether the agent can skip
+  external web research. Documents below the caller's `min_trust_score` (default `0.85`)
+  will not satisfy coverage on their own.
+
+### Tuning
+
+| Setting | Default | Notes |
+|---|---|---|
+| `FITNESS_KB_EMBEDDING_MODEL` | `text-embedding-3-small` | **Coupled to the schema** — see below |
+| `FITNESS_KB_CHUNK_MAX_CHARS` | `2000` | Chunk size |
+| `FITNESS_KB_CHUNK_OVERLAP` | `200` | Overlap between chunks |
+| `FITNESS_KB_MIN_SIMILARITY` | `0.4` | Cosine floor for dense retrieval |
+| `FITNESS_KB_QUERY_REWRITE_ENABLED` | `true` | LLM query understanding before retrieval |
+| `FITNESS_KB_RERANK_ENABLED` | `true` | LLM relevance rerank after fusion |
+
+> **Changing the embedding model is not a config-only change.** The chunks table declares
+> `embedding vector(1536)`, matching `text-embedding-3-small`. A model with different
+> dimensions requires editing that DDL in `core/adapters/db/bootstrap.py`, dropping the
+> table, and re-ingesting — the mismatch will otherwise fail at insert time.
+
+### Verifying it worked
+
+```bash
+uv run python -c "
+from core.config.settings import get_settings
+from core.shared.knowledge.embeddings import get_embedding_provider
+from core.adapters.db.guideline_repository import GuidelineRepository
+from core.shared.knowledge.retrieval_service import build_retrieval_service
+s = get_settings(); repo = GuidelineRepository(s.checkpointer_dsn)
+svc = build_retrieval_service(repo, get_embedding_provider(s), s)
+for h in svc.search(kind='guideline', query='how many sets per week for hypertrophy',
+                    goal='muscle_gain', equipment='gym', limit=3,
+                    min_similarity=s.fitness_kb_min_similarity):
+    print(f'{h.document_id:38} sim={h.similarity:.3f} trust={h.trust_score}')
+repo.close()"
+```
+
+Retrieval is hybrid: pgvector cosine **and** Postgres full-text search, fused with reciprocal
+rank fusion, then reranked. So a document can surface on keyword match even when its
+embedding similarity is mediocre.
 
 ## Run the Fitness MCP Server
 
