@@ -24,7 +24,10 @@ default:
       - .cache/uv
   before_script:
     - pip install --no-cache-dir uv
-    - uv sync --frozen --extra dev
+    # `eval` is installed here but deliberately NOT a runtime dependency: the
+    # faithfulness dispatch test imports core.evaluation.ragas to monkeypatch
+    # it, so CI needs the SDK even though production images should not have it.
+    - uv sync --frozen --extra dev --extra eval
 
 variables:
   UV_CACHE_DIR: .cache/uv

@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     # (verification.utils.heuristic_faithfulness_data). Benchmark-only --
     # does not affect production; see verification_production_use_real_ragas
     # for that gate. See known_limitations_remediation_plan.md, L1.
+    #
+    # Both real-Ragas flags require the optional `eval` extra to be installed
+    # (`uv sync --extra eval`); ragas is not a runtime dependency, so turning
+    # either flag on without it raises ModuleNotFoundError on first use.
     verification_use_real_ragas: bool = True
 
     # Phase 3 of the L1 remediation: gates whether verification/executor.py's
