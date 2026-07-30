@@ -81,20 +81,89 @@ def _run_build_plan(state: OrchestrationState, ctx: ExecutionContext) -> Capabil
     )
 
 
-def _run_read_only(state: OrchestrationState, ctx: ExecutionContext) -> CapabilityResult:
+def _run_verification(state: OrchestrationState, ctx: ExecutionContext) -> CapabilityResult:
+    """verify_plan and verify_macros are both "check this against the user's goal" requests,
+    not mutually exclusive actions -- a submission can carry a structured workout, explicit
+    macro numbers, both, or neither, independent of which single intent the LLM classifier
+    happened to pick (e.g. a full plan pasted alongside a "Macro Targets" section used to get
+    classified verify_macros and silently lose the entire training-plan review). Detect
+    whichever of {structured workout, macro numbers} is actually present in the text and
+    evaluate all of it in one pass; `ctx.intent` only decides the fallback message for the
+    case where neither is found."""
     workspace = state["workspace_path"]
-    if ctx.intent == "verify_macros":
-        reported = judge_reported_macros(state["query"])
-        calories_data = fitness_tools.calculate_calories(workspace)
-        if calories_data["macro_targets"] is None:
-            return _missing_biometrics_result()
-        result = fitness_tools.evaluate_macros(workspace, reported.model_dump())
+    calories_data = fitness_tools.calculate_calories(workspace)
+    if calories_data["macro_targets"] is None:
+        return _missing_biometrics_result()
+
+    text = (
+        state.get("submitted_plan_text")
+        or fitness_tools.load_submitted_plan_text(workspace)
+        or state["query"]
+    )
+    normalized = fitness_tools.normalize_submitted(workspace, text)
+    structured_workout = normalized["structured_workout"]
+    reported = judge_reported_macros(text).model_dump()
+    has_macros = any(value is not None for value in reported.values())
+
+    if structured_workout is None and not has_macros:
+        if ctx.intent == "verify_plan":
+            # No recognizable workout and no macro numbers in the text at all --
+            # `missing_structured_workout` stays an internal diagnostic (see
+            # fitness/utils.py); the user gets a qualitative LLM review instead of that
+            # raw code as their final response.
+            review = fitness_tools.qualitative_review_submitted_plan(text)
+            return CapabilityResult(
+                request_id=uuid4(),
+                capability="fitness",
+                status="completed",
+                summary=review,
+                artifacts={"verification_passed": False},
+            )
+        result = fitness_tools.evaluate_macros(workspace, reported)
         return CapabilityResult(
             request_id=uuid4(),
             capability="fitness",
             status="completed",
             summary=result["assessment"],
         )
+
+    if structured_workout is None:
+        # Macro numbers stated but no workout structure recognized -- a plain macro
+        # verdict, same as before.
+        result = fitness_tools.evaluate_macros(workspace, reported)
+        return CapabilityResult(
+            request_id=uuid4(),
+            capability="fitness",
+            status="completed",
+            summary=result["assessment"],
+        )
+
+    safety = fitness_tools.validate_plan(workspace, structured_workout)
+    passed = safety.get("passed", False)
+    # A natural-language explanation (goal fit, volume/exercise-selection adequacy,
+    # sets/reps/frequency, weaknesses with concrete fixes, and -- when has_macros -- macro
+    # fit too) instead of a bare pass/fail or raw feedback codes -- verification_passed
+    # still carries the deterministic verdict for any programmatic gating, this is only the
+    # user-facing text.
+    response = fitness_tools.explain_verified_plan(
+        workspace,
+        structured_workout,
+        safety,
+        reported_macros=reported if has_macros else None,
+    )
+    return CapabilityResult(
+        request_id=uuid4(),
+        capability="fitness",
+        status="completed",
+        summary=response,
+        artifacts={"verification_passed": passed},
+    )
+
+
+def _run_read_only(state: OrchestrationState, ctx: ExecutionContext) -> CapabilityResult:
+    workspace = state["workspace_path"]
+    if ctx.intent in ("verify_macros", "verify_plan"):
+        return _run_verification(state, ctx)
     if ctx.intent == "calculate_calories":
         result = fitness_tools.calculate_calories(workspace)
         macros = result["macro_targets"]
@@ -109,37 +178,6 @@ def _run_read_only(state: OrchestrationState, ctx: ExecutionContext) -> Capabili
             capability="fitness",
             status="completed",
             summary=response,
-        )
-    if ctx.intent == "verify_plan":
-        text = state.get("submitted_plan_text") or fitness_tools.load_submitted_plan_text(workspace)
-        normalized = fitness_tools.normalize_submitted(workspace, text)
-        if normalized["structured_workout"] is None:
-            # No recognizable workout in the text at all -- `missing_structured_workout`
-            # stays an internal diagnostic (see fitness/utils.py); the user gets a
-            # qualitative LLM review instead of that raw code as their final response.
-            review = fitness_tools.qualitative_review_submitted_plan(text)
-            return CapabilityResult(
-                request_id=uuid4(),
-                capability="fitness",
-                status="completed",
-                summary=review,
-                artifacts={"verification_passed": False},
-            )
-        safety = fitness_tools.validate_plan(workspace, normalized["structured_workout"])
-        passed = safety.get("passed", False)
-        # A natural-language explanation (goal fit, volume/exercise-selection adequacy,
-        # sets/reps/frequency, weaknesses with concrete fixes) instead of a bare pass/fail
-        # or raw feedback codes -- verification_passed still carries the deterministic
-        # verdict for any programmatic gating, this is only the user-facing text.
-        response = fitness_tools.explain_verified_plan(
-            workspace, normalized["structured_workout"], safety
-        )
-        return CapabilityResult(
-            request_id=uuid4(),
-            capability="fitness",
-            status="completed",
-            summary=response,
-            artifacts={"verification_passed": passed},
         )
     return CapabilityResult(
         request_id=uuid4(),

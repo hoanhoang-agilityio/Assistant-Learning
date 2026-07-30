@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from core.agents.execution_context import build_execution_context
+from core.agents.macro_report_judge import ReportedMacros, configure_reported_macros_judge
 from core.graph.run import create_initial_state
 from core.subgraphs.fitness.executor import SupervisorRoutedFitnessExecutor
 from core.subgraphs.fitness.normalize import (
@@ -181,6 +182,7 @@ def test_verify_plan_happy_path_reports_summary_and_verification_passed(
     configure_verification_explainer(
         lambda _ctx: SubmittedPlanVerificationReview(explanation="Looks solid overall.")
     )
+    configure_reported_macros_judge(lambda _text: ReportedMacros())
 
     result = SupervisorRoutedFitnessExecutor().execute(state, ctx)
 
@@ -190,6 +192,7 @@ def test_verify_plan_happy_path_reports_summary_and_verification_passed(
 
     configure_submitted_plan_extractor(None)
     configure_verification_explainer(None)
+    configure_reported_macros_judge(None)
 
 
 def test_verify_plan_falls_back_to_qualitative_review_when_unparseable(
@@ -204,6 +207,7 @@ def test_verify_plan_falls_back_to_qualitative_review_when_unparseable(
     configure_qualitative_reviewer(
         lambda _text: SubmittedPlanQualitativeReview(review="No structured plan found here.")
     )
+    configure_reported_macros_judge(lambda _text: ReportedMacros())
 
     result = SupervisorRoutedFitnessExecutor().execute(state, ctx)
 
@@ -213,6 +217,60 @@ def test_verify_plan_falls_back_to_qualitative_review_when_unparseable(
 
     configure_submitted_plan_extractor(None)
     configure_qualitative_reviewer(None)
+    configure_reported_macros_judge(None)
+
+
+def test_verify_macros_intent_with_full_plan_also_verifies_the_workout(
+    workspace_root: Path, complete_profile: dict[str, Any]
+) -> None:
+    """Regression: a full plan pasted alongside explicit macro numbers used to get
+    classified verify_macros and silently lose the entire training review (see the
+    conversation that prompted this fix). The Fitness capability now detects both the
+    workout and the macro numbers regardless of which single intent the classifier
+    picked, and merges them into one verification pass."""
+    query = "Macro Targets: Calories: 2087 kcal, Protein: 131 g. Plus my 4-day split..."
+    state = create_initial_state(
+        run_id="verify-macros-with-plan",
+        thread_id="verify-macros-with-plan-thread",
+        query=query,
+        user_profile=complete_profile,
+        constraints={"days_per_week": 4, "equipment": "gym"},
+        workspace_root=workspace_root,
+        submitted_plan_text=query,
+    )
+    ctx = build_execution_context(intent="verify_macros")
+    workout = default_structured_workout(complete_profile, {"days_per_week": 4})
+    configure_submitted_plan_extractor(
+        lambda _text: SubmittedPlanExtraction(parseable=True, workout=workout, findings=[])
+    )
+    configure_reported_macros_judge(
+        lambda _text: ReportedMacros(daily_calories=2087, protein_g=131)
+    )
+    contexts: list[str] = []
+
+    def _capture(context: str):
+        contexts.append(context)
+        return SubmittedPlanVerificationReview(
+            explanation="Training volume looks fine; calories are a bit low for the goal."
+        )
+
+    configure_verification_explainer(_capture)
+
+    result = SupervisorRoutedFitnessExecutor().execute(state, ctx)
+
+    assert result.status == "completed"
+    # Both halves ran: the deterministic workout safety check produced a pass/fail verdict
+    # (proving validate_plan actually ran, not just the macro judge)...
+    assert "verification_passed" in result.artifacts
+    # ...and the macro comparison was folded into the same context/explanation instead of
+    # being dropped because the classified intent was verify_macros.
+    assert "Macro comparison" in contexts[0]
+    assert "2087" in contexts[0]
+    assert result.summary == "Training volume looks fine; calories are a bit low for the goal."
+
+    configure_submitted_plan_extractor(None)
+    configure_verification_explainer(None)
+    configure_reported_macros_judge(None)
 
 
 def test_calculate_calories_reports_summary(

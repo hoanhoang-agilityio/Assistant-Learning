@@ -185,13 +185,16 @@ class SubmittedPlanVerificationReview(BaseModel):
 
     explanation: str = Field(
         description=(
-            "A natural-language verification summary, 3-6 sentences, covering: (1) whether "
+            "A natural-language verification summary, 3-7 sentences, covering: (1) whether "
             "the plan overall suits the stated goal, (2) whether training volume and "
             "exercise selection are sufficient to support it, (3) whether sets/reps/"
-            "frequency are appropriate, and (4) if there are weaknesses (from the given "
-            "safety findings or your own read of the exercise selection), name them with a "
-            "concrete, actionable suggestion. Never contradict the given pass/fail verdict "
-            "or safety findings, and never invent numbers not present in the input."
+            "frequency are appropriate, (4) if there are weaknesses (from the given safety "
+            "findings or your own read of the exercise selection), name them with a "
+            "concrete, actionable suggestion, and (5) if a 'Macro comparison' line is given "
+            "in the context, address whether the stated macros/calories also suit the goal "
+            "(don't skip this just because the rest of the plan looks fine). Never "
+            "contradict the given pass/fail verdict, safety findings, or macro comparison "
+            "verdict, and never invent numbers not present in the input."
         )
     )
 
@@ -206,9 +209,12 @@ fitness goal. You are given already-verified facts: the goal, the plan's structu
 exercises, sets, reps), macro targets if available, and the deterministic safety check's
 pass/fail verdict plus any findings. Write a natural, direct explanation covering whether
 the plan suits the goal, whether volume and exercise selection support it, whether
-sets/reps/frequency look appropriate, and any weaknesses with a concrete suggested fix.
-Ground everything in the given facts -- never contradict the verdict/findings, never
-invent numbers, never claim a problem the findings don't support."""
+sets/reps/frequency look appropriate, and any weaknesses with a concrete suggested fix. If
+a "Macro comparison" line is present in the context, also address whether the stated
+macros/calories suit the goal -- this is not optional just because the training side looks
+fine; the user asked about the whole plan. Ground everything in the given facts -- never
+contradict the verdict/findings/macro comparison, never invent numbers, never claim a
+problem the findings don't support."""
     + JSON_ONLY_INSTRUCTION
     + "\n"
 )

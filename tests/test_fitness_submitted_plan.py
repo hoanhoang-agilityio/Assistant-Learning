@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from core.agents.execution_context import ExecutionContext, build_execution_context
+from core.agents.macro_report_judge import ReportedMacros, configure_reported_macros_judge
 from core.agents.state import OrchestrationState
 from core.graph.run import create_initial_state
 from core.subgraphs.fitness.executor import SupervisorRoutedFitnessExecutor
@@ -53,6 +54,17 @@ def reset_qualitative_reviewer():
 def reset_verification_explainer():
     yield
     configure_verification_explainer(None)
+
+
+@pytest.fixture(autouse=True)
+def default_reported_macros_judge():
+    """The unified verification path always consults the macro judge alongside the workout
+    extractor -- default it to "nothing stated" for this file's plain workout-only fixtures
+    so they don't hit the real LLM. Tests that care about macro numbers configure their own
+    override, same pattern as the other judges in this file."""
+    configure_reported_macros_judge(lambda _text: ReportedMacros())
+    yield
+    configure_reported_macros_judge(None)
 
 
 def _stub_explainer_capturing(contexts: list[str], response: str):

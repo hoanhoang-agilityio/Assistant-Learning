@@ -54,9 +54,13 @@ def calculate_macros(workspace_path: str) -> dict[str, Any]:
     return calculate_calories(workspace_path)
 
 
-def evaluate_macros(workspace_path: str, reported: dict[str, Any] | None = None) -> dict[str, Any]:
-    data = calculate_calories(workspace_path)
-    macros = data["macro_targets"]
+def macro_comparison_text(macros: dict[str, Any], reported: dict[str, Any] | None) -> str:
+    """Plain-English verdict comparing `reported` calorie/macro figures (either the
+    user's own current intake or a submitted plan's stated macro targets) against
+    the computed recommended `macros`. Falls back to a plain statement of the
+    computed targets when nothing was reported to compare against. Shared by
+    `evaluate_macros` (verify_macros) and the merged verify_plan+macros path in
+    `executor.py`, so both surfaces render the exact same verdict wording."""
     goal = macros.get("goal", "general_fitness")
     protein = macros["protein_g"]
     calories = macros["calories"]
@@ -67,11 +71,10 @@ def evaluate_macros(workspace_path: str, reported: dict[str, Any] | None = None)
 
     reported_calories = (reported or {}).get("daily_calories")
     if reported_calories is None:
-        assessment = (
+        return (
             f"For a {goal} goal, estimated daily targets are {calories} kcal with "
             f"{protein}g protein, {macros['carbs_g']}g carbs, and {macros['fat_g']}g fat."
         )
-        return {"macro_targets": macros, "assessment": assessment}
 
     delta = reported_calories - calories
     tolerance = max(round(calories * 0.05), 50)
@@ -100,10 +103,17 @@ def evaluate_macros(workspace_path: str, reported: dict[str, Any] | None = None)
                 f"{direction} the {protein}g target."
             )
 
+    return verdict
+
+
+def evaluate_macros(workspace_path: str, reported: dict[str, Any] | None = None) -> dict[str, Any]:
+    data = calculate_calories(workspace_path)
+    macros = data["macro_targets"]
+    assessment = macro_comparison_text(macros, reported)
     return {
         "macro_targets": macros,
         "reported_macros": reported,
-        "assessment": verdict,
+        "assessment": assessment,
     }
 
 
@@ -277,6 +287,7 @@ def _format_verification_context(
     macro_targets: dict[str, Any] | None,
     structured_workout: dict[str, Any],
     safety: dict[str, Any],
+    reported_macros: dict[str, Any] | None = None,
 ) -> str:
     lines = [f"Goal: {goal} (archetype: {goal_archetype})"]
     if macro_targets:
@@ -287,6 +298,12 @@ def _format_verification_context(
         )
     else:
         lines.append("Macro targets: not available (profile missing weight/height/age).")
+    if macro_targets and reported_macros and any(v is not None for v in reported_macros.values()):
+        # The plan itself stated (or the user separately reported) macro numbers -- fold the
+        # same delta verdict verify_macros would give into this one context, so the LLM
+        # narrative below addresses macro fit alongside training fit instead of the caller
+        # having to stitch two separate responses together.
+        lines.append(f"Macro comparison: {macro_comparison_text(macro_targets, reported_macros)}")
     lines.append(f"Training days/week: {len(structured_workout.get('days', []))}")
     lines.append(f"Weekly sets (computed from the plan): {structured_workout.get('weekly_sets')}")
     lines.append("Plan:")
@@ -315,10 +332,16 @@ def explain_verified_plan(
     workspace_path: str,
     structured_workout: dict[str, Any],
     safety: dict[str, Any],
+    reported_macros: dict[str, Any] | None = None,
 ) -> str:
     """Turn a completed verify_plan safety check into a user-facing natural-language summary
     (goal fit, volume/exercise-selection adequacy, sets/reps/frequency, weaknesses with
-    concrete suggestions) instead of the bare pass/fail/feedback-code result."""
+    concrete suggestions) instead of the bare pass/fail/feedback-code result.
+
+    `reported_macros` is optional: pass it when the submitted text also stated macro/
+    calorie numbers to check (the plan's own targets, or the user's reported intake) --
+    the explanation then covers macro fit alongside training fit in one narrative,
+    instead of the caller needing a second, separate verify_macros response."""
     profile = load_run_profile(workspace_path)
     constraints = split_constraints(profile)
     goal_spec = derive_goal_spec(profile)
@@ -329,5 +352,6 @@ def explain_verified_plan(
         macro_targets=macros["macro_targets"],
         structured_workout=structured_workout,
         safety=safety,
+        reported_macros=reported_macros,
     )
     return _explain_verified_plan_llm(context)
