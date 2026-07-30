@@ -8,6 +8,8 @@ Public ``search`` / ``has_sufficient_coverage`` signatures are preserved so
 callers (fitness_server, tests) do not need to change.
 """
 
+import logging
+
 from langchain_core.embeddings import Embeddings
 
 from core.config.settings import Settings, get_settings
@@ -26,6 +28,8 @@ from core.knowledge.retrieval.reranker import (
 )
 from core.knowledge.schema import GuidelineHit
 from core.repositories.guideline_repository import GuidelineRepository
+
+logger = logging.getLogger(__name__)
 
 
 class RetrievalService:
@@ -69,6 +73,36 @@ class RetrievalService:
             caller_goal=goal,
             caller_equipment=equipment,
         )
+        if not candidates and rewritten.filters.category:
+            # The category filter is *inferred by the LLM rewriter*, and it is
+            # applied as a hard SQL constraint (guideline_repository:
+            # `d.category = %(category)s`). When the model invents a value that
+            # no document carries, every candidate is excluded and this returns
+            # nothing -- indistinguishable to the caller from "the knowledge
+            # base has nothing relevant". search_guidelines then reports
+            # sufficient_coverage=False and research falls back to the open web,
+            # silently bypassing the curated corpus.
+            #
+            # Retry once with only that inferred filter dropped. goal/equipment
+            # are caller-supplied (passed separately below) and stay enforced,
+            # so this can only ever recover results that a hallucinated category
+            # excluded -- it cannot widen a search that already found something.
+            logger.info(
+                "Retrieval returned no candidates with inferred category=%r; "
+                "retrying without it (query=%r)",
+                rewritten.filters.category,
+                rewritten.original_query,
+            )
+            relaxed = rewritten.model_copy(
+                update={"filters": rewritten.filters.model_copy(update={"category": None})}
+            )
+            candidates = self._hybrid_retriever.retrieve(
+                kind=kind,
+                rewritten=relaxed,
+                min_similarity=min_similarity,
+                caller_goal=goal,
+                caller_equipment=equipment,
+            )
         return self._reranker.rerank(
             query=rewritten.original_query,
             candidates=candidates,

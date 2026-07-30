@@ -5,6 +5,7 @@ from langchain_core.embeddings import Embeddings
 from core.knowledge.retrieval.hybrid_retriever import HybridRetriever
 from core.knowledge.retrieval.query_rewriter import PassthroughQueryRewriter
 from core.knowledge.retrieval.reranker import IdentityReranker
+from core.knowledge.retrieval.types import MetadataFilters, RewrittenQuery
 from core.knowledge.retrieval_service import RetrievalService
 from core.knowledge.schema import GuidelineHit
 
@@ -124,3 +125,118 @@ def test_has_sufficient_coverage_never_divides_by_zero_with_min_documents_zero()
     """Regression: min_documents=0 with zero hits must not raise ZeroDivisionError."""
     service = _build_service(_FakeGuidelineRepository([]))
     assert not service.has_sufficient_coverage([], min_documents=0, min_trust_score=0.85)
+
+
+class _CategoryFilteringRepository:
+    """Fake repository that enforces the ``category`` filter the way Postgres does.
+
+    ``guideline_repository`` applies it as a hard constraint
+    (``d.category = %(category)s``), so a category no document carries excludes
+    everything. This fake reproduces exactly that.
+    """
+
+    def __init__(self, hits: list[GuidelineHit], *, document_category: str = "general") -> None:
+        self._hits = hits
+        self._document_category = document_category
+        self.search_calls: list[dict] = []
+
+    def _filtered(self, kwargs: dict) -> list[GuidelineHit]:
+        requested = kwargs.get("category")
+        if requested is not None and requested != self._document_category:
+            return []
+        return self._hits
+
+    def search(self, **kwargs) -> list[GuidelineHit]:
+        self.search_calls.append(kwargs)
+        return self._filtered(kwargs)
+
+    def search_keyword(self, **kwargs) -> list[GuidelineHit]:
+        return self._filtered(kwargs)
+
+
+class _StubRewriter:
+    """Rewriter that returns a fixed inferred category, like LlmQueryRewriter does."""
+
+    def __init__(self, category: str | None) -> None:
+        self._category = category
+
+    def rewrite(self, *, query: str, goal: str = "", equipment: str = "") -> RewrittenQuery:
+        return RewrittenQuery(
+            original_query=query,
+            search_queries=[query],
+            filters=MetadataFilters(category=self._category),
+        )
+
+
+def _build_service_with_rewriter(
+    repository: _CategoryFilteringRepository, rewriter: _StubRewriter
+) -> RetrievalService:
+    embeddings = _FakeEmbeddings()
+    return RetrievalService(
+        repository,  # type: ignore[arg-type]
+        embeddings,
+        query_rewriter=rewriter,  # type: ignore[arg-type]
+        hybrid_retriever=HybridRetriever(repository, embeddings, candidate_pool=10),  # type: ignore[arg-type]
+        reranker=IdentityReranker(),
+    )
+
+
+def test_hallucinated_category_filter_does_not_silently_empty_results() -> None:
+    """Regression: the LLM rewriter infers a category the corpus does not use.
+
+    Applied as a hard SQL filter that excluded every document, so retrieval
+    returned nothing and callers could not tell that apart from "no relevant
+    guidelines" -- pushing research to the open web instead of the curated KB.
+    """
+    repository = _CategoryFilteringRepository([_hit()], document_category="general")
+    service = _build_service_with_rewriter(repository, _StubRewriter("progressive_overload"))
+
+    hits = service.search(
+        kind="guideline",
+        query="progressive overload training volume",
+        goal="",
+        equipment="",
+        limit=3,
+        min_similarity=0.0,
+    )
+
+    assert hits == [_hit()]
+    # Retried exactly once, with only the inferred category dropped.
+    categories = [call.get("category") for call in repository.search_calls]
+    assert categories == ["progressive_overload", None]
+
+
+def test_matching_category_filter_is_not_retried() -> None:
+    """A category that does match must be honoured, with no second query."""
+    repository = _CategoryFilteringRepository([_hit()], document_category="general")
+    service = _build_service_with_rewriter(repository, _StubRewriter("general"))
+
+    hits = service.search(
+        kind="guideline",
+        query="volume",
+        goal="",
+        equipment="",
+        limit=3,
+        min_similarity=0.0,
+    )
+
+    assert hits == [_hit()]
+    assert [call.get("category") for call in repository.search_calls] == ["general"]
+
+
+def test_genuinely_empty_result_is_not_retried_when_no_category_inferred() -> None:
+    """No inferred category means nothing to relax -- one query, still empty."""
+    repository = _CategoryFilteringRepository([], document_category="general")
+    service = _build_service_with_rewriter(repository, _StubRewriter(None))
+
+    hits = service.search(
+        kind="guideline",
+        query="unrelated",
+        goal="",
+        equipment="",
+        limit=3,
+        min_similarity=0.0,
+    )
+
+    assert hits == []
+    assert len(repository.search_calls) == 1

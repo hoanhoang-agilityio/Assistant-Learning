@@ -14,7 +14,25 @@ Status legend: **OPEN** · **MITIGATED** (symptom handled, cause remains) · **F
 
 ## ISSUE-1 — LLM-invented `category` filter silently empties knowledge-base retrieval
 
-**Severity: High · Status: OPEN · Production-affecting**
+**Severity: High · Status: FIXED (2026-07-30) · Production-affecting**
+
+> **Resolution.** `RetrievalService.search` now retries once with only the inferred
+> `category` dropped when a filtered search returns zero candidates. Caller-supplied
+> `goal`/`equipment` filters stay enforced, so the retry can only recover results a
+> hallucinated category excluded — it cannot widen a search that already found something,
+> and a genuinely irrelevant query still returns nothing. The relaxation is logged at INFO
+> so the rate of hallucinated categories stays observable.
+>
+> Locked in by three tests in `tests/test_retrieval_service.py`, which use a fake
+> repository reproducing Postgres' hard-filter semantics — no live LLM or database needed.
+> Verified the main one fails when the fix is reverted.
+>
+> Options 1 and 2 below were **not** taken: both change behaviour for searches that
+> currently succeed, whereas the retry only affects the zero-result path where the current
+> behaviour is already "return nothing". They remain the better long-term fix if
+> hallucinated categories turn out to be common — the new log line will show that.
+>
+> Original diagnosis follows.
 
 `LlmQueryRewriter` asks the LLM to infer metadata filters, and returns a
 `MetadataFilters.category` value it invented. That value is then applied as a **hard SQL
