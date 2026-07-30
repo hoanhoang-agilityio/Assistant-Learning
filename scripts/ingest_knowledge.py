@@ -15,14 +15,16 @@ from pathlib import Path
 
 from core.adapters.db.guideline_repository import GuidelineRepository
 from core.config.settings import get_settings
+from core.shared import knowledge
 from core.shared.knowledge.embeddings import get_embedding_provider
 from core.shared.knowledge.ingestion.chunker import SimpleChunker
 from core.shared.knowledge.ingestion.loader import JSONLLoader
 from core.shared.knowledge.ingestion.pipeline import run_ingestion_pipeline
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-_CORPUS_PATH = _PROJECT_ROOT / "src" / "core" / "knowledge" / "data" / "corpus.jsonl"
+# Resolved from the package itself rather than assembled from path segments, so a
+# future move of core.shared.knowledge cannot silently break this script the way
+# the segment-built path did when `knowledge/` moved under `shared/`.
+_CORPUS_PATH = Path(knowledge.__file__).parent / "data" / "corpus.jsonl"
 
 if __name__ == "__main__":
     settings = get_settings()
