@@ -1,3 +1,38 @@
+"""Run orchestration: invoking, resuming and streaming graph runs.
+
+Two groups have been extracted from this module into ``core.graph.runs``:
+
+* ``runs/models.py``     -- the RunEvent/RunStatus DTOs and RunNotFoundError
+* ``runs/projection.py`` -- the pure checkpoint -> status projection helpers
+
+Both are re-exported below, so ``from core.graph.service import RunStatus`` and
+friends keep working.
+
+Three further splits were considered and deliberately **not** made, because each
+would relocate coupling rather than remove it:
+
+1. Moving the DTOs into ``api/``. RunOrchestrator constructs RunStatus in six
+   methods, so core would have to import from api -- inverting the core -> api
+   direction this codebase otherwise keeps clean. They live in ``runs/models.py``
+   instead: out of this file, same dependency direction.
+
+2. A separate ``runs/store.py`` for the Postgres methods. _mark_run_tracked,
+   _sync_run_tracked, _claim_resume and _persist_run_history are thin wrappers
+   over injected stores, but reconcile_orphaned_runs also reads graph
+   checkpoints and _sync_run_tracked inspects a LangGraph snapshot -- so the
+   extracted class would need the graph injected too, reproducing the coupling
+   one level down.
+
+3. A ``runs/status.py`` owning _to_status/_pending_status/_failed_status. These
+   are not pure projections: they read self._pending_runs and self._run_failures,
+   mutable per-instance state that would have to move with them.
+
+2 and 3 are worth revisiting once RunOrchestrator's mutable state
+(_pending_runs, _run_failures, _run_event_queues, _active_resumes) is itself
+addressed; splitting the methods before the state they share is what would make
+the change risky rather than mechanical.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -8,7 +43,7 @@ import uuid
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -25,6 +60,20 @@ from core.graph.idempotency_store import IdempotencyStore
 from core.graph.run import create_initial_state
 from core.graph.run_history_store import InMemoryRunHistoryStore, RunHistoryStore, RunSummary
 from core.graph.run_tracker import RunTracker
+from core.graph.runs.models import (
+    RunEvent,
+    RunLifecycleStatus,
+    RunNotFoundError,
+    RunStatus,
+)
+from core.graph.runs.projection import (
+    _collect_interrupts,
+    _extract_profile_form_payload,
+    _read_final_plan,
+    _resolve_display_node,
+    _resolve_hitl_context,
+    _resolve_lifecycle_status,
+)
 from core.hitl.resume import (
     create_approval_decision,
     decision_to_resume_update,
@@ -34,7 +83,6 @@ from core.hitl.utils import classify_approval_response
 from core.llm.metrics import reset_llm_metrics, write_pipeline_cost_log
 from core.observability.langfuse import build_graph_invoke_config, flush_langfuse
 from core.planning.utils import persist_revision_feedback
-from core.profile.labels import format_missing_profile_prompt
 from core.rate_limit import (
     AIRateLimiter,
     reset_rate_limit_user_id,
@@ -44,59 +92,6 @@ from core.vfs import VFS
 from core.vfs.layout import PLAN_SUBMITTED_TEXT
 
 logger = logging.getLogger(__name__)
-
-RunLifecycleStatus = Literal[
-    "running", "waiting_hitl", "completed", "failed", "refused", "not_found"
-]
-
-
-class RunNotFoundError(LookupError):
-    """Raised when a run id is unknown to the checkpointer."""
-
-
-@dataclass(frozen=True)
-class RunEvent:
-    """One item on a run's live event queue -- either a LangGraph node update
-    (a raw ``(namespace, {node_name: state_update})`` chunk straight from
-    ``graph.stream(stream_mode="updates", subgraphs=True)``, unmodified) or the
-    terminal event closing the stream once the run settles.
-
-    This is the single source of progress data for `GET /runs/{run_id}/events`
-    (see api/routes/runs.py) -- there is no separate progress-tracking
-    abstraction layered on top of LangGraph's own streamed events.
-    """
-
-    kind: Literal["node_update", "run_settled"]
-    chunk: tuple[tuple[str, ...], dict[str, Any]] | None = None
-    status: RunStatus | None = None
-
-
-@dataclass(frozen=True)
-class RunStatus:
-    """Serializable run status for API and UI consumers."""
-
-    run_id: str
-    thread_id: str
-    status: RunLifecycleStatus
-    current_node: str
-    query: str
-    waiting_for_user: bool
-    approval_status: ApprovalStatus | None
-    verification_passed: bool
-    faithfulness_score: float | None
-    intent: str | None
-    response_mode: str | None
-    active_capability: str | None
-    final_response: str | None
-    final_artifact_path: str | None
-    final_plan: str | None
-    hitl_type: str | None
-    hitl_message: str | None
-    refusal_message: str | None
-    steps: tuple[str, ...]
-    next_nodes: tuple[str, ...]
-    error_message: str | None = None
-    profile_form: dict[str, Any] | None = None
 
 
 @contextmanager
@@ -1084,126 +1079,3 @@ class RunOrchestrator:
             error_message=None,
             profile_form=profile_form,
         )
-
-
-def _resolve_display_node(
-    state: dict[str, Any],
-    next_nodes: tuple[str, ...],
-    lifecycle: RunLifecycleStatus,
-) -> str:
-    """Return the node the UI should show as the active pipeline step.
-
-    While a run is in flight, LangGraph checkpoints only update when a node
-    finishes, so ``state["current_node"]`` lags behind the subgraph that is
-    actually executing. Prefer ``next_nodes[0]`` in that case.
-    """
-    if lifecycle == "running" and next_nodes:
-        return next_nodes[0]
-    return str(state.get("current_node", "supervisor"))
-
-
-def _resolve_lifecycle_status(
-    state: dict[str, Any],
-    next_nodes: tuple[str, ...],
-    interrupts: tuple[Any, ...] = (),
-) -> RunLifecycleStatus:
-    if state.get("refusal_message") or state.get("run_complete") and state.get("refusal_message"):
-        return "refused"
-    if state.get("approval_status") == "rejected" and not next_nodes:
-        return "completed"
-    if state.get("approval_status") == "approved" and state.get("final_artifact_path"):
-        return "completed"
-    if (
-        state.get("approval_status") == "approved"
-        and not next_nodes
-        and state.get("current_node") == "persist"
-    ):
-        return "completed"
-    # `next_nodes == ("user",)` is ambiguous on its own: LangGraph reports it both when the
-    # User subgraph is genuinely paused mid-interrupt() *and*, transiently, the instant
-    # before "user" starts executing (it's a regular node, not a static interrupt_before
-    # gate like "hitl"). Only a populated `interrupts` list means it's durably paused.
-    if (
-        next_nodes == ("hitl",)
-        or (next_nodes == ("user",) and interrupts)
-        or (state.get("waiting_for_user") and state.get("current_node") != "persist")
-    ):
-        return "waiting_hitl"
-    if state.get("current_node") == "persist" and not next_nodes:
-        return "completed"
-    if next_nodes:
-        return "running"
-    if state.get("run_complete") and state.get("final_response") and not next_nodes:
-        return "completed"
-    if state.get("final_artifact_path"):
-        return "completed"
-    return "running"
-
-
-def _collect_interrupts(snapshot: Any) -> tuple[Any, ...]:
-    """Flatten every pending interrupt across a graph snapshot's tasks."""
-    return tuple(interrupt for task in snapshot.tasks for interrupt in (task.interrupts or ()))
-
-
-def _read_final_plan(state: dict[str, Any]) -> str | None:
-    workspace_path = state.get("workspace_path")
-    if not workspace_path:
-        return None
-    vfs = VFS.for_run(Path(workspace_path))
-    if vfs.exists("final/final_plan.md"):
-        return vfs.read("final/final_plan.md")
-    if vfs.exists("fitness/final_plan.md"):
-        return vfs.read("fitness/final_plan.md")
-    return None
-
-
-def _extract_profile_form_payload(interrupts: tuple[Any, ...]) -> dict[str, Any] | None:
-    for item in interrupts:
-        value = getattr(item, "value", None)
-        if isinstance(value, dict) and value.get("type") == "profile_form":
-            return value
-    return None
-
-
-def _resolve_hitl_context(
-    state: dict[str, Any],
-    next_nodes: tuple[str, ...],
-    interrupts: tuple[Any, ...] = (),
-) -> tuple[str | None, str | None]:
-    if next_nodes == ("user",):
-        # Same ambiguity as _resolve_lifecycle_status: next_nodes == ("user",) alone
-        # doesn't mean paused -- it can also be a transient "about to run" read, since
-        # "user" is a regular node, not a static interrupt_before gate. Only report
-        # "profile_form" when there's an actual recorded interrupt.
-        payload = _extract_profile_form_payload(interrupts)
-        if payload is not None:
-            missing_fields = payload.get("missing_fields") or []
-            if missing_fields:
-                return "profile_form", format_missing_profile_prompt(missing_fields)
-            return "profile_form", "Please review and submit your profile."
-        return None, None
-
-    if state.get("approval_status") in {"rejected", "approved"}:
-        return None, None
-    if next_nodes != ("hitl",) and not state.get("waiting_for_user"):
-        return None, None
-
-    workspace_path = state.get("workspace_path")
-    if not workspace_path:
-        return None, "Waiting for user input."
-
-    draft_plan = _read_final_plan(state)
-    if draft_plan:
-        preview = draft_plan[:500]
-        if state.get("verification_passed"):
-            return (
-                "approval",
-                f"Review the draft fitness plan. Approve to save, or reject with feedback to replan.\n\n{preview}",
-            )
-        return (
-            "approval",
-            "A draft plan is ready for review. Verification did not fully pass, but you can "
-            f"approve, reject, or refresh after changes. Preview:\n\n{preview}",
-        )
-
-    return "approval", "Waiting for approval or clarification."
