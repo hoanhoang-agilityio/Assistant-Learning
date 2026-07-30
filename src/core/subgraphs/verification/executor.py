@@ -13,15 +13,28 @@ from uuid import UUID, uuid4
 from core.agents.execution_context import CapabilityResult, ExecutionContext
 from core.agents.state import OrchestrationState
 from core.capabilities.executor import CapabilityExecutor
+from core.config.settings import get_settings
 from core.subgraphs.verification.utils import (
     build_verification_report_for_checks,
     citation_check_data,
     consistency_check_data,
-    heuristic_faithfulness_data,
+    evaluate_faithfulness,
     load_verification_context,
     safety_check_data,
     write_verification_artifacts,
 )
+
+
+def _production_use_real_ragas() -> bool:
+    """settings.verification_production_use_real_ragas, not
+    settings.verification_use_real_ragas -- that flag only ever gated the
+    offline benchmark (see ragas_benchmark.py) and defaults True; this one is
+    the actual production gate, off by default, and deliberately a separate
+    setting so benchmark-only runs never accidentally flip production's real
+    request behavior. Read fresh on every call (not cached at import) so
+    tests/deploys can toggle it without a process restart. See
+    docs/reports/known_limitations_remediation_plan.md, L1 (Phase 3)."""
+    return get_settings().verification_production_use_real_ragas
 
 
 def _request_id(state: OrchestrationState) -> UUID:
@@ -60,9 +73,11 @@ class DeterministicVerificationExecutor:
             )
         if "faithfulness" in requested_checks:
             grounded_text = context.get("grounded_claims") or ""
-            checks["ragas"] = heuristic_faithfulness_data(
+            checks["ragas"] = evaluate_faithfulness(
                 grounded_text,
                 context["evidence"],
+                query=state.get("query", ""),
+                use_real=_production_use_real_ragas(),
             )
         report = build_verification_report_for_checks(checks)
         write_verification_artifacts(
@@ -109,9 +124,11 @@ class SupervisorRoutedVerificationExecutor:
                 context["safety_flags"],
                 fitness_safety_passed=context.get("fitness_safety_passed"),
             ),
-            "ragas": heuristic_faithfulness_data(
+            "ragas": evaluate_faithfulness(
                 context.get("grounded_claims") or "",
                 context["evidence"],
+                query=state.get("query", ""),
+                use_real=_production_use_real_ragas(),
             ),
         }
         report = build_verification_report_for_checks(checks)
@@ -128,6 +145,7 @@ class SupervisorRoutedVerificationExecutor:
             artifacts={
                 "passed": report.get("passed", False),
                 "faithfulness_score": (report.get("ragas") or {}).get("faithfulness_score"),
+                "retry_target": report.get("retry_target"),
             },
             metadata={"feedback": report.get("feedback"), "checks_run": list(checks)},
         )

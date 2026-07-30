@@ -62,9 +62,38 @@ class Settings(BaseSettings):
     # evaluate_draft_faithfulness scores drafts with the real Ragas SDK
     # (core.evaluation.ragas) instead of the heuristic proxy
     # (verification.utils.heuristic_faithfulness_data). Benchmark-only --
-    # production's _ragas_faithfulness_node always uses the heuristic
-    # regardless of this flag. See known_limitations_remediation_plan.md, L1.
+    # does not affect production; see verification_production_use_real_ragas
+    # for that gate. See known_limitations_remediation_plan.md, L1.
     verification_use_real_ragas: bool = True
+
+    # Phase 3 of the L1 remediation: gates whether verification/executor.py's
+    # production path scores faithfulness with the real Ragas SDK instead of
+    # the heuristic proxy. Deliberately a *separate* flag from
+    # verification_use_real_ragas above -- that one only ever affected the
+    # offline benchmark (zero production blast radius); this one changes real
+    # request latency/cost for every build_plan/edit_plan call. Off by
+    # default; on in this repo's local .env as of 2026-07-30 following Phase
+    # 0's baseline (100% false-negative rate on the adversarial taxonomy) and
+    # a real-dev-environment shadow-eval run that found a genuine citation
+    # mismatch in production-shaped data. On failure (rate limit already
+    # exceeded, API error, SDK error), evaluate_faithfulness falls back to the
+    # heuristic for that call rather than failing the request.
+    verification_production_use_real_ragas: bool = False
+
+    # Shadow evaluation (Phase 2 of the L1 remediation): a periodic background
+    # task scores recently-completed runs with the real Ragas SDK and logs the
+    # result to LangFuse, without touching the synchronous request path.
+    # Independent of verification_production_use_real_ragas above -- shadow
+    # eval can run whether or not production itself gates on the real score.
+    # Off by default -- opt-in until Phase 0's baseline numbers justify enabling it.
+    verification_shadow_eval_enabled: bool = False
+    verification_shadow_eval_interval_seconds: float = 300.0
+    # Fraction of eligible completed runs to score per tick (cost control at
+    # scale) -- 1.0 scores every eligible run, matching current low traffic.
+    verification_shadow_eval_sample_rate: float = 1.0
+    # Cap per tick so one run of the periodic task can't take unbounded time /
+    # cost if a large backlog of unscored runs ever accumulates.
+    verification_shadow_eval_batch_size: int = 20
 
     # LangFuse — prefer LANGFUSE_BASE_URL; LANGFUSE_HOST is a legacy alias
     langfuse_public_key: str | None = None
@@ -124,15 +153,20 @@ class Settings(BaseSettings):
     fitness_kb_query_rewrite_enabled: bool = True
     fitness_kb_rerank_enabled: bool = True
 
-    # Orchestration / Fitness retry budgets
-    max_planner_attempts: int = 2
-    fix_reasoning_planner_attempts: int = 1
-
     # Hybrid Supervisor routing: the Supervisor node proposes the next capability
     # via an LLM judge (core.agents.supervisor_router_judge) and a deterministic
     # Policy Engine (core.capabilities.policy_engine) validates/overrides that
     # proposal before routing. supervisor_max_hops is the loop-prevention guardrail.
     supervisor_max_hops: int = 12
+
+    # L1 Phase 4: how many times a failed Verification result may automatically
+    # route back to whichever capability owns the failing check (research for
+    # citation/faithfulness, fitness for consistency/safety) before falling
+    # through to HITL regardless. Separate from MAX_REVISION_COUNT
+    # (core/hitl/resume.py), which caps *human*-requested revisions -- this
+    # caps the *automatic* retry the Policy Engine triggers on its own.
+    # supervisor_max_hops remains the backstop for both.
+    max_verification_retry_attempts: int = 1
 
     # Wall-clock deadline for a single graph.invoke() call (background run
     # execution, resume, continue, and profile-form resume). Bounds a run

@@ -1,14 +1,15 @@
-"""Real Ragas SDK multi-metric scoring (benchmark / eval only).
+"""Real Ragas SDK multi-metric scoring.
 
-Kept out of core.subgraphs.verification (production's verification path,
-which costs zero LLM tokens today) deliberately: importing this module pulls
-in the ragas/datasets import graph, and nothing in verification/graph.py or
-verification/utils.py imports it. It is wired only into
-core.evaluation.ragas_benchmark.evaluate_draft_faithfulness, gated behind
-settings.verification_use_real_ragas. See
-docs/reports/known_limitations_remediation_plan.md, L1, for the staged plan
-this implements (steps 1-3; step 6 covers what a future production flip
-would additionally need).
+Not imported at module level by verification/utils.py or verification/executor.py
+(the ragas/datasets import graph is heavy) -- verification.utils.evaluate_faithfulness
+imports this module lazily, only inside its `use_real` branch, so the heuristic-only
+path (still production's default -- see executor.py's verification_production_use_real_ragas
+gate, off unless a deploy explicitly opts in) never pays that cost. Also used directly
+by core.evaluation.ragas_benchmark for offline comparison. See
+docs/reports/known_limitations_remediation_plan.md, L1, for the staged plan this
+implements; the production-flip option (this module's L1 step 6) now exists behind
+that settings flag, with the real judge call wrapped in a heuristic fallback on any
+failure -- see evaluate_faithfulness's docstring.
 
 Metrics:
   Always (no ground truth needed):
@@ -28,15 +29,30 @@ claims.
 from __future__ import annotations
 
 import math
+import os
 from typing import Any
 
-from langchain_core.embeddings import Embeddings
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_openai import OpenAIEmbeddings
-from ragas import evaluate
-from ragas.dataset_schema import EvaluationDataset
-from ragas.llms import LangchainLLMWrapper
-from ragas.metrics import (
+# Must be set before ragas's own module (imported below) ever calls
+# evaluate() -- ragas/_analytics.py reads this env var fresh on each
+# telemetry attempt, not once at import time, but setting it before the
+# import is simplest and safest. Ragas phones home to its own analytics
+# endpoint (t.explodinggradients.com) on every evaluate() call; in a
+# network-restricted environment this can retry indefinitely instead of
+# failing fast (observed: ~470 consecutive retries during this repo's Phase 0
+# benchmark runs, hanging the process for minutes). A long-running production
+# process making many real-Ragas calls over its lifetime is exactly the shape
+# that risks hitting this, independent of any one sandbox's specific network
+# restrictions -- disable it unconditionally rather than only where it was
+# first observed. RAGAS_DO_NOT_TRACK is Ragas's own documented opt-out.
+os.environ.setdefault("RAGAS_DO_NOT_TRACK", "true")
+
+from langchain_core.embeddings import Embeddings  # noqa: E402
+from langchain_core.language_models.chat_models import BaseChatModel  # noqa: E402
+from langchain_openai import OpenAIEmbeddings  # noqa: E402
+from ragas import evaluate  # noqa: E402
+from ragas.dataset_schema import EvaluationDataset  # noqa: E402
+from ragas.llms import LangchainLLMWrapper  # noqa: E402
+from ragas.metrics import (  # noqa: E402
     LLMContextPrecisionWithoutReference,
     answer_correctness,
     answer_relevancy,
@@ -44,10 +60,10 @@ from ragas.metrics import (
     context_recall,
     faithfulness,
 )
-from ragas.metrics.base import Metric
+from ragas.metrics.base import Metric  # noqa: E402
 
-from core.config.settings import get_settings
-from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
+from core.config.settings import get_settings  # noqa: E402
+from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD  # noqa: E402
 
 _ALWAYS_METRICS: list[Metric] = [
     faithfulness,

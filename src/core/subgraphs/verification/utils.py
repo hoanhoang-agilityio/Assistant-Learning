@@ -1,11 +1,15 @@
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
 
+from core.config.settings import get_settings
 from core.llm.serializers import compact_evidence_for_llm
 from core.subgraphs.fitness.utils import build_workout_summary
 from core.vfs import VFS
+
+logger = logging.getLogger(__name__)
 
 FAITHFULNESS_PASS_THRESHOLD = 0.90
 CRITICAL_SAFETY_FLAGS = {
@@ -267,35 +271,95 @@ def heuristic_faithfulness_data(draft_plan: str, evidence: list[dict[str, Any]])
     }
 
 
-def build_verification_report(
-    citation: dict[str, Any],
-    consistency: dict[str, Any],
-    safety: dict[str, Any],
-    ragas: dict[str, Any],
+def evaluate_faithfulness(
+    draft_plan: str,
+    evidence: list[dict[str, Any]],
+    *,
+    query: str = "",
+    reference: str | None = None,
+    use_real: bool,
 ) -> dict[str, Any]:
-    passed = (
-        citation["passed"] and consistency["passed"] and safety["passed"] and ragas["pass_fail"]
-    )
-    feedback_parts: list[str] = []
-    if citation["issues"]:
-        feedback_parts.append(f"Citation issues: {', '.join(citation['issues'])}")
-    if consistency["issues"]:
-        feedback_parts.append(f"Consistency issues: {', '.join(consistency['issues'])}")
-    if safety["issues"]:
-        feedback_parts.append(f"Safety issues: {', '.join(safety['issues'])}")
-    if not ragas["pass_fail"]:
-        feedback_parts.append(
-            f"Faithfulness score {ragas['faithfulness_score']} below {FAITHFULNESS_PASS_THRESHOLD}"
-        )
+    """Single dispatch point for faithfulness scoring -- heuristic or real Ragas SDK,
+    chosen by the explicit `use_real` the caller passes in (this function never reads
+    settings itself; production and the benchmark each decide their own gating).
 
-    return {
-        "citation": citation,
-        "consistency": consistency,
-        "safety": safety,
-        "ragas": ragas,
-        "passed": passed,
-        "feedback": "; ".join(feedback_parts) if feedback_parts else None,
-    }
+    Callers: verification/executor.py (production, gated behind
+    settings.verification_production_use_real_ragas, off by default) and
+    core/evaluation/ragas_benchmark.py (benchmark, passes
+    settings.verification_use_real_ragas). Having one function means the two
+    call sites can no longer silently drift into different dispatch logic over time
+    (2026-07-30 Phase 1 remediation -- see docs/reports/known_limitations_remediation_plan.md, L1).
+
+    When use_real is True, heuristic_faithfulness_data is the fallback on ANY
+    failure in the real path -- rate limit already exceeded, the OpenAI call
+    itself failing, or a Ragas SDK error (2026-07-30 Phase 3: "heuristic becomes
+    the fallback", not a second gate to configure). A live user-facing request
+    must never fail outright because the real judge call hit a transient
+    problem; degrading to the free heuristic for that one call is safer than
+    blocking plan delivery.
+    """
+    if use_real:
+        try:
+            return _evaluate_faithfulness_real(
+                draft_plan, evidence, query=query, reference=reference
+            )
+        except Exception:
+            logger.exception(
+                "Real Ragas faithfulness scoring failed; falling back to the "
+                "heuristic proxy for this call."
+            )
+    return heuristic_faithfulness_data(draft_plan, evidence)
+
+
+def _evaluate_faithfulness_real(
+    draft_plan: str,
+    evidence: list[dict[str, Any]],
+    *,
+    query: str,
+    reference: str | None,
+) -> dict[str, Any]:
+    """The use_real=True path, split out so evaluate_faithfulness's try/except
+    covers every failure mode uniformly (rate limit, API error, SDK error).
+
+    The `ragas` SDK import graph is heavy (pulls in `datasets`/pandas/its own
+    LLM-wrapper stack) -- deferred here (not a module-level import) so
+    importing this module, or calling evaluate_faithfulness with
+    use_real=False, never pays that cost.
+
+    Real Ragas calls the judge LLM through its own internal harness, not this
+    repo's core.llm.factory wrappers -- so unlike every other LLM call in this
+    codebase, it would otherwise be invisible to the per-user rate limiter and
+    to token_cost.md. get_openai_callback() captures the real token usage so
+    it can be checked/recorded through the same AIRateLimiter every other call
+    goes through (get_rate_limit_user_id() is the same context var
+    record_active_user_response() reads elsewhere in this codebase).
+    """
+    from langchain_community.callbacks import get_openai_callback
+
+    from core.evaluation.ragas import ragas_faithfulness_data
+    from core.llm.factory import get_rate_limiter, get_standard_llm
+    from core.rate_limit.context import get_rate_limit_user_id
+
+    settings = get_settings()
+    rate_limiter = get_rate_limiter()
+    user_id = get_rate_limit_user_id()
+    rate_limiter.check_active_user_tokens()
+
+    with get_openai_callback() as callback:
+        result = ragas_faithfulness_data(
+            draft_plan,
+            evidence,
+            query=query,
+            judge_llm=get_standard_llm(),
+            reference=reference,
+        )
+    rate_limiter.record_usage(
+        user_id,
+        input_tokens=callback.prompt_tokens,
+        output_tokens=callback.completion_tokens,
+        model_name=settings.openai_standard_model,
+    )
+    return result
 
 
 _REPORT_LABELS: tuple[tuple[str, str], ...] = (
@@ -303,6 +367,43 @@ _REPORT_LABELS: tuple[tuple[str, str], ...] = (
     ("consistency", "Consistency"),
     ("safety", "Safety"),
 )
+
+# Which capability owns fixing a failing check -- research owns evidence/
+# citations, fitness owns the macro/workout numbers it computed itself.
+# "ragas" (faithfulness) is a research-owned failure: a low score means the
+# draft's claims aren't actually supported by the evidence research gathered,
+# which fitness has no way to fix by regenerating a workout.
+_CHECK_OWNERS: dict[str, str] = {
+    "citation": "research",
+    "ragas": "research",
+    "consistency": "fitness",
+    "safety": "fitness",
+}
+
+# When multiple owners are implicated by different failing checks in the same
+# report, research is retried first: fitness's macro/workout numbers assume
+# research's evidence and citations are already correct, so a research-owned
+# fix may also resolve a downstream fitness-owned symptom, but never the
+# reverse. See docs/reports/known_limitations_remediation_plan.md, L1, Phase 4.
+_OWNER_RETRY_PRECEDENCE: tuple[str, ...] = ("research", "fitness")
+
+
+def _determine_retry_target(checks: dict[str, dict[str, Any]]) -> str | None:
+    """Which capability should be retried automatically, given which checks
+    failed -- None when everything passed, or no failing check has a known
+    owner (nothing to usefully retry)."""
+    failing_owners: set[str] = set()
+    for key, owner in _CHECK_OWNERS.items():
+        check = checks.get(key)
+        if check is None:
+            continue
+        check_passed = check["pass_fail"] if key == "ragas" else check["passed"]
+        if not check_passed:
+            failing_owners.add(owner)
+    for owner in _OWNER_RETRY_PRECEDENCE:
+        if owner in failing_owners:
+            return owner
+    return None
 
 
 def build_verification_report_for_checks(checks: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -330,6 +431,7 @@ def build_verification_report_for_checks(checks: dict[str, dict[str, Any]]) -> d
         **checks,
         "passed": passed,
         "feedback": "; ".join(feedback_parts) if feedback_parts else None,
+        "retry_target": _determine_retry_target(checks) if not passed else None,
     }
 
 

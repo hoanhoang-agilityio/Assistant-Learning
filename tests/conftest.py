@@ -152,6 +152,22 @@ def disable_langfuse_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "")
     monkeypatch.delenv("LANGFUSE_TRACING_ENABLED", raising=False)
     monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
+    # settings.verification_use_real_ragas defaults to True in production, but
+    # run_golden_case() reads it unconditionally -- without this, any test
+    # touching golden cases (e.g. test_golden_cases_meet_faithfulness_threshold)
+    # silently makes real, billed OpenAI calls via the real Ragas SDK instead of
+    # the free heuristic. Tests that specifically want the real SDK path
+    # (test_real_ragas_sanity_check_on_clean_golden_cases) already monkeypatch
+    # this back to True themselves.
+    monkeypatch.setenv("VERIFICATION_USE_REAL_RAGAS", "false")
+    # Same reasoning, for the Phase 3 production gate: this repo's local .env
+    # sets VERIFICATION_PRODUCTION_USE_REAL_RAGAS=true (2026-07-30), so without
+    # this override every test that runs verification/executor.py (e2e,
+    # integration) would silently make real Ragas calls too. Tests exercising
+    # the real path explicitly (tests/test_verification_faithfulness_dispatch.py)
+    # inject their own AIRateLimiter and monkeypatch the scorer -- they don't
+    # depend on this setting being True.
+    monkeypatch.setenv("VERIFICATION_PRODUCTION_USE_REAL_RAGAS", "false")
     get_settings.cache_clear()
     reset_langfuse_client()
     yield
