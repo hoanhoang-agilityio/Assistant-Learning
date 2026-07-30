@@ -478,7 +478,7 @@ The fitness capability is spread across at least six top-level folders:
 
 ```
 subgraphs/fitness/   planner, prompts, schema, safety, macros, edit ops
-profile/             goal_spec.py, normalize.py, schema.py  <- fitness domain rules
+profile/             goal_spec.py, normalize.py, schema.py  <- NOT fitness-specific; see correction under S8
 grounding/           validate.py, render.py                 <- used by fitness/planner.py:9
 planning/            executor.py, schema.py
 hitl/, persist/      approval + write-out for fitness plans
@@ -490,6 +490,36 @@ capabilities/        registry entry + policy rules for fitness
 **Impact:** "add a capability" is not a local operation. A new capability requires edits in `capabilities/registry.py`, `capabilities/policy_engine.py`, `capabilities/nodes.py`, `graph/builder.py`, `agents/state.py`, plus its own folder — six files, three of them shared. This is the single biggest brake on the "multiple AI agents" goal.
 
 **Refactor:** promote `subgraphs/<capability>/` to `capabilities/<capability>/` and pull the capability-specific pieces of `profile/`, `grounding/`, and `planning/` inside. Keep genuinely shared kernels (`grounding/validate.py`) in a shared module.
+
+> **Correction — `profile/` and `goal_spec` are not fitness-specific, and moving them into
+> `capabilities/fitness/` would have made coupling worse.** Consumers were measured before
+> moving anything:
+>
+> | Module | Imported by |
+> |---|---|
+> | `profile/goal_spec` | research (3 files), user (2), planning, `llm/serializers`, `vfs/schema`, fitness (3) |
+> | `profile/store` | research, user, planning, `graph/run`, fitness |
+> | `grounding/` | fitness (3), research (2) |
+>
+> Had `goal_spec.py` gone inside `capabilities/fitness/` as the Step 6 tree instructs,
+> research, planning, `llm/serializers` and `vfs/schema` would all be importing from inside
+> another capability's folder — strictly worse than the status quo this section criticises.
+>
+> **What shipped instead (`2f78dfa`):** both moved to `core/shared/`, which says what they
+> actually are — kernels used by several capabilities and owned by none.
+> `core/` is now 17 top-level folders, down from 19. Zero string patch targets referenced
+> either module, so the move had no silent-failure surface; 43 files updated, suite
+> unchanged at 494/3/0.
+>
+> **The part of S8 that remains true:** fitness still touches `planning/`, `hitl/`,
+> `persist/` and `capabilities/`. But the lesson from measuring is that "spill" and "shared
+> kernel" look identical from a static read — only counting consumers distinguishes them.
+>
+> One wrinkle the move surfaced: `shared/grounding/finalize.py` imports
+> `core.subgraphs.research.schema.ResearchFindings` inside a function — a pre-existing
+> cycle workaround (S15). It does not create a module-load cycle and the move did not
+> worsen it, but it does mean `grounding/` is not purely capability-agnostic. Only
+> `validate.py` is, exactly as Step 8 item 4 says.
 
 ### S9 · State duplication and absent reducers
 
@@ -729,7 +759,7 @@ src/
 │   │   ├── edit_ops.py             # <- was utils.py:661-828
 │   │   ├── artifacts.py            # <- was utils.py:58-119, 567-626 (VFS I/O)
 │   │   ├── planner.py  blueprint.py  movement.py  template_registry.py
-│   │   ├── goal_spec.py            # <- was core/profile/goal_spec.py
+│   │   │                           # (goal_spec.py NOT moved here -- see correction below)
 │   │   └── tests/
 │   ├── research/
 │   │   ├── prompts.py  schema.py  capability.py  executor.py  agent.py
@@ -809,7 +839,7 @@ Ordered so each step is independently shippable and reversible. Effort assumes o
 | **6** | Rename the three `utils.py` by responsibility | P1 | Medium | Low | 4 d | No (re-export shims) | `fitness/utils.py`, `research/utils.py`, `verification/utils.py` + ~25 importers | Pure moves, no logic edits; leave `utils.py` re-exporting for one release, then delete | **Highest-value item in this roadmap.** 1,815 lines of hidden domain logic becomes discoverable; resolves the `tools`/`planner` cycle |
 | **7** | Split `graph/service.py` into `runs/{orchestrator,status,store}.py` | P1 | Medium | Medium | 4 d | No (facade re-exports) | `service.py`, `api/routes/runs.py`, `api/deps.py`, `test_graph_service.py`, `test_run_status.py` | Extract Postgres methods -> `store.py`; DTOs + `_resolve_hitl_context` -> `api/`; keep `RunOrchestrator` as a thin facade | 1,209 -> ~350 lines; HTTP DTOs leave core; run-persistence becomes unit-testable |
 | **8** | Add state reducers | P1 | Easy | Low | 1 d | No | `agents/state.py` | `Annotated` reducers for `agent_trail`/`steps`/`capability_results`; consider grouping the `verification_*` cluster | Prerequisite for any parallel fan-out. *(Halved from the original estimate — the undeclared-field half is already resolved.)* |
-| **9** | Absorb `profile/` + `goal_spec` into the fitness capability | P2 | Medium | Medium | 3 d | Yes — imports | `profile/**`, `subgraphs/fitness/**`, `subgraphs/user/**` | One capability per PR | **This is the step that fixes S8** — the cross-folder spill, independent of any folder rename |
+| **9** | ~~Absorb `profile/` + `goal_spec` into the fitness capability~~ **Superseded** — moved to `core/shared/` instead (`2f78dfa`) | P2 | Medium | Low | done | Yes — imports | `profile/**`, `grounding/**`, 43 files | Measured consumers first; see correction below | `profile` and `grounding` are now labelled as the cross-capability kernels they are |
 | **10** | Rename `subgraphs/` -> `capabilities/` | P3 | Easy | Low | 1 d | Yes — imports | `subgraphs/**` + importers | Mechanical `git mv` + codemod, after #9 lands | Cosmetic but genuine: `subgraphs/` names a LangGraph detail, and only `user/` is actually a subgraph. **Demoted to P3 — this buys a name, not a boundary** |
 | **11** | Define MCP ports; inject implementations | P2 | Medium | Medium | 3 d | Internal only | `research/ports.py` (new), `research/utils.py`, `fitness/template_registry.py`, `mcp/*` | Declare `SearchProvider`/`GuidelineSearch` in the capability; MCP clients implement them | Domain stops knowing about transport; second provider becomes additive |
 | **12** | Inject `Settings`; remove `os.environ` bypasses | P3 | Medium | Medium | 4 d | Internal only | 51 `get_settings()` call sites / 26 files, 8 `os.environ` sites | Convert leaf modules first, one per PR | Removes hidden global dependency. **Do not attempt wholesale** |
