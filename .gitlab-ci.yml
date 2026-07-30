@@ -1,0 +1,85 @@
+# CI for PT AI Core Deep Researcher.
+#
+# Three stages, each independently useful:
+#   lint  -- ruff (fast, no services)
+#   test  -- pytest against a real pgvector Postgres
+#   build -- wheel build + a check that the artifact can actually serve HTTP
+#
+# Tests that need real API keys (OPENAI_API_KEY / ANTHROPIC_API_KEY) skip
+# themselves via pytest.mark.skipif, so no secrets are required for a green
+# pipeline. Set them as protected CI variables to widen coverage.
+
+stages:
+  - lint
+  - test
+  - build
+
+default:
+  image: python:3.12-slim
+  cache:
+    key:
+      files:
+        - uv.lock
+    paths:
+      - .cache/uv
+  before_script:
+    - pip install --no-cache-dir uv
+    - uv sync --frozen --extra dev
+
+variables:
+  UV_CACHE_DIR: .cache/uv
+  # Settings reads .env when present; it is gitignored, so CI supplies config
+  # through these variables instead. DATABASE_URL takes precedence over the
+  # POSTGRES_* fields (see Settings.checkpointer_dsn), so it is set explicitly.
+  POSTGRES_USER: pt_ai
+  POSTGRES_PASSWORD: pt_ai_dev
+  POSTGRES_DB: pt_ai_core
+  DATABASE_URL: "postgresql://pt_ai:pt_ai_dev@postgres:5432/pt_ai_core"
+  WORKSPACE_ROOT: "./var/workspace"
+
+lint:
+  stage: lint
+  script:
+    - uv run ruff check src scripts tests
+
+test:
+  stage: test
+  services:
+    # Must be pgvector, not stock postgres: bootstrap_schema() creates
+    # vector(1536) columns and the tests call it defensively.
+    - name: pgvector/pgvector:pg16
+      alias: postgres
+  script:
+    # Fail loudly if Postgres is unreachable. Without this the suite does not
+    # fail fast -- it blocks on psycopg pool timeouts until the job times out.
+    - >
+      uv run python -c "
+      import psycopg, os, sys;
+      psycopg.connect(os.environ['DATABASE_URL'], connect_timeout=10).close();
+      print('postgres reachable')
+      "
+    - uv run pytest -q --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+build:
+  stage: build
+  script:
+    - uv build --wheel --out-dir dist
+    # The wheel previously shipped only `core`, which cannot serve HTTP.
+    # Assert all three top-level packages are present and importable from the
+    # built artifact rather than from the source tree.
+    - >
+      uv run python -c "
+      import zipfile, glob;
+      names = zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist();
+      tops = set(n.split('/')[0] for n in names);
+      missing = set(['core', 'api', 'ui']) - tops;
+      assert not missing, 'wheel is missing packages: %s' % missing;
+      print('wheel ships:', sorted(tops))
+      "
+  artifacts:
+    paths:
+      - dist/*.whl
