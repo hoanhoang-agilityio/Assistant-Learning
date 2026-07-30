@@ -161,16 +161,3 @@ def invoke_user_subgraph(state: OrchestrationState, config: RunnableConfig) -> d
         subgraph="user",
         steps=["extract", "validate", "persist"],
     )
-
-
-class UserGraph:
-    """LangGraph facade for the User subgraph."""
-
-    def __init__(self) -> None:
-        self._graph = get_user_subgraph()
-
-    def invoke(self, state: UserState, config: RunnableConfig) -> UserState:
-        return self._graph.invoke(state, config)
-
-    def invoke_from_orchestration(self, state: OrchestrationState, config: RunnableConfig) -> dict:
-        return invoke_user_subgraph(state, config)

@@ -226,6 +226,27 @@ How many calories should I eat?"
 
 This is one request:
 - calorie_calculation
+
+Asking whether stated calorie or macro intake is appropriate for a fitness goal
+IS an actionable request — do not CLARIFY just because the user also mentions a
+goal like weight loss as context.
+
+Example:
+
+"I want to know if my current macros are appropriate for weight loss.
+I'm currently consuming 3,000 calories per day."
+
+This is one request:
+- macro_calculation
+- decision: ALLOW
+
+Example:
+
+"Are my macros right for cutting?"
+
+This is one request:
+- macro_calculation
+- decision: ALLOW
 """
     + JSON_ONLY_INSTRUCTION
 )

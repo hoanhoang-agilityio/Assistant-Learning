@@ -20,7 +20,7 @@ single source of truth for that mapping and for binding `session_id` via
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager, contextmanager, nullcontext
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -107,18 +107,6 @@ def langfuse_thread_context(
         tags=list(tags),
     ):
         yield ids
-
-
-def optional_langfuse_thread_context(
-    thread_id: str | None,
-    *,
-    run_id: str | None,
-    enabled: bool,
-) -> AbstractContextManager[LangfuseHierarchyIds | None]:
-    """No-op when tracing is off or ids are missing; otherwise ``langfuse_thread_context``."""
-    if not enabled or not thread_id or not run_id:
-        return nullcontext(None)
-    return langfuse_thread_context(thread_id, run_id=run_id)
 
 
 def describe_hierarchy_mapping() -> dict[str, Any]:

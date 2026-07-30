@@ -40,7 +40,12 @@ def default_user_intent_judge(query: str) -> UserIntentJudgement:
     query_lower = query.lower()
     if "research" in query_lower or "evidence" in query_lower or "study" in query_lower:
         intent = "research_question"
-    elif "macro" in query_lower and ("check" in query_lower or "verify" in query_lower):
+    elif "macro" in query_lower and (
+        "check" in query_lower
+        or "verify" in query_lower
+        or "appropriate" in query_lower
+        or "right for" in query_lower
+    ):
         intent = "verify_macros"
     elif "calculate" in query_lower and ("calorie" in query_lower or "tdee" in query_lower):
         intent = "calculate_calories"

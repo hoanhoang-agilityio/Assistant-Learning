@@ -53,6 +53,7 @@ Examples:
 "Switch my goal from fat loss to strength." -> edit_plan (touches_goal_or_constraints: true)
 "Here's my plan: [text]. Is it balanced?" -> verify_plan (mentions_submitted_plan: true)
 "Are my macros right for cutting?" -> verify_macros
+"I want to know if my current macros are appropriate for weight loss. I'm currently consuming 3,000 calories per day." -> verify_macros
 "What does research say about HIIT for fat loss?" -> research_question
 "How many rest days should I take?" -> fitness_question
 "Calculate my TDEE and macros." -> calculate_calories"""

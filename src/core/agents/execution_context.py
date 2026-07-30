@@ -97,16 +97,6 @@ class CapabilityResult(BaseModel):
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-class CapabilityStackEntry(BaseModel):
-    """Continuation bookkeeping for nested capability handoffs."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    request_id: UUID
-    capability: CapabilityName
-    return_to: CapabilityName | None
-
-
 def build_execution_context(
     *,
     intent: Intent,

@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from core.planning.executor import PLANNING_OUTPUT_PATH
-from core.planning.output import PlanningOutput
 from core.profile.goal_spec import derive_goal_spec
 from core.profile.store import load_run_profile, split_constraints
 from core.subgraphs.fitness.blueprint import PlanBlueprint, build_plan_blueprint
@@ -20,7 +18,6 @@ from core.subgraphs.fitness.normalize import (
 from core.subgraphs.fitness.planner import generate_structured_workout
 from core.subgraphs.fitness.template_registry import (
     adapt_workout_to_blueprint,
-    load_prior_workout,
     resolve_workout_template,
 )
 from core.subgraphs.fitness.utils import (
@@ -33,27 +30,6 @@ from core.subgraphs.fitness.utils import (
 )
 from core.vfs import VFS
 from core.vfs.layout import PLAN_SUBMITTED_TEXT
-
-
-def load_profile(workspace_path: str) -> dict[str, Any]:
-    profile = load_run_profile(workspace_path)
-    return {"profile": profile, "constraints": split_constraints(profile)}
-
-
-def load_existing_plan(workspace_path: str) -> dict[str, Any]:
-    workout = load_prior_workout(workspace_path)
-    return {"workout": workout}
-
-
-def load_planning_output(workspace_path: str) -> dict[str, Any]:
-    vfs = VFS.for_run(Path(workspace_path))
-    if not vfs.exists(PLANNING_OUTPUT_PATH):
-        return {"planning_output": None}
-    return {
-        "planning_output": PlanningOutput.model_validate_json(
-            vfs.read(PLANNING_OUTPUT_PATH)
-        ).model_dump()
-    }
 
 
 def load_research_result(workspace_path: str) -> dict[str, Any]:
@@ -137,12 +113,6 @@ def generate_blueprint(workspace_path: str) -> dict[str, Any]:
     goal_spec = derive_goal_spec(profile)
     blueprint = build_plan_blueprint(profile, constraints, goal_spec)
     return {"plan_blueprint": blueprint.model_dump(), "goal_spec": goal_spec.model_dump()}
-
-
-def choose_split(workspace_path: str) -> dict[str, Any]:
-    blueprint_data = generate_blueprint(workspace_path)
-    blueprint = PlanBlueprint.model_validate(blueprint_data["plan_blueprint"])
-    return {"split": blueprint.template_family, "days_per_week": blueprint.days_per_week}
 
 
 def select_template(workspace_path: str) -> dict[str, Any]:
