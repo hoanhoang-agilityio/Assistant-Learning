@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import HumanMessage
 
-from core.llm.factory import invoke_standard_llm
-from core.llm.metrics import (
+from core.adapters.llm.factory import invoke_standard_llm
+from core.adapters.llm.metrics import (
     get_llm_metrics_collector,
     reset_llm_metrics,
     reset_llm_metrics_node,
@@ -27,7 +27,7 @@ def test_llm_metrics_collector_records_runtime_calls(monkeypatch) -> None:
 
     token = set_llm_metrics_node("planning_agent")
     try:
-        with patch("core.llm.factory.get_standard_llm") as mock_get_llm:
+        with patch("core.adapters.llm.factory.get_standard_llm") as mock_get_llm:
             mock_get_llm.return_value.invoke.return_value = mock_response
             invoke_standard_llm([HumanMessage(content="hello")])
     finally:
@@ -44,7 +44,7 @@ def test_pipeline_cost_table_groups_nodes_and_writes_log(tmp_path) -> None:
     collector = get_llm_metrics_collector()
     from langchain_core.messages import HumanMessage
 
-    from core.llm.metrics import record_llm_call_metric
+    from core.adapters.llm.metrics import record_llm_call_metric
 
     record_llm_call_metric(
         messages=[HumanMessage(content="extract")],

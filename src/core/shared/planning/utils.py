@@ -1,10 +1,10 @@
 import json
 from pathlib import Path
 
+from core.adapters.llm.serializers import compact_profile_for_llm
+from core.adapters.vfs import VFS
 from core.capabilities.user.utils import load_stored_profile
-from core.llm.serializers import compact_profile_for_llm
 from core.shared.planning.schema import ExecutionPlan
-from core.vfs import VFS
 
 __all__ = [
     "compact_profile_for_llm",

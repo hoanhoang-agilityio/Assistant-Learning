@@ -10,7 +10,7 @@ Two things are provided:
 * a JSON formatter, so logs are machine-parseable in production without adding
   a dependency (stdlib json only);
 * a filter that stamps every record with the run_id/thread_id already tracked
-  in ContextVars by core.observability.tracing, giving log lines the same
+  in ContextVars by core.adapters.observability.tracing, giving log lines the same
   correlation ids that Langfuse traces use.
 
 Nothing here changes application behaviour -- it only decides how records that
@@ -63,14 +63,14 @@ _RESERVED_RECORD_ATTRS = frozenset(
 class RunContextFilter(logging.Filter):
     """Attach the current run_id/thread_id to every record.
 
-    Imports are deferred to call time: core.observability.tracing pulls in the
+    Imports are deferred to call time: core.adapters.observability.tracing pulls in the
     orchestration state module, and logging is configured early in startup,
     before that import chain is otherwise needed.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
-            from core.observability.tracing import get_trace_run_id, get_trace_thread_id
+            from core.adapters.observability.tracing import get_trace_run_id, get_trace_thread_id
 
             record.run_id = get_trace_run_id()
             record.thread_id = get_trace_thread_id()

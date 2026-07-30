@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.config.settings import Settings
-from core.observability.hierarchy import (
+from core.adapters.observability.hierarchy import (
     LANGFUSE_SESSION_METADATA_KEY,
     describe_hierarchy_mapping,
     hierarchy_propagation_metadata,
@@ -14,12 +13,13 @@ from core.observability.hierarchy import (
     map_thread_to_session_id,
     resolve_hierarchy_ids,
 )
-from core.observability.langfuse import (
+from core.adapters.observability.langfuse import (
     build_graph_invoke_config,
     fetch_langfuse_thread,
     resolve_run_hierarchy,
     subgraph_span_context,
 )
+from core.config.settings import Settings
 from core.orchestration.agents.state import OrchestrationState
 
 
@@ -64,9 +64,12 @@ def test_build_graph_invoke_config_binds_session_and_trace(
         langfuse_base_url="http://localhost:3000",
     )
     with (
-        patch("core.observability.langfuse.build_langfuse_callbacks", return_value=["handler"]),
         patch(
-            "core.observability.langfuse.create_trace_id_for_run",
+            "core.adapters.observability.langfuse.build_langfuse_callbacks",
+            return_value=["handler"],
+        ),
+        patch(
+            "core.adapters.observability.langfuse.create_trace_id_for_run",
             return_value="trace-from-run",
         ),
     ):
@@ -82,7 +85,7 @@ def test_resolve_run_hierarchy_uses_deterministic_trace(
     orchestration_state: OrchestrationState,
 ) -> None:
     with patch(
-        "core.observability.langfuse.create_trace_id_for_run",
+        "core.adapters.observability.langfuse.create_trace_id_for_run",
         return_value="deterministic-trace",
     ):
         ids = resolve_run_hierarchy(orchestration_state, settings=Settings())
@@ -101,8 +104,8 @@ def test_fetch_langfuse_thread_calls_sessions_api() -> None:
     response.status_code = 200
     response.json.return_value = {"id": "thread-42", "traces": []}
     with (
-        patch("core.observability.langfuse.is_langfuse_enabled", return_value=True),
-        patch("core.observability.langfuse.httpx.get", return_value=response) as mock_get,
+        patch("core.adapters.observability.langfuse.is_langfuse_enabled", return_value=True),
+        patch("core.adapters.observability.langfuse.httpx.get", return_value=response) as mock_get,
     ):
         payload = fetch_langfuse_thread("thread-42", settings=settings)
     assert payload == {"id": "thread-42", "traces": []}
@@ -120,8 +123,8 @@ def test_fetch_langfuse_thread_returns_none_on_404() -> None:
     response = MagicMock()
     response.status_code = 404
     with (
-        patch("core.observability.langfuse.is_langfuse_enabled", return_value=True),
-        patch("core.observability.langfuse.httpx.get", return_value=response),
+        patch("core.adapters.observability.langfuse.is_langfuse_enabled", return_value=True),
+        patch("core.adapters.observability.langfuse.httpx.get", return_value=response),
     ):
         assert fetch_langfuse_thread("missing", settings=settings) is None
 
@@ -140,8 +143,8 @@ def test_subgraph_span_binds_thread_session(
     mock_client.start_as_current_span.return_value = span_cm
     mock_client.create_trace_id.return_value = "trace-1"
     with (
-        patch("core.observability.langfuse.get_langfuse_client", return_value=mock_client),
-        patch("core.observability.langfuse.langfuse_thread_context") as mock_thread_ctx,
+        patch("core.adapters.observability.langfuse.get_langfuse_client", return_value=mock_client),
+        patch("core.adapters.observability.langfuse.langfuse_thread_context") as mock_thread_ctx,
     ):
         mock_thread_ctx.return_value.__enter__.return_value = resolve_hierarchy_ids(
             run_id=orchestration_state["run_id"],
@@ -164,7 +167,7 @@ def test_subgraph_span_binds_thread_session(
 
 
 def test_langfuse_thread_context_calls_propagate_attributes() -> None:
-    with patch("core.observability.hierarchy.propagate_attributes") as mock_propagate:
+    with patch("core.adapters.observability.hierarchy.propagate_attributes") as mock_propagate:
         mock_propagate.return_value.__enter__.return_value = None
         mock_propagate.return_value.__exit__.return_value = None
         with langfuse_thread_context("thread-9", run_id="run-9") as ids:

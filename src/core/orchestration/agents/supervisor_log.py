@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from core.vfs import VFS
+from core.adapters.vfs import VFS
 
 
 def load_verification_report(workspace_path: str) -> dict[str, Any]:

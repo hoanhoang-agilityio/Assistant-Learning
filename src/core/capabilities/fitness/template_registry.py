@@ -1,6 +1,6 @@
 """Workout template fingerprinting and reuse helpers.
 
-Template storage lives behind the Fitness MCP Server (core.mcp.fitness_client) --
+Template storage lives behind the Fitness MCP Server (core.adapters.mcp.fitness_client) --
 this module owns fingerprinting/reuse decision logic only.
 """
 
@@ -10,6 +10,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from core.adapters.mcp.fitness_client import get_fitness_client
+from core.adapters.vfs import VFS
 from core.capabilities.fitness.blueprint import PlanBlueprint, session_duration_bucket_from_profile
 from core.capabilities.fitness.edit_classifier import classify_edit_operation
 from core.capabilities.fitness.schema import StructuredWorkout
@@ -18,9 +20,7 @@ from core.capabilities.fitness.utils import (
     flatten_exercise_names,
     is_cacheable_workout,
 )
-from core.mcp.fitness_client import get_fitness_client
 from core.shared.planning.utils import load_revision_feedback
-from core.vfs import VFS
 
 logger = logging.getLogger(__name__)
 

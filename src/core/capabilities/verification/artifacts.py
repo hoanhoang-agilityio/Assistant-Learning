@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from core.vfs import VFS
+from core.adapters.vfs import VFS
 
 
 def write_verification_artifacts(

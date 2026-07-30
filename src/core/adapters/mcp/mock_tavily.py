@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.mcp.tavily_client import TavilyMCPClient
+from core.adapters.mcp.tavily_client import TavilyMCPClient
 
 _MOCK_EVIDENCE_BODY = (
     "Evidence-based fitness programming for fat loss and muscle retention. "

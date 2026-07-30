@@ -1,4 +1,4 @@
-from core.mcp.tavily_client import (
+from core.adapters.mcp.tavily_client import (
     TAVILY_EXTRACT_TOOL,
     TAVILY_SEARCH_TOOL,
     TavilyMCPClient,

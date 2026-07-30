@@ -120,7 +120,7 @@ class LlmRelevanceReranker:
         if len(candidates) <= top_k:
             return list(candidates)
         try:
-            from core.llm.factory import invoke_standard_structured_output
+            from core.adapters.llm.factory import invoke_standard_structured_output
 
             payload = invoke_standard_structured_output(
                 _RerankPayload,

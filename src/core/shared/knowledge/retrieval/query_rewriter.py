@@ -86,7 +86,7 @@ class LlmQueryRewriter:
         if not stripped:
             raise ValueError("query must be non-empty")
         try:
-            from core.llm.factory import invoke_standard_structured_output
+            from core.adapters.llm.factory import invoke_standard_structured_output
 
             payload = invoke_standard_structured_output(
                 _LlmRewritePayload,

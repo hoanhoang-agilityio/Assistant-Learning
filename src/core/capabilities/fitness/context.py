@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from core.adapters.vfs import VFS
 from core.shared.planning.utils import has_execution_plan, load_execution_plan
 from core.shared.profile.store import load_run_profile, split_constraints
-from core.vfs import VFS
 
 
 def load_fitness_context(workspace_path: str) -> dict[str, Any]:

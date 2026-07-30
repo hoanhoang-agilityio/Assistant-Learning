@@ -1,6 +1,6 @@
 """Langfuse span naming tests."""
 
-from core.observability.tracing import resolve_subgraph_span_name
+from core.adapters.observability.tracing import resolve_subgraph_span_name
 
 
 def test_resolve_subgraph_span_name() -> None:

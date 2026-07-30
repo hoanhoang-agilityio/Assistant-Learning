@@ -5,8 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage
 
-from core.config.settings import Settings
-from core.llm.factory import (
+from core.adapters.llm.factory import (
     configure_rate_limiter,
     get_standard_llm,
     get_xhigh_anthropic_llm,
@@ -14,8 +13,9 @@ from core.llm.factory import (
     invoke_standard_structured_output,
     invoke_xhigh_structured_output,
 )
-from core.rate_limit import AIRateLimiter, InMemoryUsageStore
-from core.rate_limit.context import reset_rate_limit_user_id, set_rate_limit_user_id
+from core.adapters.rate_limit import AIRateLimiter, InMemoryUsageStore
+from core.adapters.rate_limit.context import reset_rate_limit_user_id, set_rate_limit_user_id
+from core.config.settings import Settings
 from core.shared.planning.schema import ExecutionPlan, PlanTask
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
@@ -59,9 +59,9 @@ def _sample_plan() -> ExecutionPlan:
     )
 
 
-@patch("core.llm.factory.get_settings")
-@patch("core.llm.factory.get_xhigh_anthropic_llm")
-@patch("core.llm.factory.get_xhigh_openai_llm")
+@patch("core.adapters.llm.factory.get_settings")
+@patch("core.adapters.llm.factory.get_xhigh_anthropic_llm")
+@patch("core.adapters.llm.factory.get_xhigh_openai_llm")
 def test_invoke_xhigh_structured_output_uses_openai_first(
     mock_get_openai: MagicMock,
     mock_get_anthropic: MagicMock,
@@ -90,9 +90,9 @@ def test_invoke_xhigh_structured_output_uses_openai_first(
     mock_get_anthropic.assert_not_called()
 
 
-@patch("core.llm.factory.get_settings")
-@patch("core.llm.factory.get_xhigh_anthropic_llm")
-@patch("core.llm.factory.get_xhigh_openai_llm")
+@patch("core.adapters.llm.factory.get_settings")
+@patch("core.adapters.llm.factory.get_xhigh_anthropic_llm")
+@patch("core.adapters.llm.factory.get_xhigh_openai_llm")
 def test_invoke_xhigh_structured_output_falls_back_to_anthropic(
     mock_get_openai: MagicMock,
     mock_get_anthropic: MagicMock,
@@ -127,9 +127,9 @@ def test_invoke_xhigh_structured_output_falls_back_to_anthropic(
     )
 
 
-@patch("core.llm.factory.get_settings")
-@patch("core.llm.factory.get_xhigh_anthropic_llm")
-@patch("core.llm.factory.get_xhigh_openai_llm")
+@patch("core.adapters.llm.factory.get_settings")
+@patch("core.adapters.llm.factory.get_xhigh_anthropic_llm")
+@patch("core.adapters.llm.factory.get_xhigh_openai_llm")
 def test_invoke_xhigh_structured_output_raises_when_both_providers_fail(
     mock_get_openai: MagicMock,
     mock_get_anthropic: MagicMock,
@@ -155,9 +155,9 @@ def test_invoke_xhigh_structured_output_raises_when_both_providers_fail(
         invoke_xhigh_structured_output(ExecutionPlan, [])
 
 
-@patch("core.llm.factory.get_settings")
-@patch("core.llm.factory.get_xhigh_anthropic_llm")
-@patch("core.llm.factory.get_xhigh_openai_llm")
+@patch("core.adapters.llm.factory.get_settings")
+@patch("core.adapters.llm.factory.get_xhigh_anthropic_llm")
+@patch("core.adapters.llm.factory.get_xhigh_openai_llm")
 def test_invoke_xhigh_structured_output_skips_fallback_for_non_transient_errors(
     mock_get_openai: MagicMock,
     mock_get_anthropic: MagicMock,
@@ -180,8 +180,8 @@ def test_invoke_xhigh_structured_output_skips_fallback_for_non_transient_errors(
     mock_get_anthropic.assert_not_called()
 
 
-@patch("core.llm.factory.get_settings")
-@patch("core.llm.factory.get_standard_llm")
+@patch("core.adapters.llm.factory.get_settings")
+@patch("core.adapters.llm.factory.get_standard_llm")
 def test_invoke_standard_structured_output(
     mock_get_standard: MagicMock,
     mock_get_settings: MagicMock,
@@ -200,9 +200,9 @@ def test_invoke_standard_structured_output(
     mock_get_standard.assert_called_once()
 
 
-@patch("core.llm.factory.get_settings")
-@patch("core.llm.factory.get_xhigh_anthropic_llm")
-@patch("core.llm.factory.get_xhigh_openai_llm")
+@patch("core.adapters.llm.factory.get_settings")
+@patch("core.adapters.llm.factory.get_xhigh_anthropic_llm")
+@patch("core.adapters.llm.factory.get_xhigh_openai_llm")
 def test_invoke_xhigh_structured_output_skips_fallback_for_length_limit_errors(
     mock_get_openai: MagicMock,
     mock_get_anthropic: MagicMock,
@@ -226,8 +226,8 @@ def test_invoke_xhigh_structured_output_skips_fallback_for_length_limit_errors(
     mock_get_anthropic.assert_not_called()
 
 
-@patch("core.llm.factory.get_settings")
-@patch("core.llm.factory.get_standard_llm")
+@patch("core.adapters.llm.factory.get_settings")
+@patch("core.adapters.llm.factory.get_standard_llm")
 def test_invoke_standard_structured_output_meters_real_output_tokens(
     mock_get_standard: MagicMock,
     mock_get_settings: MagicMock,
@@ -263,8 +263,8 @@ def test_invoke_standard_structured_output_meters_real_output_tokens(
     assert snapshot.input_tokens == 123
 
 
-@patch("core.llm.factory.ChatOpenAI")
-@patch("core.llm.factory.get_settings")
+@patch("core.adapters.llm.factory.ChatOpenAI")
+@patch("core.adapters.llm.factory.get_settings")
 def test_get_standard_llm_configures_request_timeout(
     mock_get_settings: MagicMock,
     mock_chat_openai: MagicMock,
@@ -295,8 +295,8 @@ def test_get_standard_llm_configures_request_timeout(
     )
 
 
-@patch("core.llm.factory.ChatOpenAI")
-@patch("core.llm.factory.get_settings")
+@patch("core.adapters.llm.factory.ChatOpenAI")
+@patch("core.adapters.llm.factory.get_settings")
 def test_get_xhigh_openai_llm_configures_request_timeout(
     mock_get_settings: MagicMock,
     mock_chat_openai: MagicMock,
@@ -326,8 +326,8 @@ def test_get_xhigh_openai_llm_configures_request_timeout(
     )
 
 
-@patch("core.llm.factory.ChatAnthropic")
-@patch("core.llm.factory.get_settings")
+@patch("core.adapters.llm.factory.ChatAnthropic")
+@patch("core.adapters.llm.factory.get_settings")
 def test_get_xhigh_anthropic_llm_configures_request_timeout(
     mock_get_settings: MagicMock,
     mock_chat_anthropic: MagicMock,

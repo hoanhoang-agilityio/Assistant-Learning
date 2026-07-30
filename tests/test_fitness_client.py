@@ -6,8 +6,8 @@ from __future__ import annotations
 import pytest
 
 from api.deps import _connect_with_retry
+from core.adapters.mcp.fitness_client import FitnessMCPClient
 from core.config.settings import get_settings
-from core.mcp.fitness_client import FitnessMCPClient
 
 _SENTINEL = FitnessMCPClient(
     search_guidelines=lambda **kwargs: {},

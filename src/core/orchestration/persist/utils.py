@@ -3,8 +3,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from core.adapters.vfs import VFS
 from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
-from core.vfs import VFS
 
 FINAL_PLAN_SOURCE = "fitness/final_plan.md"
 FINAL_PLAN_DEST = "final/final_plan.md"

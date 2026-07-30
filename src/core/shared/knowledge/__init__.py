@@ -1,6 +1,6 @@
 """Fitness Knowledge Store domain models, ingestion, and retrieval pipeline.
 
-Persistence lives in core.repositories; the Fitness MCP Server exposes tools.
+Persistence lives in core.adapters.repositories; the Fitness MCP Server exposes tools.
 This package owns the data model, offline ingestion, and the retrieval pipeline
 (query rewrite -> hybrid -> rerank) orchestrated by RetrievalService.
 

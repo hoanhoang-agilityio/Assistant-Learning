@@ -131,7 +131,7 @@ def _evaluate_faithfulness_real(
     use_real=False, never pays that cost.
 
     Real Ragas calls the judge LLM through its own internal harness, not this
-    repo's core.llm.factory wrappers -- so unlike every other LLM call in this
+    repo's core.adapters.llm.factory wrappers -- so unlike every other LLM call in this
     codebase, it would otherwise be invisible to the per-user rate limiter and
     to token_cost.md. get_openai_callback() captures the real token usage so
     it can be checked/recorded through the same AIRateLimiter every other call
@@ -140,9 +140,9 @@ def _evaluate_faithfulness_real(
     """
     from langchain_community.callbacks import get_openai_callback
 
+    from core.adapters.llm.factory import get_rate_limiter, get_standard_llm
+    from core.adapters.rate_limit.context import get_rate_limit_user_id
     from core.evaluation.ragas import ragas_faithfulness_data
-    from core.llm.factory import get_rate_limiter, get_standard_llm
-    from core.rate_limit.context import get_rate_limit_user_id
 
     settings = get_settings()
     rate_limiter = get_rate_limiter()

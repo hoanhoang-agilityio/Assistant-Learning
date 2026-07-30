@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from core.adapters.vfs import VFS
 from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.orchestration.persist.utils import (
     persist_trigger_data,
@@ -10,7 +11,6 @@ from core.orchestration.persist.utils import (
     save_metrics_data,
     save_run_data,
 )
-from core.vfs import VFS
 
 
 def test_persist_trigger_blocks_without_approval() -> None:

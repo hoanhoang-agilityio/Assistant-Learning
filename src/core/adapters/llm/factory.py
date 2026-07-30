@@ -11,10 +11,10 @@ from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
+from core.adapters.llm.metrics import record_llm_call_metric
+from core.adapters.rate_limit import AIRateLimiter
+from core.adapters.rate_limit.limiter import estimate_message_tokens
 from core.config.settings import get_settings
-from core.llm.metrics import record_llm_call_metric
-from core.rate_limit import AIRateLimiter
-from core.rate_limit.limiter import estimate_message_tokens
 
 logger = logging.getLogger(__name__)
 

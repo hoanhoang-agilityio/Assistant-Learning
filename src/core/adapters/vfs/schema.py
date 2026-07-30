@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
 
-from core.vfs.layout import (
+from core.adapters.vfs.layout import (
     FITNESS_CALCULATIONS,
     FITNESS_SAFETY_FLAGS,
     FITNESS_TEMPLATE_FINGERPRINT,

@@ -4,23 +4,28 @@ from functools import lru_cache
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from core.config.settings import Settings, get_settings
-from core.evaluation.shadow_eval import InMemoryShadowEvalStore, ShadowEvalStore
-from core.llm.factory import configure_rate_limiter
-from core.mcp.fitness_client import (
+from core.adapters.llm.factory import configure_rate_limiter
+from core.adapters.mcp.fitness_client import (
     FitnessMCPClient,
     configure_fitness_client,
     create_fitness_mcp_client_sync,
 )
-from core.mcp.mock_fitness import build_mock_fitness_client
-from core.mcp.mock_tavily import build_mock_tavily_client
-from core.mcp.tavily_client import configure_tavily_client
+from core.adapters.mcp.mock_fitness import build_mock_fitness_client
+from core.adapters.mcp.mock_tavily import build_mock_tavily_client
+from core.adapters.mcp.tavily_client import configure_tavily_client
+from core.adapters.rate_limit import (
+    AIRateLimiter,
+    InMemoryUsageStore,
+    PostgresUsageStore,
+    UsageStore,
+)
+from core.config.settings import Settings, get_settings
+from core.evaluation.shadow_eval import InMemoryShadowEvalStore, ShadowEvalStore
 from core.orchestration.graph.checkpointer import postgres_checkpointer
 from core.orchestration.graph.idempotency_store import IdempotencyStore
 from core.orchestration.graph.run_history_store import InMemoryRunHistoryStore, RunHistoryStore
 from core.orchestration.graph.run_tracker import RunTracker
 from core.orchestration.graph.service import RunOrchestrator
-from core.rate_limit import AIRateLimiter, InMemoryUsageStore, PostgresUsageStore, UsageStore
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +51,7 @@ def _connect_with_retry(
     settings: Settings, *, max_attempts: int = 5, backoff_seconds: float = 2.0
 ) -> FitnessMCPClient | None:
     """Bounded retry against a sibling process (the Fitness MCP Server, started
-    independently -- see `uv run python -m core.mcp.fitness_server`) that may not have
+    independently -- see `uv run python -m core.adapters.mcp.fitness_server`) that may not have
     come up yet. Ordinary multi-process local-dev startup ordering, not a race to work
     around -- linear backoff, no external retry library in this repo's dependency set
     to reuse, so this is a plain loop. Returns None (never raises) once attempts are
@@ -65,7 +70,7 @@ def _connect_with_retry(
 def configure_fitness_client_from_settings() -> None:
     """Connect to the already-running Fitness MCP Server process, once, at startup.
 
-    Constructed exactly once and cached for the process lifetime (core.mcp.fitness_client
+    Constructed exactly once and cached for the process lifetime (core.adapters.mcp.fitness_client
     never lazily rebuilds) -- unlike configure_research_client()'s Tavily wiring, which
     still rebuilds its client on every uncached call (a pre-existing gap, out of scope
     here). Non-fatal on exhausted retries: guideline retrieval and template caching

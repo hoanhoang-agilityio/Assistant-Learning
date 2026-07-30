@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from core.adapters.vfs import VFS
 from core.capabilities.fitness.synthesis import build_workout_summary
-from core.vfs import VFS
 
 
 def write_fitness_artifacts(

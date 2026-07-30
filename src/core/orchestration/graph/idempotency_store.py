@@ -3,7 +3,7 @@ a duplicate create_run request (client retry after a dropped response,
 double-click, at-least-once delivery) returns the existing run instead of
 starting a second one.
 
-Mirrors core.orchestration.graph.run_tracker.RunTracker / core.rate_limit.postgres_store
+Mirrors core.orchestration.graph.run_tracker.RunTracker / core.adapters.rate_limit.postgres_store
 .PostgresUsageStore's shape: a small, single-table, psycopg_pool-backed
 store, created with CREATE TABLE IF NOT EXISTS rather than a migration
 framework -- consistent with this repo's other custom Postgres tables.

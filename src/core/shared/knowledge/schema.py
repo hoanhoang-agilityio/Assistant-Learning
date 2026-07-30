@@ -1,7 +1,7 @@
 """Domain models for the Fitness Knowledge Store.
 
 Storage-side models (KnowledgeSource/KnowledgeDocument/KnowledgeChunk) mirror the
-Postgres schema in core.repositories.bootstrap. GuidelineHit is the retrieval-result
+Postgres schema in core.adapters.repositories.bootstrap. GuidelineHit is the retrieval-result
 shape returned by the Fitness MCP Server's search_guidelines tool -- a denormalized
 join of chunk + document + source for callers that think in terms of "a matched piece
 of knowledge", not raw storage rows.

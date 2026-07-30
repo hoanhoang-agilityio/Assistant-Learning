@@ -2,7 +2,7 @@
 prevention via mark_waiting/claim_resume).
 
 Runs against the real local Postgres instance already used by
-core.orchestration.graph.checkpointer/core.rate_limit.postgres_store in this dev
+core.orchestration.graph.checkpointer/core.adapters.rate_limit.postgres_store in this dev
 environment (docker-compose's postgres service) -- mirrors
 core/rate_limit/postgres_store.py's own untested-at-the-unit-level
 precedent by instead exercising the real table, which is worth the

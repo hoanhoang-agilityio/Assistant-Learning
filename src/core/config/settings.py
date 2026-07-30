@@ -138,7 +138,7 @@ class Settings(BaseSettings):
     local_kb_min_documents: int = 1
     local_kb_min_trust_score: float = 0.85
 
-    # Fitness MCP Server (own process: `uv run python -m core.mcp.fitness_server`;
+    # Fitness MCP Server (own process: `uv run python -m core.adapters.mcp.fitness_server`;
     # sole owner of guideline documents + workout templates, backed by Postgres + pgvector)
     fitness_mcp_host: str = "127.0.0.1"
     fitness_mcp_port: int = 8100
@@ -200,7 +200,7 @@ class Settings(BaseSettings):
     api_base_url: str = "http://localhost:8000"
     log_level: str = "INFO"
     # "json" for machine-parseable production logs, "text" for readable local
-    # output. Applied by core.observability.logging.configure_logging.
+    # output. Applied by core.adapters.observability.logging.configure_logging.
     log_format: str = "json"
 
     @model_validator(mode="before")

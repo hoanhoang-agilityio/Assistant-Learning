@@ -1,4 +1,4 @@
-from core.observability.hierarchy import (
+from core.adapters.observability.hierarchy import (
     LANGFUSE_ORCHESTRATION_TAGS,
     LANGFUSE_SESSION_METADATA_KEY,
     LangfuseHierarchyIds,
@@ -7,7 +7,7 @@ from core.observability.hierarchy import (
     map_thread_to_session_id,
     resolve_hierarchy_ids,
 )
-from core.observability.langfuse import (
+from core.adapters.observability.langfuse import (
     build_graph_invoke_config,
     build_langfuse_callbacks,
     create_trace_id_for_run,
@@ -21,7 +21,7 @@ from core.observability.langfuse import (
     supervisor_span_context,
     tavily_tool_span_context,
 )
-from core.observability.tracing import (
+from core.adapters.observability.tracing import (
     SUBGRAPH_SPAN_NAMES,
     resolve_subgraph_span_name,
     wrap_traced_subgraph_node,

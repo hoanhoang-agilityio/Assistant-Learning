@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 
 from psycopg_pool import ConnectionPool
 
-from core.rate_limit.store import DailyUsage
+from core.adapters.rate_limit.store import DailyUsage
 
 _TABLE_DDL = """
 CREATE TABLE IF NOT EXISTS ai_usage_daily (

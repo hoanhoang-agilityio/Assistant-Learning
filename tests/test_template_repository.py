@@ -1,10 +1,10 @@
 """Tests for TemplateRepository.
 
 Runs against the real local Postgres instance already used by
-core.orchestration.graph.checkpointer/core.rate_limit.postgres_store/core.orchestration.graph.run_tracker in this
+core.orchestration.graph.checkpointer/core.adapters.rate_limit.postgres_store/core.orchestration.graph.run_tracker in this
 dev environment (docker-compose's postgres service). Calls bootstrap_schema()
 defensively before constructing the repository, since repositories no longer create
-their own schema (see core.repositories.bootstrap) -- production trusts
+their own schema (see core.adapters.repositories.bootstrap) -- production trusts
 scripts/bootstrap_fitness_db.py has already run; tests can't make that assumption
 about a fresh environment, and the call is idempotent/cheap.
 """
@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import pytest
 
+from core.adapters.repositories.bootstrap import bootstrap_schema
+from core.adapters.repositories.template_repository import TemplateRepository
 from core.config.settings import get_settings
-from core.repositories.bootstrap import bootstrap_schema
-from core.repositories.template_repository import TemplateRepository
 
 
 @pytest.fixture

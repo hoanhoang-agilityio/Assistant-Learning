@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from core.adapters.vfs.bootstrap import init_run_workspace
+from core.adapters.vfs.vfs import VFS
 from core.evaluation import shadow_eval
 from core.evaluation.shadow_eval import (
     InMemoryShadowEvalStore,
@@ -11,8 +13,6 @@ from core.evaluation.shadow_eval import (
     score_run_for_shadow_eval,
 )
 from core.orchestration.graph.run_history_store import InMemoryRunHistoryStore
-from core.vfs.bootstrap import init_run_workspace
-from core.vfs.vfs import VFS
 
 
 def _seed_run_workspace(

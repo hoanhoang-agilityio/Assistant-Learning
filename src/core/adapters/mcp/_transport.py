@@ -1,5 +1,5 @@
 """Shared MCP tool-invocation plumbing for langchain-mcp-adapters based clients
-(core.mcp.tavily_client, core.mcp.fitness_client) -- asyncio bridging and MCP
+(core.adapters.mcp.tavily_client, core.adapters.mcp.fitness_client) -- asyncio bridging and MCP
 content-block response parsing, extracted so it isn't duplicated per client.
 """
 

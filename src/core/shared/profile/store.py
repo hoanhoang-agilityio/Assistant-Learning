@@ -4,11 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from core.llm.serializers import compact_profile_for_llm
+from core.adapters.llm.serializers import compact_profile_for_llm
+from core.adapters.vfs import VFS
+from core.adapters.vfs.layout import PLAN_PROFILE
 from core.shared.profile.normalize import _normalize_days_per_week, resolve_target_weight
 from core.shared.profile.schema import CONSTRAINT_FIELDS
-from core.vfs import VFS
-from core.vfs.layout import PLAN_PROFILE
 
 
 def seed_profile(

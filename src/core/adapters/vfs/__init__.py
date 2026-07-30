@@ -1,5 +1,5 @@
-from core.vfs.bootstrap import init_run_workspace, run_workspace_name, run_workspace_path
-from core.vfs.layout import (
+from core.adapters.vfs.bootstrap import init_run_workspace, run_workspace_name, run_workspace_path
+from core.adapters.vfs.layout import (
     FITNESS_FINAL_PLAN,
     PLAN_EXECUTION_PLAN,
     PLAN_PROFILE,
@@ -9,8 +9,8 @@ from core.vfs.layout import (
     get_artifact_spec,
     is_known_vfs_path,
 )
-from core.vfs.schema import parse_vfs_json_artifact, validate_vfs_json_artifact
-from core.vfs.vfs import VFS
+from core.adapters.vfs.schema import parse_vfs_json_artifact, validate_vfs_json_artifact
+from core.adapters.vfs.vfs import VFS
 
 __all__ = [
     "FITNESS_FINAL_PLAN",

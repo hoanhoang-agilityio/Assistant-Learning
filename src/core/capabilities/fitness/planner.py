@@ -5,23 +5,23 @@ from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from core.capabilities.fitness.prompts import (
-    FITNESS_PLANNER_SYSTEM_PROMPT,
-    build_fitness_edit_system_prompt,
-)
-from core.capabilities.fitness.schema import EditOperation, StructuredWorkout
-from core.capabilities.research.schema import ResearchFindings
-from core.llm.contracts import validate_fitness_planner_payload
-from core.llm.factory import invoke_standard_structured_output
-from core.llm.metrics import set_llm_metrics_node
-from core.llm.payload import compact_json, limit_feedback_items
-from core.llm.serializers import (
+from core.adapters.llm.contracts import validate_fitness_planner_payload
+from core.adapters.llm.factory import invoke_standard_structured_output
+from core.adapters.llm.metrics import set_llm_metrics_node
+from core.adapters.llm.payload import compact_json, limit_feedback_items
+from core.adapters.llm.serializers import (
     compact_evidence_for_llm,
     compact_execution_plan_for_llm,
     compact_macro_targets_for_llm,
     compact_profile_for_llm,
     compact_structured_findings,
 )
+from core.capabilities.fitness.prompts import (
+    FITNESS_PLANNER_SYSTEM_PROMPT,
+    build_fitness_edit_system_prompt,
+)
+from core.capabilities.fitness.schema import EditOperation, StructuredWorkout
+from core.capabilities.research.schema import ResearchFindings
 from core.shared.grounding.schema import GroundedClaim
 from core.shared.grounding.validate import allowed_source_urls, filter_grounded_claims
 from core.shared.planning.schema import ExecutionPlan
@@ -249,7 +249,7 @@ def generate_structured_workout(
             prompt_cache_key=prompt_cache_key,
         )
     finally:
-        from core.llm.metrics import reset_llm_metrics_node
+        from core.adapters.llm.metrics import reset_llm_metrics_node
 
         reset_llm_metrics_node(token)
     return sanitize_workout_evidence_applied(

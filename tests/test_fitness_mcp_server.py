@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import pytest
 
+from core.adapters.mcp.fitness_server import build_server
+from core.adapters.repositories.bootstrap import bootstrap_schema
+from core.adapters.repositories.guideline_repository import GuidelineRepository
+from core.adapters.repositories.template_repository import TemplateRepository
 from core.config.settings import get_settings
-from core.mcp.fitness_server import build_server
-from core.repositories.bootstrap import bootstrap_schema
-from core.repositories.guideline_repository import GuidelineRepository
-from core.repositories.template_repository import TemplateRepository
 from core.shared.knowledge.embeddings import get_embedding_provider
 from core.shared.knowledge.schema import KnowledgeChunk, KnowledgeDocument, KnowledgeSource
 

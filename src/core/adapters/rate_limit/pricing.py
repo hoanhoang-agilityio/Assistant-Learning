@@ -1,9 +1,9 @@
 """Local, approximate USD cost estimation.
 
-Two real consumers, kept separate: core.rate_limit.limiter uses this to
+Two real consumers, kept separate: core.adapters.rate_limit.limiter uses this to
 enforce rate_limit_daily_max_cost_usd_per_user (functional — must stay in
 sync with whatever model is actually configured, or the cap silently stops
-meaning what its name says); core.llm.metrics uses it for the
+meaning what its name says); core.adapters.llm.metrics uses it for the
 token_cost.log/.md pipeline report, which is a local sanity check, not an
 authoritative bill — see that module's docstring. estimate_cost_usd bills
 cached_tokens at each model's cached_input_per_million rate rather than the

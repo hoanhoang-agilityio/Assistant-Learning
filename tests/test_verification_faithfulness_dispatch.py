@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import pytest
 
+from core.adapters.llm import factory as factory_module
+from core.adapters.rate_limit import AIRateLimiter, InMemoryUsageStore
 from core.capabilities.verification.utils import evaluate_faithfulness, heuristic_faithfulness_data
 from core.evaluation import ragas as ragas_module
-from core.llm import factory as factory_module
-from core.rate_limit import AIRateLimiter, InMemoryUsageStore
 
 
 @pytest.fixture

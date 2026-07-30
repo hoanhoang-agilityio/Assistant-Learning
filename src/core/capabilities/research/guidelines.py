@@ -4,12 +4,12 @@ into research sources/evidence."""
 import logging
 from typing import Any
 
+from core.adapters.mcp.fitness_client import get_fitness_client
+from core.adapters.observability.tracing import traced_fitness_mcp_call
 from core.capabilities.research.verification import (
     verify_sources_data,
 )
 from core.config.settings import get_settings
-from core.mcp.fitness_client import get_fitness_client
-from core.observability.tracing import traced_fitness_mcp_call
 from core.shared.knowledge.schema import GuidelineHit
 
 logger = logging.getLogger(__name__)

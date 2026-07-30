@@ -7,7 +7,7 @@ Two distinct roles, deliberately not merged:
 - Dollar cost in the pipeline_cost_table()/token_cost.log/.md output is an
   approximation from a hardcoded local pricing table (rate_limit/pricing.py)
   that must be kept in sync with the model actually configured — Langfuse
-  (wired via core.observability.langfuse) captures the same token usage from
+  (wired via core.adapters.observability.langfuse) captures the same token usage from
   the same LangChain calls and is the source of truth for actual per-run
   cost. Treat the numbers here as a quick local sanity check, not a bill.
 """
@@ -24,13 +24,13 @@ from typing import Any
 
 from langchain_core.messages import BaseMessage
 
-from core.llm.payload import compact_json
-from core.rate_limit.limiter import (
+from core.adapters.llm.payload import compact_json
+from core.adapters.rate_limit.limiter import (
     estimate_message_tokens,
     extract_cached_tokens,
     extract_token_usage,
 )
-from core.rate_limit.pricing import estimate_cost_usd
+from core.adapters.rate_limit.pricing import estimate_cost_usd
 
 logger = logging.getLogger(__name__)
 

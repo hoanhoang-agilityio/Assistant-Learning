@@ -4,14 +4,14 @@ synthesis calls."""
 import logging
 from typing import Any
 
-from core.capabilities.research.compression import compress_content, query_terms, score_content
-from core.config.settings import get_settings
-from core.llm.contracts import validate_research_context_payload
-from core.llm.serializers import (
+from core.adapters.llm.contracts import validate_research_context_payload
+from core.adapters.llm.serializers import (
     compact_execution_plan_for_llm,
     compact_goal_spec_for_llm,
     compact_profile_for_llm,
 )
+from core.capabilities.research.compression import compress_content, query_terms, score_content
+from core.config.settings import get_settings
 from core.shared.planning.schema import ExecutionPlan
 from core.shared.profile.goal_spec import GoalSpec
 

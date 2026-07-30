@@ -5,13 +5,13 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from core.adapters.vfs import VFS
 from core.shared.planning.schema import ExecutionPlan
 from core.shared.planning.utils import (
     has_execution_plan,
     load_execution_plan,
 )
 from core.shared.profile.store import load_run_profile
-from core.vfs import VFS
 
 logger = logging.getLogger(__name__)
 

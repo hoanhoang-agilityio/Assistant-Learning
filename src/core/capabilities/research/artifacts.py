@@ -5,8 +5,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from core.adapters.vfs import VFS
 from core.capabilities.research.schema import ResearchFindings
-from core.vfs import VFS
 
 logger = logging.getLogger(__name__)
 

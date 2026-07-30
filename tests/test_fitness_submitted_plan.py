@@ -16,6 +16,8 @@ from typing import Any
 
 import pytest
 
+from core.adapters.vfs import VFS
+from core.adapters.vfs.layout import PLAN_SUBMITTED_TEXT
 from core.capabilities.fitness.executor import SupervisorRoutedFitnessExecutor
 from core.capabilities.fitness.normalize import (
     SubmittedPlanExtraction,
@@ -36,8 +38,6 @@ from core.orchestration.agents.macro_report_judge import (
 )
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.graph.run import create_initial_state
-from core.vfs import VFS
-from core.vfs.layout import PLAN_SUBMITTED_TEXT
 from tests.helpers.fitness import default_structured_workout
 
 

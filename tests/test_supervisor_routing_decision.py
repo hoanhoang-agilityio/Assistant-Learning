@@ -7,9 +7,9 @@ retry rule always overrides it when the conditions are met."""
 
 from pathlib import Path
 
+from core.adapters.vfs.bootstrap import init_run_workspace
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.agents.supervisor_routing import run_supervisor_routing_decision
-from core.vfs.bootstrap import init_run_workspace
 
 
 def _state_with_failed_verification(

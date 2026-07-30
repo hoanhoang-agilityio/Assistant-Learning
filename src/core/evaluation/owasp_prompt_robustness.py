@@ -705,10 +705,10 @@ class _FitnessPlannerRunner:
     def run_with_schema(self, case: RobustnessCase) -> tuple[str, bool | None]:
         from langchain_core.messages import HumanMessage, SystemMessage
 
+        from core.adapters.llm.factory import invoke_standard_structured_output
+        from core.adapters.llm.payload import compact_json
         from core.capabilities.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
         from core.capabilities.fitness.schema import StructuredWorkout
-        from core.llm.factory import invoke_standard_structured_output
-        from core.llm.payload import compact_json
 
         constraints = dict(
             case.payload.get("constraints") or {"days_per_week": 3, "equipment": "bodyweight"}
@@ -753,11 +753,11 @@ class _FitnessEditRunner:
     def run_with_schema(self, case: RobustnessCase) -> tuple[str, bool | None]:
         from langchain_core.messages import HumanMessage, SystemMessage
 
+        from core.adapters.llm.factory import invoke_standard_structured_output
+        from core.adapters.llm.payload import compact_json
         from core.capabilities.fitness.prompts import build_fitness_edit_system_prompt
         from core.capabilities.fitness.schema import StructuredWorkout
         from core.capabilities.fitness.utils import build_default_structured_workout
-        from core.llm.factory import invoke_standard_structured_output
-        from core.llm.payload import compact_json
 
         baseline = build_default_structured_workout(
             constraints={"days_per_week": 4, "equipment": "gym"}
@@ -791,10 +791,10 @@ class _ResearchSynthesisRunner:
     def run_with_schema(self, case: RobustnessCase) -> tuple[str, bool | None]:
         from langchain_core.messages import HumanMessage, SystemMessage
 
+        from core.adapters.llm.factory import invoke_standard_structured_output
+        from core.adapters.llm.payload import compact_json
         from core.capabilities.research.prompts import SYNTHESIS_SYSTEM_PROMPT
         from core.capabilities.research.schema import ResearchFindings
-        from core.llm.factory import invoke_standard_structured_output
-        from core.llm.payload import compact_json
 
         evidence_text = str(
             case.payload.get("poisoned_evidence")
@@ -830,8 +830,8 @@ class _ResearchReactRunner:
         from langchain_core.messages import HumanMessage, SystemMessage
         from pydantic import BaseModel, Field
 
+        from core.adapters.llm.factory import invoke_standard_structured_output
         from core.capabilities.research.prompts import REACT_SYSTEM_PROMPT
-        from core.llm.factory import invoke_standard_structured_output
 
         class ReactProbe(BaseModel):
             intended_tools: list[str] = Field(default_factory=list)

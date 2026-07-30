@@ -1,7 +1,7 @@
 """Fitness MCP Server -- sole owner of Fitness domain knowledge (guideline documents +
 workout templates), backed by PostgreSQL + pgvector.
 
-Runs as its own standalone process: `uv run python -m core.mcp.fitness_server`.
+Runs as its own standalone process: `uv run python -m core.adapters.mcp.fitness_server`.
 Exposes business-capability tools only (search_guidelines, search_training_template,
 store_training_template) -- never SQL, never raw repository methods.
 
@@ -17,9 +17,9 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from core.adapters.repositories.guideline_repository import GuidelineRepository
+from core.adapters.repositories.template_repository import TemplateRepository
 from core.config.settings import Settings, get_settings
-from core.repositories.guideline_repository import GuidelineRepository
-from core.repositories.template_repository import TemplateRepository
 from core.shared.knowledge.embeddings import get_embedding_provider
 from core.shared.knowledge.retrieval_service import build_retrieval_service
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.observability.langfuse import supervisor_routing_span_context
+from core.adapters.observability.langfuse import supervisor_routing_span_context
 from core.orchestration.agents.execution_context import CapabilityResult
 from core.orchestration.agents.routing_context import (
     AgentDescriptor,

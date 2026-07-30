@@ -13,6 +13,8 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
+from core.adapters.vfs import VFS
+from core.adapters.vfs.layout import PLAN_EXECUTION_PLAN, PLAN_MARKDOWN
 from core.capabilities.planning.output import PlanningOutput
 from core.orchestration.agents.execution_context import CapabilityResult, ExecutionContext
 from core.orchestration.agents.state import OrchestrationState
@@ -20,8 +22,6 @@ from core.orchestration.routing.executor import CapabilityExecutor
 from core.shared.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.goal_spec import derive_goal_spec
 from core.shared.profile.store import load_run_profile, split_constraints
-from core.vfs import VFS
-from core.vfs.layout import PLAN_EXECUTION_PLAN, PLAN_MARKDOWN
 
 PLANNING_OUTPUT_PATH = "plan/planning_output.json"
 

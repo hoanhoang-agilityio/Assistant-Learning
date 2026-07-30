@@ -1,6 +1,6 @@
 """Prompt templates for the Research Agent (kept out of graph nodes)."""
 
-from core.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
+from core.adapters.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
 
 QUERY_PLANNING_SYSTEM_PROMPT = f"""You are a fitness evidence research planner.
 

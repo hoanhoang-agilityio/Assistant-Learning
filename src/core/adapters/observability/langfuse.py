@@ -11,8 +11,7 @@ import httpx
 from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 
-from core.config.settings import Settings, get_settings
-from core.observability.hierarchy import (
+from core.adapters.observability.hierarchy import (
     LANGFUSE_ORCHESTRATION_TAGS,
     LANGFUSE_SESSION_METADATA_KEY,
     LangfuseHierarchyIds,
@@ -21,6 +20,7 @@ from core.observability.hierarchy import (
     map_thread_to_session_id,
     resolve_hierarchy_ids,
 )
+from core.config.settings import Settings, get_settings
 from core.orchestration.agents.state import OrchestrationState
 
 logger = logging.getLogger(__name__)
@@ -169,7 +169,7 @@ def build_graph_invoke_config(
 ) -> dict[str, Any]:
     """Build LangGraph invoke config with thread_id and Langfuse hierarchy bindings.
 
-    Hierarchy (see ``core.observability.hierarchy``):
+    Hierarchy (see ``core.adapters.observability.hierarchy``):
     - ``thread_id`` → Langfuse Session (Thread) via ``langfuse_session_id`` metadata
       (CallbackHandler Sessions write path) and ``propagate_attributes`` on spans
     - ``run_id`` → Langfuse Trace via deterministic ``create_trace_id(seed=run_id)``

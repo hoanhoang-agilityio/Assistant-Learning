@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from core.adapters.vfs import VFS
+from core.adapters.vfs.layout import PLAN_SUBMITTED_TEXT
 from core.capabilities.fitness.blueprint import PlanBlueprint, build_plan_blueprint
 from core.capabilities.fitness.normalize import (
     explain_verified_plan as _explain_verified_plan_llm,
@@ -28,8 +30,6 @@ from core.capabilities.fitness.utils import (
 )
 from core.shared.profile.goal_spec import derive_goal_spec
 from core.shared.profile.store import load_run_profile, split_constraints
-from core.vfs import VFS
-from core.vfs.layout import PLAN_SUBMITTED_TEXT
 
 
 def load_research_result(workspace_path: str) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 """LangChain MCP Adapters client for the Fitness MCP Server (own process).
 
-Mirrors core.mcp.tavily_client's shape, but the Fitness MCP Server is owned by this
+Mirrors core.adapters.mcp.tavily_client's shape, but the Fitness MCP Server is owned by this
 repo (not a pre-built external server) and is constructed exactly once at FastAPI
 startup and cached for the process lifetime -- see
 api/deps.py::configure_fitness_client_from_settings. get_fitness_client() returns None
@@ -16,8 +16,8 @@ from typing import Any
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
+from core.adapters.mcp._transport import invoke_tool, resolve_tool_name
 from core.config.settings import Settings, get_settings
-from core.mcp._transport import invoke_tool, resolve_tool_name
 
 SEARCH_GUIDELINES_TOOL = "search_guidelines"
 SEARCH_TRAINING_TEMPLATE_TOOL = "search_training_template"

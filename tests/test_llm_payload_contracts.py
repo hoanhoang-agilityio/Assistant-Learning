@@ -2,14 +2,14 @@
 
 import pytest
 
-from core.capabilities.fitness.planner import build_planner_payload
-from core.capabilities.research.schema import ResearchFindings
-from core.capabilities.research.utils import build_research_context_payload
-from core.llm.contracts import (
+from core.adapters.llm.contracts import (
     OPTIMIZATION_ROI_RANKING,
     validate_fitness_planner_payload,
     validate_research_context_payload,
 )
+from core.capabilities.fitness.planner import build_planner_payload
+from core.capabilities.research.schema import ResearchFindings
+from core.capabilities.research.utils import build_research_context_payload
 from core.shared.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.goal_spec import derive_goal_spec
 

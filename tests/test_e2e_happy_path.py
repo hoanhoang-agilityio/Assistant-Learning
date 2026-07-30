@@ -5,18 +5,18 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langgraph.types import Command
 
-from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
-from core.config.settings import Settings
-from core.mcp.tavily_client import TavilyMCPClient
-from core.observability.langfuse import (
+from core.adapters.mcp.tavily_client import TavilyMCPClient
+from core.adapters.observability.langfuse import (
     build_graph_invoke_config,
     build_langfuse_callbacks,
     create_trace_id_for_run,
     is_langfuse_enabled,
 )
+from core.adapters.vfs import VFS
+from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
+from core.config.settings import Settings
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.graph.builder import build_graph
-from core.vfs import VFS
 
 
 @pytest.fixture
@@ -65,8 +65,8 @@ def test_build_langfuse_callbacks_empty_when_disabled(
     )
 
 
-@patch("core.observability.langfuse.CallbackHandler")
-@patch("core.observability.langfuse.get_langfuse_client")
+@patch("core.adapters.observability.langfuse.CallbackHandler")
+@patch("core.adapters.observability.langfuse.get_langfuse_client")
 def test_build_langfuse_callbacks_uses_run_trace_id(
     mock_get_client: MagicMock,
     mock_callback_handler: MagicMock,
@@ -107,9 +107,12 @@ def test_build_graph_invoke_config_includes_thread_and_callbacks(
     langfuse_settings: Settings,
 ) -> None:
     with (
-        patch("core.observability.langfuse.build_langfuse_callbacks", return_value=["handler"]),
         patch(
-            "core.observability.langfuse.create_trace_id_for_run",
+            "core.adapters.observability.langfuse.build_langfuse_callbacks",
+            return_value=["handler"],
+        ),
+        patch(
+            "core.adapters.observability.langfuse.create_trace_id_for_run",
             return_value="trace-from-run",
         ),
     ):

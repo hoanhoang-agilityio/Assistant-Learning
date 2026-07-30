@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 
+from core.adapters.llm.payload import compact_json
 from core.capabilities.fitness import planner as planner_module
 from core.capabilities.fitness.planner import (
     build_planner_context_payload,
@@ -11,7 +12,6 @@ from core.capabilities.fitness.planner import (
     generate_structured_workout,
 )
 from core.capabilities.research.schema import ResearchFindings
-from core.llm.payload import compact_json
 from core.shared.planning.schema import ExecutionPlan, PlanTask
 from tests.helpers.fitness import default_structured_workout
 

@@ -2,11 +2,11 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from core.adapters.vfs import VFS
 from core.capabilities.wrapper import merge_subgraph_updates
 from core.orchestration.agents.execution_context import CapabilityResult
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.hitl.utils import hitl_control_data, request_approval_data
-from core.vfs import VFS
 
 
 def invoke_hitl_node(state: OrchestrationState) -> dict:

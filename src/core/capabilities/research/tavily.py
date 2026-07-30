@@ -5,17 +5,17 @@ process-global MCP client."""
 import logging
 from typing import Any
 
+from core.adapters.mcp.tavily_client import (
+    TAVILY_EXTRACT_TOOL,
+    TAVILY_SEARCH_TOOL,
+    get_tavily_client,
+)
+from core.adapters.observability.tracing import traced_tavily_call
 from core.capabilities.research.query_cache import get_cached_search_result, store_search_result
 from core.capabilities.research.verification import (
     has_explicit_trusted_domains,
     resolve_trusted_domains,
 )
-from core.mcp.tavily_client import (
-    TAVILY_EXTRACT_TOOL,
-    TAVILY_SEARCH_TOOL,
-    get_tavily_client,
-)
-from core.observability.tracing import traced_tavily_call
 
 logger = logging.getLogger(__name__)
 

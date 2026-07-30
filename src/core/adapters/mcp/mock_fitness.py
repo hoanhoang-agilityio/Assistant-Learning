@@ -1,7 +1,7 @@
 """Deterministic dev/test doubles for the Fitness MCP client.
 
 build_mock_fitness_client(): used when MOCK_FITNESS_KB=true (local dev without a
-running Fitness MCP Server/Postgres) -- mirrors core.mcp.mock_tavily's shape.
+running Fitness MCP Server/Postgres) -- mirrors core.adapters.mcp.mock_tavily's shape.
 
 build_fake_fitness_client(): used by tests/conftest.py's `fitness_client` fixture --
 needs real in-memory state since template put/get must round-trip within a test
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.mcp.fitness_client import FitnessMCPClient
+from core.adapters.mcp.fitness_client import FitnessMCPClient
 
 _MOCK_GUIDELINE: dict[str, Any] = {
     "document_id": "mock-guideline",

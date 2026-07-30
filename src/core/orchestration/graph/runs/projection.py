@@ -11,9 +11,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from core.adapters.vfs import VFS
 from core.orchestration.graph.runs.models import RunLifecycleStatus
 from core.shared.profile.labels import format_missing_profile_prompt
-from core.vfs import VFS
 
 
 def _resolve_display_node(

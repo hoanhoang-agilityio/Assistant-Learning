@@ -72,7 +72,7 @@ def test_build_plan_blocked_when_biometrics_missing(
     then render_plan crashed with TypeError: 'NoneType' object is not subscriptable."""
     import json
 
-    from core.vfs import VFS
+    from core.adapters.vfs import VFS
 
     state = create_initial_state(
         run_id="build-no-bio-v2",

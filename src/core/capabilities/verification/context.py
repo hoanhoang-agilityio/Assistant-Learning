@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from core.adapters.llm.serializers import compact_evidence_for_llm
+from core.adapters.vfs import VFS
 from core.capabilities.fitness.utils import build_workout_summary
-from core.llm.serializers import compact_evidence_for_llm
-from core.vfs import VFS
 
 
 def load_verification_context(workspace_path: str) -> dict[str, Any]:

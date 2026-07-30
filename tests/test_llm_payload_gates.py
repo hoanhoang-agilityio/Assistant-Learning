@@ -2,6 +2,13 @@
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from core.adapters.llm.budgets import (
+    LLM_NODE_BUDGETS,
+    check_payload_budget,
+    measure_fixture_baseline,
+)
+from core.adapters.llm.metrics import estimate_payload_tokens, reset_llm_metrics
+from core.adapters.llm.payload import compact_json
 from core.capabilities.fitness.planner import build_planner_payload
 from core.capabilities.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
 from core.capabilities.research.prompts import (
@@ -13,9 +20,6 @@ from core.capabilities.research.utils import (
     build_research_context_payload,
     build_synthesis_llm_extra,
 )
-from core.llm.budgets import LLM_NODE_BUDGETS, check_payload_budget, measure_fixture_baseline
-from core.llm.metrics import estimate_payload_tokens, reset_llm_metrics
-from core.llm.payload import compact_json
 from core.shared.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.extraction import _EXTRACTION_SYSTEM_PROMPT
 from core.shared.profile.goal_spec import derive_goal_spec

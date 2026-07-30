@@ -5,9 +5,9 @@ from collections.abc import Callable
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
-from core.llm.factory import invoke_standard_structured_output
-from core.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
-from core.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
+from core.adapters.llm.factory import invoke_standard_structured_output
+from core.adapters.llm.metrics import reset_llm_metrics_node, set_llm_metrics_node
+from core.adapters.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
 from core.orchestration.agents.execution_context import Intent
 
 

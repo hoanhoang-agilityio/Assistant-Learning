@@ -1,6 +1,6 @@
 """Tests for shared LLM compact serializers."""
 
-from core.llm.serializers import (
+from core.adapters.llm.serializers import (
     compact_execution_plan_for_llm,
     compact_macro_targets_for_llm,
     compact_profile_for_llm,

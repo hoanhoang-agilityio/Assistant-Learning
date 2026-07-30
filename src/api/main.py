@@ -8,11 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.deps import close_orchestrator_resources, get_orchestrator, get_shadow_eval_store
 from api.routes.runs import router as runs_router
 from api.routes.users import router as users_router
+from core.adapters.observability.logging import configure_logging
+from core.adapters.rate_limit.pricing import validate_model_pricing_coverage
 from core.config.settings import Settings, get_settings
 from core.evaluation.shadow_eval import run_shadow_evaluation_batch
-from core.observability.logging import configure_logging
 from core.orchestration.graph.service import RunOrchestrator
-from core.rate_limit.pricing import validate_model_pricing_coverage
 
 
 async def _run_periodic_reconciliation(instance: RunOrchestrator, interval_seconds: float) -> None:

@@ -1,6 +1,6 @@
 """Tests for compact LLM payload helpers."""
 
-from core.llm.payload import compact_json, limit_feedback_items, strip_empty_values
+from core.adapters.llm.payload import compact_json, limit_feedback_items, strip_empty_values
 
 
 def test_strip_empty_values_removes_null_and_empty_collections() -> None:

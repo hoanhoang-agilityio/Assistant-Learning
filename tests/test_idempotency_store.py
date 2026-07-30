@@ -1,7 +1,7 @@
 """Tests for IdempotencyStore (PR4: idempotency support for create_run).
 
 Runs against the real local Postgres instance already used by
-core.orchestration.graph.checkpointer/core.rate_limit.postgres_store/core.orchestration.graph.run_tracker
+core.orchestration.graph.checkpointer/core.adapters.rate_limit.postgres_store/core.orchestration.graph.run_tracker
 in this dev environment (docker-compose's postgres service).
 """
 

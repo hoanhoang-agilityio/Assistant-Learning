@@ -4,7 +4,7 @@ and would otherwise be stuck reporting "running" forever, since nothing else
 in this codebase persists that a run is actively executing (LangGraph's
 checkpoint records state, not liveness).
 
-Mirrors core.rate_limit.postgres_store.PostgresUsageStore's shape: a small,
+Mirrors core.adapters.rate_limit.postgres_store.PostgresUsageStore's shape: a small,
 single-table, psycopg_pool-backed store, created with CREATE TABLE IF NOT
 EXISTS rather than a migration framework, consistent with this repo's only
 other custom Postgres table.

@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from core.adapters.vfs import VFS
+from core.adapters.vfs.layout import PLAN_SUBMITTED_TEXT
 from core.config.settings import get_settings
 from core.orchestration.graph.idempotency_store import IdempotencyStore
 from core.orchestration.graph.run_tracker import RunTracker
@@ -13,8 +15,6 @@ from core.orchestration.graph.service import RunOrchestrator, best_effort
 from core.shared.profile.extraction import configure_profile_extractor
 from core.shared.profile.schema import ExtractedProfile
 from core.shared.profile.store import load_run_profile
-from core.vfs import VFS
-from core.vfs.layout import PLAN_SUBMITTED_TEXT
 from tests.helpers.hitl import pause_before_hitl
 
 

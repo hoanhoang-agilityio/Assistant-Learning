@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from core.llm.metrics import estimate_payload_tokens
-from core.llm.payload import compact_json
+from core.adapters.llm.metrics import estimate_payload_tokens
+from core.adapters.llm.payload import compact_json
 
 
 @dataclass(frozen=True)

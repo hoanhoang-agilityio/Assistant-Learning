@@ -1,7 +1,7 @@
 from pathlib import Path
 
+from core.adapters.vfs.layout import VFS_SUBDIRS
 from core.config.settings import get_settings
-from core.vfs.layout import VFS_SUBDIRS
 
 RUN_WORKSPACE_PREFIX = "run_"
 RUN_SUBDIRS = VFS_SUBDIRS

@@ -62,7 +62,7 @@ def _run_traced_node(
     invoke_fn: Callable[..., dict],
     *invoke_args: Any,
 ) -> dict:
-    from core.observability.langfuse import subgraph_span_context
+    from core.adapters.observability.langfuse import subgraph_span_context
 
     run_token = set_trace_run_id(state["run_id"])
     thread_token = set_trace_thread_id(state["thread_id"])
@@ -123,7 +123,7 @@ def tavily_mcp_span_context(
     *,
     input_data: dict[str, Any] | None = None,
 ) -> AbstractContextManager[Any]:
-    from core.observability.langfuse import tavily_tool_span_context
+    from core.adapters.observability.langfuse import tavily_tool_span_context
 
     run_id = get_trace_run_id()
     if run_id is None:
@@ -151,7 +151,7 @@ def fitness_mcp_span_context(
     *,
     input_data: dict[str, Any] | None = None,
 ) -> AbstractContextManager[Any]:
-    from core.observability.langfuse import fitness_mcp_tool_span_context
+    from core.adapters.observability.langfuse import fitness_mcp_tool_span_context
 
     run_id = get_trace_run_id()
     if run_id is None:

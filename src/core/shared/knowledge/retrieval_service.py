@@ -12,8 +12,8 @@ import logging
 
 from langchain_core.embeddings import Embeddings
 
+from core.adapters.repositories.guideline_repository import GuidelineRepository
 from core.config.settings import Settings, get_settings
-from core.repositories.guideline_repository import GuidelineRepository
 from core.shared.knowledge.retrieval.fusion import DEFAULT_RRF_K
 from core.shared.knowledge.retrieval.hybrid_retriever import HybridRetriever
 from core.shared.knowledge.retrieval.query_rewriter import (

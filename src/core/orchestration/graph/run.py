@@ -1,11 +1,11 @@
 from pathlib import Path
 
+from core.adapters.vfs import VFS
+from core.adapters.vfs.bootstrap import init_run_workspace
+from core.adapters.vfs.layout import PLAN_SUBMITTED_TEXT
 from core.config.settings import get_settings
 from core.orchestration.agents.state import OrchestrationState
 from core.shared.profile.store import seed_profile
-from core.vfs import VFS
-from core.vfs.bootstrap import init_run_workspace
-from core.vfs.layout import PLAN_SUBMITTED_TEXT
 
 
 def create_initial_state(

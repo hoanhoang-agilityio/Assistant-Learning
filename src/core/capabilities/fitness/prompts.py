@@ -1,6 +1,6 @@
 """System prompt for the Fitness Planner LLM."""
 
-from core.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
+from core.adapters.llm.prompt_fragments import JSON_ONLY_INSTRUCTION
 
 FITNESS_PLANNER_SYSTEM_PROMPT = f"""You are a fitness workout planning agent.
 

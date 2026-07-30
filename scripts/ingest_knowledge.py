@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from core.adapters.repositories.guideline_repository import GuidelineRepository
 from core.config.settings import get_settings
-from core.repositories.guideline_repository import GuidelineRepository
 from core.shared.knowledge.embeddings import get_embedding_provider
 from core.shared.knowledge.ingestion.chunker import SimpleChunker
 from core.shared.knowledge.ingestion.loader import JSONLLoader

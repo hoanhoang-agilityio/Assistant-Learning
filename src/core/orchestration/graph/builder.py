@@ -3,10 +3,10 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from core.adapters.observability.langfuse import supervisor_span_context
+from core.adapters.observability.tracing import wrap_traced_subgraph_node
 from core.capabilities.planning.node import invoke_planning_node
 from core.capabilities.wrapper import append_pipeline_steps
-from core.observability.langfuse import supervisor_span_context
-from core.observability.tracing import wrap_traced_subgraph_node
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.agents.supervisor import supervisor_node
 from core.orchestration.graph.routing import route_from_supervisor
