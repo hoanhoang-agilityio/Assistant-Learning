@@ -2,7 +2,7 @@
 
 Pure SQL, no embedding calls (vectors are always supplied by the caller -- see
 core.shared.knowledge.embeddings / core.shared.knowledge.retrieval), no DDL at construction
-(schema must already exist -- see core.adapters.repositories.bootstrap).
+(schema must already exist -- see core.adapters.db.bootstrap).
 
 Owns two search channels used by HybridRetriever:
   - search: dense cosine similarity over pgvector embeddings

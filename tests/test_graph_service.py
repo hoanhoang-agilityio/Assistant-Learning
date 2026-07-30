@@ -6,11 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from core.adapters.db.idempotency_store import IdempotencyStore
+from core.adapters.db.run_tracker import RunTracker
 from core.adapters.vfs import VFS
 from core.adapters.vfs.layout import PLAN_SUBMITTED_TEXT
 from core.config.settings import get_settings
-from core.orchestration.graph.idempotency_store import IdempotencyStore
-from core.orchestration.graph.run_tracker import RunTracker
 from core.orchestration.graph.service import RunOrchestrator, best_effort
 from core.shared.profile.extraction import configure_profile_extractor
 from core.shared.profile.schema import ExtractedProfile

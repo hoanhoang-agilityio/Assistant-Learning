@@ -1,5 +1,5 @@
 from api.schemas import RunStatusResponse, RunSummaryResponse
-from core.orchestration.graph.run_history_store import RunSummary
+from core.adapters.db.run_history_store import RunSummary
 from core.orchestration.graph.service import RunStatus
 
 

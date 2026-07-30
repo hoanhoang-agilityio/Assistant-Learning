@@ -5,7 +5,7 @@ than one API replica behind a load balancer makes the effective per-user
 daily cap `N x configured_limit` instead of the configured value, since each
 replica enforces its own independent counter. This store reuses the same
 Postgres instance already provisioned for the LangGraph checkpointer
-(core.orchestration.graph.checkpointer.postgres_checkpointer) so the cap is enforced once,
+(core.adapters.db.checkpointer.postgres_checkpointer) so the cap is enforced once,
 centrally, regardless of which replica handles a given request.
 """
 

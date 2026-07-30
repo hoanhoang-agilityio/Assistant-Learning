@@ -17,8 +17,8 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from core.adapters.repositories.guideline_repository import GuidelineRepository
-from core.adapters.repositories.template_repository import TemplateRepository
+from core.adapters.db.guideline_repository import GuidelineRepository
+from core.adapters.db.template_repository import TemplateRepository
 from core.config.settings import Settings, get_settings
 from core.shared.knowledge.embeddings import get_embedding_provider
 from core.shared.knowledge.retrieval_service import build_retrieval_service

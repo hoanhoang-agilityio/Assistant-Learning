@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.adapters.repositories.bootstrap import bootstrap_schema
+from core.adapters.db.bootstrap import bootstrap_schema
 from core.config.settings import get_settings
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]

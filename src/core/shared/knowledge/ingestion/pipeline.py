@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 
 from langchain_core.embeddings import Embeddings
 
-from core.adapters.repositories.guideline_repository import GuidelineRepository
+from core.adapters.db.guideline_repository import GuidelineRepository
 from core.shared.knowledge.ingestion.chunker import Chunker
 from core.shared.knowledge.ingestion.loader import Loader
 from core.shared.knowledge.ingestion.validator import validate_record

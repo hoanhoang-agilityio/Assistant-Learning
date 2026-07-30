@@ -4,6 +4,10 @@ from functools import lru_cache
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
+from core.adapters.db.checkpointer import postgres_checkpointer
+from core.adapters.db.idempotency_store import IdempotencyStore
+from core.adapters.db.run_history_store import InMemoryRunHistoryStore, RunHistoryStore
+from core.adapters.db.run_tracker import RunTracker
 from core.adapters.llm.factory import configure_rate_limiter
 from core.adapters.mcp.fitness_client import (
     FitnessMCPClient,
@@ -21,10 +25,6 @@ from core.adapters.rate_limit import (
 )
 from core.config.settings import Settings, get_settings
 from core.evaluation.shadow_eval import InMemoryShadowEvalStore, ShadowEvalStore
-from core.orchestration.graph.checkpointer import postgres_checkpointer
-from core.orchestration.graph.idempotency_store import IdempotencyStore
-from core.orchestration.graph.run_history_store import InMemoryRunHistoryStore, RunHistoryStore
-from core.orchestration.graph.run_tracker import RunTracker
 from core.orchestration.graph.service import RunOrchestrator
 
 logger = logging.getLogger(__name__)

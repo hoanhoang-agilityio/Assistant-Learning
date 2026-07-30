@@ -1,7 +1,7 @@
 """Postgres persistence for cached workout templates.
 
 Pure CRUD, no DDL at construction (schema must already exist -- see
-core.adapters.repositories.bootstrap). Replaces the file-backed TemplateRegistry.
+core.adapters.db.bootstrap). Replaces the file-backed TemplateRegistry.
 """
 
 from typing import Any

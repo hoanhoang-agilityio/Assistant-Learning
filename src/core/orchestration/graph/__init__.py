@@ -1,5 +1,5 @@
+from core.adapters.db.checkpointer import postgres_checkpointer
 from core.orchestration.graph.builder import build_graph
-from core.orchestration.graph.checkpointer import postgres_checkpointer
 from core.orchestration.graph.diagrams import (
     GRAPH_BUILDERS,
     draw_graph_mermaid_png,
