@@ -43,3 +43,6 @@ src/workspace/
 # uv
 .python-version
 .gitnexus
+
+# Local working tracker for open defects (intentionally untracked)
+KNOWN_ISSUES.md
