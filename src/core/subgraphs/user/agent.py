@@ -5,7 +5,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, StateSnapshot
 
-from core.agents.state import OrchestrationState
+from core.orchestration.agents.state import OrchestrationState
 from core.subgraphs.user.graph import invoke_user_subgraph
 
 

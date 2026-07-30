@@ -1,7 +1,7 @@
 """Tests for GuidelineRepository.
 
 Runs against the real local Postgres instance already used by
-core.graph.checkpointer/core.rate_limit.postgres_store/core.graph.run_tracker in this
+core.orchestration.graph.checkpointer/core.rate_limit.postgres_store/core.orchestration.graph.run_tracker in this
 dev environment (docker-compose's postgres service, pgvector-enabled). Feeds hand-built
 vectors directly -- no OpenAI call needed, since embeddings are a repository input, not
 something it computes. Calls bootstrap_schema() defensively before constructing the

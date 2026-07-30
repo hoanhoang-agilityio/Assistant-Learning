@@ -4,8 +4,8 @@ to route to persist itself; the Policy Engine's `_hitl_outcome` rule owns that."
 
 from pathlib import Path
 
-from core.graph.run import create_initial_state
-from core.hitl.node import invoke_hitl_node
+from core.orchestration.graph.run import create_initial_state
+from core.orchestration.hitl.node import invoke_hitl_node
 
 
 def _pending_state(tmp_path: Path, *, approval_status: str):

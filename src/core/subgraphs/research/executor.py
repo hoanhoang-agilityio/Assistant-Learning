@@ -1,6 +1,6 @@
 """Research capability executor.
 
-Implements `core.capabilities.executor.CapabilityExecutor`. Swappable via
+Implements `core.orchestration.routing.executor.CapabilityExecutor`. Swappable via
 `configure_research_executor` for a future LLM-driven ReAct executor without
 touching `capability.py`, the dispatcher, or the graph.
 """
@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from core.agents.execution_context import CapabilityResult, ExecutionContext
-from core.agents.state import OrchestrationState
-from core.capabilities.executor import CapabilityExecutor
+from core.orchestration.agents.execution_context import CapabilityResult, ExecutionContext
+from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.routing.executor import CapabilityExecutor
 from core.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.goal_spec import derive_goal_spec
 from core.subgraphs.research.research_agent import run_research_agent

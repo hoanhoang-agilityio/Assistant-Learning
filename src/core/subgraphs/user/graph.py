@@ -6,7 +6,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import interrupt
 
-from core.agents.state import OrchestrationState
+from core.orchestration.agents.state import OrchestrationState
 from core.shared.profile.goal_spec import derive_goal_spec
 from core.shared.profile.store import load_run_profile
 from core.subgraphs.user.state import UserState

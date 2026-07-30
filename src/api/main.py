@@ -10,8 +10,8 @@ from api.routes.runs import router as runs_router
 from api.routes.users import router as users_router
 from core.config.settings import Settings, get_settings
 from core.evaluation.shadow_eval import run_shadow_evaluation_batch
-from core.graph.service import RunOrchestrator
 from core.observability.logging import configure_logging
+from core.orchestration.graph.service import RunOrchestrator
 from core.rate_limit.pricing import validate_model_pricing_coverage
 
 

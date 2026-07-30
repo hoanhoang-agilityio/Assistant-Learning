@@ -4,17 +4,17 @@ from typing import Any
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
 
-from core.agents.intent_judge import configure_user_intent_judge
-from core.agents.state import OrchestrationState
-from core.agents.supervisor_router_judge import configure_supervisor_routing_judge
-from core.agents.topic_scope_judge import configure_topic_scope_judge
 from core.config.settings import get_settings
-from core.graph.run import create_initial_state
 from core.mcp.fitness_client import FitnessMCPClient, configure_fitness_client
 from core.mcp.mock_fitness import build_fake_fitness_client
 from core.mcp.mock_tavily import build_mock_tavily_client
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
 from core.observability.langfuse import reset_langfuse_client
+from core.orchestration.agents.intent_judge import configure_user_intent_judge
+from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.agents.supervisor_router_judge import configure_supervisor_routing_judge
+from core.orchestration.agents.topic_scope_judge import configure_topic_scope_judge
+from core.orchestration.graph.run import create_initial_state
 from core.shared.profile.extraction import configure_profile_extractor
 from core.subgraphs.fitness.planner import configure_fitness_planner
 from core.subgraphs.research.query_cache import reset_tavily_search_cache

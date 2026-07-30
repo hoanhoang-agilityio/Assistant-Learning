@@ -7,20 +7,20 @@ Golden scenarios here are the regression suite a Supervisor prompt change must k
 passing.
 """
 
-from core.agents.execution_context import CapabilityResult
-from core.agents.routing_context import (
+from core.orchestration.agents.execution_context import CapabilityResult
+from core.orchestration.agents.routing_context import (
     AgentDescriptor,
     GuardrailState,
     RoutingContext,
     append_agent_trail,
     summarize_agent_result,
 )
-from core.agents.supervisor_router_judge import (
+from core.orchestration.agents.supervisor_router_judge import (
     SupervisorRoutingJudgement,
     configure_supervisor_routing_judge,
     judge_next_route,
 )
-from core.capabilities.policy_engine import enforce_routing_invariants
+from core.orchestration.routing.policy_engine import enforce_routing_invariants
 from tests.helpers.routing import default_supervisor_routing_judge
 
 _AVAILABLE_AGENTS = [
@@ -153,7 +153,7 @@ def test_policy_engine_profile_gate_overrides_planning_requires_fitness() -> Non
 
 def test_policy_engine_profile_gate_overrides_entry_node_on_first_hop() -> None:
     """entry_node enforcement must not bypass the profile gate on hop 1."""
-    from core.agents.execution_context import build_execution_context
+    from core.orchestration.agents.execution_context import build_execution_context
 
     ctx = build_execution_context(intent="build_plan")
     state = _base_state(
@@ -195,7 +195,7 @@ def test_policy_engine_rejects_finish_on_first_hop() -> None:
     verify_macros request, and nothing caught it, so the run ended having never
     actually answered the user's question. "finish" before any work is done is
     never a valid semantic call; fall back to the deterministic entry capability."""
-    from core.agents.execution_context import build_execution_context
+    from core.orchestration.agents.execution_context import build_execution_context
 
     ctx = build_execution_context(intent="verify_macros")
     state = _base_state(
@@ -219,7 +219,7 @@ def test_policy_engine_forces_entry_node_on_first_hop_even_when_proposal_is_not_
     artifact-writing path ever creates. `test_policy_engine_rejects_finish_on_first_hop`
     only covers the Judge proposing "finish" on hop 1 -- this is the general case of any
     wrong proposal on hop 1, which that narrower guard didn't catch."""
-    from core.agents.execution_context import build_execution_context
+    from core.orchestration.agents.execution_context import build_execution_context
 
     ctx = build_execution_context(intent="verify_plan", has_submitted_plan=True)
     state = _base_state(

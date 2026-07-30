@@ -3,9 +3,13 @@ from pathlib import Path
 import pytest
 from langgraph.types import Command
 
-from core.graph.builder import build_graph
-from core.hitl.resume import MAX_REVISION_COUNT, create_approval_decision, decision_to_resume_update
-from core.hitl.utils import request_approval_data
+from core.orchestration.graph.builder import build_graph
+from core.orchestration.hitl.resume import (
+    MAX_REVISION_COUNT,
+    create_approval_decision,
+    decision_to_resume_update,
+)
+from core.orchestration.hitl.utils import request_approval_data
 from tests.helpers.hitl import pause_before_hitl, run_to_hitl_pause
 
 
@@ -115,7 +119,7 @@ def test_graph_revision_routes_back_to_fitness(tmp_path: Path, complete_profile:
     assert update["revision_count"] == 1
     assert update["revision_feedback"] == "Reduce training volume and add more recovery days."
     # Left as "revision_requested" -- the Policy Engine's revision_requested rule
-    # (core.capabilities.policy_engine) is what routes this to Fitness once the
+    # (core.orchestration.routing.policy_engine) is what routes this to Fitness once the
     # graph re-enters Supervisor, not a pending_request transport object.
     assert update["approval_status"] == "revision_requested"
 

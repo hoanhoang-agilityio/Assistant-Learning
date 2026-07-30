@@ -1,10 +1,10 @@
 """Deterministic Fitness capability executor.
 
-Implements `core.capabilities.executor.CapabilityExecutor`. Swappable via
+Implements `core.orchestration.routing.executor.CapabilityExecutor`. Swappable via
 `configure_fitness_executor` for a future LLM-driven ReAct executor without
 touching `capability.py` or the graph. Reports a pure AgentResult per hop
 (status/blocking_reason/missing_information/summary/artifacts) -- the
-Supervisor + Policy Engine (see `core.capabilities.policy_engine`) decide what
+Supervisor + Policy Engine (see `core.orchestration.routing.policy_engine`) decide what
 runs next; this executor never threads its own `next_request`.
 """
 
@@ -12,10 +12,10 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from core.agents.execution_context import CapabilityResult, ExecutionContext
-from core.agents.macro_report_judge import judge_reported_macros
-from core.agents.state import OrchestrationState
-from core.capabilities.executor import CapabilityExecutor
+from core.orchestration.agents.execution_context import CapabilityResult, ExecutionContext
+from core.orchestration.agents.macro_report_judge import judge_reported_macros
+from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.routing.executor import CapabilityExecutor
 from core.subgraphs.fitness import tools as fitness_tools
 
 
@@ -208,7 +208,7 @@ def _after_verification(state: OrchestrationState) -> CapabilityResult:
 class SupervisorRoutedFitnessExecutor:
     """Fixed tool sequence per intent -- no LLM reasoning about which tool to call.
     Reports status/blocking_reason/missing_information/summary/artifacts and lets
-    the Supervisor + Policy Engine (see `core.capabilities.policy_engine`) route
+    the Supervisor + Policy Engine (see `core.orchestration.routing.policy_engine`) route
     from there; never decides what runs next itself."""
 
     def execute(self, state: OrchestrationState, ctx: ExecutionContext) -> CapabilityResult:
@@ -217,7 +217,7 @@ class SupervisorRoutedFitnessExecutor:
         # fresh verification too) -- never take the "already verified, just
         # repackage" bounce below, even though `last_capability_result` still shows
         # "verification" from the *original* build until this rebuild produces a
-        # fresh result of its own (see core.capabilities.policy_engine's
+        # fresh result of its own (see core.orchestration.routing.policy_engine's
         # revision_requested rule, which routes here in the first place).
         is_revision = state.get("approval_status") == "revision_requested"
         if (

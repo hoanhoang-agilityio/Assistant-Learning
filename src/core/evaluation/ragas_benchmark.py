@@ -12,10 +12,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from core.agents.execution_context import build_execution_context
 from core.config.settings import get_settings
-from core.graph.run import create_initial_state
 from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
+from core.orchestration.agents.execution_context import build_execution_context
+from core.orchestration.graph.run import create_initial_state
 from core.subgraphs.fitness.capability import invoke_fitness_capability
 from core.subgraphs.fitness.planner import configure_fitness_planner
 from core.subgraphs.fitness.utils import build_default_structured_workout

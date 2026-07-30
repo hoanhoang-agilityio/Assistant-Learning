@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from api.deps import reset_orchestrator
 from api.main import create_app
 from core.config.settings import Settings
-from core.graph.service import RunOrchestrator
+from core.orchestration.graph.service import RunOrchestrator
 from core.rate_limit import AIRateLimiter, InMemoryUsageStore
 
 

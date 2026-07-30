@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.agents.state import OrchestrationState
 from core.config.settings import Settings
 from core.observability.hierarchy import (
     LANGFUSE_SESSION_METADATA_KEY,
@@ -21,6 +20,7 @@ from core.observability.langfuse import (
     resolve_run_hierarchy,
     subgraph_span_context,
 )
+from core.orchestration.agents.state import OrchestrationState
 
 
 def test_map_thread_to_session_id_is_identity() -> None:

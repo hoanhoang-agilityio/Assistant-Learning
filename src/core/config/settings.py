@@ -162,8 +162,8 @@ class Settings(BaseSettings):
     fitness_kb_rerank_enabled: bool = True
 
     # Hybrid Supervisor routing: the Supervisor node proposes the next capability
-    # via an LLM judge (core.agents.supervisor_router_judge) and a deterministic
-    # Policy Engine (core.capabilities.policy_engine) validates/overrides that
+    # via an LLM judge (core.orchestration.agents.supervisor_router_judge) and a deterministic
+    # Policy Engine (core.orchestration.routing.policy_engine) validates/overrides that
     # proposal before routing. supervisor_max_hops is the loop-prevention guardrail.
     supervisor_max_hops: int = 12
 

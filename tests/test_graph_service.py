@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.config.settings import get_settings
-from core.graph.idempotency_store import IdempotencyStore
-from core.graph.run_tracker import RunTracker
-from core.graph.service import RunOrchestrator, best_effort
+from core.orchestration.graph.idempotency_store import IdempotencyStore
+from core.orchestration.graph.run_tracker import RunTracker
+from core.orchestration.graph.service import RunOrchestrator, best_effort
 from core.shared.profile.extraction import configure_profile_extractor
 from core.shared.profile.schema import ExtractedProfile
 from core.shared.profile.store import load_run_profile
@@ -199,7 +199,7 @@ def test_get_run_reports_running_while_pending_resume_race_leaves_stale_checkpoi
     assert settled_status.hitl_type == "profile_form"
 
 
-@patch("core.graph.service.get_settings")
+@patch("core.orchestration.graph.service.get_settings")
 def test_invoke_with_timeout_raises_when_graph_invoke_hangs(
     mock_get_settings: MagicMock,
     memory_checkpointer,
@@ -221,7 +221,7 @@ def test_invoke_with_timeout_raises_when_graph_invoke_hangs(
         orchestrator._stream_with_timeout({}, {})
 
 
-@patch("core.graph.service.get_settings")
+@patch("core.orchestration.graph.service.get_settings")
 def test_invoke_with_timeout_returns_normally_within_deadline(
     mock_get_settings: MagicMock,
     memory_checkpointer,
@@ -242,7 +242,7 @@ def test_invoke_with_timeout_returns_normally_within_deadline(
     assert calls == [("input", {"configurable": {}})]
 
 
-@patch("core.graph.service.get_settings")
+@patch("core.orchestration.graph.service.get_settings")
 def test_start_run_records_failure_instead_of_hanging_when_execution_times_out(
     mock_get_settings: MagicMock,
     memory_checkpointer,
@@ -296,8 +296,8 @@ def test_resume_run_free_text_approval_uses_strict_classification(
     # Under strict=True, "approving this plan" doesn't match the exact "approve"/"approved"/
     # "yes" set, so it's classified "revision_requested" -- which resume_run's revision branch
     # leaves as approval_status="revision_requested" and routes back to Fitness via the Policy
-    # Engine's revision_requested rule (core.capabilities.policy_engine), not a pending_request
-    # transport object (see core.hitl.resume.user_revision_to_replan_update). If strict matching
+    # Engine's revision_requested rule (core.orchestration.routing.policy_engine), not a pending_request
+    # transport object (see core.orchestration.hitl.resume.user_revision_to_replan_update). If strict matching
     # regressed to the permissive prefix rule, this input would instead be classified "approved"
     # and skip the revision branch entirely.
     pause_before_hitl(orchestrator.graph, "approve-prefix", tmp_path)
@@ -406,7 +406,7 @@ def test_start_run_tracks_then_clears_on_completion(
     assert run_tracker.reconcile_orphaned_runs(stale_after_seconds=0) == []
 
 
-@patch("core.graph.service.get_settings")
+@patch("core.orchestration.graph.service.get_settings")
 def test_reconcile_orphaned_runs_surfaces_an_orphaned_run_as_failed(
     mock_get_settings: MagicMock,
     memory_checkpointer,
@@ -430,7 +430,7 @@ def test_reconcile_orphaned_runs_surfaces_an_orphaned_run_as_failed(
     assert "orphaned" in status.error_message.lower()
 
 
-@patch("core.graph.service.get_settings")
+@patch("core.orchestration.graph.service.get_settings")
 def test_reconcile_orphaned_runs_does_not_touch_a_run_that_is_still_fresh(
     mock_get_settings: MagicMock,
     memory_checkpointer,
@@ -610,7 +610,7 @@ def test_best_effort_swallows_exceptions_and_logs(caplog: pytest.LogCaptureFixtu
     warning identifying the step and run -- never let it propagate. That's
     the entire mechanism PR6 relies on to keep cleanup failures from
     overwriting a run's already-recorded outcome."""
-    with caplog.at_level(logging.WARNING, logger="core.graph.service"):
+    with caplog.at_level(logging.WARNING, logger="core.orchestration.graph.service"):
         with best_effort("some_step", run_id="run-1"):
             raise RuntimeError("boom")
 
@@ -628,7 +628,7 @@ def test_best_effort_does_not_affect_successful_execution() -> None:
     assert calls == [1]
 
 
-@patch("core.graph.service.flush_langfuse")
+@patch("core.orchestration.graph.service.flush_langfuse")
 def test_create_run_succeeds_even_when_langfuse_flush_fails(
     mock_flush_langfuse: MagicMock,
     memory_checkpointer,
@@ -659,7 +659,7 @@ def test_create_run_succeeds_even_when_langfuse_flush_fails(
     assert mock_flush_langfuse.call_count >= 1
 
 
-@patch("core.graph.service.flush_langfuse")
+@patch("core.orchestration.graph.service.flush_langfuse")
 def test_start_run_settles_successfully_even_when_langfuse_flush_fails(
     mock_flush_langfuse: MagicMock,
     memory_checkpointer,

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from core.graph.run import create_initial_state
+from core.orchestration.graph.run import create_initial_state
 from core.shared.profile.extraction import configure_profile_extractor
 from core.shared.profile.goal_spec import derive_goal_spec
 from core.shared.profile.schema import Constraints, ExtractedProfile, Goal, Profile

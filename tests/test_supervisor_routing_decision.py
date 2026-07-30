@@ -7,8 +7,8 @@ retry rule always overrides it when the conditions are met."""
 
 from pathlib import Path
 
-from core.agents.state import OrchestrationState
-from core.agents.supervisor_routing import run_supervisor_routing_decision
+from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.agents.supervisor_routing import run_supervisor_routing_decision
 from core.vfs.bootstrap import init_run_workspace
 
 

@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from core.agents.state import ApprovalStatus
+from core.orchestration.agents.state import ApprovalStatus
 
 
 class CreateRunRequest(BaseModel):

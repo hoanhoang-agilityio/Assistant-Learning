@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query
 from api.deps import get_orchestrator
 from api.schemas import RunSummaryResponse
 from api.serializers import to_run_summary_response
-from core.graph.service import RunOrchestrator
+from core.orchestration.graph.service import RunOrchestrator
 
 router = APIRouter(prefix="/users", tags=["users"])
 

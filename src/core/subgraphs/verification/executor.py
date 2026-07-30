@@ -1,6 +1,6 @@
 """Verification capability executor.
 
-Implements `core.capabilities.executor.CapabilityExecutor`. Swappable via
+Implements `core.orchestration.routing.executor.CapabilityExecutor`. Swappable via
 `configure_verification_executor` for a future LLM-driven ReAct executor that
 chooses checks itself, without touching `capability.py`, the dispatcher, or
 the graph.
@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from core.agents.execution_context import CapabilityResult, ExecutionContext
-from core.agents.state import OrchestrationState
-from core.capabilities.executor import CapabilityExecutor
 from core.config.settings import get_settings
+from core.orchestration.agents.execution_context import CapabilityResult, ExecutionContext
+from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.routing.executor import CapabilityExecutor
 from core.subgraphs.verification.utils import (
     build_verification_report_for_checks,
     citation_check_data,

@@ -4,8 +4,8 @@ executor (Phase 2 of the hybrid Supervisor routing migration)."""
 from pathlib import Path
 from typing import Any
 
-from core.agents.execution_context import build_execution_context
-from core.graph.run import create_initial_state
+from core.orchestration.agents.execution_context import build_execution_context
+from core.orchestration.graph.run import create_initial_state
 from core.planning.executor import PLANNING_OUTPUT_PATH, SupervisorRoutedPlanningExecutor
 
 

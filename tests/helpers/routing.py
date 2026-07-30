@@ -8,14 +8,14 @@ a real LLM routing call; individual tests override it via
 
 Deliberately proposes the *simplest* next step at each point (e.g. always "finish"
 after Fitness, never explicitly "verification") and trusts the Policy Engine
-(`core.capabilities.policy_engine`) to override into the hard-required path
+(`core.orchestration.routing.policy_engine`) to override into the hard-required path
 (artifact_requires_verification, persist_requires_hitl_approval, etc.) -- this is
 exactly the division of responsibility the hybrid design is built on, so the test
 default should exercise it rather than hand-hold around it.
 """
 
-from core.agents.routing_context import RoutingContext
-from core.agents.supervisor_router_judge import SupervisorRoutingJudgement
+from core.orchestration.agents.routing_context import RoutingContext
+from core.orchestration.agents.supervisor_router_judge import SupervisorRoutingJudgement
 
 _ENTRY_BY_INTENT = {
     "build_plan": "planning",

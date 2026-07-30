@@ -11,8 +11,8 @@ from typing import Any
 
 import pytest
 
-from core.agents.execution_context import build_execution_context
-from core.graph.run import create_initial_state
+from core.orchestration.agents.execution_context import build_execution_context
+from core.orchestration.graph.run import create_initial_state
 from core.shared.profile.goal_spec import derive_goal_spec
 from core.subgraphs.research import executor as research_executor_module
 from core.subgraphs.research import research_agent as research_agent_module

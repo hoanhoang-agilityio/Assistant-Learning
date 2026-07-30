@@ -1,7 +1,7 @@
 """Tests for TemplateRepository.
 
 Runs against the real local Postgres instance already used by
-core.graph.checkpointer/core.rate_limit.postgres_store/core.graph.run_tracker in this
+core.orchestration.graph.checkpointer/core.rate_limit.postgres_store/core.orchestration.graph.run_tracker in this
 dev environment (docker-compose's postgres service). Calls bootstrap_schema()
 defensively before constructing the repository, since repositories no longer create
 their own schema (see core.repositories.bootstrap) -- production trusts

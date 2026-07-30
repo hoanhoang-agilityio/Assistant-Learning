@@ -8,7 +8,7 @@ from pathlib import Path
 
 from langchain_core.runnables.graph import MermaidDrawMethod
 
-from core.graph.diagrams import (
+from core.orchestration.graph.diagrams import (
     GRAPH_BUILDERS,
     export_all_graph_diagrams,
     export_graph_diagram,

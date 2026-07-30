@@ -1,6 +1,6 @@
 """Planning capability executor.
 
-Implements `core.capabilities.executor.CapabilityExecutor`. Planning owns
+Implements `core.orchestration.routing.executor.CapabilityExecutor`. Planning owns
 goal specification only: it computes from the validated profile + request,
 never calculates macros, retrieves evidence, selects exercises, or generates
 workouts. Swappable via `configure_planning_executor` for a future
@@ -13,9 +13,9 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
-from core.agents.execution_context import CapabilityResult, ExecutionContext
-from core.agents.state import OrchestrationState
-from core.capabilities.executor import CapabilityExecutor
+from core.orchestration.agents.execution_context import CapabilityResult, ExecutionContext
+from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.routing.executor import CapabilityExecutor
 from core.planning.output import PlanningOutput
 from core.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.goal_spec import derive_goal_spec

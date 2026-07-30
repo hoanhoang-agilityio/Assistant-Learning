@@ -8,9 +8,12 @@ isn't duplicated here.
 from pathlib import Path
 from typing import Any
 
-from core.agents.execution_context import build_execution_context
-from core.agents.macro_report_judge import ReportedMacros, configure_reported_macros_judge
-from core.graph.run import create_initial_state
+from core.orchestration.agents.execution_context import build_execution_context
+from core.orchestration.agents.macro_report_judge import (
+    ReportedMacros,
+    configure_reported_macros_judge,
+)
+from core.orchestration.graph.run import create_initial_state
 from core.subgraphs.fitness.executor import SupervisorRoutedFitnessExecutor
 from core.subgraphs.fitness.normalize import (
     SubmittedPlanExtraction,

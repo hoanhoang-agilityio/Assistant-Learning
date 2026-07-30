@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from core.persist.utils import (
+from core.orchestration.persist.utils import (
     persist_trigger_data,
     save_artifacts_data,
     save_metrics_data,

@@ -7,9 +7,9 @@ resulting `CapabilityResult` to orchestration state.
 
 from __future__ import annotations
 
-from core.agents.execution_context import parse_execution_context
-from core.agents.state import OrchestrationState
-from core.capabilities.dispatcher import apply_capability_result
+from core.orchestration.agents.execution_context import parse_execution_context
+from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.routing.dispatcher import apply_capability_result
 from core.planning.executor import PLANNING_OUTPUT_PATH, get_planning_executor
 from core.subgraphs.wrapper import merge_subgraph_updates
 

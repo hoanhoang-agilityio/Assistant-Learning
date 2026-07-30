@@ -1,6 +1,6 @@
 import pytest
 
-from core.hitl.resume import (
+from core.orchestration.hitl.resume import (
     MAX_REVISION_COUNT,
     create_approval_decision,
     decision_to_resume_update,
@@ -28,7 +28,7 @@ def test_create_approval_decision_revision_triggers_fitness_resume() -> None:
     decision = create_approval_decision("revision", message="Add more leg volume.")
     update = decision_to_resume_update(decision, revision_count=0)
     # Left as "revision_requested" (not reset to "pending") -- the Policy Engine's
-    # revision_requested rule (core.capabilities.policy_engine) is what routes this
+    # revision_requested rule (core.orchestration.routing.policy_engine) is what routes this
     # to Fitness once the graph re-enters Supervisor; it reads this exact field.
     assert update["approval_status"] == "revision_requested"
     assert update["revision_count"] == 1

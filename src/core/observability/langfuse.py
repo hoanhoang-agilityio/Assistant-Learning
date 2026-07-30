@@ -11,7 +11,6 @@ import httpx
 from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 
-from core.agents.state import OrchestrationState
 from core.config.settings import Settings, get_settings
 from core.observability.hierarchy import (
     LANGFUSE_ORCHESTRATION_TAGS,
@@ -22,6 +21,7 @@ from core.observability.hierarchy import (
     map_thread_to_session_id,
     resolve_hierarchy_ids,
 )
+from core.orchestration.agents.state import OrchestrationState
 
 logger = logging.getLogger(__name__)
 

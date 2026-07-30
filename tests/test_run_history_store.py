@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from core.graph.run_history_store import InMemoryRunHistoryStore
+from core.orchestration.graph.run_history_store import InMemoryRunHistoryStore
 
 
 def test_upsert_and_list_by_user_returns_newest_first() -> None:

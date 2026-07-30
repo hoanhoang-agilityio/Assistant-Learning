@@ -321,7 +321,7 @@ def score_structured_decision(
 def run_live_case(case: OwaspPromptCase) -> OwaspCaseResult:
     """Invoke the real judge for supported targets (costs tokens)."""
     if case.target_prompt == "topic_scope_judge":
-        from core.agents.topic_scope_judge import judge_topic_scope
+        from core.orchestration.agents.topic_scope_judge import judge_topic_scope
 
         judgement = judge_topic_scope(case.payload)
         response = judgement.model_dump_json()
@@ -331,7 +331,7 @@ def run_live_case(case: OwaspPromptCase) -> OwaspCaseResult:
             response=response,
         )
     if case.target_prompt == "intent_judge":
-        from core.agents.intent_judge import judge_user_intent
+        from core.orchestration.agents.intent_judge import judge_user_intent
 
         judgement = judge_user_intent(case.payload)
         response = judgement.model_dump_json()

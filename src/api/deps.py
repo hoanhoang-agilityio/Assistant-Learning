@@ -6,11 +6,6 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from core.config.settings import Settings, get_settings
 from core.evaluation.shadow_eval import InMemoryShadowEvalStore, ShadowEvalStore
-from core.graph.checkpointer import postgres_checkpointer
-from core.graph.idempotency_store import IdempotencyStore
-from core.graph.run_history_store import InMemoryRunHistoryStore, RunHistoryStore
-from core.graph.run_tracker import RunTracker
-from core.graph.service import RunOrchestrator
 from core.llm.factory import configure_rate_limiter
 from core.mcp.fitness_client import (
     FitnessMCPClient,
@@ -20,6 +15,11 @@ from core.mcp.fitness_client import (
 from core.mcp.mock_fitness import build_mock_fitness_client
 from core.mcp.mock_tavily import build_mock_tavily_client
 from core.mcp.tavily_client import configure_tavily_client
+from core.orchestration.graph.checkpointer import postgres_checkpointer
+from core.orchestration.graph.idempotency_store import IdempotencyStore
+from core.orchestration.graph.run_history_store import InMemoryRunHistoryStore, RunHistoryStore
+from core.orchestration.graph.run_tracker import RunTracker
+from core.orchestration.graph.service import RunOrchestrator
 from core.rate_limit import AIRateLimiter, InMemoryUsageStore, PostgresUsageStore, UsageStore
 
 logger = logging.getLogger(__name__)

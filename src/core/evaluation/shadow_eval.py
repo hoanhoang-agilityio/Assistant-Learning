@@ -24,8 +24,8 @@ from typing import Protocol
 from psycopg_pool import ConnectionPool
 
 from core.config.settings import Settings, get_settings
-from core.graph.run_history_store import RunSummary
 from core.observability.langfuse import create_trace_id_for_run, get_langfuse_client
+from core.orchestration.graph.run_history_store import RunSummary
 from core.subgraphs.verification.utils import evaluate_faithfulness, load_verification_context
 from core.vfs.bootstrap import run_workspace_path
 

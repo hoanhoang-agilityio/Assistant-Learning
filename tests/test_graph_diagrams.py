@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.graph.builder import build_graph
-from core.graph.diagrams import (
+from core.orchestration.graph.builder import build_graph
+from core.orchestration.graph.diagrams import (
     GRAPH_BUILDERS,
     draw_graph_mermaid_png,
     export_all_graph_diagrams,

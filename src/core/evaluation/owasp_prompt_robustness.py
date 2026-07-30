@@ -658,13 +658,13 @@ class _SupervisorRouterRunner:
         return response
 
     def run_with_schema(self, case: RobustnessCase) -> tuple[str, bool | None]:
-        from core.agents.routing_context import (
+        from core.orchestration.agents.routing_context import (
             AgentDescriptor,
             AgentResultSummary,
             GuardrailState,
             RoutingContext,
         )
-        from core.agents.supervisor_router_judge import judge_next_route
+        from core.orchestration.agents.supervisor_router_judge import judge_next_route
 
         overlay = dict(case.payload.get("routing_context_overlay") or {})
         ctx = RoutingContext(

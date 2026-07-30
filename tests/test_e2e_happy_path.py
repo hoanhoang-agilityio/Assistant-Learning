@@ -5,9 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langgraph.types import Command
 
-from core.agents.state import OrchestrationState
 from core.config.settings import Settings
-from core.graph.builder import build_graph
 from core.mcp.tavily_client import TavilyMCPClient
 from core.observability.langfuse import (
     build_graph_invoke_config,
@@ -15,6 +13,8 @@ from core.observability.langfuse import (
     create_trace_id_for_run,
     is_langfuse_enabled,
 )
+from core.orchestration.agents.state import OrchestrationState
+from core.orchestration.graph.builder import build_graph
 from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.vfs import VFS
 
@@ -137,7 +137,7 @@ def test_e2e_happy_path_persists_final_artifact(
     # `interrupt_before=["hitl"]` pauses before the HITL node itself ever runs,
     # so `waiting_for_user` is not set yet -- readiness for approval is signaled
     # by the graph's next node, not a state field (see
-    # core.graph.service._resolve_hitl_context, which reads `next_nodes` the
+    # core.orchestration.graph.service._resolve_hitl_context, which reads `next_nodes` the
     # same way to build the approval message from the workspace directly).
     snapshot = graph.get_state(config)
     assert snapshot.next == ("hitl",)

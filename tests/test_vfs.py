@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from core.graph.run import create_initial_state
+from core.orchestration.graph.run import create_initial_state
 from core.vfs import VFS, init_run_workspace, run_workspace_name
 from core.vfs.bootstrap import RUN_SUBDIRS
 
