@@ -121,7 +121,7 @@ The UI lets you submit a query, poll run status, approve/reject at HITL, and vie
 uv run python scripts/ragas_benchmark.py
 ```
 
-Reports are written to `src/workspace/benchmarks/`.
+Reports are written to `var/workspace/benchmarks/`.
 
 For evaluation workflow details (golden dataset, integration tests, optional Ragas SDK smoke test), see `src/docs/ragas-evaluation.md`.
 

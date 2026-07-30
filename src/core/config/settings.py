@@ -7,7 +7,11 @@ from pydantic import Field, PostgresDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_DEFAULT_WORKSPACE = _PROJECT_ROOT / "src" / "workspace"
+# Runtime artifacts live outside src/ so the source tree stays immutable at
+# runtime -- required for read-only container filesystems and reproducible
+# builds. Override with WORKSPACE_ROOT; relative values resolve against
+# _PROJECT_ROOT (see resolve_workspace_root).
+_DEFAULT_WORKSPACE = _PROJECT_ROOT / "var" / "workspace"
 _ENV_FILE = _PROJECT_ROOT / ".env"
 
 # pydantic-settings only maps known fields onto Settings; SDKs such as LangSmith
