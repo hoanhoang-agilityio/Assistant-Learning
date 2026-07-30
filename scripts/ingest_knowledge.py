@@ -11,18 +11,16 @@ Requires scripts/bootstrap_fitness_db.py to have run first, and OPENAI_API_KEY s
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(_PROJECT_ROOT / "src"))
+from core.config.settings import get_settings
+from core.knowledge.embeddings import get_embedding_provider
+from core.knowledge.ingestion.chunker import SimpleChunker
+from core.knowledge.ingestion.loader import JSONLLoader
+from core.knowledge.ingestion.pipeline import run_ingestion_pipeline
+from core.repositories.guideline_repository import GuidelineRepository
 
-from core.config.settings import get_settings  # noqa: E402
-from core.knowledge.embeddings import get_embedding_provider  # noqa: E402
-from core.knowledge.ingestion.chunker import SimpleChunker  # noqa: E402
-from core.knowledge.ingestion.loader import JSONLLoader  # noqa: E402
-from core.knowledge.ingestion.pipeline import run_ingestion_pipeline  # noqa: E402
-from core.repositories.guideline_repository import GuidelineRepository  # noqa: E402
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 _CORPUS_PATH = _PROJECT_ROOT / "src" / "core" / "knowledge" / "data" / "corpus.jsonl"
 

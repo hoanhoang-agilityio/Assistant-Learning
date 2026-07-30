@@ -6,18 +6,16 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(_PROJECT_ROOT / "src"))
-
-from core.evaluation.ragas_benchmark import (  # noqa: E402
+from core.evaluation.ragas_benchmark import (
     load_golden_cases,
     run_golden_case,
     summarize_results,
 )
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_FIXTURE = _PROJECT_ROOT / "tests" / "fixtures" / "ragas_golden.json"
 DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "var" / "workspace" / "benchmarks"
