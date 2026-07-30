@@ -119,24 +119,18 @@ class ResearchFindings(BaseModel):
     def coerce_grounded_key_findings(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        recommended = data.get("recommended_sources") or []
-        if isinstance(recommended, str):
-            recommended = _coerce_string_list(recommended)
-            data["recommended_sources"] = recommended
-        fallback_urls = [extract_source_url(item) for item in recommended]
-        fallback_urls = [url for url in fallback_urls if url]
         items = normalize_grounded_claim_items(data.get("key_findings"))
         resolved: list[dict[str, Any]] = []
-        for index, item in enumerate(items):
+        for item in items:
             claim = str(item.get("claim", "")).strip()
             if not claim:
                 continue
+            # No fallback to recommended_sources here: those are self-declared,
+            # unverified URLs, not evidence the claim's content was checked
+            # against. A claim without its own valid source_url is dropped
+            # rather than laundered through a borrowed one (2026-07-30, same
+            # principle as grounding/validate.py's evidence-only allowlist).
             url = extract_source_url(item.get("source_url"))
-            if not url:
-                if index < len(fallback_urls):
-                    url = fallback_urls[index]
-                elif fallback_urls:
-                    url = fallback_urls[0]
             if not url:
                 continue
             payload: dict[str, Any] = {"claim": claim, "source_url": url}
@@ -152,13 +146,6 @@ class ResearchFindings(BaseModel):
         if isinstance(value, str):
             return _coerce_string_list(value)
         return value
-
-    @field_validator("key_findings")
-    @classmethod
-    def validate_key_findings(cls, findings: list[GroundedClaim]) -> list[GroundedClaim]:
-        if not findings:
-            raise ValueError("key_findings must contain at least one item")
-        return findings
 
 
 class ResearchAgentResult(BaseModel):

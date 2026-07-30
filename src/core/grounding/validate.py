@@ -9,24 +9,25 @@ from urllib.parse import urlparse
 from core.grounding.schema import GroundedClaim
 
 
-def allowed_source_urls(
-    *,
-    evidence: list[dict[str, Any]] | None = None,
-    sources: list[dict[str, Any]] | None = None,
-    recommended_sources: list[str] | None = None,
-) -> set[str]:
-    """Build the allowlist of source URLs a grounded claim may cite."""
+def allowed_source_urls(*, evidence: list[dict[str, Any]] | None = None) -> set[str]:
+    """Build the allowlist of source URLs a grounded claim may cite.
+
+    Deliberately `evidence` only -- `evidence` is the sole guarantee that a
+    URL's content was actually retrieved and is available to ground a claim
+    against. This used to also merge in `sources` (every raw search-engine
+    hit, most never fetched/read in full) and `recommended_sources` (the same
+    synthesis LLM call's own output). Both let a claim "launder" an
+    unsupported citation through the allowlist check: a URL that merely
+    showed up in search results, or that the same hallucinating call also
+    happened to list as "recommended", is not evidence the claim is grounded.
+    Found 2026-07-30 via a real production run whose key_findings cited 4
+    URLs with zero overlap with its own evidence array -- all 4 passed the
+    old allowlist purely because they also appeared in `sources`/
+    `recommended_sources`. See docs/reports/known_limitations_remediation_plan.md, L1 (Phase 4).
+    """
     urls: set[str] = set()
     for item in evidence or []:
         url = _normalize_url(item.get("url"))
-        if url:
-            urls.add(url)
-    for item in sources or []:
-        url = _normalize_url(item.get("url"))
-        if url:
-            urls.add(url)
-    for raw in recommended_sources or []:
-        url = _normalize_url(raw)
         if url:
             urls.add(url)
     return urls

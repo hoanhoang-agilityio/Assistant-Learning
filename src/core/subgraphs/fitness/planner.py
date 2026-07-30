@@ -138,11 +138,7 @@ def sanitize_workout_evidence_applied(
 ) -> StructuredWorkout:
     """Drop evidence_applied claims whose source_url is not in the allowlist."""
     findings = _coerce_structured_findings(structured_findings)
-    recommended = list(findings.recommended_sources) if findings else []
-    allow = allowed_source_urls(
-        evidence=evidence or [],
-        recommended_sources=recommended,
-    )
+    allow = allowed_source_urls(evidence=evidence or [])
     if findings:
         for item in findings.key_findings:
             allow.add(item.source_url)
@@ -274,8 +270,7 @@ def resolve_grounded_claims_for_render(
         else StructuredWorkout.model_validate(structured_workout)
     )
     findings = _coerce_structured_findings(structured_findings)
-    recommended = list(findings.recommended_sources) if findings else []
-    allow = allowed_source_urls(evidence=evidence or [], recommended_sources=recommended)
+    allow = allowed_source_urls(evidence=evidence or [])
     if findings:
         for item in findings.key_findings:
             allow.add(item.source_url)
