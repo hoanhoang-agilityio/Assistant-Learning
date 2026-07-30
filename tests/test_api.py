@@ -7,12 +7,12 @@ from fastapi.testclient import TestClient
 
 from api.deps import reset_orchestrator
 from api.main import create_app, resolve_cors_origins
+from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.config.settings import Settings, get_settings
 from core.mcp.tavily_client import TavilyMCPClient
 from core.orchestration.graph.idempotency_store import IdempotencyStore
 from core.orchestration.graph.run_tracker import RunTracker
 from core.orchestration.graph.service import RunOrchestrator
-from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 
 
 def _wait_for_settled(client: TestClient, run_id: str, *, timeout: float = 60.0) -> dict:

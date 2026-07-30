@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from langchain_core.runnables import RunnableConfig
 
+from core.capabilities.fitness.capability import invoke_fitness_capability
+from core.capabilities.research.capability import invoke_research_capability
+from core.capabilities.user.graph import invoke_user_subgraph
+from core.capabilities.verification.capability import invoke_verification_capability
 from core.orchestration.agents.state import OrchestrationState
-from core.subgraphs.fitness.capability import invoke_fitness_capability
-from core.subgraphs.research.capability import invoke_research_capability
-from core.subgraphs.user.graph import invoke_user_subgraph
-from core.subgraphs.verification.capability import invoke_verification_capability
 
 
 def invoke_research_node(state: OrchestrationState) -> dict:

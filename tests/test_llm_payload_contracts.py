@@ -2,6 +2,9 @@
 
 import pytest
 
+from core.capabilities.fitness.planner import build_planner_payload
+from core.capabilities.research.schema import ResearchFindings
+from core.capabilities.research.utils import build_research_context_payload
 from core.llm.contracts import (
     OPTIMIZATION_ROI_RANKING,
     validate_fitness_planner_payload,
@@ -9,9 +12,6 @@ from core.llm.contracts import (
 )
 from core.planning.schema import ExecutionPlan, PlanTask
 from core.shared.profile.goal_spec import derive_goal_spec
-from core.subgraphs.fitness.planner import build_planner_payload
-from core.subgraphs.research.schema import ResearchFindings
-from core.subgraphs.research.utils import build_research_context_payload
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
 _MIN_PLAN_RATIONALE = "Test plan rationale with enough characters for validation."

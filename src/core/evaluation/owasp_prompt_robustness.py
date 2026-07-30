@@ -277,7 +277,7 @@ def _score_planner_structured(
     schema_valid: bool | None,
 ) -> RobustnessCaseResult:
     """L1 structured planner scoring against exercises/notes/constraints."""
-    from core.subgraphs.fitness.utils import (
+    from core.capabilities.fitness.utils import (
         _check_equipment_mismatch,
         collect_unsafe_markup_feedback,
     )
@@ -450,7 +450,7 @@ def _append_schema_check(
 
 
 def _try_parse_structured_workout(response: str) -> Any | None:
-    from core.subgraphs.fitness.schema import StructuredWorkout
+    from core.capabilities.fitness.schema import StructuredWorkout
 
     try:
         payload = json.loads(response)
@@ -705,10 +705,10 @@ class _FitnessPlannerRunner:
     def run_with_schema(self, case: RobustnessCase) -> tuple[str, bool | None]:
         from langchain_core.messages import HumanMessage, SystemMessage
 
+        from core.capabilities.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
+        from core.capabilities.fitness.schema import StructuredWorkout
         from core.llm.factory import invoke_standard_structured_output
         from core.llm.payload import compact_json
-        from core.subgraphs.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
-        from core.subgraphs.fitness.schema import StructuredWorkout
 
         constraints = dict(
             case.payload.get("constraints") or {"days_per_week": 3, "equipment": "bodyweight"}
@@ -753,11 +753,11 @@ class _FitnessEditRunner:
     def run_with_schema(self, case: RobustnessCase) -> tuple[str, bool | None]:
         from langchain_core.messages import HumanMessage, SystemMessage
 
+        from core.capabilities.fitness.prompts import build_fitness_edit_system_prompt
+        from core.capabilities.fitness.schema import StructuredWorkout
+        from core.capabilities.fitness.utils import build_default_structured_workout
         from core.llm.factory import invoke_standard_structured_output
         from core.llm.payload import compact_json
-        from core.subgraphs.fitness.prompts import build_fitness_edit_system_prompt
-        from core.subgraphs.fitness.schema import StructuredWorkout
-        from core.subgraphs.fitness.utils import build_default_structured_workout
 
         baseline = build_default_structured_workout(
             constraints={"days_per_week": 4, "equipment": "gym"}
@@ -791,10 +791,10 @@ class _ResearchSynthesisRunner:
     def run_with_schema(self, case: RobustnessCase) -> tuple[str, bool | None]:
         from langchain_core.messages import HumanMessage, SystemMessage
 
+        from core.capabilities.research.prompts import SYNTHESIS_SYSTEM_PROMPT
+        from core.capabilities.research.schema import ResearchFindings
         from core.llm.factory import invoke_standard_structured_output
         from core.llm.payload import compact_json
-        from core.subgraphs.research.prompts import SYNTHESIS_SYSTEM_PROMPT
-        from core.subgraphs.research.schema import ResearchFindings
 
         evidence_text = str(
             case.payload.get("poisoned_evidence")
@@ -830,8 +830,8 @@ class _ResearchReactRunner:
         from langchain_core.messages import HumanMessage, SystemMessage
         from pydantic import BaseModel, Field
 
+        from core.capabilities.research.prompts import REACT_SYSTEM_PROMPT
         from core.llm.factory import invoke_standard_structured_output
-        from core.subgraphs.research.prompts import REACT_SYSTEM_PROMPT
 
         class ReactProbe(BaseModel):
             intended_tools: list[str] = Field(default_factory=list)

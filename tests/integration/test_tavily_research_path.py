@@ -1,11 +1,11 @@
 import json
 from pathlib import Path
 
+from core.capabilities.research.capability import invoke_research_capability
 from core.mcp.tavily_client import TavilyMCPClient
 from core.orchestration.agents.execution_context import build_execution_context
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.graph.run import create_initial_state
-from core.subgraphs.research.capability import invoke_research_capability
 from core.vfs import VFS
 
 

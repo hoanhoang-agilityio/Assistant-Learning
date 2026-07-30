@@ -5,18 +5,18 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from core.planning.schema import ExecutionPlan, PlanTask
-from core.shared.profile.goal_spec import derive_goal_spec
-from core.subgraphs.research.ranking import rank_sources_data
-from core.subgraphs.research.research_agent import (
+from core.capabilities.research.ranking import rank_sources_data
+from core.capabilities.research.research_agent import (
     _evaluate_evidence,
     _execute_tool_call,
     _ResearchSession,
     configure_research_agent,
     run_research_agent,
 )
-from core.subgraphs.research.schema import ResearchFindings, SearchQueryBatch, TaskQueryPlan
-from core.subgraphs.research.verification import verify_sources_data
+from core.capabilities.research.schema import ResearchFindings, SearchQueryBatch, TaskQueryPlan
+from core.capabilities.research.verification import verify_sources_data
+from core.planning.schema import ExecutionPlan, PlanTask
+from core.shared.profile.goal_spec import derive_goal_spec
 from tests.helpers.research import default_research_agent_result, research_agent_override
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
@@ -256,7 +256,7 @@ def test_eval_skip_when_sufficient_verified_sources() -> None:
     ]
     profile = {"goal": "fat_loss"}
     with patch(
-        "core.subgraphs.research.research_agent.invoke_standard_structured_output"
+        "core.capabilities.research.research_agent.invoke_standard_structured_output"
     ) as mock_llm:
         result = _evaluate_evidence(
             query="lose weight",
@@ -284,7 +284,7 @@ def test_tavily_extract_respects_budget_and_failed_url_dedupe(
         return {"evidence": []}
 
     monkeypatch.setattr(
-        "core.subgraphs.research.research_agent.extract_tavily_data",
+        "core.capabilities.research.research_agent.extract_tavily_data",
         fake_extract,
     )
 
@@ -319,7 +319,7 @@ def test_tavily_extract_respects_budget_and_failed_url_dedupe(
 def test_post_process_skips_tavily_when_local_evidence_is_sufficient(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from core.subgraphs.research.utils import post_process_sources
+    from core.capabilities.research.utils import post_process_sources
 
     extract_called = False
 
@@ -329,7 +329,7 @@ def test_post_process_skips_tavily_when_local_evidence_is_sufficient(
         return {"evidence": []}
 
     monkeypatch.setattr(
-        "core.subgraphs.research.sources.extract_tavily_data",
+        "core.capabilities.research.sources.extract_tavily_data",
         fake_extract,
     )
     sources = [

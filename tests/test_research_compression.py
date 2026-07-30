@@ -1,8 +1,8 @@
 """L1 Phase 4, priority #3: deterministic relevance-based evidence compression
-(core.subgraphs.research.compression), replacing blind first-N-docs /
+(core.capabilities.research.compression), replacing blind first-N-docs /
 first-N-chars truncation. Pure functions -- no LLM calls, no real API cost."""
 
-from core.subgraphs.research.compression import compress_content, query_terms, score_content
+from core.capabilities.research.compression import compress_content, query_terms, score_content
 
 
 class TestQueryTerms:

@@ -45,7 +45,7 @@ def finalize_structured_findings(
     URL that was merely found by search (or self-declared "recommended" by
     this same synthesis call) without its content ever having been retrieved.
     """
-    from core.subgraphs.research.schema import ResearchFindings
+    from core.capabilities.research.schema import ResearchFindings
 
     if not isinstance(findings, ResearchFindings):
         findings = ResearchFindings.model_validate(findings)

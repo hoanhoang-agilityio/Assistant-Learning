@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langgraph.types import Command
 
+from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.config.settings import Settings
 from core.mcp.tavily_client import TavilyMCPClient
 from core.observability.langfuse import (
@@ -15,7 +16,6 @@ from core.observability.langfuse import (
 )
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.graph.builder import build_graph
-from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.vfs import VFS
 
 

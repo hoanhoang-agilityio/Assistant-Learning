@@ -98,7 +98,7 @@ class ResearchFindingsArtifact(BaseModel):
 
     @model_validator(mode="after")
     def validate_structured_findings(self) -> ResearchFindingsArtifact:
-        from core.subgraphs.research.schema import ResearchFindings
+        from core.capabilities.research.schema import ResearchFindings
 
         ResearchFindings.model_validate(self.structured_findings)
         return self
@@ -226,8 +226,8 @@ class PersistResult(BaseModel):
 
 
 def _vfs_json_schemas() -> dict[str, type[BaseModel]]:
+    from core.capabilities.fitness.schema import StructuredWorkout
     from core.planning.schema import ExecutionPlan
-    from core.subgraphs.fitness.schema import StructuredWorkout
 
     return {
         PLAN_EXECUTION_PLAN: ExecutionPlan,

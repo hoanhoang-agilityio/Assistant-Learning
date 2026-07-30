@@ -5,8 +5,8 @@ repo (not a pre-built external server) and is constructed exactly once at FastAP
 startup and cached for the process lifetime -- see
 api/deps.py::configure_fitness_client_from_settings. get_fitness_client() returns None
 rather than rebuilding when unconfigured/unreachable, so every call site has exactly
-one failure shape to handle (see core.subgraphs.fitness.template_registry,
-core.subgraphs.research.utils).
+one failure shape to handle (see core.capabilities.fitness.template_registry,
+core.capabilities.research.utils).
 """
 
 import asyncio
@@ -95,6 +95,6 @@ def get_fitness_client() -> FitnessMCPClient | None:
     Unlike get_tavily_client(), this never lazily rebuilds -- the client is
     constructed exactly once at FastAPI startup (api/deps.py) and cached for the
     process lifetime. Every call site treats None the same as a failed call: degrade
-    gracefully (see core.subgraphs.fitness.template_registry, core.subgraphs.research.utils).
+    gracefully (see core.capabilities.fitness.template_registry, core.capabilities.research.utils).
     """
     return _client

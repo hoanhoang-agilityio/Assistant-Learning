@@ -1,4 +1,4 @@
-from core.subgraphs.wrapper import append_pipeline_steps, merge_subgraph_updates
+from core.capabilities.wrapper import append_pipeline_steps, merge_subgraph_updates
 
 
 def test_append_pipeline_steps_deduplicates() -> None:

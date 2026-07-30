@@ -100,7 +100,7 @@ def compact_macro_targets_for_llm(macro_targets: dict[str, Any]) -> dict[str, An
 
 def compact_structured_findings(structured_findings: Any) -> dict[str, Any] | None:
     """Return a compact research-findings payload for the fitness planner."""
-    from core.subgraphs.research.schema import ResearchFindings
+    from core.capabilities.research.schema import ResearchFindings
 
     if structured_findings is None:
         return None

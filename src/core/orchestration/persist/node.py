@@ -1,3 +1,4 @@
+from core.capabilities.wrapper import merge_subgraph_updates
 from core.llm.metrics import write_pipeline_cost_log
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.agents.supervisor_log import load_verification_report
@@ -8,7 +9,6 @@ from core.orchestration.persist.utils import (
     save_run_data,
     write_metrics_artifact,
 )
-from core.subgraphs.wrapper import merge_subgraph_updates
 
 
 def invoke_persist_node(state: OrchestrationState) -> dict:

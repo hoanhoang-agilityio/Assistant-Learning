@@ -2,17 +2,17 @@ from typing import Any
 
 import pytest
 
-from core.llm.payload import compact_json
-from core.planning.schema import ExecutionPlan, PlanTask
-from core.subgraphs.fitness import planner as planner_module
-from core.subgraphs.fitness.planner import (
+from core.capabilities.fitness import planner as planner_module
+from core.capabilities.fitness.planner import (
     build_planner_context_payload,
     build_planner_feedback_payload,
     build_planner_payload,
     configure_fitness_planner,
     generate_structured_workout,
 )
-from core.subgraphs.research.schema import ResearchFindings
+from core.capabilities.research.schema import ResearchFindings
+from core.llm.payload import compact_json
+from core.planning.schema import ExecutionPlan, PlanTask
 from tests.helpers.fitness import default_structured_workout
 
 

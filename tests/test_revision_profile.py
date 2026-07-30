@@ -1,17 +1,17 @@
-from core.shared.profile.extraction import configure_profile_extractor
-from core.shared.profile.normalize import resolve_activity_level
-from core.shared.profile.schema import Constraints, ExtractedProfile
-from core.subgraphs.fitness.schema import (
+from core.capabilities.fitness.schema import (
     EditOperation,
     StructuredWorkout,
     WorkoutDay,
     WorkoutExercise,
 )
-from core.subgraphs.fitness.utils import (
+from core.capabilities.fitness.utils import (
     ensure_training_day_count,
     resolve_expected_day_count,
 )
-from core.subgraphs.user.utils import apply_revision_overrides, extract_profile
+from core.capabilities.user.utils import apply_revision_overrides, extract_profile
+from core.shared.profile.extraction import configure_profile_extractor
+from core.shared.profile.normalize import resolve_activity_level
+from core.shared.profile.schema import Constraints, ExtractedProfile
 
 
 def test_apply_revision_overrides_updates_days_per_week() -> None:
@@ -40,7 +40,7 @@ def test_apply_revision_overrides_updates_days_per_week() -> None:
 
 def test_extract_profile_applies_revision_without_reasking_profile(complete_profile: dict) -> None:
     """Relocated from planning: revision-feedback re-extraction is now owned by the User
-    subgraph (core.subgraphs.user.utils.extract_profile). End-to-end pause/resume/continue-run
+    subgraph (core.capabilities.user.utils.extract_profile). End-to-end pause/resume/continue-run
     coverage for this behavior lives in tests/test_user_subgraph.py.
     """
     configure_profile_extractor(

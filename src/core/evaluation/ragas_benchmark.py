@@ -12,21 +12,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from core.config.settings import get_settings
-from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
-from core.orchestration.agents.execution_context import build_execution_context
-from core.orchestration.graph.run import create_initial_state
-from core.subgraphs.fitness.capability import invoke_fitness_capability
-from core.subgraphs.fitness.planner import configure_fitness_planner
-from core.subgraphs.fitness.utils import build_default_structured_workout
-from core.subgraphs.research.capability import invoke_research_capability
-from core.subgraphs.verification.capability import invoke_verification_capability
-from core.subgraphs.verification.utils import (
+from core.capabilities.fitness.capability import invoke_fitness_capability
+from core.capabilities.fitness.planner import configure_fitness_planner
+from core.capabilities.fitness.utils import build_default_structured_workout
+from core.capabilities.research.capability import invoke_research_capability
+from core.capabilities.verification.capability import invoke_verification_capability
+from core.capabilities.verification.utils import (
     FAITHFULNESS_PASS_THRESHOLD,
     evaluate_faithfulness,
     heuristic_faithfulness_data,
     load_verification_context,
 )
+from core.config.settings import get_settings
+from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
+from core.orchestration.agents.execution_context import build_execution_context
+from core.orchestration.graph.run import create_initial_state
 
 
 @dataclass(frozen=True)

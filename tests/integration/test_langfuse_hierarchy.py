@@ -7,13 +7,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langgraph.types import Command
 
+from core.capabilities.research.utils import extract_tavily_data, search_tavily_data
 from core.config.settings import get_settings
 from core.mcp.tavily_client import TAVILY_EXTRACT_TOOL, TAVILY_SEARCH_TOOL, TavilyMCPClient
 from core.observability.langfuse import reset_langfuse_client
 from core.observability.tracing import reset_trace_run_id, set_trace_run_id
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.graph.builder import build_graph
-from core.subgraphs.research.utils import extract_tavily_data, search_tavily_data
 
 
 class _RecordingSpan:

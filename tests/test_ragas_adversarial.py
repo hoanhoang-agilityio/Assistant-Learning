@@ -11,13 +11,13 @@ from pathlib import Path
 
 import pytest
 
+from core.capabilities.verification.utils import heuristic_faithfulness_data
 from core.evaluation.ragas_benchmark import (
     compare_faithfulness_scorers,
     load_adversarial_cases,
     load_golden_cases,
     run_golden_case,
 )
-from core.subgraphs.verification.utils import heuristic_faithfulness_data
 
 ADVERSARIAL_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ragas_adversarial.json"
 GOLDEN_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ragas_golden.json"

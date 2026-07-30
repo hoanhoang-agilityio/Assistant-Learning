@@ -2,10 +2,10 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from core.capabilities.wrapper import merge_subgraph_updates
 from core.orchestration.agents.execution_context import CapabilityResult
 from core.orchestration.agents.state import OrchestrationState
 from core.orchestration.hitl.utils import hitl_control_data, request_approval_data
-from core.subgraphs.wrapper import merge_subgraph_updates
 from core.vfs import VFS
 
 

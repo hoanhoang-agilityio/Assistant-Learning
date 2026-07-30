@@ -1,6 +1,6 @@
 """Tests for the Tavily exact-match query cache and its near-miss instrumentation."""
 
-from core.subgraphs.research.query_cache import (
+from core.capabilities.research.query_cache import (
     get_cached_search_result,
     get_near_miss_count,
     get_near_miss_overlap_distribution,

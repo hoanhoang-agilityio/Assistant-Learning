@@ -2,8 +2,8 @@
 
 from typing import Any
 
+from core.capabilities.research.schema import ResearchAgentResult, ResearchFindings
 from core.shared.grounding.schema import GroundedClaim
-from core.subgraphs.research.schema import ResearchAgentResult, ResearchFindings
 
 
 def default_structured_findings() -> ResearchFindings:

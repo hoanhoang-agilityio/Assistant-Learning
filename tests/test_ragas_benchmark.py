@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
+from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 from core.config.settings import get_settings
 from core.evaluation.ragas_benchmark import load_golden_cases, run_golden_case, summarize_results
-from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
 
 FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "ragas_golden.json"
 
