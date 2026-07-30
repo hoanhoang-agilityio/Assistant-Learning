@@ -43,7 +43,7 @@ The core structural finding is this: **the move to capability-oriented organizat
 - ~~Three files named `utils.py` hold **1,815 lines of core domain logic** — BMR/TDEE math, safety rules, citation validation, faithfulness scoring.~~ **RESOLVED** (S2).
 - `graph/service.py` was a **1,209-line God object** with ~50 methods spanning six concerns; now **1,082** after extracting the DTOs and projection helpers — **partially resolved** (S1).
 
-Three issues flagged as urgent here are now **all resolved**: `ragas` was a production runtime dependency (now an optional extra, ~180 MB off the image — S3); runtime artifacts were written into `src/workspace/` (now `var/workspace/` — S5); and the wheel shipped only `core` while the app imports `api` and `ui` (now ships all three — S4). See Revision 2 above and the roadmap in Step 7.
+Three issues flagged as urgent here are now **all resolved**: `ragas` was a production runtime dependency (now an optional extra, **~340 MB** off the built image, measured — S3); runtime artifacts were written into `src/workspace/` (now `var/workspace/` — S5); and the wheel shipped only `core` while the app imports `api` and `ui` (now ships all three — S4). See Revision 2 above and the roadmap in Step 7.
 
 | Score | Value | One-line justification |
 |---|---|---|
@@ -360,8 +360,15 @@ deliberately deferred — see `KNOWN_ISSUES.md` ISSUE-8.
 >    have stopped the API from starting.
 >
 > What shipped instead: `ragas` moved to a `[project.optional-dependencies] eval` extra,
-> removing **~180 MB** (`ragas` + `datasets` + `pandas` + `pyarrow`, 28% of the venv) from
-> production images. Verified by blocking those four modules at the import hook and
+> removing **~340 MB** from the built image, measured as 1.45 GB with the extra vs 1.11 GB
+> without.
+>
+> *Correction:* an earlier draft of this note attributed the saving to
+> `ragas` + `datasets` + `pandas` + `pyarrow`. That was wrong — `pandas` (75 MB) and
+> `pyarrow` (140 MB) remain in the production image because **Streamlit** requires them,
+> and Streamlit is a runtime dependency. The real saving is larger than first claimed but
+> comes from ragas, datasets and their own transitive stack. See `KNOWN_ISSUES.md` ISSUE-9
+> for the Streamlit-in-the-API-image question this exposed. Verified by blocking those four modules at the import hook and
 > confirming `api.main`, `api.deps`, `shadow_eval` and `verification` all still import,
 > with the default heuristic faithfulness path scoring correctly.
 
@@ -589,7 +596,17 @@ still outstanding.
 > it does now. Caveat in `KNOWN_ISSUES.md` ISSUE-7: uvicorn's own loggers keep their own
 > handlers, so its lines stay plain text.
 >
-> No Dockerfile yet — deliberately held back rather than committing one unverified.
+> Dockerfile shipped in `3cad8d0`: multi-stage, non-root, healthchecked, artifacts on a
+> volume outside the source tree, and installed *without* the `eval` extra. Verified by
+> building it and running the container — `/health` returns ok, logs come out as JSON with
+> correlation fields, and the healthcheck reports healthy.
+>
+> **Building it immediately paid for itself.** It exposed a production-only regression the
+> whole green test suite could not see: `langchain` was never a declared dependency (it
+> arrived transitively via `ragas`), so once ragas became an optional extra, a clean
+> production install could no longer start the API. Fixed in `e68bbdf`, with a
+> `runtime-deps` CI job added so the class of bug cannot recur. See `KNOWN_ISSUES.md`
+> ISSUE-10.
 
 No `.github/`. No `Dockerfile` (`docker-compose.yml` provisions only Postgres). No `logging.basicConfig`/`dictConfig` anywhere in `src/` — just scattered `logging.getLogger(__name__)`, so log level and format are undefined in production. (Credit: **zero** `print()` calls in `src/`.)
 
