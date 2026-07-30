@@ -28,15 +28,41 @@ def langfuse_settings() -> Settings:
     )
 
 
-def test_is_langfuse_enabled_requires_keys(langfuse_settings: Settings) -> None:
+@pytest.fixture
+def langfuse_disabled_settings() -> Settings:
+    """Settings with Langfuse credentials absent.
+
+    Deliberately built here rather than read from get_settings(): that cache is
+    process-global, and RunOrchestrator's background threads (service.py spawns
+    four of them, and several call get_settings()) can outlive the test that
+    started them. When such a thread calls get_settings() after conftest's
+    monkeypatched environment has been restored, it repopulates the lru_cache
+    with this repo's real .env -- including live LANGFUSE_* keys -- and these
+    assertions then see Langfuse *enabled*. That race made both tests below
+    fail roughly one run in four.
+
+    Constructing Settings directly reads the same monkeypatched environment
+    without touching the shared cache, so the assertions are deterministic no
+    matter what any leaked thread is doing.
+    """
+    return Settings(langfuse_public_key=None, langfuse_secret_key=None)
+
+
+def test_is_langfuse_enabled_requires_keys(
+    langfuse_settings: Settings, langfuse_disabled_settings: Settings
+) -> None:
     assert is_langfuse_enabled(langfuse_settings) is True
-    assert is_langfuse_enabled(get_settings()) is False
+    assert is_langfuse_enabled(langfuse_disabled_settings) is False
 
 
 def test_build_langfuse_callbacks_empty_when_disabled(
     orchestration_state: OrchestrationState,
+    langfuse_disabled_settings: Settings,
 ) -> None:
-    assert build_langfuse_callbacks(orchestration_state["run_id"], settings=get_settings()) == []
+    assert (
+        build_langfuse_callbacks(orchestration_state["run_id"], settings=langfuse_disabled_settings)
+        == []
+    )
 
 
 @patch("core.observability.langfuse.CallbackHandler")
