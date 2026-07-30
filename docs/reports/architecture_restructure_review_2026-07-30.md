@@ -736,6 +736,52 @@ Scored 1-10. "Coupling" and "Cohesion" are rated as *quality* (10 = loose coupli
 
 ## Step 6 — Proposed Structure
 
+> **SHIPPED (2026-07-30)** — `d622bca`, `b8c415f`, `ca9f608`, `0d3c554`, `7302d57`, plus
+> `2f78dfa` for `shared/`. `core/` went from **19 top-level folders to 6**, matching the
+> target below. The wheel still ships `core`/`api`/`ui`, and the suite was green
+> (494/3/0) after every slice.
+>
+> **What actually shipped:**
+>
+> ```
+> src/core/
+> ├── capabilities/    fitness  planning  research  user  verification
+> ├── orchestration/   graph  agents  routing  hitl  persist
+> ├── shared/          profile  grounding  knowledge  planning
+> ├── adapters/        llm  mcp  observability  rate_limit  repositories  vfs
+> ├── config/
+> └── evaluation/
+> ```
+>
+> **Four corrections to the tree proposed below**, each forced by measuring consumers
+> rather than reading structure:
+>
+> 1. **`goal_spec.py` did NOT move into `capabilities/fitness/`.** It is read by research
+>    (3 files), user (2), planning, `llm/serializers` and `vfs/schema`. It is in
+>    `shared/profile/`. (See the correction under S8.)
+> 2. **`planning/` is not purely a capability.** Its `schema.py` (7 external consumers) and
+>    `utils.py` (4) are read by `graph/service`, `llm/serializers`, `vfs/schema`, fitness and
+>    research, while `executor.py`/`node.py` have 0 and 1. It was **split**:
+>    `capabilities/planning/` for the node, `shared/planning/` for the ExecutionPlan kernel.
+> 3. **`knowledge/` is not `capabilities/retrieval/`.** It has no graph node and no executor,
+>    so it is not a routed capability; consumers span research, the MCP server, the guideline
+>    repository and evaluation. It is in `shared/knowledge/`.
+> 4. **`core/capabilities/` had to be renamed before `subgraphs/` could take the name.** It
+>    never held capabilities — registry, policy engine, dispatcher and node adapters route
+>    *to* them — so it became `orchestration/routing/`.
+>
+> **The file-level flattening below was not done.** The tree proposes renaming files
+> (`graph/builder.py` -> `orchestration/graph.py`, `supervisor/{node,routing,log}.py`,
+> `judges/*.py`). Only folders were relocated; sub-structure is intact. Moving folders is
+> mechanical and reviewable, whereas renaming ~40 files inside them is neither, and buys
+> nothing the folder grouping does not already give.
+>
+> **Risk was measured, not assumed.** All 53 `monkeypatch.setattr("core...")` string targets
+> were rewritten automatically by the same codemod that rewrote imports, and every one fails
+> loudly (`AttributeError`) if missed — only 3 tests use `raising=False`, none of them
+> module-path strings. That is what made a 250-file restructure safe to do in five commits.
+
+
 Design rules applied: **keep the three existing roots** `src/{core,api,ui}` and declare all three in the wheel (fixes S4 — see the rejected `pt_ai` collapse there); restructure only *inside* `core/`; capabilities own their tests; `adapters/` holds everything that wraps an external system; no `domain/`/`application/`/`infrastructure/` folders; no new abstractions beyond the two ports justified in S11.
 
 > **Consistency note.** Step 2 argues that renaming buckets is "pure churn," and that constraint is honoured here: `api/` and `ui/` do not move at all, and the sub-folders introduced below (`orchestration/`, `shared/`, `adapters/`) replace *existing* technology buckets (`graph/`, `agents/`, `llm/`, `mcp/`, `repositories/`, `vfs/`, `observability/`, `rate_limit/`) rather than adding a new layer above them. The net folder count at the top of `core/` goes **down**, from 19 to 6. Any variant of this tree that only *adds* nesting should be rejected.
