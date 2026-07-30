@@ -172,7 +172,7 @@ def test_generate_structured_workout_reuses_stable_prefix_across_retry(
         captured_contents.append(messages[-1].content)
         return default_structured_workout({"goal": "fat_loss"}, {"days_per_week": 3})
 
-    monkeypatch.setattr(planner_module, "invoke_standard_structured_output", fake_invoke)
+    monkeypatch.setattr(planner_module, "invoke_xhigh_structured_output", fake_invoke)
 
     common_kwargs = dict(
         profile={"goal": "fat_loss"},

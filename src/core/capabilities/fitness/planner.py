@@ -6,7 +6,7 @@ from typing import Any, Literal
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.adapters.llm.contracts import validate_fitness_planner_payload
-from core.adapters.llm.factory import invoke_standard_structured_output
+from core.adapters.llm.factory import invoke_xhigh_structured_output
 from core.adapters.llm.metrics import set_llm_metrics_node
 from core.adapters.llm.payload import compact_json, limit_feedback_items
 from core.adapters.llm.serializers import (
@@ -240,7 +240,7 @@ def generate_structured_workout(
         prompt_cache_key = "fitness_planner"
     token = set_llm_metrics_node("fitness_planner")
     try:
-        workout = invoke_standard_structured_output(
+        workout = invoke_xhigh_structured_output(
             StructuredWorkout,
             [
                 SystemMessage(content=system_prompt),
