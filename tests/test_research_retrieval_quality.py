@@ -11,14 +11,14 @@ from typing import Any
 
 import pytest
 
-from core.config.settings import Settings
-from core.subgraphs.research.ranking import compute_composite_score
-from core.subgraphs.research.utils import search_tavily_data
-from core.subgraphs.research.verification import (
+from core.capabilities.research.ranking import compute_composite_score
+from core.capabilities.research.utils import search_tavily_data
+from core.capabilities.research.verification import (
     has_explicit_trusted_domains,
     verify_source,
     verify_sources_data,
 )
+from core.config.settings import Settings
 
 
 class TestVerifySourceTopicalRelevanceGate:
@@ -115,14 +115,14 @@ class TestRankingOffTopicPenalty:
 class TestHasExplicitTrustedDomains:
     def test_false_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "core.subgraphs.research.verification.get_settings",
+            "core.capabilities.research.verification.get_settings",
             lambda: Settings(research_trusted_domains=""),
         )
         assert has_explicit_trusted_domains() is False
 
     def test_true_when_configured(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "core.subgraphs.research.verification.get_settings",
+            "core.capabilities.research.verification.get_settings",
             lambda: Settings(research_trusted_domains="example.edu"),
         )
         assert has_explicit_trusted_domains() is True
@@ -139,15 +139,17 @@ class TestSearchTavilyDataIncludeDomainsThreading:
             return {"results": []}
 
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.get_tavily_client",
+            "core.capabilities.research.tavily.get_tavily_client",
             lambda: type("_C", (), {"search": staticmethod(fake_search)})(),
         )
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.get_cached_search_result", lambda query: None
+            "core.capabilities.research.tavily.get_cached_search_result", lambda query: None
         )
-        monkeypatch.setattr("core.subgraphs.research.utils.store_search_result", lambda *a: None)
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.has_explicit_trusted_domains", lambda: False
+            "core.capabilities.research.tavily.store_search_result", lambda *a: None
+        )
+        monkeypatch.setattr(
+            "core.capabilities.research.tavily.has_explicit_trusted_domains", lambda: False
         )
 
         search_tavily_data("progressive overload training volume")
@@ -164,18 +166,20 @@ class TestSearchTavilyDataIncludeDomainsThreading:
             return {"results": []}
 
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.get_tavily_client",
+            "core.capabilities.research.tavily.get_tavily_client",
             lambda: type("_C", (), {"search": staticmethod(fake_search)})(),
         )
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.get_cached_search_result", lambda query: None
-        )
-        monkeypatch.setattr("core.subgraphs.research.utils.store_search_result", lambda *a: None)
-        monkeypatch.setattr(
-            "core.subgraphs.research.utils.has_explicit_trusted_domains", lambda: True
+            "core.capabilities.research.tavily.get_cached_search_result", lambda query: None
         )
         monkeypatch.setattr(
-            "core.subgraphs.research.utils.resolve_trusted_domains",
+            "core.capabilities.research.tavily.store_search_result", lambda *a: None
+        )
+        monkeypatch.setattr(
+            "core.capabilities.research.tavily.has_explicit_trusted_domains", lambda: True
+        )
+        monkeypatch.setattr(
+            "core.capabilities.research.tavily.resolve_trusted_domains",
             lambda: ("example.edu", "example.org"),
         )
 

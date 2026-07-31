@@ -7,20 +7,20 @@ Golden scenarios here are the regression suite a Supervisor prompt change must k
 passing.
 """
 
-from core.agents.execution_context import CapabilityResult
-from core.agents.routing_context import (
+from core.orchestration.agents.routing_context import (
     AgentDescriptor,
     GuardrailState,
     RoutingContext,
     append_agent_trail,
     summarize_agent_result,
 )
-from core.agents.supervisor_router_judge import (
+from core.orchestration.agents.supervisor_router_judge import (
     SupervisorRoutingJudgement,
     configure_supervisor_routing_judge,
     judge_next_route,
 )
-from core.capabilities.policy_engine import enforce_routing_invariants
+from core.orchestration.routing.policy_engine import enforce_routing_invariants
+from core.shared.execution_context import CapabilityResult
 from tests.helpers.routing import default_supervisor_routing_judge
 
 _AVAILABLE_AGENTS = [
@@ -153,7 +153,7 @@ def test_policy_engine_profile_gate_overrides_planning_requires_fitness() -> Non
 
 def test_policy_engine_profile_gate_overrides_entry_node_on_first_hop() -> None:
     """entry_node enforcement must not bypass the profile gate on hop 1."""
-    from core.agents.execution_context import build_execution_context
+    from core.shared.execution_context import build_execution_context
 
     ctx = build_execution_context(intent="build_plan")
     state = _base_state(
@@ -195,7 +195,7 @@ def test_policy_engine_rejects_finish_on_first_hop() -> None:
     verify_macros request, and nothing caught it, so the run ended having never
     actually answered the user's question. "finish" before any work is done is
     never a valid semantic call; fall back to the deterministic entry capability."""
-    from core.agents.execution_context import build_execution_context
+    from core.shared.execution_context import build_execution_context
 
     ctx = build_execution_context(intent="verify_macros")
     state = _base_state(
@@ -219,7 +219,7 @@ def test_policy_engine_forces_entry_node_on_first_hop_even_when_proposal_is_not_
     artifact-writing path ever creates. `test_policy_engine_rejects_finish_on_first_hop`
     only covers the Judge proposing "finish" on hop 1 -- this is the general case of any
     wrong proposal on hop 1, which that narrower guard didn't catch."""
-    from core.agents.execution_context import build_execution_context
+    from core.shared.execution_context import build_execution_context
 
     ctx = build_execution_context(intent="verify_plan", has_submitted_plan=True)
     state = _base_state(
@@ -464,32 +464,91 @@ def test_policy_engine_hitl_approved_forces_persist_regardless_of_proposal() -> 
     assert decision.override_reason == "hitl_approved"
 
 
-def test_policy_engine_revision_requested_forces_fitness() -> None:
+def test_policy_engine_revision_requested_forces_user_first() -> None:
+    # revision_count=1, {user,planning,fitness}_synced_revision all unset (0): none
+    # of the three have reprocessed for this revision yet, so User goes first --
+    # it's the one that parses profile-level changes out of the revision text (e.g.
+    # "change to 5 day training per week" -> core.capabilities.user.utils.
+    # apply_revision_overrides rewriting profile.days_per_week) before Planning
+    # re-derives the goal spec and Fitness rebuilds the workout from it.
     state = _base_state(
         approval_status="revision_requested",
         last_capability_result={"capability": "verification", "status": "completed"},
+        revision_count=1,
+    )
+    decision = enforce_routing_invariants(state, _proposal("hitl"), max_hops=12)
+    assert decision.next_agent == "user"
+    assert decision.override_reason == "revision_requested"
+
+
+def test_policy_engine_revision_requested_forces_planning_after_user() -> None:
+    state = _base_state(
+        approval_status="revision_requested",
+        last_capability_result={"capability": "verification", "status": "completed"},
+        revision_count=1,
+        user_synced_revision=1,
+    )
+    decision = enforce_routing_invariants(state, _proposal("hitl"), max_hops=12)
+    assert decision.next_agent == "planning"
+    assert decision.override_reason == "revision_requested"
+
+
+def test_policy_engine_revision_requested_forces_fitness_after_planning() -> None:
+    state = _base_state(
+        approval_status="revision_requested",
+        last_capability_result={"capability": "verification", "status": "completed"},
+        revision_count=1,
+        user_synced_revision=1,
+        planning_synced_revision=1,
     )
     decision = enforce_routing_invariants(state, _proposal("hitl"), max_hops=12)
     assert decision.next_agent == "fitness"
     assert decision.override_reason == "revision_requested"
 
 
-def test_policy_engine_revision_requested_stops_firing_once_fitness_reprocesses() -> None:
+def test_policy_engine_revision_requested_stops_firing_once_all_three_reprocess() -> None:
     """Self-resetting guard: approval_status stays "revision_requested" in state
-    until the *next* HITL response, but the rule must only fire once -- otherwise
-    every subsequent hop after Fitness (e.g. once Verification completes and is now
-    "the last result") would re-trigger it and loop back to fitness forever instead
-    of reaching HITL. `agent_trail` (not just the single last hop) is what makes
-    this correctly stay resolved across the whole fitness -> verification -> hitl
-    tail of a revision cycle."""
+    until the *next* HITL response, but the rule must only fire once per capability
+    -- otherwise every subsequent hop (e.g. once Verification completes and is now
+    "the last result") would re-trigger it and loop forever instead of reaching
+    HITL. Each `{user,planning,fitness}_synced_revision` matching the current
+    `revision_count` (set by invoke_user_subgraph / apply_capability_result when
+    that capability completes) is what makes this correctly stay resolved across
+    the whole user -> planning -> fitness -> verification -> hitl tail of a
+    revision cycle -- unlike `agent_trail`, which is just a rolling window of
+    recent hops and would falsely read as "already reprocessed" even for an
+    *earlier* revision's build."""
     state = _base_state(
         approval_status="revision_requested",
         last_capability_result={"capability": "verification", "status": "completed"},
-        agent_trail=["research", "fitness", "verification"],
+        revision_count=1,
+        user_synced_revision=1,
+        planning_synced_revision=1,
+        fitness_synced_revision=1,
     )
     decision = enforce_routing_invariants(state, _proposal("hitl"), max_hops=12)
     assert decision.next_agent == "hitl"
     assert decision.overridden is False
+
+
+def test_policy_engine_revision_requested_forces_user_again_on_second_revision() -> None:
+    """A *second* revision request after the first fully reprocessed must restart
+    the User -> Planning -> Fitness sequence, not be treated as already-resolved.
+    This is the regression the old `agent_trail`-based guard couldn't handle:
+    `agent_trail` would still contain "fitness" from the first revision's rebuild,
+    silently swallowing the second revision request and re-showing the (now stale)
+    first-revision plan."""
+    state = _base_state(
+        approval_status="revision_requested",
+        last_capability_result={"capability": "verification", "status": "completed"},
+        revision_count=2,
+        user_synced_revision=1,
+        planning_synced_revision=1,
+        fitness_synced_revision=1,
+    )
+    decision = enforce_routing_invariants(state, _proposal("hitl"), max_hops=12)
+    assert decision.next_agent == "user"
+    assert decision.override_reason == "revision_requested"
 
 
 def test_policy_engine_failed_capability_forces_finish() -> None:

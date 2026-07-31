@@ -4,7 +4,7 @@ for the routing side). citation/faithfulness are research-owned; consistency/saf
 are fitness-owned; research is retried first when both are implicated (fitness's
 numbers assume research's evidence/citations are already correct)."""
 
-from core.subgraphs.verification.utils import build_verification_report_for_checks
+from core.capabilities.verification.utils import build_verification_report_for_checks
 
 
 def _check(passed: bool, issues: list[str] | None = None) -> dict:

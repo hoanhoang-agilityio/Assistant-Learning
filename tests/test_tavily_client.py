@@ -2,7 +2,7 @@
 
 No existing test file exercises tavily_client.py's real invocation path --
 tests/conftest.py's mock_tavily_client fixture builds a TavilyMCPClient via
-core.mcp.mock_tavily, which bypasses _invoke_tool/_run_async/
+core.adapters.mcp.mock_tavily, which bypasses _invoke_tool/_run_async/
 create_tavily_mcp_client entirely. This file covers the real path directly.
 """
 
@@ -10,8 +10,8 @@ import asyncio
 
 import pytest
 
+from core.adapters.mcp.tavily_client import _invoke_tool, create_tavily_mcp_client
 from core.config.settings import Settings
-from core.mcp.tavily_client import _invoke_tool, create_tavily_mcp_client
 
 
 class _SlowTool:
@@ -50,7 +50,7 @@ def test_invoke_tool_times_out_when_tool_call_hangs(monkeypatch: pytest.MonkeyPa
     """Regression (PR2): a Tavily tool call that never returns must raise within
     the configured deadline instead of blocking the research subgraph forever."""
     settings = Settings(tavily_tool_timeout_seconds=0.05)
-    monkeypatch.setattr("core.mcp.tavily_client.get_settings", lambda: settings)
+    monkeypatch.setattr("core.adapters.mcp.tavily_client.get_settings", lambda: settings)
 
     with pytest.raises(TimeoutError):
         _invoke_tool(_SlowTool(), {"query": "test"})
@@ -59,7 +59,7 @@ def test_invoke_tool_times_out_when_tool_call_hangs(monkeypatch: pytest.MonkeyPa
 def test_invoke_tool_returns_normally_within_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """A tool call that finishes well inside the deadline is unaffected."""
     settings = Settings(tavily_tool_timeout_seconds=5.0)
-    monkeypatch.setattr("core.mcp.tavily_client.get_settings", lambda: settings)
+    monkeypatch.setattr("core.adapters.mcp.tavily_client.get_settings", lambda: settings)
 
     result = _invoke_tool(_FastTool(), {"query": "test"})
 
@@ -71,7 +71,7 @@ def test_create_tavily_mcp_client_times_out_on_slow_handshake(
 ) -> None:
     """Regression (PR2): a hanging MCP tool-listing handshake must raise within
     the configured deadline instead of blocking client creation forever."""
-    monkeypatch.setattr("core.mcp.tavily_client.MultiServerMCPClient", _SlowMCPClient)
+    monkeypatch.setattr("core.adapters.mcp.tavily_client.MultiServerMCPClient", _SlowMCPClient)
     settings = Settings(tavily_api_key="test-key", tavily_tool_timeout_seconds=0.05)
 
     with pytest.raises(TimeoutError):

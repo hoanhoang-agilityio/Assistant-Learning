@@ -4,19 +4,17 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(_PROJECT_ROOT / "src"))
+from langchain_core.runnables.graph import MermaidDrawMethod
 
-from langchain_core.runnables.graph import MermaidDrawMethod  # noqa: E402
-
-from core.graph.diagrams import (  # noqa: E402
+from core.orchestration.graph.diagrams import (
     GRAPH_BUILDERS,
     export_all_graph_diagrams,
     export_graph_diagram,
 )
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "src" / "docs" / "diagrams"
 

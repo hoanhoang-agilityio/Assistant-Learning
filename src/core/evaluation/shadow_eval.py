@@ -23,11 +23,11 @@ from typing import Protocol
 
 from psycopg_pool import ConnectionPool
 
+from core.adapters.db.run_history_store import RunSummary
+from core.adapters.observability.langfuse import create_trace_id_for_run, get_langfuse_client
+from core.adapters.vfs.bootstrap import run_workspace_path
+from core.capabilities.verification.utils import evaluate_faithfulness, load_verification_context
 from core.config.settings import Settings, get_settings
-from core.graph.run_history_store import RunSummary
-from core.observability.langfuse import create_trace_id_for_run, get_langfuse_client
-from core.subgraphs.verification.utils import evaluate_faithfulness, load_verification_context
-from core.vfs.bootstrap import run_workspace_path
 
 logger = logging.getLogger(__name__)
 

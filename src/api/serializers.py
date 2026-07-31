@@ -1,6 +1,6 @@
 from api.schemas import RunStatusResponse, RunSummaryResponse
-from core.graph.run_history_store import RunSummary
-from core.graph.service import RunStatus
+from core.adapters.db.run_history_store import RunSummary
+from core.orchestration.graph.service import RunStatus
 
 
 def to_run_summary_response(summary: RunSummary) -> RunSummaryResponse:

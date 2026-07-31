@@ -7,13 +7,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langgraph.types import Command
 
-from core.agents.state import OrchestrationState
+from core.adapters.mcp.tavily_client import TAVILY_EXTRACT_TOOL, TAVILY_SEARCH_TOOL, TavilyMCPClient
+from core.adapters.observability.langfuse import reset_langfuse_client
+from core.adapters.observability.tracing import reset_trace_run_id, set_trace_run_id
+from core.capabilities.research.utils import extract_tavily_data, search_tavily_data
 from core.config.settings import get_settings
-from core.graph.builder import build_graph
-from core.mcp.tavily_client import TAVILY_EXTRACT_TOOL, TAVILY_SEARCH_TOOL, TavilyMCPClient
-from core.observability.langfuse import reset_langfuse_client
-from core.observability.tracing import reset_trace_run_id, set_trace_run_id
-from core.subgraphs.research.utils import extract_tavily_data, search_tavily_data
+from core.orchestration.graph.builder import build_graph
+from core.orchestration.state import OrchestrationState
 
 
 class _RecordingSpan:
@@ -42,10 +42,13 @@ def langfuse_span_recorder(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     reset_langfuse_client()
 
     with (
-        patch("core.observability.langfuse.verify_langfuse_credentials", return_value=(True, None)),
-        patch("core.observability.langfuse.get_langfuse_client", return_value=mock_client),
-        patch("core.observability.langfuse.is_langfuse_enabled", return_value=True),
-        patch("core.observability.langfuse.CallbackHandler", return_value=MagicMock()),
+        patch(
+            "core.adapters.observability.langfuse.verify_langfuse_credentials",
+            return_value=(True, None),
+        ),
+        patch("core.adapters.observability.langfuse.get_langfuse_client", return_value=mock_client),
+        patch("core.adapters.observability.langfuse.is_langfuse_enabled", return_value=True),
+        patch("core.adapters.observability.langfuse.CallbackHandler", return_value=MagicMock()),
     ):
         yield span_names
 

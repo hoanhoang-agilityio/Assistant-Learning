@@ -1,12 +1,12 @@
 """Tests for GuidelineRepository.
 
 Runs against the real local Postgres instance already used by
-core.graph.checkpointer/core.rate_limit.postgres_store/core.graph.run_tracker in this
+core.adapters.db.checkpointer/core.adapters.rate_limit.postgres_store/core.adapters.db.run_tracker in this
 dev environment (docker-compose's postgres service, pgvector-enabled). Feeds hand-built
 vectors directly -- no OpenAI call needed, since embeddings are a repository input, not
 something it computes. Calls bootstrap_schema() defensively before constructing the
 repository, since repositories no longer create their own schema (see
-core.repositories.bootstrap) -- production trusts scripts/bootstrap_fitness_db.py has
+core.adapters.db.bootstrap) -- production trusts scripts/bootstrap_fitness_db.py has
 already run; tests can't make that assumption about a fresh environment, and the call
 is idempotent/cheap.
 """
@@ -15,10 +15,10 @@ from __future__ import annotations
 
 import pytest
 
+from core.adapters.db.bootstrap import bootstrap_schema
+from core.adapters.db.guideline_repository import GuidelineRepository
 from core.config.settings import get_settings
-from core.knowledge.schema import KnowledgeChunk, KnowledgeDocument, KnowledgeSource
-from core.repositories.bootstrap import bootstrap_schema
-from core.repositories.guideline_repository import GuidelineRepository
+from core.shared.knowledge.schema import KnowledgeChunk, KnowledgeDocument, KnowledgeSource
 
 _DIM = 1536
 

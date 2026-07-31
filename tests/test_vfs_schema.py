@@ -2,8 +2,7 @@ import json
 
 import pytest
 
-from core.planning.schema import ExecutionPlan
-from core.vfs import (
+from core.adapters.vfs import (
     PLAN_EXECUTION_PLAN,
     PLAN_PROFILE,
     VFS_ARTIFACTS,
@@ -11,8 +10,8 @@ from core.vfs import (
     parse_vfs_json_artifact,
     validate_vfs_json_artifact,
 )
-from core.vfs.bootstrap import RUN_SUBDIRS
-from core.vfs.layout import (
+from core.adapters.vfs.bootstrap import RUN_SUBDIRS
+from core.adapters.vfs.layout import (
     FITNESS_NORMALIZATION_FINDINGS,
     FITNESS_SAFETY_FLAGS,
     PLAN_REVISION_FEEDBACK,
@@ -21,7 +20,8 @@ from core.vfs.layout import (
     get_artifact_spec,
     is_known_vfs_path,
 )
-from core.vfs.schema import ResearchSourcesArtifact, RevisionFeedback, SafetyFlagsArtifact
+from core.adapters.vfs.schema import ResearchSourcesArtifact, RevisionFeedback, SafetyFlagsArtifact
+from core.shared.planning.schema import ExecutionPlan
 
 
 def test_vfs_subdirs_match_bootstrap_alias() -> None:

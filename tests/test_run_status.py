@@ -1,4 +1,4 @@
-from core.graph.service import _resolve_display_node
+from core.orchestration.graph.service import _resolve_display_node
 
 
 def test_display_node_uses_next_node_while_running() -> None:

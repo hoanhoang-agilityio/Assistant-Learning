@@ -3,14 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from core.persist.utils import (
+from core.adapters.vfs import VFS
+from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
+from core.orchestration.persist.utils import (
     persist_trigger_data,
     save_artifacts_data,
     save_metrics_data,
     save_run_data,
 )
-from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
-from core.vfs import VFS
 
 
 def test_persist_trigger_blocks_without_approval() -> None:
@@ -42,7 +42,7 @@ def test_persist_trigger_blocks_missing_faithfulness_score() -> None:
     strategy) still reports faithfulness_below_threshold as a diagnostic
     reason -- it's informational, not a hard gate, since approval_status is
     the only thing that actually blocks persist (see persist_trigger_data
-    above and core.subgraphs.fitness.capability._after_verification)."""
+    above and core.capabilities.fitness.capability._after_verification)."""
     result = persist_trigger_data(
         verification_passed=True,
         faithfulness_score=None,

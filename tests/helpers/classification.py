@@ -1,7 +1,7 @@
 """Deterministic default overrides for topic-scope and intent judges."""
 
-from core.agents.intent_judge import UserIntentJudgement
-from core.agents.topic_scope_judge import ScopeRequest, TopicScopeJudgement
+from core.orchestration.agents.intent_judge import UserIntentJudgement
+from core.orchestration.agents.topic_scope_judge import ScopeRequest, TopicScopeJudgement
 
 _FITNESS_TOPIC_KEYWORDS: tuple[str, ...] = (
     "workout",

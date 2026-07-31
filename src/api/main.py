@@ -8,10 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.deps import close_orchestrator_resources, get_orchestrator, get_shadow_eval_store
 from api.routes.runs import router as runs_router
 from api.routes.users import router as users_router
+from core.adapters.observability.logging import configure_logging
+from core.adapters.rate_limit.pricing import validate_model_pricing_coverage
 from core.config.settings import Settings, get_settings
 from core.evaluation.shadow_eval import run_shadow_evaluation_batch
-from core.graph.service import RunOrchestrator
-from core.rate_limit.pricing import validate_model_pricing_coverage
+from core.orchestration.graph.service import RunOrchestrator
 
 
 async def _run_periodic_reconciliation(instance: RunOrchestrator, interval_seconds: float) -> None:
@@ -77,6 +78,10 @@ def create_app(orchestrator: RunOrchestrator | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        # Configure logging first so every later startup step (pricing
+        # validation, orphan reconciliation, MCP wiring) is captured at the
+        # configured level and format instead of Python's bare default.
+        configure_logging(settings.log_level, settings.log_format)
         # Fail fast on bad DB config and on unpriced models (silent cost
         # mis-reporting/mis-enforcement is worse than a startup crash).
         validate_model_pricing_coverage(

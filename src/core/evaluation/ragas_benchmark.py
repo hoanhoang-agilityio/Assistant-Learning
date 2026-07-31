@@ -1,9 +1,11 @@
 """Golden-case pipeline benchmark: runs the Research -> Fitness -> Verification
 capability chain end to end (bypassing Supervisor's LLM intent classification
-for deterministic, fixed-input golden cases) and reports the heuristic
-faithfulness score each case's run produced. See core.evaluation.ragas for the
-real Ragas SDK scorer, which evaluate_draft_faithfulness below can also invoke
-for comparison when settings.verification_use_real_ragas is set."""
+for deterministic, fixed-input golden cases) and reports the faithfulness
+score each case's run produced -- heuristic or real Ragas SDK, whichever the
+pipeline actually used for that case (see ``method`` on ``BenchmarkResult``).
+See core.evaluation.ragas for the real Ragas SDK scorer, which
+evaluate_draft_faithfulness below can also invoke for comparison when the
+pipeline itself did not already produce a real score."""
 
 from __future__ import annotations
 
@@ -12,21 +14,28 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from core.agents.execution_context import build_execution_context
-from core.config.settings import get_settings
-from core.graph.run import create_initial_state
-from core.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
-from core.subgraphs.fitness.capability import invoke_fitness_capability
-from core.subgraphs.fitness.planner import configure_fitness_planner
-from core.subgraphs.fitness.utils import build_default_structured_workout
-from core.subgraphs.research.capability import invoke_research_capability
-from core.subgraphs.verification.capability import invoke_verification_capability
-from core.subgraphs.verification.utils import (
+from core.adapters.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
+from core.adapters.vfs import VFS
+from core.capabilities.fitness.capability import invoke_fitness_capability
+from core.capabilities.fitness.planner import configure_fitness_planner
+from core.capabilities.fitness.utils import build_default_structured_workout
+from core.capabilities.research.capability import invoke_research_capability
+from core.capabilities.verification.capability import invoke_verification_capability
+from core.capabilities.verification.utils import (
     FAITHFULNESS_PASS_THRESHOLD,
     evaluate_faithfulness,
     heuristic_faithfulness_data,
     load_verification_context,
 )
+from core.config.settings import get_settings
+from core.orchestration.graph.run import create_initial_state
+from core.shared.execution_context import build_execution_context
+
+# core.evaluation.ragas.ragas_faithfulness_data's two possible "method" values
+# for an actual real-Ragas-scored result (as opposed to the heuristic fallback
+# or a with-reference call). Kept here rather than imported so this module
+# still doesn't need to import the heavy ragas.py at module load time.
+_REAL_RAGAS_METHODS = frozenset({"ragas_sdk_multi_metric", "ragas_sdk_multi_metric_with_reference"})
 
 
 @dataclass(frozen=True)
@@ -45,14 +54,20 @@ class GoldenCase:
 class BenchmarkResult:
     """Faithfulness result for one golden case.
 
-    faithfulness_score/pass_fail are always the heuristic, pipeline-authoritative
-    values (whatever the golden case's actual verification capability run
-    produced). real_faithfulness_score/real_pass_fail and the other real_*_score
-    fields are additive comparison data from the real Ragas SDK, populated only
-    when settings.verification_use_real_ragas is on -- they never replace the
-    heuristic values or change this case's pass/fail verdict. context_recall and
-    answer_correctness are only populated when the golden case has a
-    `reference` (ground-truth answer); otherwise they stay None.
+    faithfulness_score/pass_fail/method are always whatever the golden case's
+    actual verification capability run produced -- ``method`` records the real
+    provenance ("ragas_sdk_multi_metric[_with_reference]" or
+    "heuristic_evidence_grounding", the latter also covering a real-Ragas call
+    that failed and fell back). real_faithfulness_score/real_pass_fail and the
+    other real_*_score fields are additive comparison data: reused directly
+    from the pipeline's own result when it already used real Ragas (no second
+    judge call), or -- only when the pipeline did NOT already produce a real
+    score -- obtained from one extra real Ragas SDK call, when
+    settings.verification_use_real_ragas is on. Either way, they never replace
+    faithfulness_score/pass_fail. context_recall and answer_correctness are
+    only populated when the golden case has a `reference` (ground-truth
+    answer) AND that reference was actually used for the scored call;
+    otherwise they stay None.
     """
 
     case_id: str
@@ -60,6 +75,7 @@ class BenchmarkResult:
     pass_fail: bool
     min_faithfulness: float
     workspace_path: str
+    method: str = "heuristic_evidence_grounding"
     real_faithfulness_score: float | None = None
     real_pass_fail: bool | None = None
     real_answer_relevancy_score: float | None = None
@@ -82,6 +98,17 @@ def load_golden_cases(path: Path) -> list[GoldenCase]:
         )
         for item in cases
     ]
+
+
+def _load_ragas_artifact(workspace_path: str) -> dict[str, Any] | None:
+    """Read back verify/ragas.json, written by write_verification_artifacts
+    during the verification capability call this same golden case just ran.
+    None if the check didn't run (shouldn't happen for golden cases, which
+    always request "faithfulness") or the artifact is JSON null."""
+    vfs = VFS.for_run(Path(workspace_path))
+    if not vfs.exists("verify/ragas.json"):
+        return None
+    return json.loads(vfs.read("verify/ragas.json"))
 
 
 def _build_mock_tavily_client() -> TavilyMCPClient:
@@ -169,13 +196,37 @@ def run_golden_case(
         faithfulness_score = float(state.get("faithfulness_score") or 0.0)
         context = load_verification_context(initial["workspace_path"])
 
+        # The verification capability call above already ran evaluate_faithfulness
+        # once (real Ragas SDK or heuristic, per
+        # settings.verification_production_use_real_ragas) and persisted its full
+        # result to verify/ragas.json. Read it back instead of blindly firing a
+        # second judge call -- ragas_artifact["method"] tells us whether that one
+        # call actually used the real SDK (it can still be
+        # "heuristic_evidence_grounding" if the real call failed and fell back,
+        # e.g. a rate-limit error, even with the production flag on).
+        ragas_artifact = _load_ragas_artifact(initial["workspace_path"])
+        method = (ragas_artifact or {}).get("method", "heuristic_evidence_grounding")
+
         real_faithfulness_score: float | None = None
         real_pass_fail: bool | None = None
         real_answer_relevancy_score: float | None = None
         real_context_precision_score: float | None = None
         real_context_recall_score: float | None = None
         real_answer_correctness_score: float | None = None
-        if get_settings().verification_use_real_ragas:
+        if method in _REAL_RAGAS_METHODS:
+            # Pipeline already produced a real score for this case -- reuse it
+            # rather than paying for an identical second judge call.
+            real_faithfulness_score = ragas_artifact["faithfulness_score"]
+            real_pass_fail = ragas_artifact["pass_fail"]
+            real_answer_relevancy_score = ragas_artifact.get("answer_relevancy_score")
+            real_context_precision_score = ragas_artifact.get("context_precision_score")
+            real_context_recall_score = ragas_artifact.get("context_recall_score")
+            real_answer_correctness_score = ragas_artifact.get("answer_correctness_score")
+        elif get_settings().verification_use_real_ragas:
+            # Pipeline did not produce a real score for this case (production is
+            # on the heuristic path, or the real call failed and fell back) --
+            # run the real SDK once here so the benchmark still gets a
+            # real-vs-heuristic comparison point.
             real_result = evaluate_draft_faithfulness(
                 context.get("grounded_claims") or context["draft_plan"],
                 context["evidence"],
@@ -195,6 +246,7 @@ def run_golden_case(
             pass_fail=faithfulness_score >= case.min_faithfulness,
             min_faithfulness=case.min_faithfulness,
             workspace_path=initial["workspace_path"],
+            method=method,
             real_faithfulness_score=real_faithfulness_score,
             real_pass_fail=real_pass_fail,
             real_answer_relevancy_score=real_answer_relevancy_score,
@@ -210,6 +262,11 @@ def run_golden_case(
 def summarize_results(results: list[BenchmarkResult]) -> dict[str, Any]:
     scores = [result.faithfulness_score for result in results]
     passed = sum(1 for result in results if result.pass_fail)
+    methods = {result.method for result in results}
+    # Each case's method reflects what actually scored it -- real Ragas can
+    # fall back to the heuristic per-case (e.g. a rate-limit error mid-run),
+    # so a single run's cases are not guaranteed to share one method.
+    method = next(iter(methods)) if len(methods) == 1 else "mixed"
     return {
         "case_count": len(results),
         "passed_count": passed,
@@ -217,7 +274,8 @@ def summarize_results(results: list[BenchmarkResult]) -> dict[str, Any]:
         "pass_rate": round(passed / len(results), 4) if results else 0.0,
         "mean_faithfulness": round(sum(scores) / len(scores), 4) if scores else 0.0,
         "min_faithfulness_threshold": FAITHFULNESS_PASS_THRESHOLD,
-        "method": "heuristic_evidence_grounding",
+        "method": method,
+        "method_counts": {m: sum(1 for r in results if r.method == m) for m in sorted(methods)},
     }
 
 

@@ -1,7 +1,7 @@
 """Tests for IdempotencyStore (PR4: idempotency support for create_run).
 
 Runs against the real local Postgres instance already used by
-core.graph.checkpointer/core.rate_limit.postgres_store/core.graph.run_tracker
+core.adapters.db.checkpointer/core.adapters.rate_limit.postgres_store/core.adapters.db.run_tracker
 in this dev environment (docker-compose's postgres service).
 """
 
@@ -11,8 +11,8 @@ import threading
 
 import pytest
 
+from core.adapters.db.idempotency_store import IdempotencyStore
 from core.config.settings import get_settings
-from core.graph.idempotency_store import IdempotencyStore
 
 
 @pytest.fixture

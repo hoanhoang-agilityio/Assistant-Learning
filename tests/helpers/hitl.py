@@ -5,9 +5,9 @@ from uuid import uuid4
 
 from langgraph.graph.state import CompiledStateGraph
 
-from core.agents.execution_context import CapabilityResult, build_execution_context
-from core.graph.run import create_initial_state
-from core.vfs import VFS
+from core.adapters.vfs import VFS
+from core.orchestration.graph.run import create_initial_state
+from core.shared.execution_context import CapabilityResult, build_execution_context
 
 
 def pause_before_hitl(
@@ -23,7 +23,7 @@ def pause_before_hitl(
     Supervisor route to HITL.
 
     Mirrors the real Fitness -> Verification -> HITL sequence (see
-    `core.capabilities.policy_engine`'s `_hitl_outcome`/`artifact_requires_verification`
+    `core.orchestration.routing.policy_engine`'s `_hitl_outcome`/`artifact_requires_verification`
     rules) without running the full planning/research/fitness/verification
     pipeline, so HITL resume tests can exercise `interrupt_before=["hitl"]` and the
     Supervisor's routing decision directly.

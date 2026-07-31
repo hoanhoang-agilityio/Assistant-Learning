@@ -1,7 +1,7 @@
 """Unit tests for rerankers (no OpenAI)."""
 
-from core.knowledge.retrieval.reranker import HeuristicReranker, IdentityReranker
-from core.knowledge.schema import GuidelineHit
+from core.shared.knowledge.retrieval.reranker import HeuristicReranker, IdentityReranker
+from core.shared.knowledge.schema import GuidelineHit
 
 
 def _hit(chunk_id: str, similarity: float, trust: float = 0.9) -> GuidelineHit:

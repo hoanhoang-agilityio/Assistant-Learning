@@ -62,8 +62,8 @@ from ragas.metrics import (  # noqa: E402
 )
 from ragas.metrics.base import Metric  # noqa: E402
 
+from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD  # noqa: E402
 from core.config.settings import get_settings  # noqa: E402
-from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD  # noqa: E402
 
 _ALWAYS_METRICS: list[Metric] = [
     faithfulness,

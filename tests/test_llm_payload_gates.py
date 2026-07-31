@@ -2,23 +2,27 @@
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from core.llm.budgets import LLM_NODE_BUDGETS, check_payload_budget, measure_fixture_baseline
-from core.llm.metrics import estimate_payload_tokens, reset_llm_metrics
-from core.llm.payload import compact_json
-from core.planning.schema import ExecutionPlan, PlanTask
-from core.profile.extraction import _EXTRACTION_SYSTEM_PROMPT
-from core.profile.goal_spec import derive_goal_spec
-from core.subgraphs.fitness.planner import build_planner_payload
-from core.subgraphs.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
-from core.subgraphs.research.prompts import (
+from core.adapters.llm.budgets import (
+    LLM_NODE_BUDGETS,
+    check_payload_budget,
+    measure_fixture_baseline,
+)
+from core.adapters.llm.metrics import estimate_payload_tokens, reset_llm_metrics
+from core.adapters.llm.payload import compact_json
+from core.capabilities.fitness.planner import build_planner_payload
+from core.capabilities.fitness.prompts import FITNESS_PLANNER_SYSTEM_PROMPT
+from core.capabilities.research.prompts import (
     QUERY_PLANNING_SYSTEM_PROMPT,
     SYNTHESIS_SYSTEM_PROMPT,
 )
-from core.subgraphs.research.schema import ResearchFindings
-from core.subgraphs.research.utils import (
+from core.capabilities.research.schema import ResearchFindings
+from core.capabilities.research.utils import (
     build_research_context_payload,
     build_synthesis_llm_extra,
 )
+from core.shared.planning.schema import ExecutionPlan, PlanTask
+from core.shared.profile.extraction import _EXTRACTION_SYSTEM_PROMPT
+from core.shared.profile.goal_spec import derive_goal_spec
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
 _MIN_PLAN_RATIONALE = "Test plan rationale with enough characters for validation."

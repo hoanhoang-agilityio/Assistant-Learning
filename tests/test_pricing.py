@@ -1,7 +1,7 @@
 import pytest
 
+from core.adapters.rate_limit.pricing import MODEL_PRICING_USD, validate_model_pricing_coverage
 from core.config.settings import get_settings
-from core.rate_limit.pricing import MODEL_PRICING_USD, validate_model_pricing_coverage
 
 
 def test_validate_model_pricing_coverage_passes_for_current_settings() -> None:

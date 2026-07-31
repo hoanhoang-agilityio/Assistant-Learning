@@ -2,17 +2,17 @@ from typing import Any
 
 import pytest
 
-from core.llm.payload import compact_json
-from core.planning.schema import ExecutionPlan, PlanTask
-from core.subgraphs.fitness import planner as planner_module
-from core.subgraphs.fitness.planner import (
+from core.adapters.llm.payload import compact_json
+from core.capabilities.fitness import planner as planner_module
+from core.capabilities.fitness.planner import (
     build_planner_context_payload,
     build_planner_feedback_payload,
     build_planner_payload,
     configure_fitness_planner,
     generate_structured_workout,
 )
-from core.subgraphs.research.schema import ResearchFindings
+from core.capabilities.research.schema import ResearchFindings
+from core.shared.planning.schema import ExecutionPlan, PlanTask
 from tests.helpers.fitness import default_structured_workout
 
 
@@ -172,7 +172,7 @@ def test_generate_structured_workout_reuses_stable_prefix_across_retry(
         captured_contents.append(messages[-1].content)
         return default_structured_workout({"goal": "fat_loss"}, {"days_per_week": 3})
 
-    monkeypatch.setattr(planner_module, "invoke_standard_structured_output", fake_invoke)
+    monkeypatch.setattr(planner_module, "invoke_xhigh_structured_output", fake_invoke)
 
     common_kwargs = dict(
         profile={"goal": "fat_loss"},

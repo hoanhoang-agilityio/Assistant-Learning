@@ -3,19 +3,19 @@
 import json
 from pathlib import Path
 
-from core.mcp.fitness_client import FitnessMCPClient
-from core.planning.utils import persist_revision_feedback
-from core.profile.goal_spec import derive_goal_spec
-from core.subgraphs.fitness.blueprint import build_plan_blueprint
-from core.subgraphs.fitness.schema import EditOperation
-from core.subgraphs.fitness.template_registry import (
+from core.adapters.mcp.fitness_client import FitnessMCPClient
+from core.adapters.vfs import VFS
+from core.capabilities.fitness.blueprint import build_plan_blueprint
+from core.capabilities.fitness.schema import EditOperation
+from core.capabilities.fitness.template_registry import (
     adapt_workout_to_blueprint,
     build_template_fingerprint,
     resolve_workout_template,
     store_workout_template,
 )
-from core.subgraphs.fitness.utils import BENCHMARK_WORKOUT_NOTE, build_default_structured_workout
-from core.vfs import VFS
+from core.capabilities.fitness.utils import BENCHMARK_WORKOUT_NOTE, build_default_structured_workout
+from core.shared.planning.utils import persist_revision_feedback
+from core.shared.profile.goal_spec import derive_goal_spec
 from tests.helpers.fitness import default_structured_workout
 
 
@@ -95,7 +95,7 @@ def test_deterministic_edit_applies_when_days_per_week_not_explicit(tmp_path, mo
     _seed_prior_workout(workspace_path, profile, constraints)
     persist_revision_feedback(workspace_path, "give me more protein")
     monkeypatch.setattr(
-        "core.subgraphs.fitness.template_registry.classify_edit_operation",
+        "core.capabilities.fitness.template_registry.classify_edit_operation",
         lambda revision_feedback, current_exercise_names: EditOperation(operation="UPDATE_MACROS"),
     )
 
@@ -126,7 +126,7 @@ def test_deterministic_edit_skipped_when_days_per_week_explicit(tmp_path, monkey
     _seed_prior_workout(workspace_path, old_profile, old_constraints)
     persist_revision_feedback(workspace_path, "reduce training to 3 days and increase protein")
     monkeypatch.setattr(
-        "core.subgraphs.fitness.template_registry.classify_edit_operation",
+        "core.capabilities.fitness.template_registry.classify_edit_operation",
         lambda revision_feedback, current_exercise_names: EditOperation(operation="UPDATE_MACROS"),
     )
 
@@ -162,7 +162,7 @@ def test_deterministic_replace_exercise_skipped_when_days_per_week_explicit(
         workspace_path, "swap bench press for dumbbell press and train 5 days instead"
     )
     monkeypatch.setattr(
-        "core.subgraphs.fitness.template_registry.classify_edit_operation",
+        "core.capabilities.fitness.template_registry.classify_edit_operation",
         lambda revision_feedback, current_exercise_names: EditOperation(
             operation="REPLACE_EXERCISE",
             target_exercise="bench press",

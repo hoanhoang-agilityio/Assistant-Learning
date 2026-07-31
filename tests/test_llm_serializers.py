@@ -1,11 +1,11 @@
 """Tests for shared LLM compact serializers."""
 
-from core.llm.serializers import (
+from core.adapters.llm.serializers import (
     compact_execution_plan_for_llm,
     compact_macro_targets_for_llm,
     compact_profile_for_llm,
 )
-from core.planning.schema import ExecutionPlan, PlanTask
+from core.shared.planning.schema import ExecutionPlan, PlanTask
 
 _MIN_PLAN_MARKDOWN = "# Test Plan\n\nSummary with enough characters for schema validation.\n"
 _MIN_PLAN_RATIONALE = "Test plan rationale with enough characters for validation."

@@ -15,14 +15,10 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(_PROJECT_ROOT / "src"))
-
-from core.evaluation.owasp_prompt_benchmark import (  # noqa: E402
+from core.evaluation.owasp_prompt_benchmark import (
     load_owasp_prompt_cases,
     results_as_dicts,
     run_live_case,
@@ -30,22 +26,26 @@ from core.evaluation.owasp_prompt_benchmark import (  # noqa: E402
     summarize_results,
     validate_fixture_inventory,
 )
-from core.evaluation.owasp_prompt_robustness import (  # noqa: E402
+from core.evaluation.owasp_prompt_robustness import (
     ensure_default_live_runners_registered,
     list_live_runner_targets,
     load_robustness_cases,
-    results_as_dicts as robustness_results_as_dicts,
     run_live_robustness_case,
     score_security_properties,
     summarize_robustness_results,
     validate_robustness_inventory,
 )
+from core.evaluation.owasp_prompt_robustness import (
+    results_as_dicts as robustness_results_as_dicts,
+)
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_SCOPE_FIXTURE = _PROJECT_ROOT / "tests" / "fixtures" / "owasp_system_prompt_benchmark.json"
 DEFAULT_ROBUSTNESS_FIXTURE = (
     _PROJECT_ROOT / "tests" / "fixtures" / "owasp_system_prompt_robustness.json"
 )
-DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "src" / "workspace" / "benchmarks"
+DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "var" / "workspace" / "benchmarks"
 
 
 def parse_args() -> argparse.Namespace:

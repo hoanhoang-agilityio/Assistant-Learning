@@ -5,18 +5,18 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langgraph.types import Command
 
-from core.agents.state import OrchestrationState
-from core.config.settings import Settings, get_settings
-from core.graph.builder import build_graph
-from core.mcp.tavily_client import TavilyMCPClient
-from core.observability.langfuse import (
+from core.adapters.mcp.tavily_client import TavilyMCPClient
+from core.adapters.observability.langfuse import (
     build_graph_invoke_config,
     build_langfuse_callbacks,
     create_trace_id_for_run,
     is_langfuse_enabled,
 )
-from core.subgraphs.verification.utils import FAITHFULNESS_PASS_THRESHOLD
-from core.vfs import VFS
+from core.adapters.vfs import VFS
+from core.capabilities.verification.utils import FAITHFULNESS_PASS_THRESHOLD
+from core.config.settings import Settings
+from core.orchestration.graph.builder import build_graph
+from core.orchestration.state import OrchestrationState
 
 
 @pytest.fixture
@@ -28,19 +28,45 @@ def langfuse_settings() -> Settings:
     )
 
 
-def test_is_langfuse_enabled_requires_keys(langfuse_settings: Settings) -> None:
+@pytest.fixture
+def langfuse_disabled_settings() -> Settings:
+    """Settings with Langfuse credentials absent.
+
+    Deliberately built here rather than read from get_settings(): that cache is
+    process-global, and RunOrchestrator's background threads (service.py spawns
+    four of them, and several call get_settings()) can outlive the test that
+    started them. When such a thread calls get_settings() after conftest's
+    monkeypatched environment has been restored, it repopulates the lru_cache
+    with this repo's real .env -- including live LANGFUSE_* keys -- and these
+    assertions then see Langfuse *enabled*. That race made both tests below
+    fail roughly one run in four.
+
+    Constructing Settings directly reads the same monkeypatched environment
+    without touching the shared cache, so the assertions are deterministic no
+    matter what any leaked thread is doing.
+    """
+    return Settings(langfuse_public_key=None, langfuse_secret_key=None)
+
+
+def test_is_langfuse_enabled_requires_keys(
+    langfuse_settings: Settings, langfuse_disabled_settings: Settings
+) -> None:
     assert is_langfuse_enabled(langfuse_settings) is True
-    assert is_langfuse_enabled(get_settings()) is False
+    assert is_langfuse_enabled(langfuse_disabled_settings) is False
 
 
 def test_build_langfuse_callbacks_empty_when_disabled(
     orchestration_state: OrchestrationState,
+    langfuse_disabled_settings: Settings,
 ) -> None:
-    assert build_langfuse_callbacks(orchestration_state["run_id"], settings=get_settings()) == []
+    assert (
+        build_langfuse_callbacks(orchestration_state["run_id"], settings=langfuse_disabled_settings)
+        == []
+    )
 
 
-@patch("core.observability.langfuse.CallbackHandler")
-@patch("core.observability.langfuse.get_langfuse_client")
+@patch("core.adapters.observability.langfuse.CallbackHandler")
+@patch("core.adapters.observability.langfuse.get_langfuse_client")
 def test_build_langfuse_callbacks_uses_run_trace_id(
     mock_get_client: MagicMock,
     mock_callback_handler: MagicMock,
@@ -64,8 +90,16 @@ def test_build_langfuse_callbacks_uses_run_trace_id(
     assert len(callbacks) == 1
 
 
-def test_create_trace_id_for_run_falls_back_to_run_id() -> None:
-    assert create_trace_id_for_run("run-fallback", settings=get_settings()) == "run-fallback"
+def test_create_trace_id_for_run_falls_back_to_run_id(
+    langfuse_disabled_settings: Settings,
+) -> None:
+    # Same global-cache race as the two tests above: with Langfuse enabled there
+    # is a real client to mint a trace id, so reading get_settings() here made
+    # the fallback assertion order-dependent.
+    assert (
+        create_trace_id_for_run("run-fallback", settings=langfuse_disabled_settings)
+        == "run-fallback"
+    )
 
 
 def test_build_graph_invoke_config_includes_thread_and_callbacks(
@@ -73,9 +107,12 @@ def test_build_graph_invoke_config_includes_thread_and_callbacks(
     langfuse_settings: Settings,
 ) -> None:
     with (
-        patch("core.observability.langfuse.build_langfuse_callbacks", return_value=["handler"]),
         patch(
-            "core.observability.langfuse.create_trace_id_for_run",
+            "core.adapters.observability.langfuse.build_langfuse_callbacks",
+            return_value=["handler"],
+        ),
+        patch(
+            "core.adapters.observability.langfuse.create_trace_id_for_run",
             return_value="trace-from-run",
         ),
     ):
@@ -103,7 +140,7 @@ def test_e2e_happy_path_persists_final_artifact(
     # `interrupt_before=["hitl"]` pauses before the HITL node itself ever runs,
     # so `waiting_for_user` is not set yet -- readiness for approval is signaled
     # by the graph's next node, not a state field (see
-    # core.graph.service._resolve_hitl_context, which reads `next_nodes` the
+    # core.orchestration.graph.service._resolve_hitl_context, which reads `next_nodes` the
     # same way to build the approval message from the workspace directly).
     snapshot = graph.get_state(config)
     assert snapshot.next == ("hitl",)

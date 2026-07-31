@@ -7,7 +7,11 @@ from pydantic import Field, PostgresDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_DEFAULT_WORKSPACE = _PROJECT_ROOT / "src" / "workspace"
+# Runtime artifacts live outside src/ so the source tree stays immutable at
+# runtime -- required for read-only container filesystems and reproducible
+# builds. Override with WORKSPACE_ROOT; relative values resolve against
+# _PROJECT_ROOT (see resolve_workspace_root).
+_DEFAULT_WORKSPACE = _PROJECT_ROOT / "var" / "workspace"
 _ENV_FILE = _PROJECT_ROOT / ".env"
 
 # pydantic-settings only maps known fields onto Settings; SDKs such as LangSmith
@@ -64,6 +68,10 @@ class Settings(BaseSettings):
     # (verification.utils.heuristic_faithfulness_data). Benchmark-only --
     # does not affect production; see verification_production_use_real_ragas
     # for that gate. See known_limitations_remediation_plan.md, L1.
+    #
+    # Both real-Ragas flags require the optional `eval` extra to be installed
+    # (`uv sync --extra eval`); ragas is not a runtime dependency, so turning
+    # either flag on without it raises ModuleNotFoundError on first use.
     verification_use_real_ragas: bool = True
 
     # Phase 3 of the L1 remediation: gates whether verification/executor.py's
@@ -130,7 +138,7 @@ class Settings(BaseSettings):
     local_kb_min_documents: int = 1
     local_kb_min_trust_score: float = 0.85
 
-    # Fitness MCP Server (own process: `uv run python -m core.mcp.fitness_server`;
+    # Fitness MCP Server (own process: `uv run python -m core.adapters.mcp.fitness_server`;
     # sole owner of guideline documents + workout templates, backed by Postgres + pgvector)
     fitness_mcp_host: str = "127.0.0.1"
     fitness_mcp_port: int = 8100
@@ -154,18 +162,23 @@ class Settings(BaseSettings):
     fitness_kb_rerank_enabled: bool = True
 
     # Hybrid Supervisor routing: the Supervisor node proposes the next capability
-    # via an LLM judge (core.agents.supervisor_router_judge) and a deterministic
-    # Policy Engine (core.capabilities.policy_engine) validates/overrides that
-    # proposal before routing. supervisor_max_hops is the loop-prevention guardrail.
-    supervisor_max_hops: int = 12
+    # via an LLM judge (core.orchestration.agents.supervisor_router_judge) and a deterministic
+    # Policy Engine (core.orchestration.routing.policy_engine) validates/overrides that
+    # proposal before routing. supervisor_max_hops is the loop-prevention guardrail --
+    # not a business limit (human-requested revisions are uncapped, core/hitl/resume.py),
+    # just a backstop against a genuinely runaway loop. A fresh build costs ~7-10 hops
+    # and each revision cycle costs 5 more (User -> Planning -> Fitness -> Verification
+    # -> HITL, since a revision now re-derives the profile/goal spec, not just Fitness
+    # alone), so this needs real headroom for several revisions rather than the original
+    # value sized for a single build with a couple of retries.
+    supervisor_max_hops: int = 60
 
     # L1 Phase 4: how many times a failed Verification result may automatically
     # route back to whichever capability owns the failing check (research for
     # citation/faithfulness, fitness for consistency/safety) before falling
-    # through to HITL regardless. Separate from MAX_REVISION_COUNT
-    # (core/hitl/resume.py), which caps *human*-requested revisions -- this
-    # caps the *automatic* retry the Policy Engine triggers on its own.
-    # supervisor_max_hops remains the backstop for both.
+    # through to HITL regardless. This caps the *automatic* retry the Policy
+    # Engine triggers on its own -- human-requested revisions (core/hitl/resume.py)
+    # are uncapped; supervisor_max_hops remains the backstop for both.
     max_verification_retry_attempts: int = 1
 
     # Wall-clock deadline for a single graph.invoke() call (background run
@@ -191,6 +204,9 @@ class Settings(BaseSettings):
     streamlit_port: int = 8501
     api_base_url: str = "http://localhost:8000"
     log_level: str = "INFO"
+    # "json" for machine-parseable production logs, "text" for readable local
+    # output. Applied by core.adapters.observability.logging.configure_logging.
+    log_format: str = "json"
 
     @model_validator(mode="before")
     @classmethod

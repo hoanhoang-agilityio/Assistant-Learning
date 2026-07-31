@@ -1,6 +1,6 @@
 """Tests for deterministic workout safety markup / equipment gates."""
 
-from core.subgraphs.fitness.utils import (
+from core.capabilities.fitness.utils import (
     collect_unsafe_markup_feedback,
     contains_unsafe_markup,
     validate_workout_safety_data,
@@ -62,7 +62,7 @@ def test_validate_workout_safety_rejects_gym_machine_on_bodyweight() -> None:
 
 
 def test_collect_unsafe_markup_feedback_plan_notes() -> None:
-    from core.subgraphs.fitness.schema import StructuredWorkout
+    from core.capabilities.fitness.schema import StructuredWorkout
 
     workout = StructuredWorkout.model_validate(
         {

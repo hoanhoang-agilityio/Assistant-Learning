@@ -12,7 +12,7 @@ This project already includes a benchmark and regression tests for **faithfulnes
 
 - **Golden dataset**: `tests/fixtures/ragas_golden.json`
 - **Benchmark script**: `scripts/ragas_benchmark.py` (uses `src/core/evaluation/ragas_benchmark.py`)
-- **Benchmark outputs**: `src/workspace/benchmarks/` (JSON + CSV)
+- **Benchmark outputs**: `var/workspace/benchmarks/` (JSON + CSV)
 
 ## Run the benchmark (batch eval)
 

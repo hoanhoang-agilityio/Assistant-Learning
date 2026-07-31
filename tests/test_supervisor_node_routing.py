@@ -5,14 +5,14 @@ flag; this is the graph's only routing path (see docs/reports plan)."""
 
 from langgraph.graph import END
 
-from core.agents.intent_judge import UserIntentJudgement, configure_user_intent_judge
-from core.agents.supervisor import supervisor_node
-from core.agents.supervisor_router_judge import (
+from core.orchestration.agents.intent_judge import UserIntentJudgement, configure_user_intent_judge
+from core.orchestration.agents.supervisor import supervisor_node
+from core.orchestration.agents.supervisor_router_judge import (
     SupervisorRoutingJudgement,
     configure_supervisor_routing_judge,
 )
-from core.agents.topic_scope_judge import configure_topic_scope_judge
-from core.graph.routing import route_from_supervisor
+from core.orchestration.agents.topic_scope_judge import configure_topic_scope_judge
+from core.orchestration.graph.routing import route_from_supervisor
 from tests.helpers.classification import default_topic_scope_judge
 from tests.test_supervisor_graph import _base_state
 

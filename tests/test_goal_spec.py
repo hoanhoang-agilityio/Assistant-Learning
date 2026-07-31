@@ -1,11 +1,11 @@
 """Tests for GoalSpec derivation and feasibility."""
 
-from core.profile.goal_spec import (
+from core.capabilities.user.utils import merge_form_submission
+from core.shared.profile.goal_spec import (
     assess_goal_feasibility,
     derive_goal_spec,
     rate_to_calorie_adjustment,
 )
-from core.subgraphs.user.utils import merge_form_submission
 
 
 def test_derive_goal_spec_from_target_and_horizon() -> None:

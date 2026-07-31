@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.knowledge.retrieval.query_rewriter import PassthroughQueryRewriter
+from core.shared.knowledge.retrieval.query_rewriter import PassthroughQueryRewriter
 
 
 def test_passthrough_preserves_original_and_enriches_with_profile() -> None:

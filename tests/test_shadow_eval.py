@@ -3,6 +3,9 @@ from pathlib import Path
 
 import pytest
 
+from core.adapters.db.run_history_store import InMemoryRunHistoryStore
+from core.adapters.vfs.bootstrap import init_run_workspace
+from core.adapters.vfs.vfs import VFS
 from core.evaluation import shadow_eval
 from core.evaluation.shadow_eval import (
     InMemoryShadowEvalStore,
@@ -10,9 +13,6 @@ from core.evaluation.shadow_eval import (
     run_shadow_evaluation_batch,
     score_run_for_shadow_eval,
 )
-from core.graph.run_history_store import InMemoryRunHistoryStore
-from core.vfs.bootstrap import init_run_workspace
-from core.vfs.vfs import VFS
 
 
 def _seed_run_workspace(
@@ -38,7 +38,7 @@ def _seed_run_workspace(
 def _make_run(run_id: str, *, query: str = "some query"):
     from datetime import UTC, datetime
 
-    from core.graph.run_history_store import RunSummary
+    from core.adapters.db.run_history_store import RunSummary
 
     return RunSummary(
         run_id=run_id,

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from core.subgraphs.fitness.utils import build_default_structured_workout
+from core.capabilities.fitness.utils import build_default_structured_workout
 
 __all__ = ["build_default_structured_workout", "default_structured_workout"]
 

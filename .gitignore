@@ -33,6 +33,8 @@ docs
 .DS_Store
 
 # Project artifacts (VFS runtime output)
+var/
+# legacy location, kept ignored so pre-existing local runs stay untracked
 src/workspace/
 
 # Streamlit
@@ -41,3 +43,6 @@ src/workspace/
 # uv
 .python-version
 .gitnexus
+
+# Local working tracker for open defects (intentionally untracked)
+KNOWN_ISSUES.md

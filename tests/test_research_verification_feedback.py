@@ -11,15 +11,15 @@ from typing import Any
 
 import pytest
 
-from core.agents.execution_context import build_execution_context
-from core.graph.run import create_initial_state
-from core.profile.goal_spec import derive_goal_spec
-from core.subgraphs.research import executor as research_executor_module
-from core.subgraphs.research import research_agent as research_agent_module
-from core.subgraphs.research.executor import SupervisorRoutedResearchExecutor
-from core.subgraphs.research.research_agent import _synthesize_findings
-from core.subgraphs.research.schema import ResearchFindings
-from core.subgraphs.research.utils import build_synthesis_llm_extra
+from core.capabilities.research import executor as research_executor_module
+from core.capabilities.research import research_agent as research_agent_module
+from core.capabilities.research.executor import SupervisorRoutedResearchExecutor
+from core.capabilities.research.research_agent import _synthesize_findings
+from core.capabilities.research.schema import ResearchFindings
+from core.capabilities.research.utils import build_synthesis_llm_extra
+from core.orchestration.graph.run import create_initial_state
+from core.shared.execution_context import build_execution_context
+from core.shared.profile.goal_spec import derive_goal_spec
 
 
 class TestBuildSynthesisLlmExtra:
@@ -114,7 +114,7 @@ class TestExecutorThreadsFeedbackFromState:
 
         def fake_run_research_agent(**kwargs):
             captured.update(kwargs)
-            from core.subgraphs.research.schema import ResearchAgentResult
+            from core.capabilities.research.schema import ResearchAgentResult
 
             return ResearchAgentResult(
                 sources=[],
@@ -162,7 +162,7 @@ class TestExecutorThreadsFeedbackFromState:
 
         def fake_run_research_agent(**kwargs):
             captured.update(kwargs)
-            from core.subgraphs.research.schema import ResearchAgentResult
+            from core.capabilities.research.schema import ResearchAgentResult
 
             return ResearchAgentResult(
                 sources=[],

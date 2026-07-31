@@ -6,9 +6,9 @@ change; `research_agent_override` (conftest autouse) stubs `run_research_agent`.
 from pathlib import Path
 from typing import Any
 
-from core.agents.execution_context import build_execution_context
-from core.graph.run import create_initial_state
-from core.subgraphs.research.executor import SupervisorRoutedResearchExecutor
+from core.capabilities.research.executor import SupervisorRoutedResearchExecutor
+from core.orchestration.graph.run import create_initial_state
+from core.shared.execution_context import build_execution_context
 
 
 def test_research_question_reports_summary_only(

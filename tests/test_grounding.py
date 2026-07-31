@@ -2,14 +2,14 @@
 
 import pytest
 
-from core.grounding import (
+from core.capabilities.research.schema import ResearchFindings
+from core.shared.grounding import (
     GroundedClaim,
     allowed_source_urls,
     filter_grounded_claims,
     finalize_structured_findings,
     render_grounded_claims_markdown,
 )
-from core.subgraphs.research.schema import ResearchFindings
 
 
 def test_filter_grounded_claims_drops_unknown_urls() -> None:
