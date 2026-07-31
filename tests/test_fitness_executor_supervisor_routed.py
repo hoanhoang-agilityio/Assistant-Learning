@@ -7,7 +7,9 @@ isn't duplicated here.
 
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
+from core.capabilities.fitness import tools as fitness_tools
 from core.capabilities.fitness.executor import SupervisorRoutedFitnessExecutor
 from core.capabilities.fitness.normalize import (
     SubmittedPlanExtraction,
@@ -274,6 +276,55 @@ def test_verify_macros_intent_with_full_plan_also_verifies_the_workout(
     configure_submitted_plan_extractor(None)
     configure_verification_explainer(None)
     configure_reported_macros_judge(None)
+
+
+def test_revision_threads_days_per_week_explicit_into_select_template(
+    workspace_root: Path, complete_profile: dict[str, Any]
+) -> None:
+    """A revision that explicitly named a new training frequency (User's
+    apply_revision_overrides -- core.capabilities.user.utils -- sets
+    `days_per_week_explicit=True` on state for exactly this) must reach
+    select_template with that flag, so it skips the deterministic
+    UPDATE_MACROS/REPLACE_EXERCISE shortcut (which never changes day count) and
+    regenerates through the LLM edit path instead. Previously select_template
+    hardcoded `days_per_week_explicit=False`, silently discarding this signal."""
+    import json
+
+    from core.adapters.vfs import VFS
+
+    state = create_initial_state(
+        run_id="revision-days-explicit",
+        thread_id="revision-days-explicit-thread",
+        query="change to 5 day training per week",
+        user_profile=complete_profile,
+        constraints={"days_per_week": 3, "equipment": "gym"},
+        workspace_root=workspace_root,
+    )
+    VFS.for_run(Path(state["workspace_path"])).write(
+        "research/findings.json",
+        json.dumps(
+            {
+                "structured_findings": {
+                    "consensus": "Resistance training supports fat loss outcomes for adults.",
+                    "key_findings": [],
+                    "limitations": [],
+                    "recommended_sources": [],
+                },
+                "evidence": [],
+                "evidence_summary": "Train consistently.",
+                "source_count": 0,
+            }
+        ),
+    )
+    state["approval_status"] = "revision_requested"
+    state["days_per_week_explicit"] = True
+    ctx = build_execution_context(intent="build_plan")
+
+    with patch.object(fitness_tools, "select_template", wraps=fitness_tools.select_template) as spy:
+        SupervisorRoutedFitnessExecutor().execute(state, ctx)
+
+    spy.assert_called_once()
+    assert spy.call_args.kwargs["days_per_week_explicit"] is True
 
 
 def test_calculate_calories_reports_summary(

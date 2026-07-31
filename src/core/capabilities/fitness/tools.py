@@ -16,6 +16,7 @@ from core.capabilities.fitness.normalize import (
     qualitative_review_unparseable_plan,
 )
 from core.capabilities.fitness.planner import generate_structured_workout
+from core.capabilities.fitness.schema import EditOperation
 from core.capabilities.fitness.template_registry import (
     adapt_workout_to_blueprint,
     resolve_workout_template,
@@ -28,6 +29,7 @@ from core.capabilities.fitness.utils import (
     validate_workout_safety_data,
     write_fitness_artifacts,
 )
+from core.shared.planning.utils import load_revision_feedback
 from core.shared.profile.goal_spec import derive_goal_spec
 from core.shared.profile.store import load_run_profile, split_constraints
 
@@ -125,7 +127,11 @@ def generate_blueprint(workspace_path: str) -> dict[str, Any]:
     return {"plan_blueprint": blueprint.model_dump(), "goal_spec": goal_spec.model_dump()}
 
 
-def select_template(workspace_path: str) -> dict[str, Any]:
+def select_template(workspace_path: str, *, days_per_week_explicit: bool = False) -> dict[str, Any]:
+    """`fitness_mode=None` lets `resolve_workout_template` auto-detect edit mode from
+    whether `plan/revision_feedback.json` exists on VFS (see `load_revision_feedback`)
+    -- passing "generate" here would force plain (re)generation even when the caller
+    is rebuilding for a user revision, silently discarding the revision text."""
     context = load_fitness_context(workspace_path)
     profile = context["profile"]
     constraints = context["constraints"]
@@ -138,22 +144,34 @@ def select_template(workspace_path: str) -> dict[str, Any]:
         planner_feedback=[],
         verification_feedback=context.get("verification_feedback"),
         is_verification_rerun=False,
-        days_per_week_explicit=False,
-        fitness_mode="generate",
+        days_per_week_explicit=days_per_week_explicit,
+        fitness_mode=None,
     )
     return {
         "template_fingerprint": resolution.get("template_fingerprint"),
         "workout_source": resolution.get("workout_source"),
         "structured_workout": resolution.get("structured_workout"),
+        "edit_operation": resolution.get("edit_operation"),
+        "previous_workout": resolution.get("previous_workout"),
     }
 
 
-def populate_template(workspace_path: str) -> dict[str, Any]:
+def populate_template(
+    workspace_path: str,
+    *,
+    previous_workout: dict[str, Any] | None = None,
+    edit_operation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """`previous_workout`/`edit_operation` (from `select_template`'s resolution, when
+    it decided this needs an LLM edit rather than a deterministic one) put the
+    planner in edit mode, scoped to the user's `revision_feedback` -- otherwise it
+    would silently regenerate a fresh plan and ignore the user's specific request."""
     context = load_fitness_context(workspace_path)
     profile = context["profile"]
     constraints = context["constraints"]
     macros = calculate_macros_data(profile, constraints, derive_goal_spec(profile))
     blueprint = PlanBlueprint.model_validate(generate_blueprint(workspace_path)["plan_blueprint"])
+    mode = "edit" if previous_workout is not None else "generate"
     workout = generate_structured_workout(
         profile=profile,
         constraints=constraints,
@@ -164,7 +182,10 @@ def populate_template(workspace_path: str) -> dict[str, Any]:
         evidence=context.get("evidence") or [],
         planner_feedback=[],
         verification_feedback=context.get("verification_feedback"),
-        mode="generate",
+        revision_feedback=load_revision_feedback(workspace_path),
+        mode=mode,
+        previous_workout=previous_workout,
+        edit_operation=EditOperation.model_validate(edit_operation) if edit_operation else None,
     )
     adapted = adapt_workout_to_blueprint(workout.model_dump(), blueprint)
     return {"structured_workout": adapted}

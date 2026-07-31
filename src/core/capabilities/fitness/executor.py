@@ -41,10 +41,16 @@ def _run_build_plan(state: OrchestrationState, ctx: ExecutionContext) -> Capabil
         # synthesize_plan_data / the planner payload would TypeError on subscript.
         return _missing_biometrics_result()
     blueprint = fitness_tools.generate_blueprint(workspace)
-    template = fitness_tools.select_template(workspace)
+    template = fitness_tools.select_template(
+        workspace, days_per_week_explicit=bool(state.get("days_per_week_explicit"))
+    )
     workout = template.get("structured_workout")
     if workout is None:
-        workout_data = fitness_tools.populate_template(workspace)
+        workout_data = fitness_tools.populate_template(
+            workspace,
+            previous_workout=template.get("previous_workout"),
+            edit_operation=template.get("edit_operation"),
+        )
         workout = workout_data["structured_workout"]
     safety = fitness_tools.validate_plan(workspace, workout)
     if not safety["passed"]:
