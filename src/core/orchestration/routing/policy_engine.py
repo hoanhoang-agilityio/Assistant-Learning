@@ -132,8 +132,8 @@ def _deterministic_next_after(
         # owner automatically, once, before falling through to HITL --
         # "Build -> Verify -> Fix" targeting the actual root cause instead of
         # surfacing every failure to a human first. Capped by
-        # max_verification_retry_attempts (separate from MAX_REVISION_COUNT,
-        # which caps *human*-requested revisions) and backstopped by
+        # max_verification_retry_attempts (human-requested revisions --
+        # core/hitl/resume.py -- are uncapped) and backstopped by
         # supervisor_max_hops regardless.
         retry_target = artifacts.get("retry_target")
         retry_count = int(state.get("verification_retry_count") or 0)
@@ -212,22 +212,46 @@ def enforce_routing_invariants(
         if entry_node is None and proposed == "finish":
             return PolicyDecision(_FALLBACK_TARGET, True, "premature_finish")
 
-    # A revision request always targets Fitness directly -- not a semantic judgment
-    # call (see core.orchestration.hitl.resume.user_revision_to_replan_update, which no longer
+    # A revision request always targets User -> Planning -> Fitness, in that order
+    # -- not a semantic judgment call (see
+    # core.orchestration.hitl.resume.user_revision_to_replan_update, which no longer
     # threads a pending_request through a dispatcher to make this happen; this rule
-    # is what actually routes it now). Self-resetting: `approval_status` stays
-    # "revision_requested" in state until the user responds to the *next* HITL
-    # request, so this checks `agent_trail` (not just the single last hop) for
-    # whether Fitness has *already* reprocessed since the revision was requested --
-    # otherwise the rule would keep re-firing on every hop after Fitness (e.g. once
-    # Verification completes, "the last result wasn't Fitness" would be true again,
-    # forcing Fitness a second time and looping forever instead of reaching HITL).
-    if state.get("approval_status") == "revision_requested" and "fitness" not in (
-        state.get("agent_trail") or []
-    ):
-        return _apply_profile_gate(
-            state, PolicyDecision("fitness", proposed != "fitness", "revision_requested")
-        )
+    # is what actually routes it now). User first because revision text can name a
+    # profile-level change (e.g. "change to 5 day training per week" --
+    # core.capabilities.user.utils.apply_revision_overrides is what actually parses
+    # that and rewrites `profile.days_per_week`); Planning next because it re-derives
+    # the goal spec / execution plan from that (possibly updated) profile; Fitness
+    # last because it's the one that actually rebuilds the workout, now against
+    # fresh profile + goal spec instead of whatever was frozen at the original build.
+    #
+    # Self-resetting per capability: `approval_status` stays "revision_requested" in
+    # state until the user responds to the *next* HITL request, so each step
+    # compares its own `{user,planning,fitness}_synced_revision` (the revision_count
+    # as of that capability's last completed result -- set by
+    # core.capabilities.user.graph.invoke_user_subgraph and
+    # core.orchestration.routing.dispatcher.apply_capability_result respectively)
+    # against the current `revision_count` to tell whether it has *already*
+    # reprocessed for *this* revision -- otherwise each rule would keep re-firing on
+    # every later hop (e.g. once Verification completes, "the last result wasn't
+    # Fitness" would be true again, forcing Fitness a second time and looping
+    # forever instead of reaching HITL). `agent_trail` can't be used for this: it's
+    # just a rolling window of the last few hops in the whole run, so it would still
+    # contain "fitness"/"planning"/"user" from the *original* build and never
+    # re-trigger these rules on a genuine revision request.
+    if state.get("approval_status") == "revision_requested":
+        revision_count = int(state.get("revision_count") or 0)
+        if int(state.get("user_synced_revision") or 0) != revision_count:
+            return _apply_profile_gate(
+                state, PolicyDecision("user", proposed != "user", "revision_requested")
+            )
+        if int(state.get("planning_synced_revision") or 0) != revision_count:
+            return _apply_profile_gate(
+                state, PolicyDecision("planning", proposed != "planning", "revision_requested")
+            )
+        if int(state.get("fitness_synced_revision") or 0) != revision_count:
+            return _apply_profile_gate(
+                state, PolicyDecision("fitness", proposed != "fitness", "revision_requested")
+            )
 
     deterministic = _deterministic_next_after(
         state, max_verification_retry_attempts=max_verification_retry_attempts

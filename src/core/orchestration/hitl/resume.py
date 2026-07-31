@@ -3,7 +3,6 @@ from typing import Any, Literal
 from core.orchestration.state import ApprovalStatus
 
 HitlDecisionType = Literal["approve", "reject", "revision"]
-MAX_REVISION_COUNT = 1
 
 
 def create_approval_decision(
@@ -34,20 +33,18 @@ def create_approval_decision(
 
 
 def user_revision_to_replan_update(feedback: str, *, revision_count: int) -> dict[str, Any]:
+    """No cap on how many times a user can request a revision -- `supervisor_max_hops`
+    (core.config.settings) remains the backstop against runaway loops."""
     stripped = feedback.strip()
     if not stripped:
         raise ValueError("message is required")
-    if revision_count >= MAX_REVISION_COUNT:
-        raise ValueError(
-            f"Maximum number of plan revisions ({MAX_REVISION_COUNT}) already used for this run."
-        )
     return {
         "revision_feedback": stripped,
         "revision_count": revision_count + 1,
         # Left as "revision_requested" (not reset to "pending") -- the Policy
         # Engine's revision_requested rule (core.orchestration.routing.policy_engine) is
-        # what routes this to Fitness once the graph re-enters Supervisor; it reads
-        # this exact field.
+        # what routes this through User -> Planning -> Fitness once the graph
+        # re-enters Supervisor; it reads this exact field.
         "approval_status": "revision_requested",
         "verification_passed": False,
         "waiting_for_user": False,

@@ -164,16 +164,21 @@ class Settings(BaseSettings):
     # Hybrid Supervisor routing: the Supervisor node proposes the next capability
     # via an LLM judge (core.orchestration.agents.supervisor_router_judge) and a deterministic
     # Policy Engine (core.orchestration.routing.policy_engine) validates/overrides that
-    # proposal before routing. supervisor_max_hops is the loop-prevention guardrail.
-    supervisor_max_hops: int = 12
+    # proposal before routing. supervisor_max_hops is the loop-prevention guardrail --
+    # not a business limit (human-requested revisions are uncapped, core/hitl/resume.py),
+    # just a backstop against a genuinely runaway loop. A fresh build costs ~7-10 hops
+    # and each revision cycle costs 5 more (User -> Planning -> Fitness -> Verification
+    # -> HITL, since a revision now re-derives the profile/goal spec, not just Fitness
+    # alone), so this needs real headroom for several revisions rather than the original
+    # value sized for a single build with a couple of retries.
+    supervisor_max_hops: int = 60
 
     # L1 Phase 4: how many times a failed Verification result may automatically
     # route back to whichever capability owns the failing check (research for
     # citation/faithfulness, fitness for consistency/safety) before falling
-    # through to HITL regardless. Separate from MAX_REVISION_COUNT
-    # (core/hitl/resume.py), which caps *human*-requested revisions -- this
-    # caps the *automatic* retry the Policy Engine triggers on its own.
-    # supervisor_max_hops remains the backstop for both.
+    # through to HITL regardless. This caps the *automatic* retry the Policy
+    # Engine triggers on its own -- human-requested revisions (core/hitl/resume.py)
+    # are uncapped; supervisor_max_hops remains the backstop for both.
     max_verification_retry_attempts: int = 1
 
     # Wall-clock deadline for a single graph.invoke() call (background run

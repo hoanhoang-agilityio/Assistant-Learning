@@ -1,15 +1,15 @@
 from pathlib import Path
 
-import pytest
 from langgraph.types import Command
 
 from core.orchestration.graph.builder import build_graph
 from core.orchestration.hitl.resume import (
-    MAX_REVISION_COUNT,
     create_approval_decision,
     decision_to_resume_update,
 )
 from core.orchestration.hitl.utils import request_approval_data
+from core.shared.profile.extraction import configure_profile_extractor
+from core.shared.profile.schema import ExtractedProfile
 from tests.helpers.hitl import pause_before_hitl, run_to_hitl_pause
 
 
@@ -98,6 +98,11 @@ def test_graph_interrupts_on_hitl_route_and_resumes_to_persist(tmp_path: Path) -
 
 
 def test_graph_revision_routes_back_to_fitness(tmp_path: Path, complete_profile: dict) -> None:
+    # Revisions now route through User -> Planning -> Fitness (see policy_engine's
+    # revision_requested rule), so User's apply_revision_overrides re-extracts the
+    # revision text via the profile extractor -- must be stubbed like every other
+    # test that exercises the User subgraph, or this makes a real LLM call.
+    configure_profile_extractor(lambda _query: ExtractedProfile())
     graph = build_graph()
     config = run_to_hitl_pause(
         graph,
@@ -135,15 +140,24 @@ def test_graph_revision_routes_back_to_fitness(tmp_path: Path, complete_profile:
     snapshot = graph.get_state(config)
     assert snapshot.next == ("hitl",)
 
+    # Revisions are uncapped (supervisor_max_hops is the only backstop) -- a
+    # *second* revision request against the same run must also succeed, not be
+    # rejected as over-budget.
+    second_update = decision_to_resume_update(
+        create_approval_decision(
+            "revision",
+            message="Also make the last day focus on upper body.",
+        ),
+        revision_count=resumed["revision_count"],
+    )
+    assert second_update["revision_count"] == 2
 
-def test_user_revision_rejected_once_shared_replan_budget_is_exhausted() -> None:
-    """A run that already used its one revision must reject a further request
-    outright rather than accepting it and looping back into Fitness again."""
-    with pytest.raises(ValueError, match="Maximum number of plan revisions"):
-        decision_to_resume_update(
-            create_approval_decision(
-                "revision",
-                message="One more change please.",
-            ),
-            revision_count=MAX_REVISION_COUNT,
-        )
+    twice_resumed = graph.invoke(Command(update=second_update), config)
+    fitness_results_after_second_revision = [
+        result
+        for result in twice_resumed["capability_results"].values()
+        if result["capability"] == "fitness"
+    ]
+    assert len(fitness_results_after_second_revision) > len(fitness_results)
+    snapshot = graph.get_state(config)
+    assert snapshot.next == ("hitl",)

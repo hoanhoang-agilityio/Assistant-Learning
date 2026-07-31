@@ -63,6 +63,19 @@ class OrchestrationState(TypedDict):
     user_response: str | None
     revision_feedback: str | None
     revision_count: int
+    # revision_count as of {User,Planning,Fitness}'s most recent completed result.
+    # Lets the Policy Engine (policy_engine.enforce_routing_invariants) tell
+    # "this capability has already reprocessed for *this* revision" apart from
+    # "it ran at some earlier point in the run" -- agent_trail can't do that since
+    # it's just a rolling window of recent hops, not scoped to the current
+    # revision cycle. Sequenced user -> planning -> fitness so a revision that
+    # names a profile-level change (e.g. "change to 5 day training per week")
+    # actually updates the profile (User) and re-derives the goal spec (Planning)
+    # before Fitness rebuilds the workout from it, instead of Fitness rebuilding
+    # against the stale profile.
+    user_synced_revision: int
+    planning_synced_revision: int
+    fitness_synced_revision: int
 
     workspace_path: str
     final_artifact_path: str | None

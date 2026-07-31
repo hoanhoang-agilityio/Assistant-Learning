@@ -151,6 +151,11 @@ def invoke_user_subgraph(state: OrchestrationState, config: RunnableConfig) -> d
         "profile_valid": result["valid"],
         "waiting_for_user": False,
         "days_per_week_explicit": result["days_per_week_explicit"],
+        # See OrchestrationState.user_synced_revision / the Policy Engine's
+        # revision_requested rule: only reached once this subgraph actually runs
+        # to completion (an interrupt()-ed form pause returns before this point),
+        # so it correctly stays unset for a revision still waiting on the user.
+        "user_synced_revision": int(state.get("revision_count") or 0),
     }
     # NOTE: revision_feedback is intentionally left untouched -- Planning also reads it
     # (to inform the plan-regeneration prompt), so it must survive past this subgraph even
