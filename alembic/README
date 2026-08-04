@@ -1,0 +1,12 @@
+Alembic migrations for the app/ auth schema.
+
+The database URL comes from app.core.configs.config.settings
+(sqlalchemy_database_uri), not from alembic.ini — set DATABASE_URL or the
+POSTGRES_* variables in your env file.
+
+    alembic revision --autogenerate -m "describe the change"
+    alembic upgrade head
+    alembic downgrade -1
+
+Always read a generated revision before applying it. An empty upgrade() usually
+means a new model was not imported in app/models/__init__.py.
