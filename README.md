@@ -2,6 +2,55 @@
 
 Supervisor-orchestrated LangGraph system for **training plans** and **macro coaching**. Phase 1 includes planning, Tavily MCP research, fitness synthesis, verification, HITL approval, persistence, LangFuse tracing, and a faithfulness benchmark.
 
+---
+
+## Migration in progress: `src/` → `app/`
+
+> ⚠️ **`src/` is being retired.** A new structure is being built in `app/`, and the two
+> trees currently coexist. Read this before touching either.
+
+| | `src/` (legacy) | `app/` (new) |
+|---|---|---|
+| Status | **deprecated — will be deleted** | active development |
+| ASGI entrypoint | `api.main:create_app` | `app.main:app` ← what the Dockerfile runs |
+| Persistence | psycopg3 + `CREATE TABLE IF NOT EXISTS` DDL in each store | SQLModel + Alembic migrations |
+| Settings | `src/core/config/settings.py` | `app/core/configs/config.py` |
+| Rate limiting | `AIRateLimiter` (token/cost, Postgres-backed) | slowapi (per-IP, on auth endpoints) |
+| Auth | **none** | JWT dual-token — see [Authentication](#authentication-app-flow) |
+
+Rules while both exist:
+
+- **Write new code in `app/`.** Do not add to `src/`.
+- **Do not import across the boundary.** `app/` must not import from `src/`, and vice versa.
+  Nothing does today; keeping it that way is what makes the deletion a delete rather than a
+  refactor.
+- **Port, do not copy.** `src/` carries known defects (see the TODO below). Copying a route
+  across carries them with it.
+
+### TODO — retiring `src/`
+
+- [ ] Port the run/HITL endpoints (`/runs`, `/runs/{id}/resume`, `/runs/{id}/events`) into
+      `app/api/v1/`, guarded by `get_current_session`
+- [ ] Port `RunOrchestrator` and the LangGraph wiring under `app/services/`
+- [ ] Move the `adapters/` stores (`run_history_store`, `run_tracker`, `idempotency_store`,
+      `guideline_repository`, `template_repository`) onto SQLModel + Alembic, or document
+      why a given store stays on raw psycopg
+- [ ] Decide the fate of `AIRateLimiter` — the token/cost limiter has no equivalent in
+      `app/`, and slowapi does not replace it
+- [ ] Port the Streamlit UI's API client to the `app/` endpoints and the bearer-token flow
+- [ ] Move `tests/` fixtures and the OWASP/Ragas benchmark harnesses over
+- [ ] Delete `src/`, drop it from `[tool.hatch.build.targets.wheel]` and
+      `[tool.pytest.ini_options].pythonpath`, update `.gitlab-ci.yml`
+
+**Fix during the port, not after — these are live defects in `src/`:**
+
+- [ ] `GET /users/{user_id}/runs` takes `user_id` straight from the URL with **no
+      authentication**. Anyone who knows a user id can read that user's run history. The
+      replacement must derive the id from the token, never from the path.
+- [ ] Audit every other `src/` route for the same pattern before porting it.
+
+---
+
 ## Requirements
 
 - Python 3.12+
@@ -56,11 +105,22 @@ faithfulness benchmark, or when enabling `VERIFICATION_USE_REAL_RAGAS` /
 
 ```bash
 uv run pytest
-uv run ruff check src tests scripts
+uv run ruff check app src tests scripts
 ```
 
 Tests that need live credentials skip themselves when `OPENAI_API_KEY` is unset, so the
 suite is green without secrets.
+
+The `app/` auth suite runs against a throwaway SQLite file and needs no database:
+
+```bash
+uv run pytest tests/test_auth_flow.py -v
+```
+
+Two of those tests are the privilege boundary between the token scopes —
+`test_session_token_cannot_create_session` and
+`test_user_token_cannot_reach_session_endpoint`. A failure there is a security regression,
+not a flaky test.
 
 ## Precheck (before commit)
 
@@ -79,13 +139,87 @@ Run manually:
 uv run pre-commit run precheck --all-files
 ```
 
-## Run the API
+## Run the API (`app/` flow)
+
+This is the entrypoint the Dockerfile uses.
+
+```bash
+docker compose up -d db          # Postgres on host port 5433
+uv sync --extra dev
+uv run alembic upgrade head      # creates user / session / refresh_token / revoked_token
+uv run uvicorn app.main:app --reload
+```
+
+Swagger UI: **http://localhost:8000/docs**
+
+Settings come from `.env.development` (selected by `APP_ENV`, default `development`). Two
+things stop the app from starting, both deliberately:
+
+- `JWT_SECRET_KEY` shorter than 32 characters → `RuntimeError` at startup.
+  Generate one with `openssl rand -hex 32`.
+- `ALLOWED_ORIGINS` containing `*` → `RuntimeError` at import. A wildcard origin combined
+  with `allow_credentials=True` is rejected by browsers and is a real credential-leak path
+  if someone later "fixes" it by reflecting the request origin.
+
+To skip Postgres entirely while poking at Swagger, uncomment in `.env.development`:
+
+```
+AUTH_DATABASE_URL=sqlite:///./auth_dev.db
+```
+
+### Authentication (`app/` flow)
+
+Two JWT scopes plus one opaque refresh credential. They are **not** interchangeable.
+
+| Credential | `typ` | `sub` | Grants | Lifetime |
+|---|---|---|---|---|
+| User token | `user` | user id | create/list/rename/delete sessions, logout | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` (60) |
+| Session token | `session` | session id | one session only — what conversation endpoints depend on | same |
+| Refresh token | — | — | mint a new user token; single-use, rotates on every call | `REFRESH_TOKEN_EXPIRE_DAYS` (30) |
+
+| Method | Path | Guard |
+|--------|------|-------|
+| `POST` | `/api/v1/auth/register` | public, 10/hour |
+| `POST` | `/api/v1/auth/login` | public, 20/min |
+| `POST` | `/api/v1/auth/refresh` | public, 30/hour — needs a valid refresh token |
+| `POST` | `/api/v1/auth/logout` | user token |
+| `POST` | `/api/v1/auth/session` | user token |
+| `GET` | `/api/v1/auth/sessions` | user token |
+| `PATCH` | `/api/v1/auth/session/{session_id}/name` | session token |
+| `DELETE` | `/api/v1/auth/session/{session_id}` | session token |
+| `GET` | `/`, `/health`, `/api/v1/health` | public |
+
+Guarding a new route is one dependency. Take the id from the returned object, **never** from
+the path or body — that is exactly the defect `src/` has:
+
+```python
+from app.api.v1.auth import get_current_session, get_current_user
+
+@router.post("/chat")                       # conversation scope
+async def chat(session: Session = Depends(get_current_session)): ...
+
+@router.get("/me/profile")                  # account scope
+async def profile(user: User = Depends(get_current_user)): ...
+```
+
+Testing in Swagger: the **Authorize** button holds one token at a time, so you have to swap
+between the user token and the session token. Register → authorize with the user token →
+`POST /auth/session` → re-authorize with the session token. With the session token active,
+`POST /auth/session` must return **401** — that response is the privilege boundary working.
+
+Design notes and the remaining trade-offs (blocking DB calls in async handlers, the denylist
+read per request, `purge_expired_tokens` having no scheduler) are in the module docstrings of
+`app/api/v1/auth.py` and `app/utils/auth.py`.
+
+## Run the legacy API (`src/` flow)
+
+> Deprecated. See [Migration in progress](#migration-in-progress-src--app).
 
 ```bash
 uv run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Endpoints:
+Endpoints (**none of these are authenticated**):
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -253,9 +387,19 @@ pass `--build-arg EXTRAS="--extra eval"` if you need the real-Ragas paths.
 
 All settings come from environment variables (see `.env.example` for the full list).
 
+Note that the two flows read **different** files. `app/` loads exactly one env file, picked
+by first match: `.env.<APP_ENV>.local` → `.env.<APP_ENV>` → `.env.local` → `.env`. Docker
+Compose separately reads only `.env` for `${VAR}` interpolation inside `docker-compose.yml`
+— it cannot read `.env.development`, which is why both files exist.
+
 | Variable | Default | Notes |
 |---|---|---|
-| `DATABASE_URL` | — | **Takes precedence over every `POSTGRES_*` variable.** Setting `POSTGRES_HOST`/`POSTGRES_PORT` has no effect while this is set. |
+| `JWT_SECRET_KEY` | — | **Required by `app/`.** Under 32 characters and the app refuses to start. `openssl rand -hex 32`. |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `60` | Access tokens are short-lived because revoking them costs a denylist read. |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Lifetime of the rotating refresh credential. |
+| `AUTH_DATABASE_URL` | — | `app/` only. Overrides the `POSTGRES_*` parts for the auth tables. Set to `sqlite:///./auth_dev.db` to run without a database container. Deliberately not named `DATABASE_URL`, which the legacy flow already uses with a psycopg2-style prefix. |
+| `ALLOWED_ORIGINS` | `*` | Must be set to explicit origins — `app/` refuses to start on a wildcard while credentials are allowed. |
+| `DATABASE_URL` | — | Legacy `src/` flow. **Takes precedence over every `POSTGRES_*` variable.** Setting `POSTGRES_HOST`/`POSTGRES_PORT` has no effect while this is set. |
 | `WORKSPACE_ROOT` | `./var/workspace` | Run artifacts. Relative paths resolve against the project root. Never point this inside `src/`. |
 | `LOG_LEVEL` | `INFO` | Applied at API startup. |
 | `LOG_FORMAT` | `json` | `json` for machine-parseable production logs, `text` for readable local output. Records carry `run_id`/`thread_id` correlation ids. |
@@ -301,6 +445,32 @@ Report + fix plan: `docs/reports/owasp_system_prompt_benchmark_live_report_and_f
 
 ## Project layout
 
+Two trees, one of them on its way out — see
+[Migration in progress](#migration-in-progress-src--app).
+
+### `app/` — the new structure
+
+```text
+app/
+├── main.py         # ASGI entrypoint (app.main:app) — what the Dockerfile runs
+├── api/v1/         # routers; auth.py holds the two auth dependencies
+├── core/
+│   ├── configs/    # pydantic-settings; resolves the env file from the project root
+│   ├── logging.py  # structlog + per-request context binding
+│   ├── limiter.py  # slowapi
+│   └── middleware.py
+├── models/         # SQLModel tables: user, session, refresh_token, revoked_token
+├── schemas/        # pydantic request/response models
+├── services/       # DatabaseService — all persistence for the auth layer
+└── utils/          # token creation/verification, input sanitization
+alembic/            # migrations for the app/ schema only
+```
+
+Layer rule: `api → services → models`. `utils/` and `core/` are leaves that everything may
+import and that import nothing from the layers above them.
+
+### `src/` — legacy, scheduled for deletion
+
 ```text
 src/
 ├── api/            # FastAPI app — routes, DI wiring, schemas
@@ -341,3 +511,7 @@ What the grouping does and does not tell you:
 `build` (wheel, asserting it ships `core`/`api`/`ui`), and `runtime-deps` — which installs
 without the dev and eval extras and imports the app, catching "works in dev, cannot start in
 production" dependency gaps.
+
+CI still describes the `src/` layout. Part of retiring `src/` is updating `lint` to cover
+`app`, `build` to assert the wheel ships `app`, and `runtime-deps` to import `app.main`
+rather than `api.main`.

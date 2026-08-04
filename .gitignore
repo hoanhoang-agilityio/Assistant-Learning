@@ -17,7 +17,6 @@ build/
 htmlcov/
 .agents
 skills-lock.json
-docs
 
 # Environment
 .env
