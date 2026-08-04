@@ -27,6 +27,18 @@ dependencies = [
     "langfuse>=3.0,<4.0",
     # Database
     "psycopg[binary,pool]>=3.2,<4.0",
+    "sqlmodel>=0.0.22,<1.0",
+    "alembic>=1.14,<2.0",
+    # Auth. python-jose is the JWT implementation (not PyJWT) and bcrypt is used
+    # directly rather than through passlib, whose bcrypt backend is unmaintained.
+    "python-jose[cryptography]>=3.3,<4.0",
+    "bcrypt>=4.2,<5.0",
+    "email-validator>=2.2,<3.0",
+    "slowapi>=0.1.9,<1.0",
+    # Structured logging: app.core.logging binds user_id/session_id into a
+    # contextvar so every log line inside a request carries them.
+    "structlog>=24.4,<26.0",
+    "asgi-correlation-id>=4.3,<5.0",
     # Config & utilities
     "pydantic-settings>=2.6,<3.0",
     "python-dotenv>=1.0,<2.0",
@@ -49,6 +61,7 @@ eval = [
 dev = [
     "pytest>=8.0,<9.0",
     "pytest-asyncio>=0.24,<1.0",
+    # TestClient in tests/test_auth_flow.py needs httpx, already a runtime dep.
     "ruff>=0.8,<1.0",
     "pre-commit>=4.0,<5.0",
 ]
@@ -60,11 +73,13 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 # All three top-level packages must ship: the app imports `api` and `ui`
 # alongside `core`, so a wheel containing only `core` cannot serve HTTP.
-packages = ["src/core", "src/api", "src/ui"]
+# `app` is the new flow's package and is the ASGI entrypoint (app.main:app).
+packages = ["app", "src/core", "src/api", "src/ui"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-pythonpath = ["src"]
+# "." so the `app` package (new flow) is importable alongside src/.
+pythonpath = ["src", "."]
 testpaths = ["tests"]
 
 [tool.ruff]
