@@ -499,9 +499,14 @@ section[data-testid="stSidebar"] hr {
     color: var(--pt-text-muted);
 }
 
-/* Buttons */
+/* Buttons
 
-.stButton > button {
+   Form submit buttons are a separate element from .stButton (the sign-in and
+   registration forms are the only ones that use them), so every rule below
+   names both or the auth screen falls back to Streamlit's default chrome. */
+
+.stButton > button,
+[data-testid="stFormSubmitButton"] > button {
     border-radius: var(--pt-radius-pill) !important;
     font-weight: 500 !important;
     font-size: 0.875rem !important;
@@ -514,22 +519,39 @@ section[data-testid="stSidebar"] hr {
     box-shadow: none !important;
 }
 
-.stButton > button:hover {
+.stButton > button:hover,
+[data-testid="stFormSubmitButton"] > button:hover {
     border-color: var(--pt-border-strong) !important;
     background-color: color-mix(in srgb, var(--text-color) 5%, var(--secondary-background-color)) !important;
 }
 
 .stButton > button[kind="primary"],
-.stButton > button[data-testid="baseButton-primary"] {
+.stButton > button[data-testid="baseButton-primary"],
+[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"],
+[data-testid="stFormSubmitButton"] > button[kind="primary"] {
     background-color: var(--pt-accent) !important;
     border-color: var(--pt-accent) !important;
     color: #ffffff !important;
 }
 
 .stButton > button[kind="primary"]:hover,
-.stButton > button[data-testid="baseButton-primary"]:hover {
+.stButton > button[data-testid="baseButton-primary"]:hover,
+[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"]:hover,
+[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
     background-color: var(--pt-accent-hover) !important;
     border-color: var(--pt-accent-hover) !important;
+}
+
+/* Sign-in screen. The card itself comes from the shared [data-testid="stForm"]
+   rule above; only the tab strip needs the accent, which Streamlit otherwise
+   draws in its own default primary colour. */
+
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+    background-color: var(--pt-accent) !important;
+}
+
+[data-testid="stTabs"] [aria-selected="true"] {
+    color: var(--pt-accent) !important;
 }
 
 /* Sidebar history */
