@@ -2,7 +2,9 @@
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import (
+    Any,
     TypeVar,
     overload,
 )
@@ -10,8 +12,11 @@ from typing import (
 from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages import BaseMessage
 from openai import (
+    APIConnectionError,
     APIError,
+    APIStatusError,
     APITimeoutError,
+    InternalServerError,
     OpenAIError,
     RateLimitError,
 )
@@ -24,11 +29,35 @@ from tenacity import (
     wait_exponential,
 )
 
-from app.core.config import settings
+from app.core.configs.config import settings
 from app.core.logging import logger
 from app.services.llm.registry import LLMRegistry
 
 T = TypeVar("T", bound=BaseModel)
+
+# Transient failures: a later attempt against the same model can succeed.
+# Everything else in the OpenAI hierarchy — 400 bad request, 401 auth, 403, 404
+# — is permanent for a given request, and retrying it only delays the error.
+_RETRYABLE_ERRORS = (
+    RateLimitError,
+    APITimeoutError,
+    APIConnectionError,
+    InternalServerError,
+)
+
+
+def _is_permanent(error: Exception) -> bool:
+    """Whether switching models could plausibly help.
+
+    Args:
+        error: The failure from the last attempt.
+
+    Returns:
+        ``True`` for a client error that every model would reject identically —
+        a malformed schema, a bad key — so the circular fallback is skipped and
+        the real cause surfaces immediately.
+    """
+    return isinstance(error, APIStatusError) and not isinstance(error, _RETRYABLE_ERRORS)
 
 
 class LLMService:
@@ -47,7 +76,7 @@ class LLMService:
 
     def __init__(self):
         """Initialize the LLM service with the configured default model."""
-        self._llm: any = None  # BaseChatModel pre-bind_tools, Runnable after
+        self._llm: Any = None  # BaseChatModel pre-bind_tools, Runnable after
         self._current_model_index: int = 0
         self._bound_tools: list = []
 
@@ -82,7 +111,7 @@ class LLMService:
         messages: LanguageModelInput,
         model_name: str | None = ...,
         response_format: None = ...,
-        **model_kwargs: any,
+        **model_kwargs: Any,
     ) -> BaseMessage: ...
 
     @overload
@@ -92,7 +121,7 @@ class LLMService:
         model_name: str | None = ...,
         *,
         response_format: type[T],
-        **model_kwargs: any,
+        **model_kwargs: Any,
     ) -> T: ...
 
     async def call(
@@ -100,7 +129,7 @@ class LLMService:
         messages: LanguageModelInput,
         model_name: str | None = None,
         response_format: type[BaseModel] | None = None,
-        **model_kwargs: any,
+        **model_kwargs: Any,
     ) -> BaseMessage | BaseModel:
         """Call the LLM with retries and circular fallback.
 
@@ -137,7 +166,7 @@ class LLMService:
                 f"llm call timed out after {settings.LLM_TOTAL_TIMEOUT}s total budget"
             )
 
-    def get_llm(self) -> any:
+    def get_llm(self) -> Any:
         """Return the current tool-bound default LLM instance.
 
         Returns:
@@ -167,11 +196,17 @@ class LLMService:
     @retry(
         stop=stop_after_attempt(settings.MAX_LLM_CALL_RETRIES),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((RateLimitError, APITimeoutError, APIError)),
+        # Only errors that a later attempt could plausibly survive. `APIError`
+        # is the base of the whole hierarchy, so retrying it also retried
+        # permanent client errors: a malformed request schema burned three
+        # attempts, then the circular fallback tried every other model three
+        # times each — twelve identical 400s and ~30s of backoff for something
+        # that could never succeed, and the real cause buried under retry logs.
+        retry=retry_if_exception_type(_RETRYABLE_ERRORS),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
-    async def _invoke_with_retry(self, llm: any, messages: LanguageModelInput) -> any:
+    async def _invoke_with_retry(self, llm: Any, messages: LanguageModelInput) -> Any:
         """Invoke an LLM runnable with automatic per-model retry logic.
 
         Args:
@@ -250,11 +285,11 @@ class LLMService:
             ``advance`` calls ``_switch_to_next_model`` so bindings persist.
         """
 
-        def _override_target(idx: int) -> any:
+        def _override_target(idx: int) -> Any:
             base = LLMRegistry.get_llm(LLMRegistry.LLMS[idx]["name"], **model_kwargs)
             return base.with_structured_output(response_format) if response_format else base
 
-        def _default_target(_: int) -> any:
+        def _default_target(_: int) -> Any:
             return self._llm
 
         def _default_advance(_: int) -> int | None:
@@ -270,12 +305,12 @@ class LLMService:
 
             start = all_names.index(model_name) if model_name else self._current_model_index
             total = len(LLMRegistry.LLMS)
-            get_target: callable[[int], any] = _override_target
+            get_target: Callable[[int], Any] = _override_target
 
             def _override_advance(idx: int) -> int | None:
                 return (idx + 1) % total
 
-            advance: callable[[int], int | None] = _override_advance
+            advance: Callable[[int], int | None] = _override_advance
         else:
             start = self._current_model_index
             get_target = _default_target
@@ -287,9 +322,9 @@ class LLMService:
         self,
         messages: LanguageModelInput,
         start: int,
-        get_target: callable[[int], any],
-        advance: callable[[int], int | None],
-    ) -> any:
+        get_target: Callable[[int], Any],
+        advance: Callable[[int], int | None],
+    ) -> Any:
         """Shared fallback loop — try each model in turn until one succeeds.
 
         Args:
@@ -322,6 +357,15 @@ class LLMService:
                     total_models=total,
                     error=str(e),
                 )
+                if _is_permanent(e):
+                    # Every model in the registry would reject this the same
+                    # way. Falling through them turns one clear error into N.
+                    logger.error(
+                        "llm_call_permanently_rejected",
+                        model=current_name,
+                        error_type=type(e).__name__,
+                    )
+                    break
                 if models_tried >= total:
                     logger.error(
                         "all_models_failed",

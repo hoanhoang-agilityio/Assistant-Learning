@@ -1,23 +1,25 @@
 """LLM model registry with pre-initialized instances."""
 
+from typing import Any
+
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
-from app.core.config import (
+from app.core.configs.config import (
     Environment,
     settings,
 )
 from app.core.logging import logger
 
-_TOKEN_LIMIT: dict[str, any] = {"max_completion_tokens": settings.MAX_TOKENS}
+_TOKEN_LIMIT: dict[str, Any] = {"max_completion_tokens": settings.MAX_TOKENS}
 _API_KEY = SecretStr(settings.OPENAI_API_KEY)
 
 
 class LLMRegistry:
     """LLM model registry with pre-initialized instances."""
 
-    LLMS: list[dict[str, any]] = [
+    LLMS: list[dict[str, Any]] = [
         {
             "name": "gpt-5-mini",
             "llm": ChatOpenAI(
@@ -104,7 +106,7 @@ class LLMRegistry:
         return [e["name"] for e in cls.LLMS]
 
     @classmethod
-    def get_model_by_index(cls, index: int) -> dict[str, any]:
+    def get_model_by_index(cls, index: int) -> dict[str, Any]:
         """Return the model entry at a specific index, wrapping to 0 if out of range.
 
         Args:
