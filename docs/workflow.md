@@ -98,6 +98,90 @@ LangGraph serializes the entire state after **every node**. If history holds 8 v
 
 Full snapshots live in the Postgres `plan_versions` table. State only keeps `VersionRef`s sufficient for `resolve_version` to map "the original plan" → `version_id`. Only when the user confirms a revert do we `SELECT` the full snapshot.
 
+### 2.5. Subgraph states
+
+Each subgraph declares its own narrower state. The parent maps fields in and out explicitly — a field that does not exist on the subgraph cannot leak in or be written back by accident.
+
+| Subgraph | State type | Has `messages`? | Why |
+|---|---|---|---|
+| QA | `QAState` | Yes | The question *is* the conversation |
+| Ingest | `IngestState` | Yes | The pasted plan *is* what the user typed |
+| Planning | `PlanningState` | No | Preferences arrive as an extracted string, not a transcript |
+| Verification | `VerifyState` | No | Blind to the build process (§1.3) |
+
+#### `QAState` — general_qa
+
+```python
+class QAState(TypedDict):
+    messages: Annotated[list, add_messages]
+    plan_context: str          # rendered read-only text of plan + macros
+    long_term_memory: str      # retrieved once at the root facade, passed down
+    answer: str
+```
+
+No `plan` / `draft_plan` / `macros` field to write to. The parent passes `plan` and `macros` in as `plan_context` (a string), so a knowledge question cannot mutate the plan even by mistake.
+
+Parent map-in: `messages`, `plan_context = render(plan, macros)`, `long_term_memory`, `answer=""`.
+Parent map-out: new `messages` delta, `answer`.
+
+#### `IngestState` — check (pasted plan)
+
+```python
+class IngestState(TypedDict):
+    messages: Annotated[list, add_messages]
+    catalog: dict
+
+    submitted_plan: dict | None
+    unresolved: list[dict]     # lines that could not be resolved confidently
+    incomplete: list[str]      # lines missing sets/reps
+```
+
+Writes to `submitted_plan`, never to `plan`. Non-empty `unresolved` / `incomplete` means the parent must ask — never guess (§5.2, §9.3).
+
+Parent map-in: `messages`, `catalog`, empty `submitted_plan` / `unresolved` / `incomplete`.
+Parent map-out: `submitted_plan`; unresolved/incomplete become `issues` notes, then route to `calc_macro` or `ask_clarify_plan`.
+
+#### `PlanningState` — build_plan
+
+```python
+class PlanningState(TypedDict):
+    profile: dict
+    goal: str
+    preferences: str           # extracted string, not a transcript
+    catalog: dict
+
+    template: dict | None
+    slots: list[dict]          # template slots + candidates from filter_candidates
+    draft_plan: dict | None
+
+    issues: Annotated[list[Issue], add]
+```
+
+No `messages`. The one conversational input the planner needs ("I hate deadlifts") arrives as `preferences`, so the reason an exercise was chosen is traceable to a value in state.
+
+Parent map-in: `profile`, `goal`, `preferences`, `catalog`, empty working fields.
+Parent map-out: `draft_plan`, `issues` → `calc_macro`, or `compose_answer` when no plan could be produced.
+
+#### `VerifyState` — verification
+
+```python
+class VerifyState(TypedDict):
+    plan: dict
+    profile: dict
+    computed_macros: dict
+    catalog: dict
+    scope: list[VerifyScope]   # which checks run; empty → all three
+    rubric_version: str
+    issues: Annotated[list[Issue], add]
+    verdict: Verdict | None
+    # NO messages — that is the point
+```
+
+The verifier cannot see the build transcript even if someone accidentally tries to pass it in. `scope` drives the fan-out: a `check` turn about knee pain does not pay for a macro comparison the user never asked; write intents pass `scope=[]`, which the subgraph reads as "run everything".
+
+Parent map-in: `plan = submitted_plan or draft_plan`, `profile`, `computed_macros`, `catalog`, `scope` (only narrowed for `check`), `rubric_version`, empty `issues`.
+Parent map-out: `issues`, `verdict` → `verdict_gate`.
+
 ---
 
 ## 3. Overall diagram
@@ -441,14 +525,18 @@ No LLM in this function.
 
 ### 7.4. Verify subgraph with its own state
 
+Full field list and parent map-in/out: see §2.5 (`VerifyState`). Summary:
+
 ```python
 class VerifyState(TypedDict):
     plan: dict
     profile: dict
     computed_macros: dict
     catalog: dict
+    scope: list[VerifyScope]   # empty → run all three checks
     rubric_version: str
     issues: Annotated[list[Issue], add]
+    verdict: Verdict | None
     # NO messages — that is the point
 ```
 
