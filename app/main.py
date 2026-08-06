@@ -16,11 +16,14 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.api import api_router
+from app.core.cache import cache_service
 from app.core.configs.config import settings
 from app.core.limiter import limiter
 from app.core.logging import logger
 from app.core.middleware import LoggingContextMiddleware
+from app.core.observability import langfuse_init
 from app.services.database import database_service
+from app.services.memory import memory_service
 
 
 @asynccontextmanager
@@ -29,13 +32,27 @@ async def lifespan(_app: FastAPI):
     # Checked here rather than at import time: Alembic and test collection import
     # settings without needing a production signing key.
     settings.validate_auth_secrets()
+    # Before anything traceable runs. The graph and its checkpointer pool are
+    # created lazily on first request instead, so the app still boots when
+    # Postgres is briefly unavailable.
+    langfuse_init()
+    # Cache first: the memory service reads through it, and initialising in the
+    # other order would leave the first few searches uncached.
+    await cache_service.initialize()
+    # Pre-warm mem0 so the first real request does not pay its cold init.
+    # Both of these log and degrade rather than raising — the app is fully
+    # functional without either.
+    await memory_service.initialize()
     logger.info(
         "application_startup",
         project_name=settings.PROJECT_NAME,
         version=settings.VERSION,
         environment=settings.ENVIRONMENT.value,
+        cache_backend=cache_service.backend,
+        memory_enabled=memory_service.enabled,
     )
     yield
+    await cache_service.close()
     logger.info("application_shutdown")
 
 

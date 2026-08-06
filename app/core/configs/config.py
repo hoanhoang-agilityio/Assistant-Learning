@@ -10,7 +10,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -160,7 +160,10 @@ class Settings(BaseSettings):
     LANGFUSE_TRACING_ENABLED: bool = True
     LANGFUSE_PUBLIC_KEY: str = ""
     LANGFUSE_SECRET_KEY: str = ""
-    LANGFUSE_HOST: str = "https://cloud.langfuse.com"
+    LANGFUSE_HOST: str = Field(
+        default="https://cloud.langfuse.com",
+        validation_alias=AliasChoices("LANGFUSE_HOST", "LANGFUSE_BASE_URL"),
+    )
 
     OPENAI_API_KEY: str = ""
     DEFAULT_LLM_MODEL: str = "gpt-5-mini"
@@ -173,6 +176,19 @@ class Settings(BaseSettings):
     LONG_TERM_MEMORY_MODEL: str = "gpt-5-nano"
     LONG_TERM_MEMORY_EMBEDDER_MODEL: str = "text-embedding-3-small"
     LONG_TERM_MEMORY_COLLECTION_NAME: str = "longterm_memory"
+
+    KNOWLEDGE_EMBEDDER_MODEL: str = "text-embedding-3-small"
+    # Width of the `vector` column in the knowledge_chunks migration. Changing
+    # the model changes this number, and a stored embedding of the wrong width
+    # is not a degraded search — Postgres rejects the comparison outright. Both
+    # must move together, in a migration that re-embeds.
+    KNOWLEDGE_EMBEDDING_DIM: int = 1536
+    KNOWLEDGE_TOP_K: int = 4
+    # Cosine similarity below which a passage is dropped rather than returned.
+    # Nearest-neighbour search always returns *something*; without a floor, a
+    # question the knowledge base does not cover comes back with the least
+    # unrelated paragraph in it, which the model will then cite.
+    KNOWLEDGE_MIN_SCORE: float = 0.3
 
     JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
@@ -251,6 +267,16 @@ class Settings(BaseSettings):
             f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+
+    @property
+    def checkpointer_database_uri(self) -> str:
+        """Raw psycopg DSN for the LangGraph checkpointer pool.
+
+        Same database as ``sqlalchemy_database_uri``, different driver surface:
+        the checkpointer opens its own ``psycopg_pool.AsyncConnectionPool`` and
+        cannot parse SQLAlchemy's ``postgresql+psycopg://`` prefix.
+        """
+        return self.sqlalchemy_database_uri.replace("postgresql+psycopg://", "postgresql://", 1)
 
     def validate_auth_secrets(self) -> None:
         """Reject a signing key that is missing or too short to be meaningful.
