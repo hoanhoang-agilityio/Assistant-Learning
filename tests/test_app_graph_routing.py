@@ -70,7 +70,7 @@ def _stub_every_llm_boundary(monkeypatch):
     )
     for module in (
         "app.core.langgraph.agents.planning.nodes",
-        "app.core.langgraph.agents.profile.nodes",
+        "app.core.langgraph.profile.nodes",
         "app.core.langgraph.agents.ingest.nodes",
         "app.core.langgraph.graph",
     ):
@@ -108,10 +108,16 @@ async def _build_test_graph(monkeypatch, decision: IntentDecision):
     # The profile gate is stubbed to "everything present" so these tests stay
     # about routing. Whether the gate itself blocks correctly is
     # tests/test_app_root_pipeline.py's job.
-    async def fake_profile_gate(state, config):
+    #
+    # Patched on ``graph`` rather than on ``profile.nodes``: ``_add_nodes``
+    # registers the name it imported, and looks it up when it runs, so this is
+    # the binding that ends up in the compiled graph. The fake skips straight to
+    # ``intent_branch``, which the real ``load_profile`` may not do — that is the
+    # point of a stub, and why the assertion about the gate lives elsewhere.
+    async def fake_load_profile(state, config):
         return Command(update={"profile": _COMPLETE_PROFILE}, goto="intent_branch")
 
-    agent._profile_gate = fake_profile_gate
+    monkeypatch.setattr("app.core.langgraph.graph.load_profile", fake_load_profile)
 
     builder = StateGraph(RootState)
     # Built through the same helper the real graph uses, so a topology change
@@ -169,6 +175,32 @@ def test_qa_subgraph_compiles_standalone():
     graph = build_qa_graph()
     assert graph.name == "qa"
     assert {"answer_qa", "tool_call"} <= set(graph.get_graph().nodes)
+
+
+def test_no_write_intent_can_skip_the_profile_gate():
+    """The gate is three root nodes now, so its unskippability must be asserted.
+
+    While ``load_profile``, ``extract_profile`` and ``check_required`` lived in a
+    subgraph, "every write intent passes the gate" was one edge:
+    ``dispatch -> profile_gate``. Lifted to the root graph it is a chain, and a
+    later edit could wire ``dispatch`` or an early node straight to
+    ``intent_branch`` without anything failing. That is what this test catches
+    (``docs/workflow.md`` §1.2, §9.1).
+    """
+    builder = StateGraph(RootState)
+    _add_nodes(builder, LangGraphAgent())
+    builder.set_entry_point("classify")
+    graph = builder.compile(checkpointer=MemorySaver(), name="root-test")
+
+    # Every intent that can write enters at the top of the gate.
+    write_intents = set(Intent.__args__) - {"general_qa"}
+    assert {DISPATCH_TARGETS[intent] for intent in write_intents} == {"load_profile"}
+
+    # And only the last node of the gate opens onto the branches.
+    reaches_intent_branch = {
+        edge.source for edge in graph.get_graph().edges if edge.target == "intent_branch"
+    }
+    assert reaches_intent_branch == {"check_required"}
 
 
 def test_only_finalize_ends_the_graph():

@@ -15,14 +15,15 @@ from app.schemas.graph import Intent, RootState
 # branch — adding an Intent literal without a target here fails the mapping test.
 DISPATCH_TARGETS: dict[Intent, str] = {
     "general_qa": "qa",
-    # Every write intent goes through the profile gate first. There is no edge
-    # around it, which is what stops a turn reaching calc_macro without an
-    # activity level. Which branch runs afterwards is
+    # Every write intent enters the profile gate at `load_profile`. There is no
+    # edge around it, which is what stops a turn reaching calc_macro without an
+    # activity level: the gate runs to `check_required`, and only
+    # `check_required` reaches `intent_branch`. Which branch runs afterwards is
     # `intent_branch`'s decision, not this one's.
-    "build_plan": "profile_gate",
-    "change_plan": "profile_gate",
-    "check": "profile_gate",
-    "revert": "profile_gate",
+    "build_plan": "load_profile",
+    "change_plan": "load_profile",
+    "check": "load_profile",
+    "revert": "load_profile",
 }
 
 _FALLBACK_TARGET = "qa"

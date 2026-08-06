@@ -24,9 +24,8 @@ from langgraph.graph import StateGraph
 from app.core.langgraph.agents import AGENTS
 from app.core.langgraph.agents.ingest.state import ParsedDay, ParsedExercise, ParsedPlan
 from app.core.langgraph.agents.planning.state import ExerciseChoices
-from app.core.langgraph.agents.profile.state import ProfileExtraction
 from app.core.langgraph.graph import READ_ONLY_INTENTS, LangGraphAgent, _add_nodes
-from app.schemas.graph import IntentDecision, RootState
+from app.schemas.graph import IntentDecision, ProfileExtraction, RootState
 from app.services.exercise_resolver import (
     CONFIDENCE_THRESHOLD,
     normalise,
@@ -125,10 +124,10 @@ def pipeline(monkeypatch, catalog):
     monkeypatch.setattr("app.core.langgraph.graph.insert_version", fake_insert_version)
     monkeypatch.setattr("app.core.langgraph.graph.version_index", fake_version_index)
     monkeypatch.setattr(
-        "app.core.langgraph.agents.profile.nodes.profile_service.get_profile", fake_get_profile
+        "app.core.langgraph.profile.nodes.profile_service.get_profile", fake_get_profile
     )
     monkeypatch.setattr(
-        "app.core.langgraph.agents.profile.nodes.profile_service.upsert_profile", fake_upsert
+        "app.core.langgraph.profile.nodes.profile_service.upsert_profile", fake_upsert
     )
 
     def _build(parsed: ParsedPlan, scope: list[str] | None = None):
@@ -153,7 +152,7 @@ def pipeline(monkeypatch, catalog):
         for module in (
             "app.core.langgraph.agents.qa.nodes",
             "app.core.langgraph.agents.planning.nodes",
-            "app.core.langgraph.agents.profile.nodes",
+            "app.core.langgraph.profile.nodes",
             "app.core.langgraph.agents.ingest.nodes",
             "app.core.langgraph.graph",
         ):

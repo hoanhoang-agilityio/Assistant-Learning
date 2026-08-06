@@ -24,7 +24,6 @@ from langgraph.graph import StateGraph
 from app.core.langgraph.agents import AGENTS
 from app.core.langgraph.agents.planning.patch import patch_plan
 from app.core.langgraph.agents.planning.state import ExerciseChoices
-from app.core.langgraph.agents.profile.state import ProfileExtraction
 from app.core.langgraph.diff import build_diff
 from app.core.langgraph.graph import (
     CONFIRM_REQUIRED_INTENTS,
@@ -33,7 +32,7 @@ from app.core.langgraph.graph import (
     _is_affirmative,
 )
 from app.core.langgraph.rubrics import CONTRAINDICATIONS
-from app.schemas.graph import IntentDecision, RootState
+from app.schemas.graph import IntentDecision, ProfileExtraction, RootState
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
 
@@ -146,16 +145,16 @@ def pipeline(monkeypatch, catalog, approved_plan):
     monkeypatch.setattr("app.core.langgraph.graph.insert_version", fake_insert_version)
     monkeypatch.setattr("app.core.langgraph.graph.version_index", fake_version_index)
     monkeypatch.setattr(
-        "app.core.langgraph.agents.profile.nodes.profile_service.get_profile", fake_get_profile
+        "app.core.langgraph.profile.nodes.profile_service.get_profile", fake_get_profile
     )
     monkeypatch.setattr(
-        "app.core.langgraph.agents.profile.nodes.profile_service.upsert_profile", fake_upsert
+        "app.core.langgraph.profile.nodes.profile_service.upsert_profile", fake_upsert
     )
 
     for module in (
         "app.core.langgraph.agents.qa.nodes",
         "app.core.langgraph.agents.planning.nodes",
-        "app.core.langgraph.agents.profile.nodes",
+        "app.core.langgraph.profile.nodes",
         "app.core.langgraph.graph",
     ):
         monkeypatch.setattr(f"{module}.llm_service", _FakeLLM())

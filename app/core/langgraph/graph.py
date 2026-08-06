@@ -31,6 +31,7 @@ from app.core.langgraph.agents.planning.patch import patch_plan
 from app.core.langgraph.agents.planning.repair import repair_plan
 from app.core.langgraph.agents.verification import sort_issues
 from app.core.langgraph.diff import build_diff
+from app.core.langgraph.profile.nodes import check_required, extract_profile, load_profile
 from app.core.langgraph.routing.classify import classify
 from app.core.langgraph.routing.dispatch import DISPATCH_TARGETS, dispatch
 from app.core.langgraph.rubrics import RUBRIC_VERSION
@@ -211,66 +212,6 @@ class LangGraphAgent:
                 "answer": result["answer"],
             },
             goto="finalize",
-        )
-
-    async def _profile_gate(self, state: RootState, config: RunnableConfig) -> Command:
-        """Load, extract and check the profile before any write intent proceeds.
-
-        Reads ``messages`` and ``intent``. Writes ``profile`` and
-        ``missing_fields``.
-
-        Every write intent passes through here, and there is no edge around it.
-        That is the point: the required-field list is a constant, so a turn
-        cannot reach ``calc_macro`` with a missing activity level
-
-        Args:
-            state: Current root state.
-            config: Runnable config, forwarded so subgraph spans nest.
-
-        Returns:
-            A command going to ``ask_missing`` when anything is outstanding, and
-            to ``intent_branch`` otherwise.
-        """
-        user_id = (config.get("metadata") or {}).get("user_id")
-        result = await self._agents["profile"].ainvoke(
-            {
-                "messages": state.messages,
-                "user_id": int(user_id) if user_id else None,
-                "intent": state.intent or "general_qa",
-                "profile": {},
-                "missing_fields": [],
-                "changed": False,
-            },
-            config,
-        )
-
-        missing = result["missing_fields"]
-        profile = result["profile"]
-
-        # An injury with no screening rule must be said out loud. Silence
-        # here reads as "checked and fine", which is the opposite of the truth —
-        # nothing in the pipeline accounts for it.
-        notes: list[Issue] = []
-        if profile.get("unmapped_injury") and not missing:
-            notes.append(
-                Issue(
-                    source="injury",
-                    severity="warn",
-                    location="Declared injury",
-                    message=(
-                        f'You mentioned: "{profile["unmapped_injury"]}". I have no '
-                        "screening rule for that, so nothing in this plan accounts for it. "
-                        "Treat the exercise selection as unreviewed for that problem, and "
-                        "see a professional if it is sharp, new or getting worse."
-                    ),
-                    suggestion=None,
-                    rubric_ref="contraindications.unmapped",
-                )
-            )
-
-        return Command(
-            update={"profile": profile, "missing_fields": missing, "issues": notes},
-            goto="ask_missing" if missing else "intent_branch",
         )
 
     async def _ask_missing(self, state: RootState, config: RunnableConfig) -> Command:
@@ -1292,8 +1233,13 @@ def _add_nodes(builder: StateGraph, agent: "LangGraphAgent") -> None:
     )
     builder.add_node("qa", agent._qa, destinations=("finalize",))
 
+    # The profile gate: three root nodes, not a packaged agent — a straight line
+    # that only orchestrates this graph. `check_required` is the only one with
+    # an edge to `intent_branch`, which is what keeps the gate unskippable.
+    builder.add_node("load_profile", load_profile, destinations=("extract_profile",))
+    builder.add_node("extract_profile", extract_profile, destinations=("check_required",))
     builder.add_node(
-        "profile_gate", agent._profile_gate, destinations=("ask_missing", "intent_branch")
+        "check_required", check_required, destinations=("ask_missing", "intent_branch")
     )
     builder.add_node("ask_missing", agent._ask_missing, destinations=("finalize",))
     builder.add_node(

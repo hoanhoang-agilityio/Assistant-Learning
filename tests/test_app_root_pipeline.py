@@ -24,10 +24,9 @@ from langgraph.graph import StateGraph
 
 from app.core.langgraph.agents import AGENTS
 from app.core.langgraph.agents.planning.state import ExerciseChoices
-from app.core.langgraph.agents.profile.state import ProfileExtraction
 from app.core.langgraph.graph import LangGraphAgent, _add_nodes
 from app.core.langgraph.templates import TEMPLATES, iter_slots
-from app.schemas.graph import Intent, IntentDecision, Issue, RootState
+from app.schemas.graph import Intent, IntentDecision, Issue, ProfileExtraction, RootState
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
 
@@ -89,7 +88,7 @@ def pipeline(monkeypatch, catalog):
         calls["saved_profiles"].append((user_id, profile))
 
     monkeypatch.setattr(
-        "app.core.langgraph.agents.profile.nodes.profile_service.upsert_profile", fake_upsert
+        "app.core.langgraph.profile.nodes.profile_service.upsert_profile", fake_upsert
     )
 
     def _build(stored_profile: dict, intent: Intent = "build_plan", extraction=None):
@@ -97,7 +96,7 @@ def pipeline(monkeypatch, catalog):
             return dict(stored_profile)
 
         monkeypatch.setattr(
-            "app.core.langgraph.agents.profile.nodes.profile_service.get_profile",
+            "app.core.langgraph.profile.nodes.profile_service.get_profile",
             fake_get_profile,
         )
 
@@ -129,7 +128,7 @@ def pipeline(monkeypatch, catalog):
                 return AIMessage(content="Here is your plan.")
 
         for module in (
-            "app.core.langgraph.agents.profile.nodes",
+            "app.core.langgraph.profile.nodes",
             "app.core.langgraph.agents.planning.nodes",
             "app.core.langgraph.agents.ingest.nodes",
             "app.core.langgraph.agents.qa.nodes",
@@ -399,7 +398,7 @@ def test_every_declared_intent_has_a_real_branch():
     assert READ_ONLY_INTENTS <= handled
 
 
-async def test_general_qa_never_touches_the_profile_gate(pipeline):
+async def test_general_qa_never_touches_the_profile_nodes(pipeline):
     """A knowledge question must not be asked for body weight."""
     graph, config, _calls, _agent = pipeline({}, intent="general_qa")
     values = await _run(graph, config, "what is protein?")

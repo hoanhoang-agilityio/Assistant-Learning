@@ -8,7 +8,9 @@ graph TD;
 	classify(classify)
 	dispatch(dispatch)
 	qa(qa)
-	profile_gate(profile_gate)
+	load_profile(load_profile)
+	extract_profile(extract_profile)
+	check_required(check_required)
 	ask_missing(ask_missing)
 	intent_branch(intent_branch)
 	ingest_plan(ingest_plan)
@@ -27,19 +29,24 @@ graph TD;
 	confirm(confirm)
 	snapshot(snapshot)
 	compose_answer(compose_answer)
+	finalize(finalize)
 	__end__([<p>__end__</p>]):::last
 	__start__ --> classify;
-	ask_clarify_plan -.-> __end__;
-	ask_missing -.-> __end__;
-	ask_which_version -.-> __end__;
+	ask_clarify_plan -.-> finalize;
+	ask_missing -.-> finalize;
+	ask_which_version -.-> finalize;
 	build_diff -.-> confirm;
 	calc_macro -.-> verification;
+	check_required -.-> ask_missing;
+	check_required -.-> intent_branch;
 	classify -.-> dispatch;
-	compose_answer -.-> __end__;
-	confirm -.-> __end__;
+	compose_answer -.-> finalize;
+	confirm -.-> finalize;
 	confirm -.-> snapshot;
-	dispatch -.-> profile_gate;
+	dispatch -.-> load_profile;
 	dispatch -.-> qa;
+	extract_profile -.-> check_required;
+	finalize -.-> __end__;
 	ingest_plan -.-> ask_clarify_plan;
 	ingest_plan -.-> calc_macro;
 	intent_branch -.-> ingest_plan;
@@ -47,20 +54,19 @@ graph TD;
 	intent_branch -.-> patch_plan;
 	intent_branch -.-> planning;
 	intent_branch -.-> resolve_version;
-	load_snapshot -.-> __end__;
+	load_profile -.-> extract_profile;
 	load_snapshot -.-> calc_macro;
-	not_implemented -.-> __end__;
+	load_snapshot -.-> finalize;
+	not_implemented -.-> finalize;
 	patch_plan -.-> calc_macro;
 	patch_plan -.-> compose_answer;
 	planning -.-> calc_macro;
 	planning -.-> compose_answer;
-	profile_gate -.-> ask_missing;
-	profile_gate -.-> intent_branch;
-	qa -.-> __end__;
+	qa -.-> finalize;
 	repair -.-> calc_macro;
 	repair -.-> compose_answer;
-	resolve_version -.-> __end__;
 	resolve_version -.-> ask_which_version;
+	resolve_version -.-> finalize;
 	resolve_version -.-> load_snapshot;
 	snapshot -.-> compose_answer;
 	verdict_gate -.-> build_diff;

@@ -20,6 +20,7 @@ _CLASSIFY_PROMPT_TEMPLATE = (_PROMPTS_DIR / "classify.md").read_text(encoding="u
 _QA_PROMPT_TEMPLATE = (_PROMPTS_DIR / "qa.md").read_text(encoding="utf-8")
 _COMPOSE_ANSWER_TEMPLATE = (_PROMPTS_DIR / "compose_answer.md").read_text(encoding="utf-8")
 _RESOLVE_VERSION_TEMPLATE = (_PROMPTS_DIR / "resolve_version.md").read_text(encoding="utf-8")
+_EXTRACT_PROFILE_TEMPLATE = (_PROMPTS_DIR / "extract_profile.md").read_text(encoding="utf-8")
 
 _NO_MEMORY = "# Memory\n\nNo relevant memory found for this user."
 
@@ -55,6 +56,18 @@ def load_classify_prompt(conversation: str) -> str:
         The formatted classifier prompt.
     """
     return _CLASSIFY_PROMPT_TEMPLATE.format(conversation=conversation)
+
+
+def load_extract_profile_prompt(conversation: str) -> str:
+    """Render the profile-extraction prompt.
+
+    Args:
+        conversation: Recent turns, formatted one ``role: content`` per line.
+
+    Returns:
+        The formatted extraction prompt.
+    """
+    return _EXTRACT_PROFILE_TEMPLATE.format(conversation=conversation)
 
 
 def load_qa_prompt(plan_context: str, long_term_memory: str = "") -> str:
@@ -111,6 +124,7 @@ def load_resolve_version_prompt(versions: str, query: str) -> str:
 __all__ = [
     "load_classify_prompt",
     "load_compose_answer_prompt",
+    "load_extract_profile_prompt",
     "load_qa_prompt",
     "load_resolve_version_prompt",
     "load_system_prompt",

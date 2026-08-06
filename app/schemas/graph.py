@@ -98,6 +98,50 @@ class IntentDecision(BaseModel):
     )
 
 
+class ProfileExtraction(BaseModel):
+    """Facts ``extract_profile`` pulled out of the conversation this turn.
+
+    Lives here rather than in an agent package because ``extract_profile`` is a
+    root-graph node: loading, extracting and gating the profile is orchestration
+    the root owns, not an independently packaged capability.
+
+    Every field is optional: a turn usually states one or two things, and the
+    profile is accumulated across turns. ``None`` means "not mentioned", which
+    must never overwrite a stored value.
+    """
+
+    weight_kg: float | None = Field(default=None, description="Body weight in kilograms")
+    height_cm: float | None = Field(default=None, description="Height in centimetres")
+    age: int | None = Field(default=None, description="Age in years")
+    sex: str | None = Field(default=None, description="male or female")
+    activity_level: str | None = Field(
+        default=None,
+        description="Daily life outside training: sedentary, light, moderate, active, very_active",
+    )
+    days_per_week: int | None = Field(default=None, description="Training sessions per week")
+    level: int | None = Field(default=None, description="Training experience, 1 (new) to 5")
+    goal: str | None = Field(
+        default=None, description="fat_loss, muscle_gain, recomp or general_health"
+    )
+    equipment: list[str] | None = Field(
+        default=None, description="Equipment tokens the user has access to"
+    )
+    injuries: list[str] | None = Field(
+        default=None,
+        description="Injury keys from the contraindication rubric. Empty list means none.",
+    )
+    preferences: str | None = Field(
+        default=None, description="Exercises the user likes or wants to avoid, as free text"
+    )
+    unmapped_injury: str | None = Field(
+        default=None,
+        description=(
+            "An injury the user described that is NOT one of the recognised keys, "
+            "in their own words. Set this instead of guessing a key."
+        ),
+    )
+
+
 class RootState(BaseModel):
     """State of the root graph — only what crosses agent boundaries.
 
