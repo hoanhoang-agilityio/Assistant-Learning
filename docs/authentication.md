@@ -1,7 +1,6 @@
 # Authentication
 
-Applies to the `app/` flow (`app.main:app`). The legacy `src/` API has no authentication at
-all — see the migration notice in the README.
+Applies to the API served by `app.main:app`.
 
 ## Flow
 

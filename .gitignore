@@ -34,8 +34,6 @@ skills-lock.json
 
 # Project artifacts (VFS runtime output)
 var/
-# legacy location, kept ignored so pre-existing local runs stay untracked
-src/workspace/
 
 # Streamlit
 .streamlit/secrets.toml

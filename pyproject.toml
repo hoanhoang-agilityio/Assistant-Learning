@@ -58,17 +58,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Ragas pulls in datasets/pandas/pyarrow (~180 MB installed). Nothing imports
-# it at module scope: core.evaluation.ragas is only reached lazily, from
-# evaluate_faithfulness() and the benchmark scripts. Keeping it out of the
-# runtime dependencies keeps that tree off production images.
-#
-# Install it (`uv sync --extra eval`) when running the benchmarks, or when
-# enabling VERIFICATION_USE_REAL_RAGAS / VERIFICATION_PRODUCTION_USE_REAL_RAGAS
-# -- those flags reach the real SDK and will fail on import without it.
-eval = [
-    "ragas>=0.3,<0.4.2",
-]
 dev = [
     "pytest>=8.0,<9.0",
     "pytest-asyncio>=0.24,<1.0",
@@ -82,15 +71,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-# `app` is the new flow's package: it is both the ASGI entrypoint (app.main:app)
-# and the Streamlit front end (app/ui/app.py). The old flow's `core` and `api`
-# still ship alongside it, since the old API imports both.
-packages = ["app", "src/core", "src/api"]
+# `app` is both the ASGI entrypoint (app.main:app) and the Streamlit front end
+# (app/ui/main.py).
+packages = ["app"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-# "." so the `app` package (new flow) is importable alongside src/.
-pythonpath = ["src", "."]
+pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.ruff]
