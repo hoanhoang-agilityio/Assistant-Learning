@@ -1,0 +1,2547 @@
+[
+  {
+    "id": "ab_wheel",
+    "name": "Ab Wheel",
+    "movement_pattern": "anti_extension",
+    "primary_muscles": [
+      "abs"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "abs": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "arnold_press_wide_grip",
+    "name": "Arnold Press (Wide Grip)",
+    "movement_pattern": "vertical_push",
+    "primary_muscles": [
+      "front_delts"
+    ],
+    "secondary_muscles": [
+      "side_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "shoulder_abduction_overhead",
+      "elbow_extension"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "front_delts": 1.0,
+      "side_delts": 0.5,
+      "triceps": 0.5
+    },
+    "skill_level": 4,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "back_extension_machine",
+    "name": "Back Extension (Machine)",
+    "movement_pattern": "hinge",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "glutes"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "hip_extension",
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0,
+      "glutes": 0.8
+    },
+    "skill_level": 2,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "back_squat",
+    "name": "Back Squat",
+    "movement_pattern": "squat",
+    "primary_muscles": [
+      "quads"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "knee_flexion_deep",
+      "knee_extension",
+      "hip_extension"
+    ],
+    "loaded_positions": [
+      "knee_end_range"
+    ],
+    "contribution": {
+      "quads": 1.0,
+      "glutes": 0.5,
+      "hamstrings": 0.3
+    },
+    "skill_level": 5,
+    "fatigue_cost": 5
+  },
+  {
+    "id": "barbell_bench_press",
+    "name": "Barbell Bench Press",
+    "movement_pattern": "horizontal_push",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction",
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "chest": 1.0,
+      "triceps": 0.5,
+      "front_delts": 0.5
+    },
+    "skill_level": 3,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "barbell_curl",
+    "name": "Barbell Curl",
+    "movement_pattern": "elbow_flexion",
+    "primary_muscles": [
+      "biceps"
+    ],
+    "secondary_muscles": [
+      "forearms"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "biceps": 1.0,
+      "forearms": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "barbell_hip_thrust",
+    "name": "Barbell Hip Thrust",
+    "movement_pattern": "hip_thrust",
+    "primary_muscles": [
+      "glutes"
+    ],
+    "secondary_muscles": [
+      "hamstrings"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "hip_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "glutes": 1.0,
+      "hamstrings": 0.4
+    },
+    "skill_level": 3,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "barbell_row_machine",
+    "name": "Barbell Row (Machine)",
+    "movement_pattern": "horizontal_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "biceps",
+      "lats",
+      "rear_delts"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_abduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 0.8,
+      "rear_delts": 0.5,
+      "biceps": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "bird_dog_machine",
+    "name": "Bird Dog (Machine)",
+    "movement_pattern": "anti_rotation",
+    "primary_muscles": [
+      "obliques"
+    ],
+    "secondary_muscles": [
+      "abs"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "obliques": 1.0,
+      "abs": 0.5
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "bulgarian_split_squat_machine",
+    "name": "Bulgarian Split Squat (Machine)",
+    "movement_pattern": "lunge",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "quads"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "knee_flexion",
+      "knee_extension",
+      "hip_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "quads": 0.8,
+      "glutes": 0.8,
+      "hamstrings": 0.3
+    },
+    "skill_level": 3,
+    "fatigue_cost": 5
+  },
+  {
+    "id": "cable_crunch_tempo",
+    "name": "Cable Crunch (Tempo)",
+    "movement_pattern": "trunk_flexion",
+    "primary_muscles": [
+      "abs"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "spinal_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "abs": 1.0
+    },
+    "skill_level": 2,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "cable_curl_machine",
+    "name": "Cable Curl (Machine)",
+    "movement_pattern": "elbow_flexion",
+    "primary_muscles": [
+      "biceps"
+    ],
+    "secondary_muscles": [
+      "forearms"
+    ],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "biceps": 1.0,
+      "forearms": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "cable_fly_wide_grip",
+    "name": "Cable Fly (Wide Grip)",
+    "movement_pattern": "horizontal_adduction",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts"
+    ],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "chest": 1.0,
+      "front_delts": 0.3
+    },
+    "skill_level": 3,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "cable_lateral_raise_wide_grip",
+    "name": "Cable Lateral Raise (Wide Grip)",
+    "movement_pattern": "abduction",
+    "primary_muscles": [
+      "side_delts"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "shoulder_abduction"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "side_delts": 1.0
+    },
+    "skill_level": 3,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "cable_leg_extension",
+    "name": "Cable Leg Extension",
+    "movement_pattern": "knee_extension",
+    "primary_muscles": [
+      "quads"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "knee_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "quads": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "cable_pallof_press",
+    "name": "Cable Pallof Press",
+    "movement_pattern": "anti_rotation",
+    "primary_muscles": [
+      "obliques"
+    ],
+    "secondary_muscles": [
+      "abs"
+    ],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "obliques": 1.0,
+      "abs": 0.5
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "cable_pull_through",
+    "name": "Cable Pull Through",
+    "movement_pattern": "hinge",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "glutes"
+    ],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "hip_extension",
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0,
+      "glutes": 0.8
+    },
+    "skill_level": 2,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "cable_row",
+    "name": "Cable Row",
+    "movement_pattern": "horizontal_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "biceps",
+      "lats",
+      "rear_delts"
+    ],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_abduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 0.8,
+      "rear_delts": 0.5,
+      "biceps": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "cable_shoulder_press",
+    "name": "Cable Shoulder Press",
+    "movement_pattern": "vertical_push",
+    "primary_muscles": [
+      "front_delts"
+    ],
+    "secondary_muscles": [
+      "side_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "shoulder_abduction_overhead",
+      "elbow_extension"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "front_delts": 1.0,
+      "side_delts": 0.5,
+      "triceps": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "cable_triceps_pushdown",
+    "name": "Cable Triceps Pushdown",
+    "movement_pattern": "elbow_extension",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "triceps": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "cable_upright_row",
+    "name": "Cable Upright Row",
+    "movement_pattern": "high_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "rear_delts",
+      "side_delts"
+    ],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "shoulder_abduction_overhead",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "side_delts": 0.8,
+      "rear_delts": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "chest_fly",
+    "name": "Chest Fly",
+    "movement_pattern": "horizontal_adduction",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "chest": 1.0,
+      "front_delts": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "chin_up_wide_grip",
+    "name": "Chin Up (Wide Grip)",
+    "movement_pattern": "vertical_pull",
+    "primary_muscles": [
+      "lats"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "rear_delts"
+    ],
+    "equipment": [
+      "pull_up_bar"
+    ],
+    "joint_actions": [
+      "shoulder_adduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 1.0,
+      "biceps": 0.5,
+      "rear_delts": 0.3
+    },
+    "skill_level": 2,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "close_grip_bench_neutral_grip",
+    "name": "Close Grip Bench (Neutral Grip)",
+    "movement_pattern": "horizontal_push",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction",
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "chest": 1.0,
+      "triceps": 0.5,
+      "front_delts": 0.5
+    },
+    "skill_level": 1,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "crunch_neutral_grip",
+    "name": "Crunch (Neutral Grip)",
+    "movement_pattern": "trunk_flexion",
+    "primary_muscles": [
+      "abs"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "spinal_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "abs": 1.0
+    },
+    "skill_level": 2,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "dead_bug_neutral_grip",
+    "name": "Dead Bug (Neutral Grip)",
+    "movement_pattern": "anti_extension",
+    "primary_muscles": [
+      "abs"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "abs": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "deadlift",
+    "name": "Deadlift",
+    "movement_pattern": "hinge",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "glutes"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "hip_extension",
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0,
+      "glutes": 0.8
+    },
+    "skill_level": 5,
+    "fatigue_cost": 5
+  },
+  {
+    "id": "decline_bench_press_neutral_grip",
+    "name": "Decline Bench Press (Neutral Grip)",
+    "movement_pattern": "horizontal_push",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction",
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "chest": 1.0,
+      "triceps": 0.5,
+      "front_delts": 0.5
+    },
+    "skill_level": 3,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "dip_bodyweight",
+    "name": "Dip (Bodyweight)",
+    "movement_pattern": "dip",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [
+      "chest",
+      "front_delts"
+    ],
+    "equipment": [
+      "dip_station"
+    ],
+    "joint_actions": [
+      "shoulder_extension",
+      "elbow_extension"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "triceps": 1.0,
+      "chest": 0.8,
+      "front_delts": 0.5
+    },
+    "skill_level": 4,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "dip_machine",
+    "name": "Dip (Machine)",
+    "movement_pattern": "dip",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [
+      "chest",
+      "front_delts"
+    ],
+    "equipment": [
+      "dip_station"
+    ],
+    "joint_actions": [
+      "shoulder_extension",
+      "elbow_extension"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "triceps": 1.0,
+      "chest": 0.8,
+      "front_delts": 0.5
+    },
+    "skill_level": 3,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "dumbbell_bench_press_machine",
+    "name": "Dumbbell Bench Press (Machine)",
+    "movement_pattern": "horizontal_push",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction",
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "chest": 1.0,
+      "triceps": 0.5,
+      "front_delts": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "dumbbell_calf_raise",
+    "name": "Dumbbell Calf Raise",
+    "movement_pattern": "calf_raise",
+    "primary_muscles": [
+      "calves"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "ankle_plantarflexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "calves": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "dumbbell_hammer_curl",
+    "name": "Dumbbell Hammer Curl",
+    "movement_pattern": "elbow_flexion",
+    "primary_muscles": [
+      "biceps"
+    ],
+    "secondary_muscles": [
+      "forearms"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "biceps": 1.0,
+      "forearms": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "dumbbell_lateral_raise",
+    "name": "Dumbbell Lateral Raise",
+    "movement_pattern": "abduction",
+    "primary_muscles": [
+      "side_delts"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "shoulder_abduction"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "side_delts": 1.0
+    },
+    "skill_level": 2,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "dumbbell_leg_curl",
+    "name": "Dumbbell Leg Curl",
+    "movement_pattern": "knee_flexion",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "knee_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "dumbbell_pullover",
+    "name": "Dumbbell Pullover",
+    "movement_pattern": "vertical_pull",
+    "primary_muscles": [
+      "lats"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "rear_delts"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "shoulder_adduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 1.0,
+      "biceps": 0.5,
+      "rear_delts": 0.3
+    },
+    "skill_level": 2,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "dumbbell_reverse_lunge",
+    "name": "Dumbbell Reverse Lunge",
+    "movement_pattern": "lunge",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "quads"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "knee_flexion",
+      "knee_extension",
+      "hip_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "quads": 0.8,
+      "glutes": 0.8,
+      "hamstrings": 0.3
+    },
+    "skill_level": 2,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "dumbbell_romanian_deadlift",
+    "name": "Dumbbell Romanian Deadlift",
+    "movement_pattern": "hinge",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "glutes"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "hip_extension",
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0,
+      "glutes": 0.8
+    },
+    "skill_level": 5,
+    "fatigue_cost": 5
+  },
+  {
+    "id": "dumbbell_row_single_arm",
+    "name": "Single Arm Dumbbell Row",
+    "movement_pattern": "horizontal_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "biceps",
+      "lats",
+      "rear_delts"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_abduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 0.8,
+      "rear_delts": 0.5,
+      "biceps": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "dumbbell_row_tempo",
+    "name": "Dumbbell Row (Tempo)",
+    "movement_pattern": "horizontal_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "biceps",
+      "lats",
+      "rear_delts"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_abduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 0.8,
+      "rear_delts": 0.5,
+      "biceps": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "dumbbell_shoulder_press",
+    "name": "Dumbbell Shoulder Press",
+    "movement_pattern": "vertical_push",
+    "primary_muscles": [
+      "front_delts"
+    ],
+    "secondary_muscles": [
+      "side_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "shoulder_abduction_overhead",
+      "elbow_extension"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "front_delts": 1.0,
+      "side_delts": 0.5,
+      "triceps": 0.5
+    },
+    "skill_level": 3,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "dumbbell_upright_row",
+    "name": "Dumbbell Upright Row",
+    "movement_pattern": "high_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "rear_delts",
+      "side_delts"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "shoulder_abduction_overhead",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "side_delts": 0.8,
+      "rear_delts": 0.5
+    },
+    "skill_level": 3,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "face_pull_machine",
+    "name": "Face Pull (Machine)",
+    "movement_pattern": "rear_delt_pull",
+    "primary_muscles": [
+      "rear_delts"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_abduction"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "rear_delts": 1.0
+    },
+    "skill_level": 2,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "front_raise_machine",
+    "name": "Front Raise (Machine)",
+    "movement_pattern": "flexion",
+    "primary_muscles": [
+      "abs"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "spinal_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "abs": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "front_squat_wide_grip",
+    "name": "Front Squat (Wide Grip)",
+    "movement_pattern": "squat",
+    "primary_muscles": [
+      "quads"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "knee_flexion_deep",
+      "knee_extension",
+      "hip_extension"
+    ],
+    "loaded_positions": [
+      "knee_end_range"
+    ],
+    "contribution": {
+      "quads": 1.0,
+      "glutes": 0.5,
+      "hamstrings": 0.3
+    },
+    "skill_level": 5,
+    "fatigue_cost": 5
+  },
+  {
+    "id": "glute_bridge_bodyweight",
+    "name": "Glute Bridge (Bodyweight)",
+    "movement_pattern": "hip_thrust",
+    "primary_muscles": [
+      "glutes"
+    ],
+    "secondary_muscles": [
+      "hamstrings"
+    ],
+    "equipment": [
+      "bodyweight"
+    ],
+    "joint_actions": [
+      "hip_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "glutes": 1.0,
+      "hamstrings": 0.4
+    },
+    "skill_level": 2,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "goblet_squat_dumbbell",
+    "name": "Goblet Squat (Dumbbell)",
+    "movement_pattern": "squat",
+    "primary_muscles": [
+      "quads"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "knee_flexion_deep",
+      "knee_extension",
+      "hip_extension"
+    ],
+    "loaded_positions": [
+      "knee_end_range"
+    ],
+    "contribution": {
+      "quads": 1.0,
+      "glutes": 0.5,
+      "hamstrings": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 5
+  },
+  {
+  "id": "bodyweight_squat",
+  "name": "Bodyweight Squat",
+  "movement_pattern": "squat",
+  "primary_muscles": [
+    "quads"
+  ],
+  "secondary_muscles": [
+    "glutes",
+    "hamstrings"
+  ],
+  "equipment": [
+    "bodyweight"
+  ],
+  "joint_actions": [
+    "knee_flexion_deep",
+    "knee_extension",
+    "hip_extension"
+  ],
+  "loaded_positions": [
+    "knee_end_range"
+  ],
+  "contribution": {
+    "quads": 1.0,
+    "glutes": 0.45,
+    "hamstrings": 0.2
+  },
+  "skill_level": 1,
+  "fatigue_cost": 1
+},
+  {
+    "id": "good_morning_barbell",
+    "name": "Good Morning (Barbell)",
+    "movement_pattern": "hinge",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "glutes"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "hip_extension",
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0,
+      "glutes": 0.8
+    },
+    "skill_level": 4,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "hack_squat_machine",
+    "name": "Hack Squat (Machine)",
+    "movement_pattern": "squat",
+    "primary_muscles": [
+      "quads"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "knee_flexion_deep",
+      "knee_extension",
+      "hip_extension"
+    ],
+    "loaded_positions": [
+      "knee_end_range"
+    ],
+    "contribution": {
+      "quads": 1.0,
+      "glutes": 0.5,
+      "hamstrings": 0.3
+    },
+    "skill_level": 3,
+    "fatigue_cost": 5
+  },
+  {
+    "id": "hammer_curl_wide_grip",
+    "name": "Hammer Curl (Wide Grip)",
+    "movement_pattern": "elbow_flexion",
+    "primary_muscles": [
+      "biceps"
+    ],
+    "secondary_muscles": [
+      "forearms"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "biceps": 1.0,
+      "forearms": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "hanging_leg_raise",
+    "name": "Hanging Leg Raise",
+    "movement_pattern": "hip_flexion",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "abs",
+      "quads"
+    ],
+    "equipment": [
+      "pull_up_bar"
+    ],
+    "joint_actions": [
+      "hip_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "abs": 0.5,
+      "quads": 0.3
+    },
+    "skill_level": 2,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "hanging_leg_raise_machine",
+    "name": "Hanging Leg Raise (Machine)",
+    "movement_pattern": "hip_flexion",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "abs",
+      "quads"
+    ],
+    "equipment": [
+      "pull_up_bar"
+    ],
+    "joint_actions": [
+      "hip_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "abs": 0.5,
+      "quads": 0.3
+    },
+    "skill_level": 2,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "hip_thrust_wide_grip",
+    "name": "Hip Thrust (Wide Grip)",
+    "movement_pattern": "hip_thrust",
+    "primary_muscles": [
+      "glutes"
+    ],
+    "secondary_muscles": [
+      "hamstrings"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "hip_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "glutes": 1.0,
+      "hamstrings": 0.4
+    },
+    "skill_level": 2,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "incline_bench_press_wide_grip",
+    "name": "Incline Bench Press (Wide Grip)",
+    "movement_pattern": "horizontal_push",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction",
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "chest": 1.0,
+      "triceps": 0.5,
+      "front_delts": 0.5
+    },
+    "skill_level": 3,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "incline_fly_machine",
+    "name": "Incline Fly (Machine)",
+    "movement_pattern": "horizontal_adduction",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "chest": 1.0,
+      "front_delts": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "inverted_row_bodyweight",
+    "name": "Inverted Row (Bodyweight)",
+    "movement_pattern": "horizontal_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "biceps",
+      "lats",
+      "rear_delts"
+    ],
+    "equipment": [
+      "bodyweight"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_abduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 0.8,
+      "rear_delts": 0.5,
+      "biceps": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "kettlebell_swing",
+    "name": "Kettlebell Swing",
+    "movement_pattern": "hinge",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "glutes"
+    ],
+    "equipment": [
+      "kettlebell"
+    ],
+    "joint_actions": [
+      "hip_extension",
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0,
+      "glutes": 0.8
+    },
+    "skill_level": 3,
+    "fatigue_cost": 5
+  },
+  {
+    "id": "landmine_press",
+    "name": "Landmine Press",
+    "movement_pattern": "vertical_push",
+    "primary_muscles": [
+      "front_delts"
+    ],
+    "secondary_muscles": [
+      "side_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "shoulder_abduction_overhead",
+      "elbow_extension"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "front_delts": 1.0,
+      "side_delts": 0.5,
+      "triceps": 0.5
+    },
+    "skill_level": 4,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "landmine_press_machine",
+    "name": "Landmine Press (Machine)",
+    "movement_pattern": "angled_push",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "chest",
+      "front_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction",
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "chest": 0.8,
+      "front_delts": 0.8,
+      "triceps": 0.5
+    },
+    "skill_level": 1,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "lat_pulldown_machine",
+    "name": "Lat Pulldown (Machine)",
+    "movement_pattern": "vertical_pull",
+    "primary_muscles": [
+      "lats"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "rear_delts"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_adduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 1.0,
+      "biceps": 0.5,
+      "rear_delts": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "lat_pulldown_neutral_grip",
+    "name": "Lat Pulldown (Neutral Grip)",
+    "movement_pattern": "vertical_pull",
+    "primary_muscles": [
+      "lats"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "rear_delts"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_adduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 1.0,
+      "biceps": 0.5,
+      "rear_delts": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "lateral_raise_neutral_grip",
+    "name": "Lateral Raise (Neutral Grip)",
+    "movement_pattern": "abduction",
+    "primary_muscles": [
+      "side_delts"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "shoulder_abduction"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "side_delts": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "leg_curl_neutral_grip",
+    "name": "Leg Curl (Neutral Grip)",
+    "movement_pattern": "knee_flexion",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "knee_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "leg_extension_machine",
+    "name": "Leg Extension (Machine)",
+    "movement_pattern": "knee_extension",
+    "primary_muscles": [
+      "quads"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "knee_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "quads": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "leg_press_calf_raise",
+    "name": "Leg Press Calf Raise",
+    "movement_pattern": "calf_raise",
+    "primary_muscles": [
+      "calves"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "ankle_plantarflexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "calves": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "leg_press_neutral_grip",
+    "name": "Leg Press (Neutral Grip)",
+    "movement_pattern": "squat",
+    "primary_muscles": [
+      "quads"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "knee_extension",
+      "hip_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "quads": 1.0,
+      "glutes": 0.5,
+      "hamstrings": 0.3
+    },
+    "skill_level": 2,
+    "fatigue_cost": 5
+  },
+  {
+    "id": "machine_assisted_dip",
+    "name": "Assisted Dip (Machine)",
+    "movement_pattern": "dip",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [
+      "chest",
+      "front_delts"
+    ],
+    "equipment": [
+      "dip_station"
+    ],
+    "joint_actions": [
+      "shoulder_extension",
+      "elbow_extension"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "triceps": 1.0,
+      "chest": 0.8,
+      "front_delts": 0.5
+    },
+    "skill_level": 4,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "machine_hip_thrust",
+    "name": "Hip Thrust (Machine)",
+    "movement_pattern": "hip_thrust",
+    "primary_muscles": [
+      "glutes"
+    ],
+    "secondary_muscles": [
+      "hamstrings"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "hip_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "glutes": 1.0,
+      "hamstrings": 0.4
+    },
+    "skill_level": 1,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "machine_lateral_raise",
+    "name": "Lateral Raise (Machine)",
+    "movement_pattern": "abduction",
+    "primary_muscles": [
+      "side_delts"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_abduction"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "side_delts": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "machine_press_tempo",
+    "name": "Machine Press (Tempo)",
+    "movement_pattern": "horizontal_push",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction",
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "chest": 1.0,
+      "triceps": 0.5,
+      "front_delts": 0.5
+    },
+    "skill_level": 1,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "machine_shoulder_press",
+    "name": "Machine Shoulder Press",
+    "movement_pattern": "vertical_push",
+    "primary_muscles": [
+      "front_delts"
+    ],
+    "secondary_muscles": [
+      "side_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_abduction_overhead",
+      "elbow_extension"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "front_delts": 1.0,
+      "side_delts": 0.5,
+      "triceps": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "nordic_curl_bodyweight",
+    "name": "Nordic Curl (Bodyweight)",
+    "movement_pattern": "knee_flexion",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "bodyweight"
+    ],
+    "joint_actions": [
+      "knee_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "overhead_extension",
+    "name": "Overhead Extension",
+    "movement_pattern": "elbow_extension",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "triceps": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "overhead_press",
+    "name": "Overhead Press",
+    "movement_pattern": "vertical_push",
+    "primary_muscles": [
+      "front_delts"
+    ],
+    "secondary_muscles": [
+      "side_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "shoulder_abduction_overhead",
+      "elbow_extension"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "front_delts": 1.0,
+      "side_delts": 0.5,
+      "triceps": 0.5
+    },
+    "skill_level": 4,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "pallof_press_tempo",
+    "name": "Pallof Press (Tempo)",
+    "movement_pattern": "anti_rotation",
+    "primary_muscles": [
+      "obliques"
+    ],
+    "secondary_muscles": [
+      "abs"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "obliques": 1.0,
+      "abs": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "pec_deck_neutral_grip",
+    "name": "Pec Deck (Neutral Grip)",
+    "movement_pattern": "horizontal_adduction",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "chest": 1.0,
+      "front_delts": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "plank",
+    "name": "Plank",
+    "movement_pattern": "anti_extension",
+    "primary_muscles": [
+      "abs"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "bodyweight"
+    ],
+    "joint_actions": [
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "abs": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "plank_bodyweight",
+    "name": "Plank (Bodyweight)",
+    "movement_pattern": "anti_extension",
+    "primary_muscles": [
+      "abs"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "bodyweight"
+    ],
+    "joint_actions": [
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "abs": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "preacher_curl_neutral_grip",
+    "name": "Preacher Curl (Neutral Grip)",
+    "movement_pattern": "elbow_flexion",
+    "primary_muscles": [
+      "biceps"
+    ],
+    "secondary_muscles": [
+      "forearms"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "biceps": 1.0,
+      "forearms": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "pull_up",
+    "name": "Pull Up",
+    "movement_pattern": "vertical_pull",
+    "primary_muscles": [
+      "lats"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "rear_delts"
+    ],
+    "equipment": [
+      "pull_up_bar"
+    ],
+    "joint_actions": [
+      "shoulder_adduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 1.0,
+      "biceps": 0.5,
+      "rear_delts": 0.3
+    },
+    "skill_level": 3,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "pull_up_bodyweight",
+    "name": "Pull Up (Bodyweight)",
+    "movement_pattern": "vertical_pull",
+    "primary_muscles": [
+      "lats"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "rear_delts"
+    ],
+    "equipment": [
+      "pull_up_bar"
+    ],
+    "joint_actions": [
+      "shoulder_adduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 1.0,
+      "biceps": 0.5,
+      "rear_delts": 0.3
+    },
+    "skill_level": 3,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "push_up_tempo",
+    "name": "Push Up (Tempo)",
+    "movement_pattern": "horizontal_push",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "front_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "bodyweight"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_adduction",
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "chest": 1.0,
+      "triceps": 0.5,
+      "front_delts": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "rear_delt_fly_tempo",
+    "name": "Rear Delt Fly (Tempo)",
+    "movement_pattern": "rear_delt_pull",
+    "primary_muscles": [
+      "rear_delts"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_abduction"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "rear_delts": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "reverse_curl_tempo",
+    "name": "Reverse Curl (Tempo)",
+    "movement_pattern": "elbow_flexion",
+    "primary_muscles": [
+      "biceps"
+    ],
+    "secondary_muscles": [
+      "forearms"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "biceps": 1.0,
+      "forearms": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "romanian_deadlift_tempo",
+    "name": "Romanian Deadlift (Tempo)",
+    "movement_pattern": "hinge",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "glutes"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "hip_extension",
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0,
+      "glutes": 0.8
+    },
+    "skill_level": 4,
+    "fatigue_cost": 5
+  },
+  {
+    "id": "russian_twist_wide_grip",
+    "name": "Russian Twist (Wide Grip)",
+    "movement_pattern": "rotation",
+    "primary_muscles": [
+      "obliques"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "spinal_rotation"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "obliques": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "seal_row_neutral_grip",
+    "name": "Seal Row (Neutral Grip)",
+    "movement_pattern": "horizontal_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "biceps",
+      "lats",
+      "rear_delts"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_abduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 0.8,
+      "rear_delts": 0.5,
+      "biceps": 0.5
+    },
+    "skill_level": 3,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "seated_cable_row",
+    "name": "Seated Cable Row",
+    "movement_pattern": "horizontal_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "biceps",
+      "lats",
+      "rear_delts"
+    ],
+    "equipment": [
+      "cable"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_abduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 0.8,
+      "rear_delts": 0.5,
+      "biceps": 0.5
+    },
+    "skill_level": 1,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "seated_calf_raise_machine",
+    "name": "Seated Calf Raise (Machine)",
+    "movement_pattern": "calf_raise",
+    "primary_muscles": [
+      "calves"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "ankle_plantarflexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "calves": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "seated_leg_curl_machine",
+    "name": "Seated Leg Curl (Machine)",
+    "movement_pattern": "knee_flexion",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "knee_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "hamstrings": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "side_plank_wide_grip",
+    "name": "Side Plank (Wide Grip)",
+    "movement_pattern": "anti_lateral_flexion",
+    "primary_muscles": [
+      "obliques"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "bodyweight"
+    ],
+    "joint_actions": [
+      "spinal_stabilization"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "obliques": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "sissy_squat_bodyweight",
+    "name": "Sissy Squat (Bodyweight)",
+    "movement_pattern": "knee_extension",
+    "primary_muscles": [
+      "quads"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "bodyweight"
+    ],
+    "joint_actions": [
+      "knee_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "quads": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "skull_crusher_wide_grip",
+    "name": "Skull Crusher (Wide Grip)",
+    "movement_pattern": "elbow_extension",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "triceps": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "smith_machine_overhead_press",
+    "name": "Smith Machine Overhead Press",
+    "movement_pattern": "vertical_push",
+    "primary_muscles": [
+      "front_delts"
+    ],
+    "secondary_muscles": [
+      "side_delts",
+      "triceps"
+    ],
+    "equipment": [
+      "smith_machine"
+    ],
+    "joint_actions": [
+      "shoulder_abduction_overhead",
+      "elbow_extension"
+    ],
+    "loaded_positions": [
+      "shoulder_end_range_external"
+    ],
+    "contribution": {
+      "front_delts": 1.0,
+      "side_delts": 0.5,
+      "triceps": 0.5
+    },
+    "skill_level": 2,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "standing_calf_raise_machine",
+    "name": "Standing Calf Raise (Machine)",
+    "movement_pattern": "calf_raise",
+    "primary_muscles": [
+      "calves"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "ankle_plantarflexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "calves": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "step_up_dumbbell",
+    "name": "Step Up (Dumbbell)",
+    "movement_pattern": "lunge",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "quads"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "knee_flexion",
+      "knee_extension",
+      "hip_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "quads": 0.8,
+      "glutes": 0.8,
+      "hamstrings": 0.3
+    },
+    "skill_level": 2,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "straight_arm_pulldown_tempo",
+    "name": "Straight Arm Pulldown (Tempo)",
+    "movement_pattern": "shoulder_extension",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "lats",
+      "triceps"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "shoulder_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 0.8,
+      "triceps": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 2
+  },
+  {
+    "id": "t_bar_row_wide_grip",
+    "name": "T Bar Row (Wide Grip)",
+    "movement_pattern": "horizontal_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "biceps",
+      "lats",
+      "rear_delts"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "shoulder_horizontal_abduction",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "lats": 0.8,
+      "rear_delts": 0.5,
+      "biceps": 0.5
+    },
+    "skill_level": 3,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "triceps_pushdown_tempo",
+    "name": "Triceps Pushdown (Tempo)",
+    "movement_pattern": "elbow_extension",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "elbow_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "triceps": 1.0
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  },
+  {
+    "id": "upright_row_neutral_grip",
+    "name": "Upright Row (Neutral Grip)",
+    "movement_pattern": "high_pull",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "rear_delts",
+      "side_delts"
+    ],
+    "equipment": [
+      "barbell"
+    ],
+    "joint_actions": [
+      "shoulder_abduction_overhead",
+      "elbow_flexion"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "side_delts": 0.8,
+      "rear_delts": 0.5
+    },
+    "skill_level": 4,
+    "fatigue_cost": 3
+  },
+  {
+    "id": "walking_lunge_tempo",
+    "name": "Walking Lunge (Tempo)",
+    "movement_pattern": "lunge",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "quads"
+    ],
+    "equipment": [
+      "machine"
+    ],
+    "joint_actions": [
+      "knee_flexion",
+      "knee_extension",
+      "hip_extension"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "quads": 0.8,
+      "glutes": 0.8,
+      "hamstrings": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 4
+  },
+  {
+    "id": "y_raise_tempo",
+    "name": "Y Raise (Tempo)",
+    "movement_pattern": "scapular",
+    "primary_muscles": [],
+    "secondary_muscles": [
+      "lats",
+      "rear_delts"
+    ],
+    "equipment": [
+      "dumbbell"
+    ],
+    "joint_actions": [
+      "scapular_retraction"
+    ],
+    "loaded_positions": [],
+    "contribution": {
+      "rear_delts": 0.5,
+      "lats": 0.3
+    },
+    "skill_level": 1,
+    "fatigue_cost": 1
+  }
+]
