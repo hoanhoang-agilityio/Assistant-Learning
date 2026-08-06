@@ -1,0 +1,16 @@
+{
+  "rubric_version": "2026.2",
+  "injuries": {
+    "knee_pain_patellofemoral": {
+      "severity": "block",
+      "avoid_joint_actions": ["knee_flexion_deep"],
+      "avoid_loaded_positions": ["knee_end_range"],
+      "limit": [{"pattern": "lunge", "max_sets_week": 4}]
+    },
+    "shoulder_impingement": {
+      "severity": "block",
+      "avoid_joint_actions": ["shoulder_abduction_overhead"],
+      "avoid_loaded_positions": ["shoulder_end_range_external"]
+    }
+  }
+}

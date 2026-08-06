@@ -1,0 +1,7 @@
+{
+  "rubric_version": "2026.2",
+  "protein_g_per_kg": {"min": 1.6, "target": 2.0, "max": 2.5},
+  "fat_g_per_kg": {"min": 0.6},
+  "deficit": {"max_pct_bw_per_week": 1.0, "max_pct_tdee": 25},
+  "floor_kcal": {"male": 1500, "female": 1200}
+}
