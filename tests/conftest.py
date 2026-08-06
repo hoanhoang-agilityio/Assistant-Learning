@@ -1,3 +1,16 @@
+"""Shared pytest configuration.
+
+Two suites live in this directory. ``test_app_*.py`` cover the ``app/`` package
+(the current flow); every other ``test_*.py`` covers the legacy ``src/`` flow and
+is **not collected by default** — it is slow, needs optional extras that are not
+installed (``ragas``), and is not maintained alongside ``app/``.
+
+Run the old suite explicitly when you need it::
+
+    RUN_SRC_TESTS=1 uv run pytest
+"""
+
+import os
 from pathlib import Path
 from typing import Any
 
@@ -178,3 +191,21 @@ def disable_langfuse_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def memory_checkpointer():
     return MemorySaver()
+
+
+def pytest_ignore_collect(collection_path, config) -> bool | None:
+    """Skip the legacy src/ test modules unless explicitly asked for.
+
+    Args:
+        collection_path: Path pytest is considering collecting.
+        config: The pytest config.
+
+    Returns:
+        ``True`` to skip, ``None`` to let pytest decide as usual.
+    """
+    if os.getenv("RUN_SRC_TESTS"):
+        return None
+    name = collection_path.name
+    if name.startswith("test_") and not name.startswith("test_app_"):
+        return True
+    return None
