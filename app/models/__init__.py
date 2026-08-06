@@ -7,8 +7,22 @@ silently empty migration.
 """
 
 from app.models.base import BaseModel
+from app.models.exercise import Exercise
+from app.models.knowledge import KnowledgeChunk
+from app.models.plan_version import PlanVersion
+from app.models.profile import UserProfile
 from app.models.session import Session
 from app.models.token import RefreshToken, RevokedToken
 from app.models.user import User
 
-__all__ = ["BaseModel", "RefreshToken", "RevokedToken", "Session", "User"]
+__all__ = [
+    "BaseModel",
+    "Exercise",
+    "KnowledgeChunk",
+    "PlanVersion",
+    "RefreshToken",
+    "RevokedToken",
+    "Session",
+    "User",
+    "UserProfile",
+]

@@ -24,6 +24,51 @@ config.set_main_option("sqlalchemy.url", settings.sqlalchemy_database_uri)
 
 target_metadata = SQLModel.metadata
 
+# Tables created and migrated by systems other than Alembic: the LangGraph
+# AsyncPostgresSaver (via checkpointer.setup()) and mem0's pgvector store. They
+# have no SQLModel counterpart, so without this filter the first autogenerate
+# run after the checkpointer exists emits op.drop_table("checkpoints") — and
+# applying that deletes every conversation.
+EXCLUDE_TABLES = {
+    "checkpoints",
+    "checkpoint_blobs",
+    "checkpoint_writes",
+    "checkpoint_migrations",
+    "longterm_memory",
+    "mem0migrations",
+}
+
+
+# Indexes declared by hand in a migration because autogenerate cannot express
+# them. GIN indexes on text[] columns are the case here: Alembic does not read
+# an existing index's access method, so an index created `USING gin` looks like
+# one it never created, and every later autogenerate proposes dropping it.
+# Applying that turns the catalog's array containment queries into sequential
+# scans, silently. The HNSW index on `knowledge_chunks.embedding` carries an
+# operator class as well, which autogenerate cannot express either.
+EXCLUDE_INDEX_SUFFIXES = ("_gin", "_hnsw")
+
+
+def include_object(
+    obj: object, name: str | None, type_: str, reflected: bool, compare_to: object
+) -> bool:
+    """Skip schema objects Alembic does not own or cannot represent.
+
+    Args:
+        obj: The reflected or metadata schema object.
+        name: Object name as it appears in the database.
+        type_: Object kind, e.g. ``"table"``, ``"column"`` or ``"index"``.
+        reflected: Whether the object came from database reflection.
+        compare_to: The counterpart object being diffed against, if any.
+
+    Returns:
+        ``False`` for tables in ``EXCLUDE_TABLES`` and hand-written indexes,
+        ``True`` otherwise.
+    """
+    if type_ == "index" and name and name.endswith(EXCLUDE_INDEX_SUFFIXES):
+        return False
+    return not (type_ == "table" and name in EXCLUDE_TABLES)
+
 
 def run_migrations_offline() -> None:
     """Emit SQL to stdout without connecting."""
@@ -33,6 +78,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -50,6 +96,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            include_object=include_object,
             # SQLite cannot ALTER most things in place; batch mode rewrites the
             # table instead, so the same migration works on both backends.
             render_as_batch=connection.dialect.name == "sqlite",
