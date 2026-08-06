@@ -37,7 +37,8 @@ Rules while both exist:
       why a given store stays on raw psycopg
 - [ ] Decide the fate of `AIRateLimiter` — the token/cost limiter has no equivalent in
       `app/`, and slowapi does not replace it
-- [ ] Port the Streamlit UI's API client to the `app/` endpoints and the bearer-token flow
+- [x] Port the Streamlit UI's API client to the `app/` endpoints and the bearer-token flow —
+      moved to `app/ui/`, `src/ui/` deleted
 - [ ] Move `tests/` fixtures and the OWASP/Ragas benchmark harnesses over
 - [ ] Delete `src/`, drop it from `[tool.hatch.build.targets.wheel]` and
       `[tool.pytest.ini_options].pythonpath`, update `.gitlab-ci.yml`
@@ -147,10 +148,32 @@ This is the entrypoint the Dockerfile uses.
 docker compose up -d db          # Postgres on host port 5433
 uv sync --extra dev
 uv run alembic upgrade head      # creates user / session / refresh_token / revoked_token
+uv run python scripts/seed_catalog.py     # exercise catalog
+uv run python scripts/seed_knowledge.py   # knowledge base (needs OPENAI_API_KEY)
 uv run uvicorn app.main:app --reload
 ```
 
 Swagger UI: **http://localhost:8000/docs**
+
+### Seeding the knowledge base (`app/` flow)
+
+`search_knowledge` reads the `knowledge_chunks` table, and until that table is populated
+the tool returns `[]` on every query — the QA agent then answers from the model's own
+knowledge and says the base had nothing, which is honest but not the intended state.
+
+The source of truth is `data/knowledge/*.docx`. Each `Heading 2` section becomes one
+passage (long sections are split, with the heading repeated on every part), embedded with
+`text-embedding-3-small` and stored as a pgvector column.
+
+```bash
+uv run python scripts/seed_knowledge.py --dry-run   # chunk plan, no API calls, no writes
+uv run python scripts/seed_knowledge.py             # embed and upsert
+# -> knowledge base: 88 passages — 88 inserted, 0 updated, 0 unchanged, 0 deleted
+```
+
+Idempotent and frugal: only passages whose text changed are re-embedded, and a section
+deleted from a document is deleted from the table. Add a document by dropping a `.docx`
+into `data/knowledge/` and re-running — no code change.
 
 Settings come from `.env.development` (selected by `APP_ENV`, default `development`). Two
 things stop the app from starting, both deliberately:
@@ -359,14 +382,28 @@ The main API connects to it once at startup via `langchain-mcp-adapters`. Set
 
 ## Run the Streamlit UI
 
-In a second terminal (API must be running):
+In a second terminal (`app.main:app` must be running):
 
 ```bash
 export API_BASE_URL=http://localhost:8000
-uv run streamlit run src/ui/app.py --server.port 8501
+uv run streamlit run app/ui/main.py --server.port 8501
 ```
 
-The UI lets you submit a query, poll run status, approve/reject at HITL, and view the final plan.
+`API_BASE_URL` is the API origin only — the client appends `/api/v1` itself.
+
+Sign in or create an account on first load; every endpoint behind the UI requires a bearer
+token, so there is no anonymous mode. Once in, the sidebar lists your conversations straight
+from Postgres (`GET /auth/sessions`) and opening one loads its history from the LangGraph
+checkpointer (`GET /chatbot/messages`), so a conversation started on another machine — or
+before a restart — is still there. Rename, clear and delete act on the open conversation.
+
+Chat is one turn per request against `POST /chatbot/chat`. Plan builds, changes, reviews and
+reverts all answer through the same endpoint, including the confirm gate: when the agent asks
+whether to apply a change, replying `yes` resumes the interrupted run.
+
+Tokens live in Streamlit's per-session state and nowhere else — not in the URL, not on disk —
+so a full browser reload signs you out. Nothing is lost: the conversations are in the
+database and reappear on the next sign-in.
 
 ## Run in Docker
 
@@ -462,19 +499,21 @@ app/
 ├── models/         # SQLModel tables: user, session, refresh_token, revoked_token
 ├── schemas/        # pydantic request/response models
 ├── services/       # DatabaseService — all persistence for the auth layer
-└── utils/          # token creation/verification, input sanitization
+├── utils/          # token creation/verification, input sanitization
+└── ui/             # Streamlit client — HTTP-only, talks to /api/v1 and nothing else
 alembic/            # migrations for the app/ schema only
 ```
 
 Layer rule: `api → services → models`. `utils/` and `core/` are leaves that everything may
-import and that import nothing from the layers above them.
+import and that import nothing from the layers above them. `ui/` sits outside that rule
+entirely: it is a client of the HTTP surface, so it may import `app.utils` for shared
+validation constants but never a service, a model or the graph.
 
 ### `src/` — legacy, scheduled for deletion
 
 ```text
 src/
 ├── api/            # FastAPI app — routes, DI wiring, schemas
-├── ui/             # Streamlit client (HTTP-only; imports nothing from core)
 ├── core/
 │   ├── capabilities/    # the business capabilities the supervisor routes between
 │   │                    #   fitness  planning  research  user  verification

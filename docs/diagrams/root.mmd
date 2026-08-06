@@ -1,0 +1,73 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	classify(classify)
+	dispatch(dispatch)
+	qa(qa)
+	profile_gate(profile_gate)
+	ask_missing(ask_missing)
+	intent_branch(intent_branch)
+	ingest_plan(ingest_plan)
+	ask_clarify_plan(ask_clarify_plan)
+	resolve_version(resolve_version)
+	ask_which_version(ask_which_version)
+	load_snapshot(load_snapshot)
+	not_implemented(not_implemented)
+	planning(planning)
+	patch_plan(patch_plan)
+	calc_macro(calc_macro)
+	verification(verification)
+	verdict_gate(verdict_gate)
+	repair(repair)
+	build_diff(build_diff)
+	confirm(confirm)
+	snapshot(snapshot)
+	compose_answer(compose_answer)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> classify;
+	ask_clarify_plan -.-> __end__;
+	ask_missing -.-> __end__;
+	ask_which_version -.-> __end__;
+	build_diff -.-> confirm;
+	calc_macro -.-> verification;
+	classify -.-> dispatch;
+	compose_answer -.-> __end__;
+	confirm -.-> __end__;
+	confirm -.-> snapshot;
+	dispatch -.-> profile_gate;
+	dispatch -.-> qa;
+	ingest_plan -.-> ask_clarify_plan;
+	ingest_plan -.-> calc_macro;
+	intent_branch -.-> ingest_plan;
+	intent_branch -.-> not_implemented;
+	intent_branch -.-> patch_plan;
+	intent_branch -.-> planning;
+	intent_branch -.-> resolve_version;
+	load_snapshot -.-> __end__;
+	load_snapshot -.-> calc_macro;
+	not_implemented -.-> __end__;
+	patch_plan -.-> calc_macro;
+	patch_plan -.-> compose_answer;
+	planning -.-> calc_macro;
+	planning -.-> compose_answer;
+	profile_gate -.-> ask_missing;
+	profile_gate -.-> intent_branch;
+	qa -.-> __end__;
+	repair -.-> calc_macro;
+	repair -.-> compose_answer;
+	resolve_version -.-> __end__;
+	resolve_version -.-> ask_which_version;
+	resolve_version -.-> load_snapshot;
+	snapshot -.-> compose_answer;
+	verdict_gate -.-> build_diff;
+	verdict_gate -.-> compose_answer;
+	verdict_gate -.-> repair;
+	verdict_gate -.-> snapshot;
+	verification -.-> verdict_gate;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

@@ -1,0 +1,22 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	select_template(select_template)
+	filter_candidates(filter_candidates)
+	choose_exercises(choose_exercises)
+	assemble_plan(assemble_plan)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> select_template;
+	assemble_plan -.-> __end__;
+	choose_exercises -.-> assemble_plan;
+	filter_candidates -.-> __end__;
+	filter_candidates -.-> choose_exercises;
+	select_template -.-> __end__;
+	select_template -.-> filter_candidates;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
