@@ -71,7 +71,7 @@ class State(TypedDict):
     draft_plan: dict | None         # uncommitted draft
 
     # --- verify ---
-    issues: Annotated[list[Issue], add]   # reducer required for fan-out
+    issues: Annotated[list[Issue], accumulate_issues]  # fan-out; None clears (§2.3b)
     verdict: Literal["pass", "warn", "fail"] | None
     repair_count: int
 
@@ -92,6 +92,21 @@ class State(TypedDict):
 | `computed_macros` vs `macros` | `verify_macro` is a comparison of two values — both must exist at once. |
 | `repair_count` | The loop crosses many nodes; a local variable does not survive. |
 
+### 2.3b. What a turn keeps and what it must throw away
+
+State lives in the checkpointer, so every field above survives into the *next* turn. Split them:
+
+| | Fields | Lifetime |
+|---|---|---|
+| **What the user has** | `plan`, `macros`, `profile`, `version_index`, `current_version_id` | Survives. Clearing these deletes the plan. |
+| **What a turn derives** | `issues`, `verdict`, `repair_count`, `draft_plan`, `computed_macros`, `submitted_plan`, `revert_target`, `answer` | Cleared at the start of every run by `classify` (`NEW_TURN` in `app/schemas/graph.py`). |
+
+Skipping the reset does not look like a bug in the branch that leaks — it looks like a wrong answer three turns later. A build reports "no vertical push exercise fits — Upper A", the user asks for five days, and the change is presented with the *build's* findings still attached, naming days of a split that no longer exists. Worse, `submitted_plan` outranks `draft_plan` everywhere it is read, so one `check` turn makes every later build compose its answer from the plan the user pasted a week ago.
+
+`issues` therefore needs a reducer that can clear: `add` accumulates within the turn (three verifiers fan out into one answer) but has no value meaning "empty". `accumulate_issues` reads `None` as the reset and `[]` as a verifier that found nothing — conflating them lets the volume check erase what the injury check found.
+
+A **resume** does not run `classify` and must not reset: the "yes" answering a confirm gate continues the run that staged the diff.
+
 ### 2.4. Why `version_index` instead of full versions
 
 LangGraph serializes the entire state after **every node**. If history holds 8 versions × full plan JSON, every conversation turn rewrites everything many times — cost grows quadratically.
@@ -111,18 +126,26 @@ Each subgraph declares its own narrower state. The parent maps fields in and out
 
 #### `QAState` — general_qa
 
+QA is the one branch that is an *agent* rather than a pipeline: a model, a tool and a prompt, declared with `create_agent`. There are no nodes in its package — the model/tool loop and its exit conditions come from the framework, and the policies around it are middleware:
+
+| Middleware | Replaces |
+|---|---|
+| `dynamic_prompt` | The system prompt built per call from state |
+| `ModelRetryMiddleware` | `llm_service`'s tenacity retry, same retryable-error set |
+| `ModelFallbackMiddleware` | `llm_service`'s circular fallback, same registry order |
+| `ToolCallLimitMiddleware` | "you have searched enough, answer with what you have" |
+| `ModelCallLimitMiddleware` | The hard floor under a model that only ever calls tools |
+
 ```python
-class QAState(TypedDict):
-    messages: Annotated[list, add_messages]
+class QAState(AgentState):     # messages comes from AgentState
     plan_context: str          # rendered read-only text of plan + macros
     long_term_memory: str      # retrieved once at the root facade, passed down
-    answer: str
 ```
 
 No `plan` / `draft_plan` / `macros` field to write to. The parent passes `plan` and `macros` in as `plan_context` (a string), so a knowledge question cannot mutate the plan even by mistake.
 
-Parent map-in: `messages`, `plan_context = render(plan, macros)`, `long_term_memory`, `answer=""`.
-Parent map-out: new `messages` delta, `answer`.
+Parent map-in: `messages`, `plan_context = render(plan, macros)`, `long_term_memory`.
+Parent map-out: the final answer, as one `AIMessage` and as `answer`. The tool round-trip stays inside the agent — the root transcript is what every other node reads, and `dump_messages` cannot represent a `ToolMessage`.
 
 #### `IngestState` — check (pasted plan)
 
@@ -190,7 +213,7 @@ Parent map-out: `issues`, `verdict` → `verdict_gate`.
 flowchart TD
     START([User query]) --> CLS["classify<br/>LLM"]
 
-    CLS -->|general_qa| QA["answer_qa<br/>LLM + search_knowledge"]
+    CLS -->|general_qa| QA["qa<br/>agent: LLM + search_knowledge"]
     CLS -->|revert| RESV["resolve_version<br/>LLM"]
     CLS -->|build/change/check| LOADP["load_profile<br/>det"]
 
@@ -255,7 +278,7 @@ flowchart TD
 | Node | Reads state | Writes state | Allowed tools |
 |---|---|---|---|
 | `classify` | `messages` | `intent`, `scope`, `changes` | — |
-| `answer_qa` | `messages`, `plan`, `macros` (read-only) | `answer` | `search_knowledge` |
+| `qa` | `messages`, `plan`, `macros` (read-only) | `answer` | `search_knowledge` |
 | `extract_profile` | `messages`, `profile` | `profile` | — |
 | `ask_missing` | `missing_fields`, `intent` | `answer` | — |
 | `resolve_version` | `messages`, `version_index` | `revert_target` | — |
@@ -263,6 +286,8 @@ flowchart TD
 | `choose_exercises` | `draft_plan.slots`, `profile` | `draft_plan` | `get_exercise_candidates` |
 | `repair` | `issues`, `draft_plan`, `profile` | `draft_plan`, `repair_count` | `get_exercise_candidates` |
 | `compose_answer` | everything | `answer` | — |
+
+`compose_answer` is handed pre-rendered text, never the state objects — so every fact its prompt asks for has to be *in* that text. The prompt opens the answer with the split, the sessions a week and the goal; when those were not rendered, the model still produced the sentence, sourcing all three from long-term memory and from findings that mentioned a day name. A 5-day plan was announced as 4-day. **Anything the prompt tells the model to state must appear in the data the prompt carries; a gap is filled, not noticed.**
 
 ### 4.2. Deterministic nodes
 
@@ -345,7 +370,7 @@ def search_knowledge(query: str, top_k: int = 4) -> list[dict]:
     Only for general_qa. Do not use it to fetch build-plan data."""
 ```
 
-Called by: `answer_qa`.
+Called by: `qa`.
 
 Data source: `data/knowledge/*.docx`. Each `Heading 2` is a passage (over-long sections
 are split, with the heading repeated on every part), embedded with `text-embedding-3-small`
