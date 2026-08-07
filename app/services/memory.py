@@ -28,6 +28,8 @@ import hashlib
 import os
 from typing import Any
 
+from mem0 import AsyncMemory
+
 from app.core.cache import cache_service
 from app.core.configs.config import settings
 from app.core.logging import logger
@@ -156,8 +158,6 @@ class MemoryService:
             # a health-adjacent application should not leave the deployment
             # because a dependency ships analytics enabled.
             os.environ.setdefault("MEM0_TELEMETRY", "False")
-
-            from mem0 import AsyncMemory
 
             # Not a coroutine in mem0 2.x despite the class name — awaiting it
             # raises "object AsyncMemory can't be used in 'await' expression".
