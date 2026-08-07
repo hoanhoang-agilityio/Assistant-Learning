@@ -99,26 +99,6 @@ def conversation_title(name: str, fallback: str, *, max_length: int = 40) -> str
         return title
     return title[: max_length - 1].rstrip() + "…"
 
-
-def name_from_message(text: str, *, max_length: int = 60) -> str:
-    """Derive a conversation name from its opening message.
-
-    The API creates conversations unnamed, so without this every row in the
-    sidebar reads "New chat" and the list is unusable after the third one.
-
-    Args:
-        text: The first thing the user sent.
-        max_length: The API caps the name at 100 characters; stay well inside it.
-
-    Returns:
-        A trimmed single-line name.
-    """
-    title = " ".join(text.split())
-    if len(title) <= max_length:
-        return title
-    return title[: max_length - 1].rstrip() + "…"
-
-
 __all__ = [
     "CHAT_PLACEHOLDER",
     "ERROR_COPY",
@@ -129,5 +109,4 @@ __all__ = [
     "WELCOME_BODY",
     "WELCOME_TITLE",
     "conversation_title",
-    "name_from_message",
 ]

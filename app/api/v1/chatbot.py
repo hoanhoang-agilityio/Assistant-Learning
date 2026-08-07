@@ -16,13 +16,15 @@ from fastapi.responses import StreamingResponse
 
 from app.api.v1.auth import get_current_session
 from app.core.configs.config import settings
-from app.core.langgraph.graph import agent
+from app.core.langgraph.graph import LangGraphAgent
 from app.core.limiter import limiter
 from app.core.logging import logger
 from app.models.session import Session
 from app.schemas.chat import ChatRequest, ChatResponse, StreamResponse
+from app.services.session_naming import maybe_name_session
 
 router = APIRouter()
+agent = LangGraphAgent()
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -39,12 +41,19 @@ async def chat(
             session_id=session.id,
             message_count=len(chat_request.messages),
         )
+
+        if settings.SESSION_NAMING_ENABLED:
+            maybe_name_session(session.id, session.name, chat_request.messages)
+
         result = await agent.get_response(
             chat_request.messages,
             session.id,
             user_id=str(session.user_id),
             username=session.username,
         )
+
+        logger.info("chat_request_processed", session_id=session.id)
+
         return ChatResponse(messages=result)
     except Exception as e:
         logger.exception("chat_request_failed", session_id=session.id, error=str(e))
@@ -64,6 +73,12 @@ async def chat_stream(
         session_id=session.id,
         message_count=len(chat_request.messages),
     )
+
+    # Outside event_source() on purpose: inside the generator this would not run
+    # until the client starts consuming, and an abandoned stream would leave the
+    # session unnamed.
+    if settings.SESSION_NAMING_ENABLED:
+        maybe_name_session(session.id, session.name, chat_request.messages)
 
     async def event_source() -> AsyncGenerator[str, None]:
         """Yield SSE frames, ending with a single ``done`` frame either way."""

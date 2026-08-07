@@ -47,3 +47,28 @@ class StreamResponse(BaseModel):
 
     content: str = Field(default="", description="Incremental text chunk")
     done: bool = Field(default=False, description="True on the final frame, including errors")
+
+
+class SessionTitle(BaseModel):
+    """Structured output schema for auto-generated session titles.
+
+    The bound and the validator are the guardrail around a model asked for a
+    bare title: wrapping quotes and trailing punctuation are stripped here
+    rather than in the sidebar, and anything longer than a title is rejected
+    outright. Prefixes like ``Title:`` are the prompt's job, not the schema's.
+    """
+
+    title: str = Field(
+        min_length=1,
+        max_length=60,
+        description="Short conversation title in the user's language",
+    )
+
+    @field_validator("title")
+    @classmethod
+    def _normalize(cls, v: str) -> str:
+        """Collapse whitespace and strip surrounding quotes and punctuation."""
+        v = " ".join(v.split()).strip(" \"'`.,:;!?-")
+        if not v:
+            raise ValueError("empty title after normalization")
+        return v

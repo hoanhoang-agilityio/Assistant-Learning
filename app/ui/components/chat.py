@@ -18,7 +18,7 @@ import httpx
 import streamlit as st
 
 from app.ui import api_client, state
-from app.ui.wording import ERROR_COPY, THINKING_LABEL, name_from_message
+from app.ui.wording import ERROR_COPY, THINKING_LABEL
 
 _AVATARS = {"user": "🙂", "assistant": "🏋️"}
 
@@ -241,7 +241,7 @@ def send_turn(client: httpx.Client, session_id: str, text: str) -> None:
                 }
             ]
         st.session_state.messages.extend(replies)
-        _name_conversation_if_unnamed(client, session_id, text)
+        _refresh_conversation_names(client)
 
     run_guarded_backend_action(
         do_send,
@@ -251,34 +251,27 @@ def send_turn(client: httpx.Client, session_id: str, text: str) -> None:
     )
 
 
-def _name_conversation_if_unnamed(client: httpx.Client, session_id: str, message: str) -> None:
-    """Name a still-unnamed conversation after the message just sent.
+def _refresh_conversation_names(client: httpx.Client) -> None:
+    """Pull the names the server gave the conversations into the sidebar.
 
-    Sessions are created unnamed by ``POST /auth/session``, so without this the
-    sidebar is a column of identical rows. Failure is swallowed on purpose: a
-    conversation that could not be renamed still works, and turning a cosmetic
-    problem into an error message on a turn that just succeeded would be worse
-    than the unnamed row — the next turn tries again.
+    Naming is the server's job (``app.services.session_naming``): the first turn
+    claims the session, writes a placeholder from the message, then overwrites it
+    with an LLM-generated title a second or two later. The client must not derive
+    a name of its own — doing so raced that background write and, because this
+    runs after the turn, the client's guess always won.
+
+    Failure is swallowed on purpose: a conversation whose label is one turn stale
+    still works, and turning a cosmetic problem into an error message on a turn
+    that just succeeded would be worse. The sidebar's refresh button and the next
+    turn both try again.
 
     Args:
         client: An open API client.
-        session_id: The conversation to name.
-        message: What the user just sent.
     """
-    conversation = state.active_conversation()
-    if conversation is None or conversation["name"]:
-        return
-
-    name = name_from_message(message)
     try:
-        with_session_retry(
-            client,
-            lambda token: api_client.rename_session(client, token, session_id, name),
-            session_id=session_id,
-        )
+        state.sync_conversations(client)
     except (httpx.HTTPError, KeyError):
         return
-    state.set_conversation_name(session_id, name)
 
 
 __all__ = [

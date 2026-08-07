@@ -22,6 +22,10 @@ _COMPOSE_ANSWER_TEMPLATE = (_PROMPTS_DIR / "compose_answer.md").read_text(encodi
 _RESOLVE_VERSION_TEMPLATE = (_PROMPTS_DIR / "resolve_version.md").read_text(encoding="utf-8")
 _EXTRACT_PROFILE_TEMPLATE = (_PROMPTS_DIR / "extract_profile.md").read_text(encoding="utf-8")
 
+# Used verbatim, not formatted: the message being titled is sent as a separate
+# HumanMessage rather than interpolated, so there is no ``load_*`` counterpart.
+SESSION_TITLE_PROMPT = (_PROMPTS_DIR / "session_title.md").read_text(encoding="utf-8")
+
 _NO_MEMORY = "# Memory\n\nNo relevant memory found for this user."
 
 
@@ -122,6 +126,7 @@ def load_resolve_version_prompt(versions: str, query: str) -> str:
 
 
 __all__ = [
+    "SESSION_TITLE_PROMPT",
     "load_classify_prompt",
     "load_compose_answer_prompt",
     "load_extract_profile_prompt",
