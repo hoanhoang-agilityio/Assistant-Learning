@@ -27,6 +27,7 @@ Intent = Literal[
     "check",
     "revert",
     "general_qa",
+    "off_topic",
 ]
 
 VerifyScope = Literal["macro", "volume", "injury"]

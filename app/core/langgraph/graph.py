@@ -96,6 +96,15 @@ _NO_HISTORY_ANSWER = (
     "There's no earlier version to go back to — the plan you have is the only one I've saved."
 )
 
+# The topic gate's whole reply. Deliberately a constant and not a model call:
+# the one thing this branch must never do is engage with the message it is
+# declining, and a model handed that message will find a way to help with it.
+_OFF_TOPIC_ANSWER = (
+    "That's outside what I do — I only work on training plans and the nutrition "
+    "that goes with them. Ask me about your plan, your training, or anything "
+    "about lifting and eating for it."
+)
+
 # Words that count as approval at the confirm gate, across the languages this
 # assistant answers in. Anything not listed is treated as "no" — a confirm gate
 # that guesses in favour of proceeding is not a gate.
@@ -554,6 +563,28 @@ class LangGraphAgent:
         # Declined. `plan` and `macros` are untouched, so the stored plan is
         # still exactly what the user approved before this turn.
         return Command(update={"pending_commit": None, "answer": _DECLINED_ANSWER}, goto="finalize")
+
+    async def _decline(self, state: RootState, config: RunnableConfig) -> Command:
+        """Answer a message the classifier put outside the assistant's domain.
+
+        Reads nothing. Writes ``answer``.
+
+        The gate is one lookup and one constant, with no model between the two.
+        That is the point: the alternative — asking a model to write the refusal
+        — hands the off-topic message straight back to an LLM and makes the
+        refusal itself a thing that can be argued with. It also cannot reach any
+        node that touches the plan, because ``dispatch`` sends it here and here
+        only goes to ``finalize``.
+
+        Args:
+            state: Current root state. Unused — the reply does not depend on it.
+            config: Runnable config. Unused — no I/O.
+
+        Returns:
+            A command writing the refusal and going to ``finalize``.
+        """
+        logger.info("routing_declined_off_topic")
+        return Command(update={"answer": _OFF_TOPIC_ANSWER}, goto="finalize")
 
     async def _not_implemented(self, state: RootState, config: RunnableConfig) -> Command:
         """Answer for the branches that are designed but not built.
@@ -1218,6 +1249,11 @@ def _add_nodes(builder: StateGraph, agent: "LangGraphAgent") -> None:
     # root graph as this one node. Its own model/tool loop is internal, which is
     # why it needs no edges here beyond the one out.
     builder.add_node("qa", agent._qa, destinations=("finalize",))
+    # The other terminal branch off `dispatch`. It sits beside `qa` rather than
+    # among the plan nodes because that is the whole guarantee: an off-topic turn
+    # reaches exactly one node, and that node has no edge to anything that reads
+    # or writes a plan.
+    builder.add_node("decline", agent._decline, destinations=("finalize",))
 
     # The profile gate: three root nodes, not a packaged agent — a straight line
     # that only orchestrates this graph. `check_required` is the only one with

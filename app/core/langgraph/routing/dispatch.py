@@ -15,6 +15,11 @@ from app.schemas.graph import Intent, RootState
 # branch — adding an Intent literal without a target here fails the mapping test.
 DISPATCH_TARGETS: dict[Intent, str] = {
     "general_qa": "qa",
+    # The topic gate, and the reason it is a target here rather than a node in
+    # front of `classify`: classify already reads the conversation and already
+    # pays for a model call, so the judgment is free. A separate guardrail node
+    # would add a round-trip to every turn to catch the rare one.
+    "off_topic": "decline",
     # Every write intent enters the profile gate at `load_profile`. There is no
     # edge around it, which is what stops a turn reaching calc_macro without an
     # activity level: the gate runs to `check_required`, and only

@@ -16,7 +16,7 @@ _CONTEXT_TURNS = 6
 
 # Intents whose verifier selection comes from the pipeline, not the classifier.
 # Only `check` lets the user's wording decide which rubrics run.
-_NO_SCOPE_INTENTS = frozenset({"build_plan", "change_plan", "revert", "general_qa"})
+_NO_SCOPE_INTENTS = frozenset({"build_plan", "change_plan", "revert", "general_qa", "off_topic"})
 
 _CLASSIFIER_MODEL = "gpt-5-mini"
 
@@ -37,7 +37,10 @@ async def classify(state: RootState, config: RunnableConfig) -> Command:
     A classification failure routes to ``general_qa`` rather than raising: the
     worst outcome of that fallback is a plain answer, whereas guessing
     ``change_plan`` would put the user's approved plan on the path to being
-    overwritten.
+    overwritten. It is deliberately not ``off_topic`` either — the topic gate is
+    a decision the classifier makes, and a classifier that just failed has made
+    no decision. Declining on an outage would turn a bad minute for the model
+    into a refusal aimed at the user.
 
     Args:
         state: Current root state.
