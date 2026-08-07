@@ -15,8 +15,6 @@ already attached, there is nothing left to decide.
 
 from typing import Any
 
-from app.core.langgraph.rubrics import CONTRAINDICATIONS
-from app.core.langgraph.templates import get_template, iter_slots
 from app.core.logging import logger
 from app.schemas.graph import Issue
 from app.services.catalog import (
@@ -24,6 +22,8 @@ from app.services.catalog import (
     forbidden_joint_actions,
     forbidden_loaded_positions,
 )
+from app.services.rubrics import contraindications
+from app.services.templates import get_template, iter_slots
 
 # Repairs only address findings that block. A warning is a judgment call the
 # user is entitled to overrule, and spending the repair budget on one would
@@ -57,8 +57,8 @@ def repair_plan(
     template = get_template(draft_plan.get("template_id", ""))
     slots_by_id = {slot["slot_id"]: slot for slot in iter_slots(template)} if template else {}
 
-    forbidden_actions = forbidden_joint_actions(profile, CONTRAINDICATIONS)
-    forbidden_positions = forbidden_loaded_positions(profile, CONTRAINDICATIONS)
+    forbidden_actions = forbidden_joint_actions(profile, contraindications())
+    forbidden_positions = forbidden_loaded_positions(profile, contraindications())
 
     offending = _offending_exercise_ids(draft_plan, blocking, catalog)
     if not offending:

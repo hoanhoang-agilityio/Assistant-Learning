@@ -18,13 +18,13 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
 
-from app.core.langgraph.rubrics import CONTRAINDICATIONS
 from app.core.langgraph.utils import dump_messages
 from app.core.logging import logger
 from app.core.prompts import load_extract_profile_prompt
 from app.schemas.graph import Issue, ProfileExtraction, RootState
 from app.services import profile as profile_service
 from app.services.llm.service import llm_service
+from app.services.rubrics import contraindications
 
 _EXTRACTOR_MODEL = "gpt-5-mini"
 
@@ -257,7 +257,7 @@ def _clean(extraction: ProfileExtraction) -> dict:
             clean[key] = str(value)[:200]
         elif key == "injuries":
             # An empty list is a real answer ("no injuries") and must survive.
-            clean[key] = [item for item in value if item in CONTRAINDICATIONS["injuries"]]
+            clean[key] = [item for item in value if item in contraindications()["injuries"]]
         else:
             clean[key] = value
 

@@ -38,7 +38,6 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.core.langgraph.rubrics import CONTRAINDICATIONS  # noqa: E402
 from app.services.movement_taxonomy import (  # noqa: E402
     MOVEMENT_ATTRIBUTES,
     attributes_for,
@@ -48,6 +47,10 @@ from app.services.movement_taxonomy import (  # noqa: E402
 
 _ROOT = Path(__file__).resolve().parent.parent
 _SEED = _ROOT / "data" / "exercise_seed.json"
+# Read from the seed file rather than through `app.services.rubrics`, which
+# would need Postgres up and seeded. This script validates a file, and must run
+# before anything has been loaded — including the rubric it checks against.
+_RUBRIC_SEED = _ROOT / "data" / "rubric_seed.json"
 
 _REQUIRED_KEYS = (
     "id",
@@ -66,6 +69,15 @@ _REQUIRED_KEYS = (
 _MIN_LEVEL, _MAX_LEVEL = 1, 5
 
 
+def _contraindications() -> dict[str, Any]:
+    """Read the injury rubric from its seed file.
+
+    Returns:
+        The ``contraindications`` document.
+    """
+    return json.loads(_RUBRIC_SEED.read_text(encoding="utf-8"))["contraindications"]
+
+
 def _known_joint_actions() -> set[str]:
     """Every joint action the system recognises.
 
@@ -81,7 +93,7 @@ def _known_joint_actions() -> set[str]:
     }
     from_rubric = {
         action
-        for injury in CONTRAINDICATIONS["injuries"].values()
+        for injury in _contraindications()["injuries"].values()
         for action in injury["avoid_joint_actions"]
     }
     return from_taxonomy | from_rubric
@@ -98,7 +110,7 @@ def _known_loaded_positions() -> set[str]:
     }
     from_rubric = {
         position
-        for injury in CONTRAINDICATIONS["injuries"].values()
+        for injury in _contraindications()["injuries"].values()
         for position in injury.get("avoid_loaded_positions", [])
     }
     return from_taxonomy | from_rubric

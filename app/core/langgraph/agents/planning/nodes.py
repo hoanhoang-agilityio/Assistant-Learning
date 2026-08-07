@@ -15,8 +15,6 @@ from langgraph.types import Command
 
 from app.core.langgraph.agents.planning.prompts import load_choose_exercises_prompt
 from app.core.langgraph.agents.planning.state import ExerciseChoices, PlanningState
-from app.core.langgraph.rubrics import CONTRAINDICATIONS
-from app.core.langgraph.templates import iter_slots, query_templates
 from app.core.logging import logger
 from app.schemas.graph import Issue
 from app.services.catalog import (
@@ -25,6 +23,8 @@ from app.services.catalog import (
     forbidden_loaded_positions,
 )
 from app.services.llm.service import llm_service
+from app.services.rubrics import contraindications
+from app.services.templates import iter_slots, query_templates
 
 _CHOOSER_MODEL = "gpt-5-mini"
 
@@ -109,8 +109,8 @@ async def filter_candidates(state: PlanningState, config: RunnableConfig) -> Com
     """
     profile = state["profile"]
     catalog = state["catalog"]
-    forbidden_actions = forbidden_joint_actions(profile, CONTRAINDICATIONS)
-    forbidden_positions = forbidden_loaded_positions(profile, CONTRAINDICATIONS)
+    forbidden_actions = forbidden_joint_actions(profile, contraindications())
+    forbidden_positions = forbidden_loaded_positions(profile, contraindications())
 
     fillable: list[dict] = []
     issues: list[Issue] = []

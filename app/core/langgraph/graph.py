@@ -35,8 +35,6 @@ from app.core.langgraph.diff import build_diff
 from app.core.langgraph.profile.nodes import check_required, extract_profile, load_profile
 from app.core.langgraph.routing.classify import classify
 from app.core.langgraph.routing.dispatch import DISPATCH_TARGETS, dispatch
-from app.core.langgraph.rubrics import RUBRIC_VERSION
-from app.core.langgraph.templates import get_template
 from app.core.langgraph.utils import message_text, to_chat_messages
 from app.core.langgraph.versioning import (
     describe_verification_reason,
@@ -53,6 +51,8 @@ from app.services.llm.service import llm_service
 from app.services.memory import memory_service
 from app.services.nutrition import calc_macros
 from app.services.profile import FIELD_LABELS, profile_hash
+from app.services.rubrics import rubric_version
+from app.services.templates import get_template
 from app.services.versions import get_version, insert_version, version_index
 
 GRAPH_NAME = "root"
@@ -698,7 +698,7 @@ class LangGraphAgent:
                 # Empty scope means "run everything", which is mandatory for a
                 # write. Only `check` lets the user's wording narrow it (§9.3).
                 "scope": state.scope if state.intent == "check" else [],
-                "rubric_version": RUBRIC_VERSION,
+                "rubric_version": rubric_version(),
                 "issues": [],
                 "verdict": None,
             },
@@ -808,7 +808,7 @@ class LangGraphAgent:
                 plan=state.draft_plan or {},
                 macros=state.computed_macros or {},
                 profile_hash=profile_hash(state.profile),
-                rubric_version=RUBRIC_VERSION,
+                rubric_version=rubric_version(),
                 # Append-only history: the version this one supersedes is
                 # recorded rather than replaced, so an undo has something to
                 # come back to (§9.5).
@@ -1465,8 +1465,12 @@ def _render_plan(plan: dict[str, Any] | None, goal: str | None = None) -> str:
         f"Goal: {goal or 'not stated'}",
         "",
     ]
-    for day in plan["days"]:
-        lines.append(f"{day['name']}:")
+    # Numbered, and separated by a blank line. A bare `Chest:` line is what the
+    # composer ran together with the previous day's last exercise, producing an
+    # answer that read as one long chest session; an ordinal the model has to
+    # carry through makes two days impossible to merge into one heading.
+    for index, day in enumerate(plan["days"], start=1):
+        lines.append(f"Day {index} — {day['name']}:")
         for exercise in day["exercises"]:
             reps = exercise["reps"]
             rir = exercise["rir"]
@@ -1474,7 +1478,8 @@ def _render_plan(plan: dict[str, Any] | None, goal: str | None = None) -> str:
                 f"  - {exercise['name']}: {exercise['sets']} sets x {reps[0]}-{reps[1]} reps, "
                 f"RIR {rir[0]}-{rir[1]}"
             )
-    return "\n".join(lines)
+        lines.append("")
+    return "\n".join(lines).rstrip()
 
 
 def _render_issues(issues: list[Issue]) -> str:

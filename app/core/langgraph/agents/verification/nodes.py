@@ -9,9 +9,9 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.langgraph.agents.verification.checks import check_injury, check_macro, check_volume
 from app.core.langgraph.agents.verification.state import VerifyState
-from app.core.langgraph.rubrics import CONTRAINDICATIONS, MACRO_RULES, VOLUME_LANDMARKS
 from app.core.logging import logger
 from app.schemas.graph import Issue, Verdict
+from app.services.rubrics import contraindications, macro_rules, volume_landmarks
 
 # A single blocking finding fails the plan. Warnings never do: they are judgment
 # calls the user is entitled to overrule, and treating them as failures would
@@ -32,7 +32,7 @@ async def verify_macro(state: VerifyState, config: RunnableConfig) -> dict:
         The issues this check produced, merged by the ``add`` reducer.
     """
     issues = check_macro(
-        state.get("computed_macros") or {}, state.get("profile") or {}, MACRO_RULES
+        state.get("computed_macros") or {}, state.get("profile") or {}, macro_rules()
     )
     _log("macro", issues)
     return {"issues": issues}
@@ -50,7 +50,7 @@ async def verify_volume(state: VerifyState, config: RunnableConfig) -> dict:
     Returns:
         The issues this check produced, merged by the ``add`` reducer.
     """
-    issues = check_volume(state.get("plan") or {}, state.get("catalog") or {}, VOLUME_LANDMARKS)
+    issues = check_volume(state.get("plan") or {}, state.get("catalog") or {}, volume_landmarks())
     _log("volume", issues)
     return {"issues": issues}
 
@@ -71,7 +71,7 @@ async def verify_injury(state: VerifyState, config: RunnableConfig) -> dict:
         state.get("plan") or {},
         state.get("profile") or {},
         state.get("catalog") or {},
-        CONTRAINDICATIONS,
+        contraindications(),
     )
     _log("injury", issues)
     return {"issues": issues}

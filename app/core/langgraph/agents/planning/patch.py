@@ -19,8 +19,6 @@ that was correct before the change.
 
 from typing import Any
 
-from app.core.langgraph.rubrics import CONTRAINDICATIONS
-from app.core.langgraph.templates import iter_slots, query_templates
 from app.core.logging import logger
 from app.schemas.graph import Issue
 from app.services.catalog import (
@@ -28,6 +26,8 @@ from app.services.catalog import (
     forbidden_joint_actions,
     forbidden_loaded_positions,
 )
+from app.services.rubrics import contraindications
+from app.services.templates import iter_slots, query_templates
 
 # Change keys this module knows how to apply. Anything else is reported rather
 # than silently ignored — a user who asks for something and gets an unchanged
@@ -131,8 +131,8 @@ def _change_day_count(
     template = matches[0]
     carried = _exercises_by_pattern(plan, catalog)
 
-    forbidden_actions = forbidden_joint_actions(profile, CONTRAINDICATIONS)
-    forbidden_positions = forbidden_loaded_positions(profile, CONTRAINDICATIONS)
+    forbidden_actions = forbidden_joint_actions(profile, contraindications())
+    forbidden_positions = forbidden_loaded_positions(profile, contraindications())
 
     issues: list[Issue] = []
     by_day: dict[str, list[dict]] = {}

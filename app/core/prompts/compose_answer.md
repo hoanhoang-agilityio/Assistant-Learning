@@ -33,7 +33,14 @@ Present the plan and the review findings to the user.
 
 1. One sentence on what was built, using the `Split`, `Sessions a week` and
    `Goal` lines exactly as given below.
-2. The plan, day by day: exercise name, sets × rep range, RIR.
+2. The plan. **Every `Day N — <name>:` line below is a separate training day
+   and must become its own section in the answer**, in the same order and with
+   the same numbering: a markdown heading alone on its own line
+   (`### Day 1 — Chest`), a blank line, then that day's exercises as a bullet
+   list — exercise name, sets × rep range, RIR. Never continue a day's name on
+   the end of the previous day's last bullet, never fold several days under one
+   heading, and never drop a day. Five `Day N` lines below means five headings
+   in the answer.
 3. The nutrition targets: calories, protein, fat, carbohydrate — and what
    maintenance was estimated at, so the deficit is visible.
 4. The findings, most severe first. For each: what, where, and the suggested
