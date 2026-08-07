@@ -1,0 +1,187 @@
+{
+  "template_id": "upper_lower_2day",
+  "name": "Upper / Lower, 2 days",
+  "days_per_week": 2,
+  "goal": [
+    "fat_loss",
+    "muscle_gain",
+    "recomp",
+    "general_health"
+  ],
+  "level": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "popularity": 70,
+  "days": [
+    {
+      "name": "Upper",
+      "slots": [
+        {
+          "slot_id": "ul2_horiz_push",
+          "pattern": "horizontal_push",
+          "sets": 4,
+          "reps": [
+            6,
+            10
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ul2_horiz_pull",
+          "pattern": "horizontal_pull",
+          "sets": 4,
+          "reps": [
+            8,
+            12
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ul2_vert_pull",
+          "pattern": "vertical_pull",
+          "sets": 3,
+          "reps": [
+            8,
+            12
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ul2_vert_push",
+          "pattern": "vertical_push",
+          "sets": 3,
+          "reps": [
+            8,
+            12
+          ],
+          "rir": [
+            2,
+            3
+          ]
+        },
+        {
+          "slot_id": "ul2_lateral",
+          "pattern": "abduction",
+          "sets": 3,
+          "reps": [
+            12,
+            20
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ul2_arms",
+          "pattern": "elbow_flexion",
+          "sets": 3,
+          "reps": [
+            10,
+            12
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Lower",
+      "slots": [
+        {
+          "slot_id": "ul2_squat",
+          "pattern": "squat",
+          "sets": 4,
+          "reps": [
+            6,
+            8
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ul2_hinge",
+          "pattern": "hinge",
+          "sets": 4,
+          "reps": [
+            6,
+            10
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ul2_knee_iso",
+          "pattern": "knee_extension",
+          "sets": 3,
+          "reps": [
+            12,
+            15
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ul2_knee_flexion",
+          "pattern": "knee_flexion",
+          "sets": 3,
+          "reps": [
+            10,
+            15
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ul2_calf",
+          "pattern": "calf_raise",
+          "sets": 3,
+          "reps": [
+            10,
+            15
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ul2_core",
+          "pattern": "anti_extension",
+          "sets": 3,
+          "reps": [
+            12,
+            20
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}

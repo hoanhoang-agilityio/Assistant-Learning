@@ -1,0 +1,230 @@
+{
+  "template_id": "push_pull_legs_3day",
+  "name": "Push / Pull / Legs, 3 days",
+  "days_per_week": 3,
+  "goal": [
+    "fat_loss",
+    "muscle_gain",
+    "recomp"
+  ],
+  "level": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "popularity": 80,
+  "days": [
+    {
+      "name": "Push",
+      "slots": [
+        {
+          "slot_id": "ppl3_horiz_push",
+          "pattern": "horizontal_push",
+          "sets": 4,
+          "reps": [
+            6,
+            8
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ppl3_vert_push",
+          "pattern": "vertical_push",
+          "sets": 3,
+          "reps": [
+            8,
+            12
+          ],
+          "rir": [
+            2,
+            3
+          ]
+        },
+        {
+          "slot_id": "ppl3_chest_iso",
+          "pattern": "horizontal_adduction",
+          "sets": 4,
+          "reps": [
+            12,
+            15
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ppl3_lateral",
+          "pattern": "abduction",
+          "sets": 4,
+          "reps": [
+            12,
+            20
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ppl3_triceps",
+          "pattern": "elbow_extension",
+          "sets": 3,
+          "reps": [
+            10,
+            15
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Pull",
+      "slots": [
+        {
+          "slot_id": "ppl3_vert_pull",
+          "pattern": "vertical_pull",
+          "sets": 4,
+          "reps": [
+            6,
+            10
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ppl3_horiz_pull",
+          "pattern": "horizontal_pull",
+          "sets": 4,
+          "reps": [
+            8,
+            12
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ppl3_vert_pull_b",
+          "pattern": "vertical_pull",
+          "sets": 3,
+          "reps": [
+            10,
+            12
+          ],
+          "rir": [
+            2,
+            3
+          ]
+        },
+        {
+          "slot_id": "ppl3_rear_delt",
+          "pattern": "rear_delt_pull",
+          "sets": 3,
+          "reps": [
+            12,
+            20
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ppl3_biceps",
+          "pattern": "elbow_flexion",
+          "sets": 3,
+          "reps": [
+            10,
+            12
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Legs",
+      "slots": [
+        {
+          "slot_id": "ppl3_squat",
+          "pattern": "squat",
+          "sets": 4,
+          "reps": [
+            5,
+            8
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ppl3_hinge",
+          "pattern": "hinge",
+          "sets": 3,
+          "reps": [
+            6,
+            10
+          ],
+          "rir": [
+            2,
+            3
+          ]
+        },
+        {
+          "slot_id": "ppl3_knee_iso",
+          "pattern": "knee_extension",
+          "sets": 4,
+          "reps": [
+            12,
+            15
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ppl3_knee_flexion",
+          "pattern": "knee_flexion",
+          "sets": 3,
+          "reps": [
+            10,
+            15
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        },
+        {
+          "slot_id": "ppl3_calf",
+          "pattern": "calf_raise",
+          "sets": 4,
+          "reps": [
+            10,
+            15
+          ],
+          "rir": [
+            1,
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}
