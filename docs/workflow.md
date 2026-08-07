@@ -464,7 +464,7 @@ Validate fail → not a user error; raise an exception and log. This is a bug.
 
 ## 7. Verify — what data grading uses
 
-Three rubrics, stored in git, with `rubric_version` so old results can be reproduced.
+Three rubrics, seeded from `data/rubric_seed.json` into the `rubrics` table, with `rubric_version` so old results can be reproduced.
 
 ### 7.1. `verify_macro`
 
@@ -741,8 +741,8 @@ system prompt with `@dynamic_prompt`, so `system.md` never reaches it.
 | Data | Where | Why |
 |---|---|---|
 | Exercise catalog (~200 rows) | Postgres + GIN index | Needs precise array/set ops, not semantic search |
-| Template library | Git (JSON/YAML) | Config; changes go through review |
-| Rubrics ×3 | Git, versioned | `rubric_version` must reproduce old results |
+| Template library | Postgres, seeded from `data/template_seed.json` | Config; changes go through review of the seed file |
+| Rubrics ×3 | Postgres, PK `(name, version)` | `rubric_version` must reproduce old results, so a version is never rewritten |
 | User profile | Postgres | |
 | `plan_versions` | Postgres | Full snapshots |
 | Conversation state | LangGraph Postgres checkpointer | |
@@ -765,9 +765,32 @@ CREATE TABLE exercises (
 );
 CREATE INDEX ON exercises USING GIN (joint_actions);
 CREATE INDEX ON exercises USING GIN (equipment);
+
+CREATE TABLE templates (
+  id            text PRIMARY KEY,   -- "upper_lower_4day"; stored plans reference it
+  name          text NOT NULL,
+  days_per_week int NOT NULL,
+  goal          text[] NOT NULL,
+  level         int[] NOT NULL,
+  popularity    int NOT NULL,
+  days          jsonb NOT NULL      -- day → slots, read whole by iter_slots
+);
+CREATE INDEX ON templates USING GIN (goal);
+CREATE INDEX ON templates USING GIN (level);
+
+CREATE TABLE rubrics (
+  name      text NOT NULL,          -- macro_rules | volume_landmarks | contraindications
+  version   text NOT NULL,
+  payload   jsonb NOT NULL,
+  is_active boolean NOT NULL,
+  PRIMARY KEY (name, version)       -- a cited version is inserted beside, never rewritten
+);
 ```
 
-**Rubrics live in git, not the DB.** Rubrics decide which plans pass — they are closer to code than data. In the DB, someone can bump quads MRV from 22 to 30 with one UPDATE, no PR, no diff, and every old `verify_report` becomes unexplainable.
+**Rubrics and templates are served from Postgres, but authored in git.** They decide which plans pass, so they are closer to code than data, and the danger of a table is that someone bumps quads MRV from 22 to 30 with one UPDATE — no PR, no diff — leaving every old `verify_report` unexplainable. Two rules keep the audit trail:
+
+* `data/rubric_seed.json` and `data/template_seed.json` are the source of truth. Rows are written only by `scripts/seed_config.py`, so a rule still changes through a reviewed diff.
+* `rubrics` is keyed by `(name, version)`. Seeding a changed rule at an existing version is refused; bump `rubric_version` and the new document is inserted beside the old one, with `is_active` moving to it. A version that a stored `verify_report` cites is never rewritten.
 
 **Postgres is the single source of truth.** Embeddings are derived data and must be re-indexed when the catalog changes. Do not let exercise names exist only in the vector store.
 

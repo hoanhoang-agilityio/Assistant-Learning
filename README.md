@@ -87,6 +87,7 @@ docker compose up -d db          # Postgres on host port 5433
 uv sync --extra dev
 uv run alembic upgrade head      # creates user / session / refresh_token / revoked_token
 uv run python scripts/seed_catalog.py     # exercise catalog
+uv run python scripts/seed_config.py      # template library + rubrics
 uv run python scripts/seed_knowledge.py   # knowledge base (needs OPENAI_API_KEY)
 uv run uvicorn app.main:app --reload
 ```
