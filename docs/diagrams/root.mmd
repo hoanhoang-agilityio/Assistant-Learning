@@ -8,6 +8,7 @@ graph TD;
 	classify(classify)
 	dispatch(dispatch)
 	qa(qa)
+	decline(decline)
 	load_profile(load_profile)
 	extract_profile(extract_profile)
 	check_required(check_required)
@@ -43,6 +44,8 @@ graph TD;
 	compose_answer -.-> finalize;
 	confirm -.-> finalize;
 	confirm -.-> snapshot;
+	decline -.-> finalize;
+	dispatch -.-> decline;
 	dispatch -.-> load_profile;
 	dispatch -.-> qa;
 	extract_profile -.-> check_required;

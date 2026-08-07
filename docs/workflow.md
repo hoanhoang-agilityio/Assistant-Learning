@@ -28,6 +28,7 @@ Intent = Literal[
     "check",         # grade a plan/macro — scope decides which verifiers run
     "revert",        # restore a previous version
     "general_qa",    # knowledge question
+    "off_topic",     # outside training and nutrition — declined, no model runs
 ]
 
 VerifyScope = Literal["macro", "volume", "injury"]
@@ -214,10 +215,12 @@ flowchart TD
     START([User query]) --> CLS["classify<br/>LLM"]
 
     CLS -->|general_qa| QA["qa<br/>agent: LLM + search_knowledge"]
+    CLS -->|off_topic| DECL["decline<br/>det"]
     CLS -->|revert| RESV["resolve_version<br/>LLM"]
     CLS -->|build/change/check| LOADP["load_profile<br/>det"]
 
     QA --> OUT
+    DECL --> OUT
 
     RESV -->|unclear| ASKV["ask_which_version<br/>LLM"]
     RESV -->|has id| LOADS["load_snapshot<br/>det"]
@@ -293,6 +296,7 @@ flowchart TD
 
 | Node | Reads state | Writes state | Internal function |
 |---|---|---|---|
+| `decline` | — | `answer` | — |
 | `load_profile` | — | `profile` | `db.get_profile` |
 | `check_required` | `profile`, `intent` | `missing_fields` | `REQUIRED_FIELDS[intent]` |
 | `select_template` | `profile` | `draft_plan` (empty frame) | `db.query_templates` |
@@ -707,6 +711,26 @@ flowchart TD
 | `revert` | **Yes** | Overwrites an approved plan |
 | `check` | No | Read-only |
 | `general_qa` | No | Read-only |
+| `off_topic` | No | Declined before any branch runs |
+
+### 10.1. The topic gate
+
+`off_topic` is the one intent with no branch behind it. `dispatch` sends it to
+`decline`, which writes a constant and goes to `finalize` — no model call, no
+profile read, no path to anything that touches a plan.
+
+It lives in the classifier rather than in a guardrail node in front of it
+because `classify` already reads the conversation and already pays for a model
+call; a separate gate would add a round-trip to every turn to catch the rare
+one. It is deliberately **not** the fallback when classification fails — that
+stays `general_qa`. A classifier that just errored has made no judgment, and
+turning a model outage into a refusal aimed at the user is the worse failure.
+
+The boundary is narrow on purpose. Pain, injury, supplements, sleep and body
+composition are in domain and route to `general_qa`, which answers them as
+training questions and says plainly that a diagnosis is not what it is giving.
+That disclaimer lives in `qa.md`, not `system.md`: the QA agent builds its
+system prompt with `@dynamic_prompt`, so `system.md` never reaches it.
 
 `confirm` is implemented with LangGraph's `interrupt()`, not by asking and waiting for the next turn — that way state is frozen at the pause point.
 
