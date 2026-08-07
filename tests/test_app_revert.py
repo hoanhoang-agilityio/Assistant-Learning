@@ -169,7 +169,6 @@ def pipeline(monkeypatch, catalog):
     )
 
     for module in (
-        "app.core.langgraph.agents.qa.nodes",
         "app.core.langgraph.agents.planning.nodes",
         "app.core.langgraph.profile.nodes",
         "app.core.langgraph.graph",

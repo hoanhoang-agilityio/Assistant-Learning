@@ -27,7 +27,7 @@ import pytest
 
 from app.ui import api_client
 from app.ui.components.chat import run_guarded_backend_action, with_session_retry
-from app.ui.wording import conversation_title, name_from_message
+from app.ui.wording import conversation_title
 
 
 @pytest.fixture
@@ -403,7 +403,3 @@ def test_conversation_title_is_truncated_to_one_line() -> None:
     assert len(title) == 40
     assert title.endswith("…")
 
-
-def test_name_from_message_collapses_whitespace() -> None:
-    """A pasted plan arrives full of newlines; the sidebar row is one line."""
-    assert name_from_message("build me\n  a  plan\n") == "build me a plan"

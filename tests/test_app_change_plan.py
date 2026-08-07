@@ -152,7 +152,6 @@ def pipeline(monkeypatch, catalog, approved_plan):
     )
 
     for module in (
-        "app.core.langgraph.agents.qa.nodes",
         "app.core.langgraph.agents.planning.nodes",
         "app.core.langgraph.profile.nodes",
         "app.core.langgraph.graph",
@@ -325,6 +324,47 @@ async def test_macros_are_recomputed_for_the_new_day_count(pipeline, approved_pl
     assert values["verdict"] is not None, "the verifiers did not run on the new plan"
 
 
+async def test_the_answer_is_composed_from_this_turn_only(pipeline, approved_plan, monkeypatch):
+    """A 4→5 day change was announced to the user as a 4-day plan.
+
+    Two causes, both here. The composer is told to open with the split, the
+    sessions a week and the goal, and nothing in its prompt carried them — so it
+    took all three from the only other place they appeared, the plan being
+    replaced. And ``issues`` accumulated across turns, so the findings backing
+    that sentence up still named `Upper A` and `Lower B`.
+
+    Asserted on the prompt rather than the prose: what the composer is *handed*
+    is the contract, and the answer itself changes with every prompt edit.
+    """
+    captured: dict[str, str] = {}
+
+    def spy(**kwargs):
+        captured.update(kwargs)
+        return "composed"
+
+    monkeypatch.setattr("app.core.langgraph.graph.load_compose_answer_prompt", spy)
+
+    graph, config, _calls = pipeline({"days": 5})
+    stale = {
+        "source": "volume",
+        "severity": "warn",
+        "location": "Upper A / vertical push",
+        "message": "No vertical push exercise matches your equipment.",
+        "suggestion": None,
+        "rubric_ref": "catalog.no_candidates",
+    }
+    await _start(graph, config, approved_plan, issues=[stale])
+    values = await _resume(graph, config, "yes")
+
+    assert len(values["plan"]["days"]) == 5, "the fixture no longer exercises a 4→5 change"
+    assert "Sessions a week: 5" in captured["plan"]
+    assert "Chest / Back / Legs / Upper / Lower, 5 days" in captured["plan"]
+    assert "Goal: fat_loss" in captured["plan"]
+    assert "Upper A / vertical push" not in captured["issues"], (
+        "the previous turn's findings were reported as this turn's"
+    )
+
+
 # ---------------------------------------------------------------------------
 # patch_plan in isolation
 # ---------------------------------------------------------------------------
@@ -389,7 +429,6 @@ def test_confirm_required_matches_the_workflow_table():
         ("Yes.", True),
         ("ok", True),
         ("go ahead", True),
-        ("có", True),
         ("yes please", True),
         ("no", False),
         ("", False),

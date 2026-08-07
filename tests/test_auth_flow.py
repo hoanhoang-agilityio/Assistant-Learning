@@ -24,6 +24,16 @@ os.environ["AUTH_DATABASE_URL"] = f"sqlite:///{_DB_PATH}"
 os.environ["JWT_SECRET_KEY"] = "test-only-secret-0123456789abcdef0123456789abcdef"
 os.environ["ALLOWED_ORIGINS"] = "http://localhost:3000"
 
+# The limiter keys on client IP, and every test here is the same IP. Production
+# allows 10 registrations an hour; this file registers roughly twice that, so
+# the defaults turn most of the suite into 429s that look like auth failures.
+# Raised through the app's own override rather than by stubbing the limiter, so
+# the middleware under test is still the one running.
+os.environ["RATE_LIMIT_REGISTER"] = "10000 per hour"
+os.environ["RATE_LIMIT_LOGIN"] = "10000 per minute"
+os.environ["RATE_LIMIT_REFRESH"] = "10000 per hour"
+os.environ["RATE_LIMIT_DEFAULT"] = "100000 per day,100000 per hour"
+
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlmodel import SQLModel  # noqa: E402
 
@@ -33,6 +43,21 @@ from app.models.database import engine  # noqa: E402
 
 PASSWORD = "Secret123!"  # pragma: allowlist secret
 
+# Only the tables the auth endpoints touch — never the whole metadata.
+#
+# `SQLModel.metadata` holds every table in the application, and two of them
+# (`exercises`, `user_profile`) carry Postgres ARRAY columns SQLite cannot
+# compile, so a whole-metadata `create_all` fails here before a test runs.
+#
+# The second reason is the one that cost a database. The env vars above only
+# reach `settings` if this module is the **first** to import `app.*`, and in a
+# full-suite run it is not: pytest imports `tests/test_app_*` during collection,
+# `settings` is built from `.env`, and `engine` is bound to the developer's
+# Postgres before this line is read. A whole-metadata `drop_all` in the teardown
+# below then dropped their `user`, `exercises` and `plan_versions` for real.
+# Scoping the list is the second line of defence; `_schema` is the first.
+_AUTH_TABLE_NAMES = ("user", "session", "refresh_token", "revoked_token")
+
 
 @pytest.fixture(scope="module", autouse=True)
 def _schema():
@@ -41,10 +66,27 @@ def _schema():
     Deliberately not via Alembic: this asserts the application code is coherent.
     Whether the migration matches the models is a separate question, answered by
     `alembic revision --autogenerate` coming out empty.
+
+    Refuses to touch anything but the throwaway SQLite file. This module issues
+    the only DDL in the suite, and it issues it against a module-level `engine`
+    it does not own — so "which database am I about to drop tables in" is a
+    question it has to answer out loud rather than assume.
     """
-    SQLModel.metadata.create_all(engine)
+    if engine.url.get_backend_name() != "sqlite":
+        pytest.fail(
+            "refusing to run: `engine` is bound to "
+            f"{engine.url.render_as_string(hide_password=True)}, not the throwaway SQLite "
+            "file this module sets up. Another test module imported `app.*` first, so "
+            "AUTH_DATABASE_URL arrived too late — running on would DROP the tables in that "
+            "database. Run this file in its own process:\n"
+            "    uv run pytest tests/test_auth_flow.py",
+            pytrace=False,
+        )
+
+    tables = [SQLModel.metadata.tables[name] for name in _AUTH_TABLE_NAMES]
+    SQLModel.metadata.create_all(engine, tables=tables)
     yield
-    SQLModel.metadata.drop_all(engine)
+    SQLModel.metadata.drop_all(engine, tables=tables)
     engine.dispose()
     _DB_PATH.unlink(missing_ok=True)
 

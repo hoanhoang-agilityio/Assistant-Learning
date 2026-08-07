@@ -131,7 +131,6 @@ def pipeline(monkeypatch, catalog):
             "app.core.langgraph.profile.nodes",
             "app.core.langgraph.agents.planning.nodes",
             "app.core.langgraph.agents.ingest.nodes",
-            "app.core.langgraph.agents.qa.nodes",
             "app.core.langgraph.graph",
         ):
             monkeypatch.setattr(f"{module}.llm_service", _FakeLLM())

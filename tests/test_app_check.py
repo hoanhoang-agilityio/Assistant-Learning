@@ -150,7 +150,6 @@ def pipeline(monkeypatch, catalog):
                 return AIMessage(content="Here's my read on that plan.")
 
         for module in (
-            "app.core.langgraph.agents.qa.nodes",
             "app.core.langgraph.agents.planning.nodes",
             "app.core.langgraph.profile.nodes",
             "app.core.langgraph.agents.ingest.nodes",

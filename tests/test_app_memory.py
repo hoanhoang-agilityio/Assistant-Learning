@@ -296,7 +296,7 @@ def test_no_agent_searches_memory_for_itself():
 
 def test_the_qa_agent_reads_memory_from_state():
     """The one agent that personalises must receive memory, not fetch it."""
-    from app.core.langgraph.agents.qa.state import QAState
+    from app.core.langgraph.agents.qa import QAState
 
     assert "long_term_memory" in QAState.__annotations__
 
