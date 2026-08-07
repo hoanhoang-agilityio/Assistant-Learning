@@ -11,7 +11,9 @@ from app.models.exercise import Exercise
 from app.models.knowledge import KnowledgeChunk
 from app.models.plan_version import PlanVersion
 from app.models.profile import UserProfile
+from app.models.rubric import Rubric
 from app.models.session import Session
+from app.models.template import Template
 from app.models.token import RefreshToken, RevokedToken
 from app.models.user import User
 
@@ -22,7 +24,9 @@ __all__ = [
     "PlanVersion",
     "RefreshToken",
     "RevokedToken",
+    "Rubric",
     "Session",
+    "Template",
     "User",
     "UserProfile",
 ]
