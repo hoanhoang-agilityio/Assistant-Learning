@@ -31,8 +31,8 @@ from app.core.langgraph.graph import (
     _add_nodes,
     _is_affirmative,
 )
-from app.core.langgraph.rubrics import CONTRAINDICATIONS
 from app.schemas.graph import IntentDecision, ProfileExtraction, RootState
+from tests.seed import CONTRAINDICATIONS
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
 
@@ -73,8 +73,9 @@ def approved_plan(catalog) -> dict:
     """A 4-day plan standing in for one the user already accepted."""
     plan, issues = patch_plan({"days": []}, {}, PROFILE, catalog)
     # patch_plan refuses an empty plan, so build the fixture directly.
-    from app.core.langgraph.templates import TEMPLATES, iter_slots
     from app.services.catalog import candidates_for_slot
+    from app.services.templates import iter_slots
+    from tests.seed import TEMPLATES
 
     template = TEMPLATES["upper_lower_4day"]
     by_day: dict[str, list[dict]] = {}

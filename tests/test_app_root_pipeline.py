@@ -25,8 +25,9 @@ from langgraph.graph import StateGraph
 from app.core.langgraph.agents import AGENTS
 from app.core.langgraph.agents.planning.state import ExerciseChoices
 from app.core.langgraph.graph import LangGraphAgent, _add_nodes
-from app.core.langgraph.templates import TEMPLATES, iter_slots
 from app.schemas.graph import Intent, IntentDecision, Issue, ProfileExtraction, RootState
+from app.services.templates import iter_slots
+from tests.seed import TEMPLATES
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
 
@@ -181,9 +182,13 @@ async def test_an_empty_profile_asks_for_everything_at_once(pipeline):
     values = await _run(graph, config)
 
     assert values["draft_plan"] is None, "a plan was built without a profile"
-    assert len(values["missing_fields"]) == 9
+    assert len(values["missing_fields"]) == 10
     # One message, listing every field.
-    assert values["answer"].count("\n- ") == 9
+    assert values["answer"].count("\n- ") == 10
+    # `level` is asked for, not assumed. Defaulting it to 1 applies the
+    # strictest possible skill filter to someone who never called themselves a
+    # beginner, which drops whole movement patterns out of the plan.
+    assert "level" in values["missing_fields"]
 
 
 async def test_a_partial_profile_asks_only_for_the_rest(pipeline):

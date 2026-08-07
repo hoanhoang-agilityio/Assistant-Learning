@@ -13,13 +13,6 @@ The properties under test are the design's guarantees:
 
 import pytest
 
-from app.core.langgraph.rubrics import CONTRAINDICATIONS
-from app.core.langgraph.templates import (
-    TEMPLATES,
-    get_template,
-    iter_slots,
-    query_templates,
-)
 from app.services.catalog import (
     filter_candidates,
     forbidden_joint_actions,
@@ -32,6 +25,8 @@ from app.services.nutrition import (
     mifflin_st_jeor,
     split_macros,
 )
+from app.services.templates import iter_slots
+from tests.seed import CONTRAINDICATIONS, TEMPLATES, get_template, query_templates
 
 CATALOG = {
     "bb_back_squat": {
@@ -298,7 +293,7 @@ def test_calc_macros_rejects_an_unknown_goal():
 def test_calc_macros_output_passes_the_macro_rubric():
     """The calculator and the verifier must agree on a normal profile."""
     from app.core.langgraph.agents.verification.checks import check_macro
-    from app.core.langgraph.rubrics import MACRO_RULES
+    from tests.seed import MACRO_RULES
 
     profile = {
         "weight_kg": 75,

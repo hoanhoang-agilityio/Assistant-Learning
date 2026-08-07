@@ -20,8 +20,6 @@ from pathlib import Path
 import pytest
 
 from app.core.langgraph.agents.verification.checks import check_volume
-from app.core.langgraph.rubrics import CONTRAINDICATIONS, VOLUME_LANDMARKS
-from app.core.langgraph.templates import TEMPLATES, iter_slots
 from app.services.catalog import (
     candidates_for_slot,
     filter_candidates,
@@ -29,6 +27,8 @@ from app.services.catalog import (
     forbidden_loaded_positions,
 )
 from app.services.movement_taxonomy import MOVEMENT_ATTRIBUTES
+from app.services.templates import iter_slots
+from tests.seed import CONTRAINDICATIONS, TEMPLATES, VOLUME_LANDMARKS
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
 
@@ -171,6 +171,37 @@ def test_every_template_slot_has_a_candidate(catalog, full_gym, template_id):
         if not filter_candidates(slot, full_gym, catalog, set(), set())
     ]
     assert empty == [], f"{template_id} has unfillable slots: {empty}"
+
+
+@pytest.mark.parametrize("template_id", sorted(TEMPLATES))
+def test_a_true_beginner_can_fill_every_slot(catalog, rows, template_id):
+    """Level 1 must fill every slot, because level 1 is what unasked profiles get.
+
+    This is the case that shipped broken. `full_gym` above is level 5 and the
+    novice test below is level 2, so no test ever ran the skill gate at 1 — and
+    1 was the value `get_profile` substituted whenever the user had not been
+    asked their experience. `vertical_push` and `hinge` had no level-1 entry at
+    all, so a beginner's Chest day silently lost its overhead press and Legs
+    lost its hinge, reported only as a `catalog.no_candidates` warning.
+
+    A dropped slot is not visible in the plan the user reads — it just looks
+    like a shorter day. So the catalog must guarantee the floor, and it has to
+    be asserted here rather than noticed in an answer.
+    """
+    beginner = {
+        "equipment": sorted({item for row in rows for item in row["equipment"]}),
+        "level": 1,
+        "injuries": [],
+    }
+    empty = [
+        (slot["slot_id"], slot["pattern"])
+        for slot in iter_slots(TEMPLATES[template_id])
+        if not filter_candidates(slot, beginner, catalog, set(), set())
+    ]
+    assert empty == [], (
+        f"{template_id}: no level-1 exercise exists for {empty}. "
+        "These slots would be dropped from a beginner's plan."
+    )
 
 
 @pytest.mark.parametrize("template_id", sorted(TEMPLATES))

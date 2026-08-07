@@ -20,7 +20,8 @@ from langgraph.checkpoint.memory import MemorySaver
 from app.core.langgraph.agents.planning.graph import build_planning_graph
 from app.core.langgraph.agents.planning.nodes import _validate
 from app.core.langgraph.agents.planning.state import ExerciseChoice, ExerciseChoices
-from app.core.langgraph.templates import TEMPLATES, iter_slots
+from app.services.templates import iter_slots
+from tests.seed import TEMPLATES
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
 

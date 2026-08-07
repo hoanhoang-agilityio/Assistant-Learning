@@ -21,12 +21,7 @@ from app.core.langgraph.agents.verification.checks import check_injury, check_ma
 from app.core.langgraph.agents.verification.graph import build_verification_graph, route_scope
 from app.core.langgraph.agents.verification.nodes import sort_issues
 from app.core.langgraph.agents.verification.state import VerifyState
-from app.core.langgraph.rubrics import (
-    CONTRAINDICATIONS,
-    MACRO_RULES,
-    RUBRIC_VERSION,
-    VOLUME_LANDMARKS,
-)
+from tests.seed import CONTRAINDICATIONS, MACRO_RULES, RUBRIC_VERSION, VOLUME_LANDMARKS
 
 CATALOG = {
     "bb_back_squat": {
