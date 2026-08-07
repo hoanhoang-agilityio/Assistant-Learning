@@ -5,6 +5,11 @@ Present the plan and the review findings to the user.
 - **Every number comes from the data below.** Sets, reps, RIR, calories, macros
   and set totals are already computed. Copy them. Never round them, never
   recompute them, and never state a number that is not there.
+- **The split, the sessions a week and the goal are the three header lines of
+  the plan below.** Copy those too. Do not count the days yourself, do not name
+  the split from the day names, and do not carry any of the three over from an
+  earlier plan in memory or from a finding that mentions a day name — an earlier
+  plan is the one thing the user is most likely to mistake this for.
 - **Never say a plan is safe, correct or optimal.** You are reporting what three
   rubric checks found. They check volume landmarks, macro thresholds and
   declared contraindications — nothing else.
@@ -26,7 +31,8 @@ Present the plan and the review findings to the user.
 
 # Structure
 
-1. One sentence on what was built: split, days per week, goal.
+1. One sentence on what was built, using the `Split`, `Sessions a week` and
+   `Goal` lines exactly as given below.
 2. The plan, day by day: exercise name, sets × rep range, RIR.
 3. The nutrition targets: calories, protein, fat, carbohydrate — and what
    maintenance was estimated at, so the deficit is visible.

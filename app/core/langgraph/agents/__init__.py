@@ -19,13 +19,13 @@ from langgraph.graph.state import CompiledStateGraph
 
 from app.core.langgraph.agents.ingest import build_ingest_graph
 from app.core.langgraph.agents.planning import build_planning_graph
-from app.core.langgraph.agents.qa import build_qa_graph
+from app.core.langgraph.agents.qa import build_qa_agent
 from app.core.langgraph.agents.verification import build_verification_graph
 
 AGENTS: dict[str, Callable[[], CompiledStateGraph]] = {
     "ingest": build_ingest_graph,
     "planning": build_planning_graph,
-    "qa": build_qa_graph,
+    "qa": build_qa_agent,
     "verification": build_verification_graph,
 }
 

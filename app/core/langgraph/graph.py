@@ -29,13 +29,14 @@ from app.core.configs.config import Environment, settings
 from app.core.langgraph.agents import AGENTS
 from app.core.langgraph.agents.planning.patch import patch_plan
 from app.core.langgraph.agents.planning.repair import repair_plan
+from app.core.langgraph.agents.qa import EXHAUSTED_ANSWER, FAILURE_ANSWER
 from app.core.langgraph.agents.verification import sort_issues
 from app.core.langgraph.diff import build_diff
 from app.core.langgraph.profile.nodes import check_required, extract_profile, load_profile
 from app.core.langgraph.routing.classify import classify
 from app.core.langgraph.routing.dispatch import DISPATCH_TARGETS, dispatch
 from app.core.langgraph.rubrics import RUBRIC_VERSION
-from app.core.langgraph.tools import tools
+from app.core.langgraph.templates import get_template
 from app.core.langgraph.utils import message_text, to_chat_messages
 from app.core.langgraph.versioning import (
     describe_verification_reason,
@@ -124,9 +125,8 @@ class LangGraphAgent:
     """Owns the compiled root graph, the subgraphs and the checkpointer pool."""
 
     def __init__(self) -> None:
-        """Bind shared tools and prepare lazily-created resources."""
+        """Prepare lazily-created resources."""
         self.llm_service = llm_service
-        self.llm_service.bind_tools(tools)
         self._connection_pool: AsyncConnectionPool | None = None
         self._graph: CompiledStateGraph | None = None
         self._agents: dict[str, CompiledStateGraph] = {}
@@ -180,37 +180,50 @@ class LangGraphAgent:
     # ------------------------------------------------------------------
 
     async def _qa(self, state: RootState, config: RunnableConfig) -> Command:
-        """Run the QA subgraph on a knowledge question.
+        """Run the QA agent on a knowledge question.
 
         Reads ``messages``, ``plan`` and ``macros``. Writes ``messages`` and
         ``answer``.
 
-        The plan is passed in as rendered read-only text and the subgraph has no
+        The plan is passed in as rendered read-only text and ``QAState`` has no
         field to write a plan back into, so a knowledge question cannot mutate
         one.
 
+        Only the answer is carried back. The agent's tool round-trip is working
+        memory for this turn: replaying a ``ToolMessage`` to the next turn's
+        classifier or profile extractor gains nothing, and those nodes render
+        the transcript through ``dump_messages``, which cannot represent one.
+
         Args:
             state: Current root state.
-            config: Runnable config, forwarded so subgraph spans nest under this
+            config: Runnable config, forwarded so agent spans nest under this
                 trace.
 
         Returns:
             A command writing the answer and going to ``finalize``.
         """
-        result = await self._agents["qa"].ainvoke(
-            {
-                "messages": state.messages,
-                "plan_context": _render_plan_context(state.plan, state.macros),
-                "long_term_memory": state.long_term_memory,
-                "answer": "",
-            },
-            config,
-        )
+        try:
+            result = await self._agents["qa"].ainvoke(
+                {
+                    "messages": state.messages,
+                    "plan_context": _render_plan_context(state.plan, state.macros),
+                    "long_term_memory": state.long_term_memory,
+                },
+                config,
+            )
+        except Exception as e:
+            # Every model in the registry has already been tried by the agent's
+            # fallback middleware. The turn still owes the user a sentence.
+            logger.exception("qa_agent_failed", error=str(e))
+            return Command(update={"answer": FAILURE_ANSWER}, goto="finalize")
+
+        # An empty last message means the agent stopped on its call limit before
+        # writing anything. Nothing failed, so this is not the failure wording —
+        # but the turn still owes the user a sentence.
+        answer = message_text(result["messages"][-1]) or EXHAUSTED_ANSWER
+        logger.info("qa_answered", answer_length=len(answer))
         return Command(
-            update={
-                "messages": result["messages"][len(state.messages) :],
-                "answer": result["answer"],
-            },
+            update={"messages": [AIMessage(content=answer)], "answer": answer},
             goto="finalize",
         )
 
@@ -825,9 +838,13 @@ class LangGraphAgent:
             A command writing the answer and going to ``END``.
         """
         issues = sort_issues(state.issues)
+        # The goal the macros were computed for, not the profile's — they are
+        # the same value, and quoting the one the numbers came from is what
+        # keeps the sentence and the targets below it from disagreeing.
+        goal = (state.computed_macros or {}).get("goal")
         prompt = load_compose_answer_prompt(
             verdict=state.verdict or "unknown",
-            plan=_render_plan(state.submitted_plan or state.draft_plan),
+            plan=_render_plan(state.submitted_plan or state.draft_plan, goal),
             macros=json.dumps(state.computed_macros or {}, ensure_ascii=False),
             issues=_render_issues(issues),
         )
@@ -847,7 +864,9 @@ class LangGraphAgent:
             # The plan is real and already computed; losing the prose must not
             # lose the work. Fall back to a plain rendering.
             logger.exception("compose_answer_failed_using_plain_render", error=str(e))
-            answer = _plain_answer(state.draft_plan, state.computed_macros, issues)
+            answer = _plain_answer(
+                state.submitted_plan or state.draft_plan, state.computed_macros, issues
+            )
 
         logger.info("answer_composed", verdict=state.verdict, issue_count=len(issues))
         return Command(update={"answer": answer}, goto="finalize")
@@ -864,7 +883,7 @@ class LangGraphAgent:
         reply missing. One node rather than a write in each of the nine terminal
         branches, so a branch added later cannot forget it.
 
-        The QA branch carries its subgraph's ``AIMessage`` back itself, so an
+        The QA branch carries the agent's ``AIMessage`` back itself, so an
         answer that is already the last message is left alone rather than
         recorded twice.
 
@@ -1040,7 +1059,14 @@ class LangGraphAgent:
                 # Only the answering node's tokens are user-facing. The
                 # classifier emits structured output and would otherwise stream
                 # raw JSON into the chat window.
-                if metadata.get("langgraph_node") != "answer_qa":
+                #
+                # `"qa"` is the root node, not the agent's internal `model`
+                # node: an agent invoked with `ainvoke` inside a node streams
+                # under the *calling* node's name. Filtering on the inner name —
+                # as this did while QA was a subgraph — matches nothing, and the
+                # stream endpoint then yields an empty response for the one
+                # branch that streams at all.
+                if metadata.get("langgraph_node") != "qa":
                     continue
                 chunk = message_text(token)
                 if chunk:
@@ -1231,6 +1257,9 @@ def _add_nodes(builder: StateGraph, agent: "LangGraphAgent") -> None:
     builder.add_node(
         "dispatch", dispatch, destinations=tuple(sorted(set(DISPATCH_TARGETS.values())))
     )
+    # The QA agent — an LLM with `search_knowledge` and a prompt — enters the
+    # root graph as this one node. Its own model/tool loop is internal, which is
+    # why it needs no edges here beyond the one out.
     builder.add_node("qa", agent._qa, destinations=("finalize",))
 
     # The profile gate: three root nodes, not a packaged agent — a straight line
@@ -1408,20 +1437,41 @@ def _is_affirmative(answer: object) -> bool:
     return bool(words) and len(words) <= 3 and words[0] in _AFFIRMATIVE
 
 
-def _render_plan(plan: dict[str, Any] | None) -> str:
+def _render_plan(plan: dict[str, Any] | None, goal: str | None = None) -> str:
     """Render a plan as compact text for the composer prompt.
+
+    The header lines are not decoration. ``compose_answer.md`` opens the answer
+    with the split, the sessions a week and the goal, and a model asked for a
+    fact the data does not carry will supply one from somewhere else — long-term
+    memory, or a finding that names a day of the plan it replaced. So the three
+    facts that sentence needs are stated here, from the plan itself.
+
+    Sessions a week is counted off the plan rather than read from the template
+    or the profile, because those are what was *asked for*: a slot with no legal
+    exercise leaves a day out, and the count the user is given must be the one
+    they will actually train — the same count ``calc_macro`` fed into TDEE.
 
     Args:
         plan: The plan to render.
+        goal: The goal its macros were computed for, when known.
 
     Returns:
-        One line per exercise, grouped by day. A placeholder when there is no
-        plan, so the model is never handed an empty section it might fill in.
+        A three-line header, then one line per exercise grouped by day. A
+        placeholder when there is no plan, so the model is never handed an empty
+        section it might fill in.
     """
     if not plan or not plan.get("days"):
         return "No plan could be produced."
 
-    lines: list[str] = []
+    template = get_template(plan.get("template_id") or "")
+    lines: list[str] = [
+        # A pasted plan has no template, and inventing a split name for it would
+        # be the same failure this header exists to prevent.
+        f"Split: {template['name'] if template else 'not from a template library'}",
+        f"Sessions a week: {len(plan['days'])}",
+        f"Goal: {goal or 'not stated'}",
+        "",
+    ]
     for day in plan["days"]:
         lines.append(f"{day['name']}:")
         for exercise in day["exercises"]:
@@ -1476,7 +1526,7 @@ def _plain_answer(
     Returns:
         A plain-text answer.
     """
-    parts = [_render_plan(plan)]
+    parts = [_render_plan(plan, (macros or {}).get("goal"))]
     if macros:
         parts.append(
             f"\nDaily targets: {macros['kcal']} kcal "
