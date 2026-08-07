@@ -18,7 +18,6 @@ from app.api.v1.auth import get_current_session
 from app.core.configs.config import settings
 from app.core.langgraph.graph import LangGraphAgent
 from app.core.limiter import limiter
-from app.core.logging import logger
 from app.models.session import Session
 from app.schemas.chat import ChatRequest, ChatResponse, StreamResponse
 from app.services.session_naming import maybe_name_session
@@ -36,12 +35,6 @@ async def chat(
 ) -> ChatResponse:
     """Process one chat turn and return the agent's reply."""
     try:
-        logger.info(
-            "chat_request_received",
-            session_id=session.id,
-            message_count=len(chat_request.messages),
-        )
-
         if settings.SESSION_NAMING_ENABLED:
             maybe_name_session(session.id, session.name, chat_request.messages)
 
@@ -52,11 +45,8 @@ async def chat(
             username=session.username,
         )
 
-        logger.info("chat_request_processed", session_id=session.id)
-
         return ChatResponse(messages=result)
     except Exception as e:
-        logger.exception("chat_request_failed", session_id=session.id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to process chat request") from e
 
 
@@ -68,11 +58,6 @@ async def chat_stream(
     session: Session = Depends(get_current_session),
 ) -> StreamingResponse:
     """Stream one chat turn as server-sent events."""
-    logger.info(
-        "chat_stream_request_received",
-        session_id=session.id,
-        message_count=len(chat_request.messages),
-    )
 
     # Outside event_source() on purpose: inside the generator this would not run
     # until the client starts consuming, and an abandoned stream would leave the
@@ -91,11 +76,10 @@ async def chat_stream(
             ):
                 yield _frame(StreamResponse(content=chunk))
             yield _frame(StreamResponse(done=True))
-        except Exception as e:
+        except Exception:
             # The response has already started, so the status code is committed.
             # A final done frame lets the client close cleanly instead of
             # waiting on a stream that will never end.
-            logger.exception("chat_stream_failed", session_id=session.id, error=str(e))
             yield _frame(StreamResponse(content="\n\n[the response was cut short]", done=True))
 
     return StreamingResponse(
@@ -116,7 +100,6 @@ async def get_messages(
         messages = await agent.get_chat_history(session.id)
         return ChatResponse(messages=messages)
     except Exception as e:
-        logger.exception("get_messages_failed", session_id=session.id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to load chat history") from e
 
 
@@ -130,7 +113,6 @@ async def clear_messages(
     try:
         await agent.clear_chat_history(session.id)
     except Exception as e:
-        logger.exception("clear_messages_failed", session_id=session.id, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to clear chat history") from e
 
 

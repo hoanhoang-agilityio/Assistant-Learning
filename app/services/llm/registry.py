@@ -10,7 +10,6 @@ from app.core.configs.config import (
     Environment,
     settings,
 )
-from app.core.logging import logger
 
 _TOKEN_LIMIT: dict[str, Any] = {"max_completion_tokens": settings.MAX_TOKENS}
 _API_KEY = SecretStr(settings.OPENAI_API_KEY)
@@ -86,14 +85,8 @@ class LLMRegistry:
             )
 
         if kwargs:
-            logger.debug(
-                "creating_llm_with_custom_args",
-                model_name=model_name,
-                custom_args=list(kwargs.keys()),
-            )
             return ChatOpenAI(model=model_name, api_key=_API_KEY, **kwargs)
 
-        logger.debug("using_default_llm_instance", model_name=model_name)
         return model_entry["llm"]
 
     @classmethod

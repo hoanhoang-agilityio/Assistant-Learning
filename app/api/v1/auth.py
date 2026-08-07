@@ -96,7 +96,6 @@ async def get_current_user(
         # 401 rather than 404: a validly-signed token for a user that no longer
         # exists is an authentication failure, and 404 would confirm which ids
         # are absent to anyone holding an old token.
-        logger.warning("user_not_found_for_token", user_id=user_id)
         raise HTTPException(
             status_code=401, detail="Invalid authentication credentials", headers=_UNAUTHORIZED
         )
@@ -128,11 +127,9 @@ async def get_current_session(
     session_id = payload["sub"]
     session = await database_service.get_session(session_id)
     if session is None:
-        logger.warning("session_not_found", session_id=session_id)
         raise HTTPException(status_code=404, detail="Session not found", headers=_UNAUTHORIZED)
 
     if session.user_id != payload.get("uid"):
-        logger.warning("session_ownership_mismatch", session_id=session_id, uid=payload.get("uid"))
         raise HTTPException(status_code=403, detail="Session does not belong to this user")
 
     bind_context(user_id=session.user_id, session_id=session_id)
@@ -159,7 +156,6 @@ async def register_user(request: Request, user_data: UserCreate) -> UserResponse
         # characters like & or <.
         hashed = User.hash_password(user_data.password.get_secret_value())
     except ValueError as exc:
-        logger.info("registration_validation_failed", error=str(exc))
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     if await database_service.get_user_by_email(email):
@@ -226,7 +222,6 @@ async def refresh_access_token(request: Request, refresh_token: str = Form(...))
         )
 
     token, raw_refresh = await _issue_login_tokens(user_id)
-    logger.info("token_refreshed", user_id=user_id)
     return TokenResponse(
         access_token=token.access_token,
         token_type="bearer",
@@ -307,5 +302,4 @@ async def delete_session(
         raise HTTPException(status_code=403, detail="Cannot delete other sessions")
 
     await database_service.delete_session(session_id)
-    logger.info("session_deleted", session_id=session_id, user_id=current_session.user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

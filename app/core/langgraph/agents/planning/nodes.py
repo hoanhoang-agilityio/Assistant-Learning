@@ -56,9 +56,6 @@ async def select_template(state: PlanningState, config: RunnableConfig) -> Comma
 
     matches = query_templates(days_per_week=days, goal=state["goal"], level=level)
     if not matches:
-        logger.info(
-            "planning_no_template_matches", days_per_week=days, goal=state["goal"], level=level
-        )
         return Command(
             update={
                 "issues": [
@@ -80,11 +77,7 @@ async def select_template(state: PlanningState, config: RunnableConfig) -> Comma
         )
 
     template = matches[0]
-    logger.info(
-        "planning_template_selected",
-        template_id=template["template_id"],
-        alternatives=len(matches) - 1,
-    )
+
     return Command(
         update={"template": template, "slots": iter_slots(template)}, goto="filter_candidates"
     )
@@ -130,13 +123,6 @@ async def filter_candidates(state: PlanningState, config: RunnableConfig) -> Com
             issues.append(_dropped_slot_issue(slot, profile))
             continue
         fillable.append({**slot, "candidates": candidates})
-
-    logger.info(
-        "planning_candidates_filtered",
-        slots_fillable=len(fillable),
-        slots_dropped=len(issues),
-        injuries=len(profile.get("injuries") or []),
-    )
 
     if not fillable:
         return Command(update={"slots": [], "issues": issues}, goto=END)

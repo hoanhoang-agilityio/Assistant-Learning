@@ -51,14 +51,8 @@ async def parse_plan(state: IngestState, config: RunnableConfig) -> Command:
         return Command(update={"submitted_plan": None}, goto=END)
 
     if not parsed.is_a_plan or not parsed.days:
-        logger.info("ingest_no_plan_found")
         return Command(update={"submitted_plan": None}, goto=END)
 
-    logger.info(
-        "ingest_plan_parsed",
-        days=len(parsed.days),
-        exercises=sum(len(day.exercises) for day in parsed.days),
-    )
     return Command(
         update={"submitted_plan": parsed.model_dump(exclude={"is_a_plan"})},
         goto="resolve_names",

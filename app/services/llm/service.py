@@ -88,22 +88,10 @@ class LLMService:
         try:
             self._current_model_index = all_names.index(settings.DEFAULT_LLM_MODEL)
             self._llm = LLMRegistry.get_llm(settings.DEFAULT_LLM_MODEL)
-            logger.info(
-                "llm_service_initialized",
-                default_model=settings.DEFAULT_LLM_MODEL,
-                model_index=self._current_model_index,
-                total_models=len(all_names),
-                environment=settings.ENVIRONMENT.value,
-            )
-        except Exception as e:
+
+        except Exception:
             self._current_model_index = 0
             self._llm = LLMRegistry.LLMS[0]["llm"]
-            logger.warning(
-                "default_model_not_found_using_first",
-                requested=settings.DEFAULT_LLM_MODEL,
-                using=all_names[0] if all_names else "none",
-                error=str(e),
-            )
 
     # ------------------------------------------------------------------
     # Public API
@@ -162,10 +150,6 @@ class LLMService:
                 timeout=settings.LLM_TOTAL_TIMEOUT,
             )
         except TimeoutError:
-            logger.exception(
-                "llm_total_timeout_exceeded",
-                timeout_seconds=settings.LLM_TOTAL_TIMEOUT,
-            )
             raise RuntimeError(
                 f"llm call timed out after {settings.LLM_TOTAL_TIMEOUT}s total budget"
             )
@@ -225,7 +209,6 @@ class LLMService:
         """
         try:
             response = await llm.ainvoke(messages)
-            logger.debug("llm_call_successful")
             return response
         except (RateLimitError, APITimeoutError, APIError) as e:
             logger.warning(

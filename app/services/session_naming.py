@@ -97,7 +97,6 @@ async def _persist_session_name(session_id: str, user_message: str) -> None:
             temperature=0.3,
         )
         await database_service.update_session_name(session_id, result.title)
-        logger.info("session_name_generated", session_id=session_id, name=result.title)
     except Exception:
         # The placeholder stays. A failed title is not a failed conversation.
         logger.exception("session_name_generation_failed", session_id=session_id)

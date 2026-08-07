@@ -16,7 +16,6 @@ from typing import Any
 
 from sqlmodel import Session, col, select
 
-from app.core.logging import logger
 from app.models.database import engine
 from app.models.plan_version import PlanVersion
 from app.schemas.graph import VersionRef
@@ -71,14 +70,6 @@ async def insert_version(
         session.commit()
         session.refresh(row)
         ref = VersionRef(version_id=row.id, label=row.label, created_at=row.created_at.isoformat())
-
-    logger.info(
-        "plan_version_saved",
-        user_id=user_id,
-        version_id=version_id,
-        label=ref["label"],
-        rubric_version=rubric_version,
-    )
     return ref
 
 

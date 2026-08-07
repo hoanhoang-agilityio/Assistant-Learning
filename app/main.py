@@ -99,7 +99,6 @@ async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Return field-level validation errors without echoing submitted values."""
-    logger.info("validation_error", path=request.url.path, error_count=len(exc.errors()))
     formatted = [
         {
             "field": " -> ".join(str(part) for part in error["loc"] if part != "body"),

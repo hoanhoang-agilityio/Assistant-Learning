@@ -167,10 +167,8 @@ class LangGraphAgent:
             )
             await pool.open()
             self._connection_pool = pool
-            logger.info("checkpointer_pool_opened", max_size=settings.POSTGRES_POOL_SIZE)
             return pool
-        except Exception as e:
-            logger.exception("checkpointer_pool_failed", error=str(e))
+        except Exception:
             if settings.ENVIRONMENT == Environment.PRODUCTION:
                 return None
             raise
@@ -211,17 +209,15 @@ class LangGraphAgent:
                 },
                 config,
             )
-        except Exception as e:
+        except Exception:
             # Every model in the registry has already been tried by the agent's
             # fallback middleware. The turn still owes the user a sentence.
-            logger.exception("qa_agent_failed", error=str(e))
             return Command(update={"answer": FAILURE_ANSWER}, goto="finalize")
 
         # An empty last message means the agent stopped on its call limit before
         # writing anything. Nothing failed, so this is not the failure wording —
         # but the turn still owes the user a sentence.
         answer = message_text(result["messages"][-1]) or EXHAUSTED_ANSWER
-        logger.info("qa_answered", answer_length=len(answer))
         return Command(
             update={"messages": [AIMessage(content=answer)], "answer": answer},
             goto="finalize",
@@ -245,7 +241,6 @@ class LangGraphAgent:
             A command writing the question and going to ``finalize``.
         """
         labels = [FIELD_LABELS.get(field, field) for field in state.missing_fields]
-        logger.info("profile_asking_missing", count=len(labels), fields=state.missing_fields)
 
         question = (
             "Before I can put a plan together I need a few things:\n\n"
@@ -279,7 +274,6 @@ class LangGraphAgent:
         if state.intent == "check":
             return Command(goto="ingest_plan")
 
-        logger.info("intent_branch_not_implemented", intent=state.intent)
         return Command(goto="not_implemented")
 
     async def _ingest_plan(self, state: RootState, config: RunnableConfig) -> Command:
@@ -353,7 +347,6 @@ class LangGraphAgent:
         if not notes:
             return Command(update={"answer": _NO_PLAN_FOUND_ANSWER}, goto="finalize")
 
-        logger.info("ingest_asking_for_clarification", note_count=len(notes))
         return Command(
             update={
                 "answer": (
@@ -426,10 +419,8 @@ class LangGraphAgent:
         """
         index = state.version_index
         if len(index) <= 1:
-            logger.info("revert_no_history", versions=len(index))
             return Command(update={"answer": _NO_HISTORY_ANSWER}, goto="finalize")
 
-        logger.info("revert_asking_which_version", versions=len(index))
         return Command(
             update={
                 "answer": (
@@ -460,7 +451,6 @@ class LangGraphAgent:
         """
         version = await get_version(state.revert_target or "")
         if version is None:
-            logger.warning("revert_version_not_found", version_id=state.revert_target)
             return Command(
                 update={
                     "answer": "I couldn't find that version any more.",
@@ -469,12 +459,6 @@ class LangGraphAgent:
                 goto="finalize",
             )
 
-        logger.info(
-            "revert_snapshot_loaded",
-            version_id=version.id,
-            label=version.label,
-            saved_rubric=version.rubric_version,
-        )
         return Command(
             update={
                 "draft_plan": dict(version.plan),
@@ -529,13 +513,7 @@ class LangGraphAgent:
             A command going to ``confirm``.
         """
         diff = build_diff(state.plan, state.draft_plan, state.macros, state.computed_macros)
-        logger.info(
-            "diff_built",
-            added=len(diff["added"]),
-            removed=len(diff["removed"]),
-            days_before=diff["days_before"],
-            days_after=diff["days_after"],
-        )
+
         return Command(update={"pending_commit": diff}, goto="confirm")
 
     async def _confirm(self, state: RootState, config: RunnableConfig) -> Command:
@@ -571,12 +549,10 @@ class LangGraphAgent:
         )
 
         if _is_affirmative(answer):
-            logger.info("change_confirmed")
             return Command(goto="snapshot")
 
         # Declined. `plan` and `macros` are untouched, so the stored plan is
         # still exactly what the user approved before this turn.
-        logger.info("change_declined", answer=str(answer)[:40])
         return Command(update={"pending_commit": None, "answer": _DECLINED_ANSWER}, goto="finalize")
 
     async def _not_implemented(self, state: RootState, config: RunnableConfig) -> Command:
@@ -659,7 +635,6 @@ class LangGraphAgent:
         macros = calc_macros(
             state.profile, sessions_per_week=sessions, goal=state.profile.get("goal", "recomp")
         )
-        logger.info("macros_computed", tdee=macros["tdee"], kcal=macros["kcal"], sessions=sessions)
         return Command(update={"computed_macros": macros}, goto="verification")
 
     async def _verification(self, state: RootState, config: RunnableConfig) -> Command:
@@ -723,7 +698,6 @@ class LangGraphAgent:
             # Out of attempts. Two failed repairs usually means genuinely
             # conflicting constraints, which the user has to resolve — so the
             # issue list is presented rather than a plan being saved anyway (§8).
-            logger.info("verdict_fail_after_repairs", repair_count=state.repair_count)
             return Command(goto="compose_answer")
 
         # There is no edge from here to `snapshot` for it, so a `check` turn
@@ -763,7 +737,6 @@ class LangGraphAgent:
         )
         if swaps == 0:
             # Another pass would produce the same plan. Stop and report.
-            logger.info("repair_made_no_change", repair_count=state.repair_count)
             return Command(update={"repair_count": state.repair_count + 1}, goto="compose_answer")
 
         return Command(
@@ -860,15 +833,13 @@ class LangGraphAgent:
                 model_name=_COMPOSER_MODEL,
             )
             answer = message_text(response)
-        except Exception as e:
+        except Exception:
             # The plan is real and already computed; losing the prose must not
             # lose the work. Fall back to a plain rendering.
-            logger.exception("compose_answer_failed_using_plain_render", error=str(e))
             answer = _plain_answer(
                 state.submitted_plan or state.draft_plan, state.computed_macros, issues
             )
 
-        logger.info("answer_composed", verdict=state.verdict, issue_count=len(issues))
         return Command(update={"answer": answer}, goto="finalize")
 
     async def _finalize(self, state: RootState, config: RunnableConfig) -> Command:
@@ -898,7 +869,6 @@ class LangGraphAgent:
         if not answer:
             # A branch that produced no text has nothing to record. The turn is
             # still complete; the facade returns an empty message list.
-            logger.info("finalize_no_answer", intent=state.intent)
             return Command(goto=END)
 
         last = state.messages[-1] if state.messages else None
@@ -935,17 +905,12 @@ class LangGraphAgent:
                 checkpointer = AsyncPostgresSaver(connection_pool)
                 await checkpointer.setup()
             elif settings.ENVIRONMENT == Environment.PRODUCTION:
-                logger.warning("graph_compiled_without_checkpointer")
                 checkpointer = None
             else:
                 raise RuntimeError("checkpointer pool unavailable outside production")
 
             self._graph = builder.compile(checkpointer=checkpointer, name=GRAPH_NAME)
-            logger.info(
-                "graph_created",
-                agents=sorted(self._agents),
-                environment=settings.ENVIRONMENT.value,
-            )
+
             return self._graph
         except Exception as e:
             logger.exception("graph_creation_failed", error=str(e))
@@ -1110,9 +1075,6 @@ class LangGraphAgent:
         async with pool.connection() as conn, conn.pipeline():
             for table in settings.CHECKPOINT_TABLES:
                 await conn.execute(f"DELETE FROM {table} WHERE thread_id = %s", (session_id,))
-        logger.info(
-            "chat_history_cleared", session_id=session_id, tables=len(settings.CHECKPOINT_TABLES)
-        )
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -1194,11 +1156,7 @@ class LangGraphAgent:
                 (message.content for message in reversed(messages) if message.role == "user"),
                 "",
             )
-            logger.info(
-                "graph_resuming_interrupt",
-                next_nodes=list(state.next),
-                reply_preview=reply[:40],
-            )
+
             return Command(resume=reply)
 
         return {
@@ -1229,7 +1187,6 @@ class LangGraphAgent:
             return None
 
         value = state.tasks[0].interrupts[0].value
-        logger.info("graph_interrupted", session_id=session_id, next_nodes=list(state.next))
         return Message(role="assistant", content=_interrupt_text(value))
 
 
