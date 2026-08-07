@@ -71,7 +71,7 @@
       "hamstrings": 1.0,
       "glutes": 0.8
     },
-    "skill_level": 2,
+    "skill_level": 1,
     "fatigue_cost": 3
   },
   {
@@ -415,7 +415,7 @@
       "hamstrings": 1.0,
       "glutes": 0.8
     },
-    "skill_level": 2,
+    "skill_level": 1,
     "fatigue_cost": 2
   },
   {
@@ -470,7 +470,7 @@
       "side_delts": 0.5,
       "triceps": 0.5
     },
-    "skill_level": 2,
+    "skill_level": 1,
     "fatigue_cost": 3
   },
   {
@@ -1804,7 +1804,7 @@
       "side_delts": 0.5,
       "triceps": 0.5
     },
-    "skill_level": 2,
+    "skill_level": 1,
     "fatigue_cost": 4
   },
   {

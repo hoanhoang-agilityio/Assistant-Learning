@@ -147,7 +147,10 @@ def filter_candidates(
         constraint to report, not as permission to relax a filter.
     """
     available = set(profile.get("equipment") or [])
-    level = profile.get("level", 1)
+    # `or 1` rather than a dict default: an unanswered level reads as `None`
+    # from the profile, and `None` here would raise on the comparison below.
+    # `build_plan` asks for level, so this floor is a guard, not the norm.
+    level = profile.get("level") or 1
     excluded = exclude_ids or set()
 
     candidates = [

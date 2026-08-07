@@ -32,6 +32,11 @@ REQUIRED_FIELDS: dict[Intent, tuple[str, ...]] = {
         "equipment",
         "injuries",
         "goal",
+        # Required because `filter_candidates` filters on it. Left unasked it
+        # defaulted to 1, which is not a neutral default: it is the strictest
+        # possible filter, and it drops whole movement patterns off the plan
+        # without the user ever having claimed to be a beginner.
+        "level",
     ),
     # A change re-runs calc_macro and all three verifiers, so it needs the same
     # inputs as a build.
@@ -45,6 +50,7 @@ REQUIRED_FIELDS: dict[Intent, tuple[str, ...]] = {
         "equipment",
         "injuries",
         "goal",
+        "level",
     ),
     # Scoring a pasted plan needs the body data the macro and injury checks read,
     # but not the programme-shaping fields.
@@ -105,7 +111,13 @@ async def get_profile(user_id: int) -> dict[str, Any]:
 
     if row is None:
         return {}
-    return {field: getattr(row, field) for field in _PERSISTED_FIELDS} | {"level": row.level or 1}
+    # `level` is returned exactly as stored, including `None`. Coalescing an
+    # unanswered level to 1 here made it indistinguishable from a user who said
+    # "beginner", so `missing_fields` never asked — and `filter_candidates`
+    # then excluded every skill-2 exercise, silently dropping any pattern whose
+    # cheapest option is skill 2. The defensive floor belongs at the point of
+    # use, in `filter_candidates`, not on the way out of the database.
+    return {field: getattr(row, field) for field in _PERSISTED_FIELDS}
 
 
 async def upsert_profile(user_id: int, profile: dict[str, Any]) -> None:
