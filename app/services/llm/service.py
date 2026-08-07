@@ -38,7 +38,11 @@ T = TypeVar("T", bound=BaseModel)
 # Transient failures: a later attempt against the same model can succeed.
 # Everything else in the OpenAI hierarchy — 400 bad request, 401 auth, 403, 404
 # — is permanent for a given request, and retrying it only delays the error.
-_RETRYABLE_ERRORS = (
+#
+# Public because the QA agent holds its model directly and rebuilds this policy
+# as middleware. One definition, so the two paths cannot come to disagree about
+# what is worth retrying.
+RETRYABLE_ERRORS = (
     RateLimitError,
     APITimeoutError,
     APIConnectionError,
@@ -57,7 +61,7 @@ def _is_permanent(error: Exception) -> bool:
         a malformed schema, a bad key — so the circular fallback is skipped and
         the real cause surfaces immediately.
     """
-    return isinstance(error, APIStatusError) and not isinstance(error, _RETRYABLE_ERRORS)
+    return isinstance(error, APIStatusError) and not isinstance(error, RETRYABLE_ERRORS)
 
 
 class LLMService:
@@ -202,7 +206,7 @@ class LLMService:
         # attempts, then the circular fallback tried every other model three
         # times each — twelve identical 400s and ~30s of backoff for something
         # that could never succeed, and the real cause buried under retry logs.
-        retry=retry_if_exception_type(_RETRYABLE_ERRORS),
+        retry=retry_if_exception_type(RETRYABLE_ERRORS),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
