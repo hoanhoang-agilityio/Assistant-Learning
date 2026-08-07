@@ -7,13 +7,16 @@ rather than by convention:
   node, so full plan snapshots live in Postgres and state carries only
   ``VersionRef`` index entries.
 * **Only fan-out fields get reducers.** ``issues`` is written by the three
-  verify branches concurrently and therefore needs ``add``. Every other field
+  verify branches concurrently and therefore needs one. Every other field
   is written by exactly one branch; giving it a reducer would hide a
   lost-update bug rather than prevent one.
+* **Working fields are turn-scoped.** State survives in the checkpointer, so a
+  field a turn writes and the answer reads has to be cleared when the next turn
+  starts (``NEW_TURN``) — otherwise the second turn's answer is composed partly
+  from the first turn's findings.
 """
 
-from operator import add
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
@@ -47,6 +50,31 @@ class Issue(TypedDict):
     message: str
     suggestion: dict | None
     rubric_ref: str
+
+
+def accumulate_issues(left: list[Issue], right: list[Issue] | None) -> list[Issue]:
+    """Reducer for ``issues``: accumulate within a turn, ``None`` clears.
+
+    Plain ``add`` is right inside a turn — the three verify branches fan out and
+    every one of their findings belongs in the same answer — and wrong across
+    turns, because there is no value a node can write to get back to an empty
+    list. The findings of a build then travel into the answer for the change
+    that follows it, where they name days of a split the user no longer has.
+
+    ``None`` is the clear signal, written once per run by ``classify``. An empty
+    list cannot be it: a verifier that found nothing writes ``[]``, and that
+    must not erase what the branch beside it found.
+
+    Args:
+        left: Findings accumulated so far this turn.
+        right: Findings to add, or ``None`` to start a new turn.
+
+    Returns:
+        The merged findings, or an empty list when clearing.
+    """
+    if right is None:
+        return []
+    return left + right
 
 
 class VersionRef(TypedDict):
@@ -180,7 +208,7 @@ class RootState(BaseModel):
     )
     draft_plan: dict | None = Field(default=None, description="Uncommitted working plan")
 
-    issues: Annotated[list[Issue], add] = Field(
+    issues: Annotated[list[Issue], accumulate_issues] = Field(
         default_factory=list,
         description="Written concurrently by the three verify branches — reducer is mandatory",
     )
@@ -200,3 +228,30 @@ class RootState(BaseModel):
     )
 
     answer: str = Field(default="", description="Final user-facing text for this turn")
+
+
+# Written by `classify`, the entry node of every run, so each turn starts from
+# the same blank working set no matter which branch ran before it.
+#
+# These are the fields a turn *derives*: findings, verdict, the working plan and
+# its macros. The checkpointer keeps them, and a later turn reads them — so
+# without this a change_plan answer is composed from the build's draft, the
+# build's findings and, when nothing new was produced, the build's plan.
+#
+# What is deliberately absent is as important. `plan`, `macros`, `profile`,
+# `version_index` and `current_version_id` are what the user *has*; they are
+# meant to survive, and clearing them here would delete the plan every turn.
+#
+# A resume does not run `classify`, which is exactly right: the "yes" answering
+# a confirm gate continues the run that staged the change, and the diff it was
+# shown must still be there.
+NEW_TURN: dict[str, Any] = {
+    "issues": None,
+    "verdict": None,
+    "repair_count": 0,
+    "draft_plan": None,
+    "computed_macros": None,
+    "submitted_plan": None,
+    "revert_target": None,
+    "answer": "",
+}

@@ -7,7 +7,7 @@ from langgraph.types import Command
 from app.core.langgraph.utils import dump_messages
 from app.core.logging import logger
 from app.core.prompts import load_classify_prompt
-from app.schemas.graph import IntentDecision, RootState
+from app.schemas.graph import NEW_TURN, IntentDecision, RootState
 from app.services.llm.service import llm_service
 
 # Enough context to disambiguate a follow-up ("make it 5 days") without paying
@@ -24,7 +24,15 @@ _CLASSIFIER_MODEL = "gpt-5-mini"
 async def classify(state: RootState, config: RunnableConfig) -> Command:
     """Decide which branch handles this turn.
 
-    Reads ``messages``. Writes ``intent``, ``scope`` and ``changes``.
+    Reads ``messages``. Writes ``intent``, ``scope``, ``changes`` and the
+    ``NEW_TURN`` reset.
+
+    Being the entry node of every run makes this the one place that can clear
+    the previous turn's working state, and clearing it is not housekeeping: the
+    checkpointer keeps ``issues``, ``draft_plan`` and the rest, so a change turn
+    that does not reset composes its answer from the *build's* findings — which
+    name the days of a split the user has just replaced. The reset happens
+    before the classification, so it applies to the failure path too.
 
     A classification failure routes to ``general_qa`` rather than raising: the
     worst outcome of that fallback is a plain answer, whereas guessing
@@ -49,7 +57,10 @@ async def classify(state: RootState, config: RunnableConfig) -> Command:
         decision = await llm_classify(conversation)
     except Exception as e:
         logger.exception("routing_classify_failed_defaulting_to_qa", error=str(e))
-        return Command(update={"intent": "general_qa", "scope": [], "changes": {}}, goto="dispatch")
+        return Command(
+            update={**NEW_TURN, "intent": "general_qa", "scope": [], "changes": {}},
+            goto="dispatch",
+        )
 
     scope = decision.scope if decision.intent not in _NO_SCOPE_INTENTS else []
     # Flattened to a plain dict for state: `changes` is consumed by `patch_plan`
@@ -66,7 +77,7 @@ async def classify(state: RootState, config: RunnableConfig) -> Command:
         change_keys=sorted(changes),
     )
     return Command(
-        update={"intent": decision.intent, "scope": scope, "changes": changes},
+        update={**NEW_TURN, "intent": decision.intent, "scope": scope, "changes": changes},
         goto="dispatch",
     )
 
