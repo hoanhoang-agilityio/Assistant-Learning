@@ -391,7 +391,7 @@ def test_every_declared_intent_has_a_real_branch():
     from app.core.langgraph.graph import CONFIRM_REQUIRED_INTENTS, READ_ONLY_INTENTS
     from app.core.langgraph.routing.dispatch import DISPATCH_TARGETS
 
-    handled = {"build_plan", "change_plan", "revert", "check", "general_qa"}
+    handled = {"build_plan", "change_plan", "revert", "check", "general_qa", "off_topic"}
     assert set(DISPATCH_TARGETS) == handled
     assert CONFIRM_REQUIRED_INTENTS <= handled
     assert READ_ONLY_INTENTS <= handled

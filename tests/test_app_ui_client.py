@@ -402,4 +402,3 @@ def test_conversation_title_is_truncated_to_one_line() -> None:
 
     assert len(title) == 40
     assert title.endswith("…")
-

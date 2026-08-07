@@ -20,7 +20,7 @@ from langgraph.graph import StateGraph
 from langgraph.types import Command
 
 from app.core.langgraph.agents import AGENTS
-from app.core.langgraph.graph import LangGraphAgent, _add_nodes
+from app.core.langgraph.graph import _OFF_TOPIC_ANSWER, LangGraphAgent, _add_nodes
 from app.core.langgraph.routing.dispatch import DISPATCH_TARGETS
 from app.schemas.graph import Intent, IntentDecision, Issue, RootState, accumulate_issues
 from tests.conftest import FakeChatModel, stub_qa_model
@@ -299,8 +299,10 @@ def test_no_write_intent_can_skip_the_profile_gate():
     builder.set_entry_point("classify")
     graph = builder.compile(checkpointer=MemorySaver(), name="root-test")
 
-    # Every intent that can write enters at the top of the gate.
-    write_intents = set(Intent.__args__) - {"general_qa"}
+    # Every intent that can write enters at the top of the gate. The two that
+    # cannot — a knowledge question and a declined one — are the exceptions, and
+    # naming them here is what makes a third exception a failing test.
+    write_intents = set(Intent.__args__) - {"general_qa", "off_topic"}
     assert {DISPATCH_TARGETS[intent] for intent in write_intents} == {"load_profile"}
 
     # And only the last node of the gate opens onto the branches.
@@ -335,14 +337,18 @@ def test_only_finalize_ends_the_graph():
         ("change_plan", False),
         ("check", False),
         ("revert", False),
+        ("off_topic", False),
     ],
 )
 async def test_only_general_qa_reaches_the_qa_agent(monkeypatch, intent, reaches_qa):
-    """Every write intent goes through the profile gate, never to the QA agent.
+    """Only a knowledge question reaches the QA agent.
 
-    The failure this prevents is a plan request being answered conversationally:
-    the QA model would produce a plausible plan with invented sets and reps,
-    which is exactly what §1.1 exists to stop.
+    Two different failures, one assertion. A write intent that reached the QA
+    agent would be answered conversationally — a plausible plan with invented
+    sets and reps, which is what §1.1 exists to stop. An ``off_topic`` turn that
+    reached it would be answered at all, which is what the topic gate exists to
+    stop; a refusal composed by the same model that was just asked to help with
+    something else is a refusal that can be talked out of.
     """
     visited = _QA_CALLS
 
@@ -366,6 +372,53 @@ async def test_only_general_qa_reaches_the_qa_agent(monkeypatch, intent, reaches
         if isinstance(message, AIMessage) and message.content == state.values["answer"]
     ]
     assert len(recorded) == 1
+
+
+async def test_off_topic_is_declined_without_a_model_call(monkeypatch):
+    """The topic gate answers from a constant and touches nothing.
+
+    Two properties, and the second is the one that matters. That the reply is
+    the fixed string is easy; that *no* model ran is what makes the gate a gate.
+    A refusal an LLM composed from the off-topic message is a refusal that can
+    be negotiated with, and it bills for the privilege.
+    """
+    graph = await _build_test_graph(
+        monkeypatch, IntentDecision(intent="off_topic", scope=[], changes={})
+    )
+    config = _config()
+    await graph.ainvoke(
+        {"messages": [{"role": "user", "content": "write me a python web scraper"}]}, config
+    )
+
+    state = await graph.aget_state(config)
+    assert state.values["intent"] == "off_topic"
+    assert state.values["answer"] == _OFF_TOPIC_ANSWER
+    assert not _QA_CALLS
+
+    # Nothing about the user's plan was read, written or staged.
+    assert state.values.get("draft_plan") is None
+    assert state.values.get("plan") is None
+    assert state.values.get("pending_commit") is None
+
+
+def test_decline_cannot_reach_anything_that_touches_a_plan():
+    """The gate's guarantee is topological, not a matter of the node behaving.
+
+    ``_decline`` writing a constant is only half of it. The other half is that
+    ``decline`` has exactly one outgoing edge, to ``finalize`` — so no later
+    edit can route an off-topic turn onward into the plan pipeline while the
+    node itself still looks correct in isolation.
+    """
+    builder = StateGraph(RootState)
+    _add_nodes(builder, LangGraphAgent())
+    builder.set_entry_point("classify")
+    graph = builder.compile(checkpointer=MemorySaver(), name="root-test")
+
+    out = {edge.target for edge in graph.get_graph().edges if edge.source == "decline"}
+    assert out == {"finalize"}
+
+    reaches_decline = {edge.source for edge in graph.get_graph().edges if edge.target == "decline"}
+    assert reaches_decline == {"dispatch"}
 
 
 async def test_scope_is_dropped_for_non_check_intents(monkeypatch):
