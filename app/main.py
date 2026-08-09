@@ -23,7 +23,6 @@ from app.core.logging import logger
 from app.core.middleware import LoggingContextMiddleware
 from app.core.observability import langfuse_init
 from app.services.database import database_service
-from app.services.memory import memory_service
 
 
 @asynccontextmanager
@@ -36,20 +35,15 @@ async def lifespan(_app: FastAPI):
     # created lazily on first request instead, so the app still boots when
     # Postgres is briefly unavailable.
     langfuse_init()
-    # Cache first: the memory service reads through it, and initialising in the
-    # other order would leave the first few searches uncached.
+    # Logs and degrades rather than raising — the app is fully functional
+    # without a cache, just slower.
     await cache_service.initialize()
-    # Pre-warm mem0 so the first real request does not pay its cold init.
-    # Both of these log and degrade rather than raising — the app is fully
-    # functional without either.
-    await memory_service.initialize()
     logger.info(
         "application_startup",
         project_name=settings.PROJECT_NAME,
         version=settings.VERSION,
         environment=settings.ENVIRONMENT.value,
         cache_backend=cache_service.backend,
-        memory_enabled=memory_service.enabled,
     )
     yield
     await cache_service.close()

@@ -48,7 +48,6 @@ dependencies = [
     "python-dotenv>=1.0,<2.0",
     "httpx>=0.28,<1.0",
     "langchain-community>=0.3,<0.4.2",
-    "mem0ai>=2.0.15",
     "redis>=8.1.0",
     "cachetools>=7.1.4",
     # Reads data/knowledge/*.docx in scripts/seed_knowledge.py. A runtime rather
