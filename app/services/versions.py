@@ -35,6 +35,7 @@ async def insert_version(
     label: str = "",
     parent_id: str | None = None,
     restored_from: str | None = None,
+    session_id: str | None = None,
 ) -> VersionRef:
     """Store a plan snapshot and return its index entry.
 
@@ -47,6 +48,10 @@ async def insert_version(
         label: Human-readable name, defaulted to a version number.
         parent_id: The version this one supersedes.
         restored_from: Set when this version's content came from an older one.
+        session_id: The conversation this snapshot came out of. Read by the
+            episodic layer to say which plan a past session produced; deriving
+            that from timestamps instead misattributes a version whenever a user
+            has two sessions open.
 
     Returns:
         The ``VersionRef`` to put in state.
@@ -58,6 +63,7 @@ async def insert_version(
         row = PlanVersion(
             id=version_id,
             user_id=user_id,
+            session_id=session_id,
             label=label or f"v{len(existing) + 1}",
             plan=plan,
             macros=macros,
@@ -86,6 +92,29 @@ async def get_version(version_id: str) -> PlanVersion | None:
         return session.get(PlanVersion, version_id)
 
 
+async def latest_version(user_id: int) -> PlanVersion | None:
+    """Load the newest snapshot this user saved.
+
+    ``RootState.plan`` lives in the checkpointer, keyed on the session, so a new
+    conversation starts without one even though the plan is right here. This is
+    what ``load_context`` rehydrates from — the only reason a user's plan
+    survives closing the tab.
+
+    Args:
+        user_id: Owner of the plans.
+
+    Returns:
+        The most recent version, or ``None`` when the user has never saved one.
+    """
+    with Session(engine) as session:
+        return session.exec(
+            select(PlanVersion)
+            .where(PlanVersion.user_id == user_id)
+            .order_by(col(PlanVersion.created_at).desc())
+            .limit(1)
+        ).first()
+
+
 async def version_index(user_id: int) -> list[VersionRef]:
     """List a user's versions, newest first, as light index entries.
 
@@ -112,4 +141,4 @@ async def version_index(user_id: int) -> list[VersionRef]:
     ]
 
 
-__all__ = ["get_version", "insert_version", "version_index"]
+__all__ = ["get_version", "insert_version", "latest_version", "version_index"]

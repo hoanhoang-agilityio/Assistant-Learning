@@ -1,4 +1,4 @@
-"""Root-graph nodes that load, extract and gate the user's training profile.
+"""Root-graph nodes that load context, extract profile facts and gate the turn.
 
 Three nodes on the root graph rather than a packaged agent. ``agents/`` holds
 independent workflows with their own state and contract — something worth
@@ -8,11 +8,20 @@ said, decide whether the turn may proceed. It has no branching of its own, no
 state a caller has to map in and out, and nothing another graph would reuse.
 Compare ``routing/``, which is here for the same reason.
 
-The chain is mandatory for every write intent. ``dispatch`` sends all four write
-intents to ``load_profile`` and only ``check_required`` has an edge to
-``intent_branch``, so there is no path to ``calc_macro`` that skips the gate
-(``docs/workflow.md`` §1.2, §9.1).
+The chain is mandatory for **every** turn, not only the ones that write. The
+graph is a single spine — ``classify → load_context → extract_profile →
+check_required`` — and ``check_required`` is the only node with an edge to
+``intent_branch``, which is the only node with an edge to any branch at all. So
+there is no path to ``calc_macro``, or to ``qa``, that skips the gate.
+
+Putting QA inside the chain is what lets a fact stated this turn reach the answer
+given this turn: *"I'm 73 kg now, how much protein?"* answered from the stored
+row is answered with the old weight. The gate does not block QA —
+``REQUIRED_FIELDS["general_qa"]`` is empty, deliberately and load-bearingly so.
 """
+
+import asyncio
+from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -21,10 +30,12 @@ from langgraph.types import Command
 from app.core.langgraph.utils import dump_messages
 from app.core.logging import logger
 from app.core.prompts import load_extract_profile_prompt
-from app.schemas.graph import Issue, ProfileExtraction, RootState
+from app.schemas.graph import Intent, Issue, ProfileExtraction, RootState
 from app.services import profile as profile_service
+from app.services.episodes import recent_episodes
 from app.services.llm.service import llm_service
 from app.services.rubrics import contraindications
+from app.services.versions import latest_version
 
 _EXTRACTOR_MODEL = "gpt-5-mini"
 
@@ -57,19 +68,39 @@ _EQUIPMENT_TOKENS = frozenset(
 
 _MIN_LEVEL, _MAX_LEVEL = 1, 5
 
+# Intents whose turn ends without a plan, and therefore without a rendered issue
+# list. `check` is absent: it produces no *new* plan but it does run the
+# verifiers and compose a report, so a finding raised on that turn is seen.
+_NO_PLAN_INTENTS = frozenset({"general_qa", "off_topic"})
 
-async def load_profile(state: RootState, config: RunnableConfig) -> Command:
-    """Load the stored profile for this user.
 
-    Reads nothing from state; the owner comes from ``config``. Writes
-    ``profile``.
+async def load_context(state: RootState, config: RunnableConfig) -> Command:
+    """Load everything this turn knows about the user before it does anything.
 
-    Deterministic and mandatory, so it is a node rather than a tool: there is
-    nothing here for a model to decide.
+    Reads ``plan`` from state to decide whether to rehydrate it; the owner comes
+    from ``config``. Writes ``profile``, ``episodic_context`` and — only on a
+    session that has no plan yet — ``plan`` and ``macros``.
+
+    A node rather than a tool: these are the same queries every turn, keyed on
+    ids the node is handed, so there is nothing for a model to decide and no
+    reason to spend a round-trip letting it. A node rather than a facade read
+    because the graph should not depend on its caller having assembled context
+    for it — a direct ``ainvoke`` from a test or from Studio gets a real profile
+    here, and each load shows up as a span in the trace.
+
+    The three reads are independent, so they are gathered rather than awaited in
+    sequence.
+
+    ``plan`` is rehydrated **only when state has none**. Inside a session the
+    checkpointer is the source of truth: it may be holding a patch that has been
+    built but not yet approved, and the database — which only has approved
+    versions — must not overwrite that. A thread parked at an ``interrupt()``
+    resumes from the interrupted node rather than from the entry point, so this
+    node does not run again on the turn that approves a staged change.
 
     Args:
-        state: Current root state. Unused — the query is keyed on the config.
-        config: Runnable config, read for ``user_id``.
+        state: Current root state, read for ``plan``.
+        config: Runnable config, read for ``user_id`` and the session id.
 
     Returns:
         A command going to ``extract_profile``.
@@ -78,12 +109,33 @@ async def load_profile(state: RootState, config: RunnableConfig) -> Command:
     if user_id is None:
         # Anonymous session: nothing stored, and nothing to store. The gate
         # still runs, so the user is asked for what this turn needs.
-        logger.info("profile_anonymous_session")
-        return Command(update={"profile": {}}, goto="extract_profile")
+        logger.info("context_anonymous_session")
+        return Command(update={"profile": {}, "episodic_context": ""}, goto="extract_profile")
 
-    stored = await profile_service.get_profile(user_id)
-    logger.info("profile_loaded", user_id=user_id, fields=len(stored))
-    return Command(update={"profile": stored}, goto="extract_profile")
+    session_id = (config.get("configurable") or {}).get("thread_id", "")
+    stored, latest, episodes = await asyncio.gather(
+        profile_service.get_profile(user_id),
+        latest_version(user_id),
+        # Takes the id as text, and excludes the current session — the
+        # checkpointer already replays this conversation into the transcript.
+        recent_episodes(str(user_id), session_id),
+    )
+
+    update: dict[str, Any] = {"profile": stored, "episodic_context": episodes}
+    if state.plan is None and latest is not None:
+        # Macros travel with the plan they were computed for. Rehydrating one
+        # without the other gives the answer a plan whose numbers it cannot name.
+        update["plan"] = latest.plan
+        update["macros"] = latest.macros
+
+    logger.info(
+        "context_loaded",
+        user_id=user_id,
+        fields=len(stored),
+        plan_rehydrated="plan" in update,
+        episodes=bool(episodes),
+    )
+    return Command(update=update, goto="extract_profile")
 
 
 async def extract_profile(state: RootState, config: RunnableConfig) -> Command:
@@ -93,10 +145,15 @@ async def extract_profile(state: RootState, config: RunnableConfig) -> Command:
 
     Runs on **every** turn, not only when something is missing. A user who says
     "actually I'm 73kg now" three turns in must move the profile — and with it
-    ``profile_hash``, so a stored verify report is no longer reused (§12).
+    ``profile_hash``, so a stored verify report is no longer reused.
 
     A failed extraction is not an error: the stored profile is still valid, and
     ``check_required`` will ask for whatever is missing.
+
+    Skipped for ``off_topic``. Now that every turn passes through here, an
+    off-topic message would otherwise cost a model call and could write whatever
+    the extractor imagined it found in it. The intent is already decided by the
+    time this runs, so the skip is deterministic.
 
     Args:
         state: Current root state.
@@ -106,6 +163,9 @@ async def extract_profile(state: RootState, config: RunnableConfig) -> Command:
     Returns:
         A command going to ``check_required``.
     """
+    if state.intent == "off_topic":
+        return Command(goto="check_required")
+
     conversation = "\n".join(
         f"{message['role']}: {message['content']}"
         for message in dump_messages(state.messages[-_CONTEXT_TURNS:])
@@ -123,11 +183,20 @@ async def extract_profile(state: RootState, config: RunnableConfig) -> Command:
 
     updates = _clean(extraction)
     merged = {**state.profile, **updates}
+    if "preferences" in updates:
+        # The one field that accumulates rather than replaces. `upsert_profile`
+        # merges again, against the row it locks, and that is the authority —
+        # this merge exists so the answer *this* turn sees what was just said.
+        merged["preferences"] = profile_service.merge_preferences(
+            state.profile.get("preferences"), updates["preferences"]
+        )
 
     # Only whether anything moved, for the log and to skip a pointless write.
     # It is not carried in state: no node downstream reads it, and a field
     # nobody reads is one more thing the checkpointer serialises every turn.
-    changed = any(state.profile.get(key) != value for key, value in updates.items())
+    # Compared against `merged`, not `updates`, so re-stating a preference the
+    # profile already holds is not counted as a change.
+    changed = any(state.profile.get(key) != merged[key] for key in updates)
     user_id = _user_id(config)
     if changed and user_id is not None:
         await profile_service.upsert_profile(user_id, updates)
@@ -141,13 +210,19 @@ async def check_required(state: RootState, config: RunnableConfig) -> Command:
 
     Reads ``profile`` and ``intent``. Writes ``missing_fields`` and ``issues``.
 
-    Deterministic against ``REQUIRED_FIELDS`` (§9.1). Leaving this to a model
+    Deterministic against ``REQUIRED_FIELDS``. Leaving this to a model
     guarantees an eventual turn where it decides the profile looks complete and
     the pipeline proceeds with a missing activity level.
 
-    The only node with an edge to ``intent_branch``. That is what makes the
-    profile gate unskippable now that the chain is three root nodes rather than
-    one — see the module docstring.
+    The only node with an edge to ``intent_branch``, which is what makes the
+    profile gate unskippable — see the module docstring.
+
+    Every turn reaches this, including ``general_qa`` and ``off_topic``. Neither
+    has an entry in ``REQUIRED_FIELDS``, so neither is ever blocked here, and
+    that emptiness is the whole safety property: a question about pain must get
+    an answer, not a form. A QA question that needs a number the profile lacks
+    is handled in ``qa.md`` by answering in per-kg terms and asking for the
+    weight in the same breath.
 
     Args:
         state: Current root state.
@@ -157,7 +232,8 @@ async def check_required(state: RootState, config: RunnableConfig) -> Command:
         A command going to ``ask_missing`` when anything is outstanding, and to
         ``intent_branch`` otherwise.
     """
-    missing = profile_service.missing_fields(state.profile, state.intent or "general_qa")
+    intent = state.intent or "general_qa"
+    missing = profile_service.missing_fields(state.profile, intent)
     logger.info(
         "profile_required_checked",
         intent=state.intent,
@@ -168,29 +244,38 @@ async def check_required(state: RootState, config: RunnableConfig) -> Command:
     return Command(
         update={
             "missing_fields": missing,
-            "issues": _unmapped_injury_notes(state.profile, missing),
+            "issues": _unmapped_injury_notes(state.profile, missing, intent),
         },
         goto="ask_missing" if missing else "intent_branch",
     )
 
 
-def _unmapped_injury_notes(profile: dict, missing: list[str]) -> list[Issue]:
+def _unmapped_injury_notes(profile: dict, missing: list[str], intent: Intent) -> list[Issue]:
     """Say out loud that a declared injury has no screening rule.
 
     Silence here reads as "checked and fine", which is the opposite of the
     truth — nothing in the pipeline accounts for it. Carried as an issue so it
     reaches the answer through the same channel as every rubric finding.
 
+    Not raised for a turn that produces no plan. The wording is about a plan
+    ("nothing in this plan accounts for it"), and ``qa`` and ``decline`` reach
+    ``finalize`` without passing ``compose_answer``, the only node that renders
+    ``issues`` — so on those turns it would be computed and thrown away. A
+    knowledge question is told about the unscreened injury a different way:
+    ``unmapped_injury`` is part of ``semantic_context``, and ``qa.md`` says what
+    to do with it.
+
     Args:
         profile: The merged profile.
         missing: Fields still outstanding. A turn that is about to ask for more
             information is not the turn to raise this.
+        intent: What this turn is doing. Read-only intents produce no plan.
 
     Returns:
         One ``warn`` issue, or an empty list.
     """
     injury = profile.get("unmapped_injury")
-    if not injury or missing:
+    if not injury or missing or intent in _NO_PLAN_INTENTS:
         return []
 
     return [

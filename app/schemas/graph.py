@@ -1,7 +1,6 @@
 """Graph state and the value types that cross agent boundaries.
 
-Implements two design constraints are enforced here
-rather than by convention:
+Three design constraints are enforced here rather than left to convention:
 
 * **State stays small.** LangGraph re-serialises the whole state after *every*
   node, so full plan snapshots live in Postgres and state carries only
@@ -175,16 +174,21 @@ class RootState(BaseModel):
     """State of the root graph — only what crosses agent boundaries.
 
     Subgraphs declare their own narrower state and the parent maps in and out
-    explicitly, so a verifier cannot see the build transcript even by accident
-    (``docs/workflow.md`` §1.3, §7.4).
+    explicitly, so a verifier cannot see the build transcript even by accident.
     """
 
     messages: Annotated[list, add_messages] = Field(default_factory=list)
-    long_term_memory: str = Field(
-        default="", description="Memory retrieved once per turn at the root facade"
+    # Semantic memory has no field here on purpose: it is `profile`, and the
+    # rendered form a prompt wants is derived from it at the point of use. A
+    # second copy in state would be written before `extract_profile` merges this
+    # turn's facts, and would therefore always be one turn behind.
+    episodic_context: str = Field(
+        default="", description="Earlier sessions, retrieved once per turn by load_context"
     )
 
-    intent: Intent | None = Field(default=None, description="Set by classify, read by dispatch")
+    intent: Intent | None = Field(
+        default=None, description="Set by classify, read by check_required and intent_branch"
+    )
     scope: list[VerifyScope] = Field(
         default_factory=list, description="Which verifiers run this turn"
     )
@@ -215,7 +219,7 @@ class RootState(BaseModel):
     )
     verdict: Verdict | None = Field(default=None, description="Set by merge_issues")
     repair_count: int = Field(
-        default=0, description="Repair attempts this turn. Capped at 2 (§8) — must live in state."
+        default=0, description="Repair attempts this turn. Capped at 2 — must live in state."
     )
 
     version_index: list[VersionRef] = Field(

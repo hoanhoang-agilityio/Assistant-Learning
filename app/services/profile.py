@@ -56,6 +56,17 @@ REQUIRED_FIELDS: dict[Intent, tuple[str, ...]] = {
     # but not the programme-shaping fields.
     "check": ("weight_kg", "height_cm", "age", "sex", "activity_level", "injuries"),
     "revert": (),
+    # Empty, and load-bearing. Every turn passes through `check_required`,
+    # including questions about pain and injury, so this tuple is the only thing
+    # standing between "how do I train around a sore knee?" and a form asking
+    # for the user's height. The gate protects computation — `calc_macros`
+    # raises without an activity level — and QA computes nothing. A QA answer
+    # that needs a number it does not have gives the per-kg form and asks for
+    # the weight in the same breath (`qa.md`); it does not stop the turn.
+    #
+    # Do not add a field here. If a QA question genuinely needs one, the
+    # deterministic way to know that is a `classify` output, not this tuple,
+    # which cannot tell "what is RIR?" from "how much protein do I need?".
     "general_qa": (),
 }
 
@@ -78,6 +89,14 @@ FIELD_LABELS: dict[str, str] = {
 # Fields the user answers as "none" rather than leaving blank. An empty list is
 # a complete answer for these; for every other field, empty means unanswered.
 _EMPTY_IS_AN_ANSWER = frozenset({"injuries"})
+
+# How `preferences` is stored inside its single TEXT column, and how many items
+# it keeps. A column rather than a table because nothing yet needs to address
+# one item — delete it, date it, or ask which session it came from. When
+# something does, `merge_preferences` and `_render_semantic_context` are the two
+# seams the storage swaps behind (`docs/memory-refactor-plan.md`).
+_PREFERENCE_SEPARATOR = "; "
+_MAX_PREFERENCES = 12
 
 _PERSISTED_FIELDS = (
     "weight_kg",
@@ -120,23 +139,93 @@ async def get_profile(user_id: int) -> dict[str, Any]:
     return {field: getattr(row, field) for field in _PERSISTED_FIELDS}
 
 
+def merge_preferences(stored: str | None, stated: str | None) -> str:
+    """Append newly stated preferences to the ones already held.
+
+    The one field on the profile that accumulates. Every other column answers a
+    question with one answer — a body weight replaces a body weight — but
+    "avoids overhead pressing" and "prefers dumbbells" are both true at once, so
+    the generic ``{**stored, **extracted}`` merge that is right everywhere else
+    silently discards everything said before this turn.
+
+    Deterministic on purpose, and this is the whole design. The alternative —
+    handing the accumulated string back to a model each turn and asking it to
+    produce the updated version — trades a loud bug for a quiet one: it rewrites
+    what the user said, drifts, and there is no diff to review. The extractor's
+    job is to report what was stated *this turn*; joining that to history is
+    arithmetic, and arithmetic belongs in Python.
+
+    Capped rather than compacted. This field converges — a handful of items
+    describes what someone will and will not do — so a bound plus dropping the
+    oldest is enough, and no summarisation pass is needed to keep it readable.
+
+    Args:
+        stored: What is already held, as written by an earlier turn.
+        stated: What the user said this turn. Several items may arrive at once,
+            separated the same way.
+
+    Returns:
+        The merged list as one string, oldest first, at most
+        ``_MAX_PREFERENCES`` items.
+    """
+    merged: list[str] = []
+    seen: set[str] = set()
+
+    for item in _split_preferences(stored) + _split_preferences(stated):
+        key = " ".join(item.lower().split())
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+
+    return _PREFERENCE_SEPARATOR.join(merged[-_MAX_PREFERENCES:])
+
+
+def _split_preferences(value: str | None) -> list[str]:
+    """Split a stored or stated preference string into its items.
+
+    Args:
+        value: The string to split. ``None`` and blanks are empty.
+
+    Returns:
+        Non-empty items, in the order they were written.
+    """
+    if not value:
+        return []
+    return [item.strip() for item in value.split(_PREFERENCE_SEPARATOR.strip()) if item.strip()]
+
+
 async def upsert_profile(user_id: int, profile: dict[str, Any]) -> None:
     """Write a profile back, creating the row on first use.
 
     Only keys present in ``profile`` are written, so a partial extraction cannot
     blank out a field the user answered three turns ago.
 
+    ``preferences`` accumulates instead of being replaced, and the merge happens
+    *here*, against the row this transaction just locked, rather than against
+    whatever the turn read minutes ago. Two turns of the same user running at
+    once — two tabs — would otherwise both read the old string, both append their
+    own item and both write, and the loser's preference would be gone with
+    nothing logged. Last-write-wins is fine for a body weight, where both turns
+    saw the same conversation; it is data loss for a field that is a list.
+
     Args:
         user_id: Owner of the profile.
         profile: Fields to persist.
     """
     with Session(engine) as session:
-        row = session.exec(select(UserProfile).where(UserProfile.user_id == user_id)).first()
+        row = session.exec(
+            select(UserProfile).where(UserProfile.user_id == user_id).with_for_update()
+        ).first()
         if row is None:
             row = UserProfile(user_id=user_id)
 
         for field in _PERSISTED_FIELDS:
-            if field in profile and profile[field] is not None:
+            if field not in profile or profile[field] is None:
+                continue
+            if field == "preferences":
+                setattr(row, field, merge_preferences(row.preferences, profile[field]))
+            else:
                 setattr(row, field, profile[field])
 
         row.updated_at = datetime.now(UTC)
@@ -221,6 +310,7 @@ __all__ = [
     "FIELD_LABELS",
     "REQUIRED_FIELDS",
     "get_profile",
+    "merge_preferences",
     "missing_fields",
     "profile_hash",
     "upsert_profile",
