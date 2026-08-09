@@ -4,12 +4,12 @@ The confirm gate is the only place in this system where the graph stops
 mid-request and waits for a person. The properties worth pinning down are
 therefore about what happens *while it is stopped*:
 
-* the stored plan is untouched until the user says yes (§10)
+* the stored plan is untouched until the user says yes
 * declining leaves it untouched permanently
 * the answer resumes the paused run rather than starting a new one — otherwise
   the plan the user approves is not the plan they were shown
 * a change re-runs macros and every verifier, because an added session moves
-  TDEE and breaks a deficit that was correct before (§9.2)
+  TDEE and breaks a deficit that was correct before
 """
 
 import json
@@ -148,6 +148,18 @@ def pipeline(monkeypatch, catalog, approved_plan):
     monkeypatch.setattr(
         "app.core.langgraph.profile.nodes.profile_service.get_profile", fake_get_profile
     )
+
+    # `load_context` reads two stores besides the profile. Stubbed so a test
+    # asserts what it set up, not what happens to be seeded in the developer's
+    # Postgres — the graph state a test passes in is the only plan it has.
+    async def fake_latest_version(_user_id):
+        return None
+
+    async def fake_recent_episodes(_user_id, _session_id):
+        return ""
+
+    monkeypatch.setattr("app.core.langgraph.profile.nodes.latest_version", fake_latest_version)
+    monkeypatch.setattr("app.core.langgraph.profile.nodes.recent_episodes", fake_recent_episodes)
     monkeypatch.setattr(
         "app.core.langgraph.profile.nodes.profile_service.upsert_profile", fake_upsert
     )
@@ -221,7 +233,7 @@ async def _resume(graph, config, reply: str):
 
 
 async def test_a_change_stops_at_the_confirm_gate(pipeline, approved_plan):
-    """§10: a change overwrites an approved plan, so it must ask first."""
+    """A change overwrites an approved plan, so it must ask first."""
     graph, config, calls = pipeline({"days": 3})
     await _start(graph, config, approved_plan)
 
@@ -246,7 +258,7 @@ async def test_the_stored_plan_is_untouched_while_paused(pipeline, approved_plan
 
 
 async def test_the_diff_is_shown_against_the_current_plan(pipeline, approved_plan):
-    """§9.5: the user is being told what they are about to lose."""
+    """The user is being told what they are about to lose."""
     graph, config, _calls = pipeline({"days": 3})
     values = await _start(graph, config, approved_plan)
 
@@ -306,7 +318,7 @@ async def test_accepting_applies_the_change_and_versions_it(pipeline, approved_p
 
 
 async def test_the_new_version_records_its_parent(pipeline, approved_plan):
-    """§9.5: history is append-only, so an undo has something to return to."""
+    """History is append-only, so an undo has something to return to."""
     graph, config, calls = pipeline({"days": 3})
     await _start(graph, config, approved_plan, current_version_id="v-old")
     await _resume(graph, config, "yes")
@@ -315,7 +327,7 @@ async def test_the_new_version_records_its_parent(pipeline, approved_plan):
 
 
 async def test_macros_are_recomputed_for_the_new_day_count(pipeline, approved_plan):
-    """§9.2: an extra session raises TDEE, so the old targets cannot be reused."""
+    """An extra session raises TDEE, so the old targets cannot be reused."""
     graph, config, _calls = pipeline({"days": 3})
     values = await _start(graph, config, approved_plan)
 
@@ -419,7 +431,7 @@ def test_patch_refuses_when_there_is_no_plan(catalog):
 
 
 def test_confirm_required_matches_the_workflow_table():
-    """§10: writes over approved work confirm; reads never do."""
+    """Writes over approved work confirm; reads never do."""
     assert CONFIRM_REQUIRED_INTENTS == {"change_plan", "revert"}
 
 

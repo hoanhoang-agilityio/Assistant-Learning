@@ -4,12 +4,12 @@ Two failures define this branch, and both are silent:
 
 **Overwriting the user's own plan.** They pasted someone else's programme to ask
 an opinion. Writing it to ``plan`` replaces what they actually follow with what
-they were merely curious about (``docs/workflow.md`` §2.3, §9.3).
+they were merely curious about.
 
 **Guessing an exercise name.** Reading "leg press" as "leg extension" does not
 produce a slightly-wrong review — it produces a confident review of a plan the
 user is not doing, in which the injury check cleared a movement they never
-perform (§5.2, §12).
+perform.
 """
 
 import json
@@ -126,6 +126,18 @@ def pipeline(monkeypatch, catalog):
     monkeypatch.setattr(
         "app.core.langgraph.profile.nodes.profile_service.get_profile", fake_get_profile
     )
+
+    # `load_context` reads two stores besides the profile. Stubbed so a test
+    # asserts what it set up, not what happens to be seeded in the developer's
+    # Postgres — the graph state a test passes in is the only plan it has.
+    async def fake_latest_version(_user_id):
+        return None
+
+    async def fake_recent_episodes(_user_id, _session_id):
+        return ""
+
+    monkeypatch.setattr("app.core.langgraph.profile.nodes.latest_version", fake_latest_version)
+    monkeypatch.setattr("app.core.langgraph.profile.nodes.recent_episodes", fake_recent_episodes)
     monkeypatch.setattr(
         "app.core.langgraph.profile.nodes.profile_service.upsert_profile", fake_upsert
     )
@@ -178,9 +190,14 @@ def pipeline(monkeypatch, catalog):
     return _build
 
 
-async def _run(graph, config, text="what do you think of this plan?") -> dict:
-    """Run a check turn and return the final state."""
-    await graph.ainvoke({"messages": [{"role": "user", "content": text}], "plan": OWN_PLAN}, config)
+async def _run(graph, config, text="what do you think of this plan?", plan=OWN_PLAN) -> dict:
+    """Run a check turn and return the final state.
+
+    ``plan`` is what the user already has saved. Pass ``None`` for someone who
+    has never built one — the branch behaves differently, because there is then
+    nothing to review when the message carries no plan.
+    """
+    await graph.ainvoke({"messages": [{"role": "user", "content": text}], "plan": plan}, config)
     return dict(_DEFAULTS) | (await graph.aget_state(config)).values
 
 
@@ -190,7 +207,7 @@ async def _run(graph, config, text="what do you think of this plan?") -> dict:
 
 
 async def test_a_pasted_plan_never_becomes_the_users_plan(pipeline):
-    """§2.3: the plan they follow must survive asking about someone else's."""
+    """The plan they follow must survive asking about someone else's."""
     graph, config, calls = pipeline(_parsed(("Barbell Bench Press", 4, [6, 8])))
     values = await _run(graph, config)
 
@@ -217,7 +234,7 @@ async def test_a_pasted_plan_is_reviewed(pipeline):
 
 
 async def test_scope_narrows_which_verifiers_run(pipeline):
-    """§9.3: only a check turn lets the user's wording pick the checks."""
+    """Only a check turn lets the user's wording pick the checks."""
     graph, config, _calls = pipeline(_parsed(("Back Squat", 8, [5, 8])), scope=["injury"])
     values = await _run(graph, config, "my knee hurts, is this plan ok?")
 
@@ -231,7 +248,7 @@ async def test_scope_narrows_which_verifiers_run(pipeline):
 
 
 async def test_an_unrecognised_exercise_is_reported_not_guessed(pipeline):
-    """§12: a low-confidence name is a question, never a nearest match."""
+    """A low-confidence name is a question, never a nearest match."""
     graph, config, _calls = pipeline(
         _parsed(("Zercher good morning off pins", 3, [8, 10]), ("Back Squat", 4, [5, 8]))
     )
@@ -267,10 +284,29 @@ async def test_a_line_without_sets_is_excluded_and_reported(pipeline):
     assert "barbell_bench_press" not in reviewed
 
 
-async def test_no_plan_in_the_message_asks_for_one(pipeline):
-    """A question about training is not a plan to assess."""
+async def test_no_plan_pasted_reviews_the_one_they_have(pipeline):
+    """ "Is my plan any good?" is a real question, and this is the only branch
+    that can answer it — the verifiers live here and nowhere else.
+
+    Reviewing the saved plan cannot cost them anything: ``check`` is read-only,
+    so no path from here reaches ``snapshot``.
+    """
     graph, config, calls = pipeline(ParsedPlan(is_a_plan=False, days=[]))
-    values = await _run(graph, config, "should I train fasted?")
+    values = await _run(graph, config, "is my plan any good?")
+
+    assert values["submitted_plan"] == OWN_PLAN, "the saved plan was never assessed"
+    assert values["plan"] == OWN_PLAN, "reviewing the saved plan altered it"
+    assert calls["versions"] == [], "a review created a version"
+    assert values["verdict"] is not None, "the verifiers never ran"
+    # The answer must say which plan this is about. A report on a plan the user
+    # did not send, presented as a report on one they did, is worse than asking.
+    assert any(issue["rubric_ref"] == "ingest.saved_plan" for issue in values["issues"])
+
+
+async def test_no_plan_pasted_and_none_saved_still_asks(pipeline):
+    """The fallback needs something to fall back to."""
+    graph, config, calls = pipeline(ParsedPlan(is_a_plan=False, days=[]))
+    values = await _run(graph, config, "should I train fasted?", plan=None)
 
     assert values["submitted_plan"] is None
     assert calls["versions"] == []
@@ -278,7 +314,13 @@ async def test_no_plan_in_the_message_asks_for_one(pipeline):
 
 
 async def test_a_wholly_unreadable_plan_asks_rather_than_reviews(pipeline):
-    """If nothing could be identified there is nothing honest to say about it."""
+    """If nothing could be identified there is nothing honest to say about it.
+
+    And specifically: it must not fall back to the saved plan. The user did send
+    something, so a review of a different plan would read as an answer to what
+    they sent. That is why the fallback tests "nothing plan-shaped was found"
+    rather than "``submitted_plan`` is empty".
+    """
     graph, config, _calls = pipeline(
         _parsed(("qqq zzz wwww", 3, [8, 10]), ("xyzzy plugh", 3, [8, 10]))
     )
@@ -322,7 +364,7 @@ def test_an_ambiguous_name_returns_candidates_not_a_pick(catalog):
 
 
 def test_leg_press_never_resolves_to_leg_extension(catalog):
-    """The named failure from §5.2 — it changes what the injury check assesses."""
+    """A recorded failure: scope creep changes what the injury check assesses."""
     result = resolve_exercise("leg press", catalog)
     assert result["exercise_id"] != "leg_extension_machine"
 

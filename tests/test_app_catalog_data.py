@@ -209,7 +209,7 @@ def test_a_novice_gets_a_real_choice_for_every_slot(catalog, template_id):
     """`choose_exercises` needs at least two options, or it decides nothing.
 
     A single candidate is not a choice: the model's whole contribution is
-    picking between legal options (§6.3), and with one option the LLM call is
+    picking between legal options, and with one option the LLM call is
     pure cost. A level-2 profile is the demanding case, because the skill gate
     excludes the barbell lifts a beginner should not be handed.
     """

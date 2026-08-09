@@ -1,7 +1,8 @@
 """Routing tests for the app/ root graph.
 
 The property worth regression-testing is that mandatory steps cannot be
-bypassed: every intent goes through ``classify`` then ``dispatch``, and only
+bypassed: every intent walks the same spine — ``classify``, the context load and
+the profile gate — before ``intent_branch`` sends it anywhere, and only
 ``general_qa`` reaches the QA agent. Assertions are on state transitions and the
 structured routing decision — never on prose, which changes with every prompt
 edit.
@@ -20,8 +21,12 @@ from langgraph.graph import StateGraph
 from langgraph.types import Command
 
 from app.core.langgraph.agents import AGENTS
-from app.core.langgraph.graph import _OFF_TOPIC_ANSWER, LangGraphAgent, _add_nodes
-from app.core.langgraph.routing.dispatch import DISPATCH_TARGETS
+from app.core.langgraph.graph import (
+    _OFF_TOPIC_ANSWER,
+    INTENT_TARGETS,
+    LangGraphAgent,
+    _add_nodes,
+)
 from app.schemas.graph import Intent, IntentDecision, Issue, RootState, accumulate_issues
 from tests.conftest import FakeChatModel, stub_qa_model
 
@@ -114,12 +119,12 @@ async def _build_test_graph(monkeypatch, decision: IntentDecision):
     # Patched on ``graph`` rather than on ``profile.nodes``: ``_add_nodes``
     # registers the name it imported, and looks it up when it runs, so this is
     # the binding that ends up in the compiled graph. The fake skips straight to
-    # ``intent_branch``, which the real ``load_profile`` may not do — that is the
+    # ``intent_branch``, which the real ``load_context`` may not do — that is the
     # point of a stub, and why the assertion about the gate lives elsewhere.
-    async def fake_load_profile(state, config):
+    async def fake_load_context(state, config):
         return Command(update={"profile": _COMPLETE_PROFILE}, goto="intent_branch")
 
-    monkeypatch.setattr("app.core.langgraph.graph.load_profile", fake_load_profile)
+    monkeypatch.setattr("app.core.langgraph.graph.load_context", fake_load_context)
 
     builder = StateGraph(RootState)
     # Built through the same helper the real graph uses, so a topology change
@@ -144,9 +149,9 @@ _COMPLETE_PROFILE = {
 }
 
 
-def test_every_intent_has_a_dispatch_target():
+def test_every_intent_has_a_branch_target():
     """A new Intent literal without a target here would silently fall back."""
-    assert set(DISPATCH_TARGETS) == set(Intent.__args__)
+    assert set(INTENT_TARGETS) == set(Intent.__args__)
 
 
 def test_the_qa_agent_cannot_hold_a_plan():
@@ -159,7 +164,7 @@ def test_the_qa_agent_cannot_hold_a_plan():
     from app.core.langgraph.agents.qa import QAState
 
     added = set(QAState.__annotations__) - set(AgentState.__annotations__)
-    assert added == {"plan_context", "long_term_memory"}
+    assert added == {"plan_context", "semantic_context", "episodic_context"}
 
 
 def test_verify_isolation_fields_have_reducers():
@@ -225,7 +230,7 @@ async def test_the_qa_agent_stops_searching_after_the_cap(monkeypatch):
         {
             "messages": [HumanMessage(content="is creatine worth it?")],
             "plan_context": "",
-            "long_term_memory": "",
+            "semantic_context": "",
         }
     )
 
@@ -274,7 +279,7 @@ async def test_the_qa_agent_keeps_tool_calls_intact_across_rounds(monkeypatch):
         {
             "messages": [HumanMessage(content="creatine?")],
             "plan_context": "",
-            "long_term_memory": "",
+            "semantic_context": "",
         }
     )
 
@@ -284,32 +289,46 @@ async def test_the_qa_agent_keeps_tool_calls_intact_across_rounds(monkeypatch):
     assert any(isinstance(m, ToolMessage) and m.tool_call_id == "c1" for m in follow_up)
 
 
-def test_no_write_intent_can_skip_the_profile_gate():
-    """The gate is three root nodes now, so its unskippability must be asserted.
+def test_no_intent_can_skip_the_profile_gate():
+    """The gate is a chain of root nodes, so its unskippability must be asserted.
 
-    While ``load_profile``, ``extract_profile`` and ``check_required`` lived in a
-    subgraph, "every write intent passes the gate" was one edge:
-    ``dispatch -> profile_gate``. Lifted to the root graph it is a chain, and a
-    later edit could wire ``dispatch`` or an early node straight to
-    ``intent_branch`` without anything failing. That is what this test catches
-    (``docs/workflow.md`` §1.2, §9.1).
+    While ``load_context``, ``extract_profile`` and ``check_required`` lived in a
+    subgraph, "every write intent passes the gate" was one edge. Lifted to the
+    root graph it became a chain, and a later edit could wire an early node
+    straight to ``intent_branch`` without anything failing. Two edges carry the
+    whole property now, so both are named here.
     """
     builder = StateGraph(RootState)
     _add_nodes(builder, LangGraphAgent())
     builder.set_entry_point("classify")
-    graph = builder.compile(checkpointer=MemorySaver(), name="root-test")
+    edges = builder.compile(checkpointer=MemorySaver(), name="root-test").get_graph().edges
 
-    # Every intent that can write enters at the top of the gate. The two that
-    # cannot — a knowledge question and a declined one — are the exceptions, and
-    # naming them here is what makes a third exception a failing test.
-    write_intents = set(Intent.__args__) - {"general_qa", "off_topic"}
-    assert {DISPATCH_TARGETS[intent] for intent in write_intents} == {"load_profile"}
+    def sources_of(target: str) -> set[str]:
+        return {edge.source for edge in edges if edge.target == target}
 
-    # And only the last node of the gate opens onto the branches.
-    reaches_intent_branch = {
-        edge.source for edge in graph.get_graph().edges if edge.target == "intent_branch"
-    }
-    assert reaches_intent_branch == {"check_required"}
+    # Only the last node of the gate opens onto the branch point.
+    assert sources_of("intent_branch") == {"check_required"}
+
+    # And the branch point is the only way into any branch — including the two
+    # that compute nothing. A knowledge question passes the gate like everything
+    # else, which is what lets a weight stated this turn reach the answer given
+    # this turn; it is never *blocked* there, because `REQUIRED_FIELDS` has no
+    # entry for `general_qa`.
+    for branch in sorted(set(INTENT_TARGETS.values())):
+        assert sources_of(branch) == {"intent_branch"}, branch
+
+
+def test_a_qa_turn_is_never_blocked_by_the_gate():
+    """Emptiness here is the whole safety property — see REQUIRED_FIELDS.
+
+    Every turn now reaches ``check_required``, so a question about pain is one
+    tuple entry away from being answered with a form asking for the user's
+    height. Adding a field here must fail a test, not ship.
+    """
+    from app.services.profile import REQUIRED_FIELDS, missing_fields
+
+    assert REQUIRED_FIELDS["general_qa"] == ()
+    assert missing_fields({}, "general_qa") == []
 
 
 def test_only_finalize_ends_the_graph():
@@ -345,10 +364,11 @@ async def test_only_general_qa_reaches_the_qa_agent(monkeypatch, intent, reaches
 
     Two different failures, one assertion. A write intent that reached the QA
     agent would be answered conversationally — a plausible plan with invented
-    sets and reps, which is what §1.1 exists to stop. An ``off_topic`` turn that
-    reached it would be answered at all, which is what the topic gate exists to
-    stop; a refusal composed by the same model that was just asked to help with
-    something else is a refusal that can be talked out of.
+    sets and reps, which is exactly what the template pipeline exists to stop.
+    An ``off_topic`` turn that reached it would be answered at all, which is what
+    the topic gate exists to stop; a refusal composed by the same model that was
+    just asked to help with something else is a refusal that can be talked out
+    of.
     """
     visited = _QA_CALLS
 
@@ -418,7 +438,7 @@ def test_decline_cannot_reach_anything_that_touches_a_plan():
     assert out == {"finalize"}
 
     reaches_decline = {edge.source for edge in graph.get_graph().edges if edge.target == "decline"}
-    assert reaches_decline == {"dispatch"}
+    assert reaches_decline == {"intent_branch"}
 
 
 async def test_scope_is_dropped_for_non_check_intents(monkeypatch):
@@ -561,3 +581,25 @@ async def test_the_approved_plan_survives_the_turn_boundary(monkeypatch):
     assert values["plan"] == plan
     assert values["macros"] == {"kcal": 2203}
     assert values["current_version_id"] == "v-old"
+
+
+def test_the_unmapped_injury_note_is_not_raised_where_nothing_renders_it():
+    """Computed and thrown away is worse than not computed.
+
+    `qa` and `decline` reach `finalize` without passing `compose_answer`, the
+    only node that renders `issues`. Raising the note there leaves a warning in
+    state that nobody reads, and the next person to look will reasonably assume
+    the user is being told. They are told a different way: `unmapped_injury` is
+    part of `semantic_context`, and `qa.md` says what to do with it.
+    """
+    from app.core.langgraph.profile.nodes import _unmapped_injury_notes
+
+    profile = {"unmapped_injury": "sharp pain under the right kneecap"}
+
+    assert _unmapped_injury_notes(profile, [], "general_qa") == []
+    assert _unmapped_injury_notes(profile, [], "off_topic") == []
+    # Still raised where it is rendered — `check` composes a report.
+    assert len(_unmapped_injury_notes(profile, [], "build_plan")) == 1
+    assert len(_unmapped_injury_notes(profile, [], "check")) == 1
+    # And never on a turn that is about to ask for more information.
+    assert _unmapped_injury_notes(profile, ["weight_kg"], "build_plan") == []

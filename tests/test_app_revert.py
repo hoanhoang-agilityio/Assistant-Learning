@@ -1,7 +1,7 @@
 """Tests for the revert branch.
 
 The one property that matters most here is that **revert is an append, not a
-rewind** (``docs/workflow.md`` §9.5). Restoring v1 must produce a v3 whose
+rewind**. Restoring v1 must produce a v3 whose
 content is v1's, with v2 still on record — otherwise the user cannot undo their
 undo, and they will want to.
 
@@ -164,6 +164,18 @@ def pipeline(monkeypatch, catalog):
     monkeypatch.setattr(
         "app.core.langgraph.profile.nodes.profile_service.get_profile", fake_get_profile
     )
+
+    # `load_context` reads two stores besides the profile. Stubbed so a test
+    # asserts what it set up, not what happens to be seeded in the developer's
+    # Postgres — the graph state a test passes in is the only plan it has.
+    async def fake_latest_version(_user_id):
+        return None
+
+    async def fake_recent_episodes(_user_id, _session_id):
+        return ""
+
+    monkeypatch.setattr("app.core.langgraph.profile.nodes.latest_version", fake_latest_version)
+    monkeypatch.setattr("app.core.langgraph.profile.nodes.recent_episodes", fake_recent_episodes)
     monkeypatch.setattr(
         "app.core.langgraph.profile.nodes.profile_service.upsert_profile", fake_upsert
     )
@@ -233,7 +245,7 @@ async def _resume(graph, config, reply: str) -> dict:
 
 
 async def test_revert_stops_at_the_confirm_gate(pipeline):
-    """§10: a restore overwrites an approved plan, so it asks first."""
+    """A restore overwrites an approved plan, so it asks first."""
     graph, config, calls, _stored = pipeline("v1-id")
     await _start(graph, config)
 
@@ -243,7 +255,7 @@ async def test_revert_stops_at_the_confirm_gate(pipeline):
 
 
 async def test_restoring_appends_a_new_version(pipeline):
-    """§9.5: restore v1 creates v4 with v1's content — it does not rewind.
+    """Restore v1 creates v4 with v1's content — it does not rewind.
 
     The intermediate versions must survive, or the user cannot undo the undo.
     """
@@ -299,7 +311,7 @@ async def test_declining_a_restore_keeps_the_current_plan(pipeline):
 
 
 async def test_an_ambiguous_request_lists_the_versions(pipeline):
-    """§9.5: ask rather than guess — a wrong restore costs the current plan."""
+    """Ask rather than guess — a wrong restore costs the current plan."""
     graph, config, calls, _stored = pipeline(None)
     values = await _start(graph, config)
 

@@ -4,9 +4,9 @@ Runs against the real seeded catalog file (not the database) with the LLM node
 stubbed, so the assertions are about the pipeline's guarantees rather than about
 a model's output:
 
-* the prescription in the plan is the template's, never the model's (§1.1, §6.4)
-* a model choice outside the candidate list cannot enter the plan (§6.3)
-* an unfillable slot is dropped with an explanation, not failed (§12)
+* the prescription in the plan is the template's, never the model's
+* a model choice outside the candidate list cannot enter the plan
+* an unfillable slot is dropped with an explanation, not failed
 * no matching template is reported at select_template, not at verify
 """
 
