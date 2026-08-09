@@ -114,6 +114,10 @@ Idempotent and frugal: only passages whose text changed are re-embedded, and a s
 deleted from a document is deleted from the table. Add a document by dropping a `.docx`
 into `data/knowledge/` and re-running — no code change.
 
+The knowledge base is one of four things this application calls memory. What each layer
+holds, who writes it, and where they must not be mixed is in
+[docs/memory.md](docs/memory.md).
+
 Settings come from `.env.development` (selected by `APP_ENV`, default `development`). Two
 things stop the app from starting, both deliberately:
 
@@ -198,6 +202,21 @@ whether to apply a change, replying `yes` resumes the interrupted run.
 Tokens live in Streamlit's per-session state and nowhere else — not in the URL, not on disk —
 so a full browser reload signs you out. Nothing is lost: the conversations are in the
 database and reappear on the next sign-in.
+
+## Export graph diagrams
+
+Regenerate Mermaid (`.mmd`) and PNG diagrams for the root graph and every subgraph into
+`docs/diagrams/`. Compiles without a checkpointer, so Postgres is not required.
+
+```bash
+uv run python scripts/export_graph_diagrams.py                  # every graph
+uv run python scripts/export_graph_diagrams.py --graph root     # just the root
+uv run python scripts/export_graph_diagrams.py --format mmd     # .mmd only, no network
+```
+
+PNG defaults to the public mermaid.ink API. Pass `--draw-method pyppeteer` to render
+offline in a headless browser. Architecture narrative lives in
+[docs/workflow.md](docs/workflow.md).
 
 ## Run in Docker
 

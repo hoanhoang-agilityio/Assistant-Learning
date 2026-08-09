@@ -10,6 +10,8 @@ Design document for the LangGraph-based workout plan build/verify system.
 
 **1.2. Control flow is not a tool.** If the agent may decide whether to call `verify_profile`, some turns it will skip it. Every mandatory step lives on the graph, not in the tool list.
 
+The graph is one spine and one branch point: `classify → load_context → extract_profile → check_required`, and only `check_required` has an edge to `intent_branch`, which is the only edge into any branch at all. Two edges carry the whole property, so both are asserted structurally in `tests/test_app_graph_routing.py`. That includes `general_qa` and `off_topic`, which pass the gate like everything else — see 9.4 for why passing it is not the same as being blocked by it.
+
 **1.3. The verifier is blind to the build process.** The verifier receives `(plan, profile, macros, rubric)` — not `messages`. Enforced by types: the verify subgraph uses a separate `VerifyState` with no `messages` field, so a violation is a type error, not a convention breach.
 
 ---
@@ -53,6 +55,11 @@ class VersionRef(TypedDict):   # ~100 bytes, lives in state
 class State(TypedDict):
     # --- conversation ---
     messages: Annotated[list, add]
+    episodic_context: str           # earlier sessions, loaded once by load_context
+    # No semantic field: semantic memory *is* `profile`, and the rendered form a
+    # prompt wants is derived from it at the point of use. A stored copy would be
+    # written before `extract_profile` merges this turn's facts, so it would
+    # always be one turn behind.
 
     # --- routing ---
     intent: Intent
@@ -140,12 +147,13 @@ QA is the one branch that is an *agent* rather than a pipeline: a model, a tool 
 ```python
 class QAState(AgentState):     # messages comes from AgentState
     plan_context: str          # rendered read-only text of plan + macros
-    long_term_memory: str      # retrieved once at the root facade, passed down
+    semantic_context: str      # rendered from `profile`, after this turn's merge
+    episodic_context: str      # loaded once by load_context — never by the agent
 ```
 
 No `plan` / `draft_plan` / `macros` field to write to. The parent passes `plan` and `macros` in as `plan_context` (a string), so a knowledge question cannot mutate the plan even by mistake.
 
-Parent map-in: `messages`, `plan_context = render(plan, macros)`, `long_term_memory`.
+Parent map-in: `messages`, `plan_context = render(plan, macros)`, `semantic_context = render(profile)`, `episodic_context`.
 Parent map-out: the final answer, as one `AIMessage` and as `answer`. The tool round-trip stays inside the agent — the root transcript is what every other node reads, and `dump_messages` cannot represent a `ToolMessage`.
 
 #### `IngestState` — check (pasted plan)
@@ -214,10 +222,19 @@ Parent map-out: `issues`, `verdict` → `verdict_gate`.
 flowchart TD
     START([User query]) --> CLS["classify<br/>LLM"]
 
-    CLS -->|general_qa| QA["qa<br/>agent: LLM + search_knowledge"]
-    CLS -->|off_topic| DECL["decline<br/>det"]
-    CLS -->|revert| RESV["resolve_version<br/>LLM"]
-    CLS -->|build/change/check| LOADP["load_profile<br/>det"]
+    CLS --> LOADC["load_context<br/>det"]
+    LOADC --> EXTP["extract_profile<br/>LLM"]
+    EXTP --> CHKR{"check_required<br/>det"}
+    CHKR -->|missing fields| ASKM["ask_missing<br/>LLM"]
+    ASKM --> OUT
+    CHKR -->|complete| BRANCH{"intent_branch<br/>by intent"}
+
+    BRANCH -->|general_qa| QA["qa<br/>agent: LLM + search_knowledge"]
+    BRANCH -->|off_topic| DECL["decline<br/>det"]
+    BRANCH -->|revert| RESV["resolve_version<br/>LLM"]
+    BRANCH -->|build_plan| SELT["select_template<br/>det"]
+    BRANCH -->|change_plan| PATCH["patch_plan<br/>det"]
+    BRANCH -->|check| ING["ingest_plan<br/>LLM + resolve_exercise"]
 
     QA --> OUT
     DECL --> OUT
@@ -226,16 +243,6 @@ flowchart TD
     RESV -->|has id| LOADS["load_snapshot<br/>det"]
     ASKV --> OUT
     LOADS --> GATE
-
-    LOADP --> EXTP["extract_profile<br/>LLM"]
-    EXTP --> CHKR{"check_required<br/>det"}
-    CHKR -->|missing fields| ASKM["ask_missing<br/>LLM"]
-    ASKM --> OUT
-    CHKR -->|complete| DISPATCH{"dispatch<br/>by intent"}
-
-    DISPATCH -->|build_plan| SELT["select_template<br/>det"]
-    DISPATCH -->|change_plan| PATCH["patch_plan<br/>det"]
-    DISPATCH -->|check| ING["ingest_plan<br/>LLM + resolve_exercise"]
 
     SELT --> FILT["filter_candidates<br/>det"]
     FILT --> CHOOSE["choose_exercises<br/>LLM + get_exercise_candidates"]
@@ -290,14 +297,14 @@ flowchart TD
 | `repair` | `issues`, `draft_plan`, `profile` | `draft_plan`, `repair_count` | `get_exercise_candidates` |
 | `compose_answer` | everything | `answer` | — |
 
-`compose_answer` is handed pre-rendered text, never the state objects — so every fact its prompt asks for has to be *in* that text. The prompt opens the answer with the split, the sessions a week and the goal; when those were not rendered, the model still produced the sentence, sourcing all three from long-term memory and from findings that mentioned a day name. A 5-day plan was announced as 4-day. **Anything the prompt tells the model to state must appear in the data the prompt carries; a gap is filled, not noticed.**
+`compose_answer` is handed pre-rendered text, never the state objects — so every fact its prompt asks for has to be *in* that text. The prompt opens the answer with the split, the sessions a week and the goal; when those were not rendered, the model still produced the sentence, sourcing all three from free-text memory and from findings that mentioned a day name. A 5-day plan was announced as 4-day. **Anything the prompt tells the model to state must appear in the data the prompt carries; a gap is filled, not noticed.**
 
 ### 4.2. Deterministic nodes
 
 | Node | Reads state | Writes state | Internal function |
 |---|---|---|---|
 | `decline` | — | `answer` | — |
-| `load_profile` | — | `profile` | `db.get_profile` |
+| `load_context` | `plan` | `profile`, `episodic_context`, and `plan`/`macros` when state has none | `db.get_profile`, `db.latest_version`, `recent_episodes` |
 | `check_required` | `profile`, `intent` | `missing_fields` | `REQUIRED_FIELDS[intent]` |
 | `select_template` | `profile` | `draft_plan` (empty frame) | `db.query_templates` |
 | `filter_candidates` | `draft_plan`, `profile` | `draft_plan.slots[].candidates` | `db.query_exercises` |
@@ -391,7 +398,8 @@ documents on that topic.
 
 | Function | Calling node | Why not a tool |
 |---|---|---|
-| `db.get_profile` | `load_profile` | Must always run; nothing to decide |
+| `db.get_profile` | `load_context` | Must always run; nothing to decide |
+| `db.latest_version` | `load_context` | Same row every turn; a tool would spend a round-trip deciding whether to spend 1 ms |
 | `db.query_templates` | `select_template` | Hard-criteria filter |
 | `db.query_exercises` | `filter_candidates` | Same as above |
 | `calculator_macro` | `calc_macro` | Pure arithmetic — LLM involvement is pure risk |
@@ -603,7 +611,7 @@ sequenceDiagram
 
     U->>G: "want a fat-loss plan"
     G->>G: classify → intent=build_plan
-    G->>DB: load_profile
+    G->>DB: load_context
     DB-->>G: {} or old profile
     G->>G: extract_profile → extracts nothing
     G->>G: check_required → missing 7 fields
@@ -619,7 +627,7 @@ sequenceDiagram
     G->>U: plan + report
 ```
 
-`REQUIRED_FIELDS["build_plan"]` = weight, height, age, sex, activity level, days/week, equipment, injuries.
+`REQUIRED_FIELDS["build_plan"]` = weight, height, age, sex, activity level, days/week, level, equipment, injuries, goal.
 
 This list is a **deterministic constant**; do not let the LLM decide what to ask. If it decides, some turns it will think "enough already" and enter the loop with `activity_level = None`.
 
@@ -674,6 +682,12 @@ Does not touch the plan graph. But reads `plan`/`macros` from state for personal
 
 This is what makes a PT chatbot different from a general knowledge bot.
 
+**It passes through the gate, and is never held there.** `REQUIRED_FIELDS["general_qa"]` is `()`, deliberately and load-bearingly: the gate protects *computation* — `calc_macros` raises without an activity level — and a knowledge question computes nothing. A question about pain must get an answer, not a form. The tuple's emptiness is what guarantees that, so it carries a test of its own.
+
+Passing through the gate is what makes the layer useful rather than merely harmless. `extract_profile` runs first, so *"I'm 73 kg now, how much protein?"* is answered with 73 rather than with last week's number — the profile absorbs what was said *this turn* before the answer is written.
+
+A QA turn that is missing a number it needs **degrades**; it does not ask. `qa.md` gives the per-kg form and asks for the weight in the same breath, because `ask_missing` ends a turn with questions and no answer — right for `build_plan`, wrong for "how much protein?".
+
 **Technical constraint:** this node may only return `{"answer": ...}`. No other keys. A knowledge question must not mutate the plan.
 
 ### 9.5. "Go back to the original plan" — revert
@@ -715,9 +729,11 @@ flowchart TD
 
 ### 10.1. The topic gate
 
-`off_topic` is the one intent with no branch behind it. `dispatch` sends it to
-`decline`, which writes a constant and goes to `finalize` — no model call, no
-profile read, no path to anything that touches a plan.
+`off_topic` is the one intent with no branch behind it. `intent_branch` sends it
+to `decline`, which writes a constant and goes to `finalize` — no model call and
+no path to anything that touches a plan. It does pass through `load_context` on
+the way, like every turn; `extract_profile` returns immediately for it, so an
+off-topic message costs no model call and writes nothing to the profile.
 
 It lives in the classifier rather than in a guardrail node in front of it
 because `classify` already reads the conversation and already pays for a model
@@ -745,7 +761,9 @@ system prompt with `@dynamic_prompt`, so `system.md` never reaches it.
 | Rubrics ×3 | Postgres, PK `(name, version)` | `rubric_version` must reproduce old results, so a version is never rewritten |
 | User profile | Postgres | |
 | `plan_versions` | Postgres | Full snapshots |
-| Conversation state | LangGraph Postgres checkpointer | |
+| Conversation state | LangGraph Postgres checkpointer | Keyed by `thread_id = session.id`, so it stops at the session boundary |
+| Session summaries (`session.summary`) | Postgres | Episodic memory — what survives that boundary. See `docs/memory.md` |
+| Semantic memory | `user_profile` | Standing facts about the user, typed and undated |
 | Exercise aliases + embeddings | pgvector | Only for `resolve_exercise` |
 | Knowledge base (`knowledge_chunks`) | pgvector | Only for `search_knowledge`; source is `data/knowledge/*.docx` |
 
@@ -785,6 +803,20 @@ CREATE TABLE rubrics (
   is_active boolean NOT NULL,
   PRIMARY KEY (name, version)       -- a cited version is inserted beside, never rewritten
 );
+
+-- Episodic memory. `summarized_at` is a claim column, not a completion marker:
+-- it is set before the model is called, so a summary is attempted exactly once.
+ALTER TABLE session
+  ADD COLUMN summary          text NOT NULL DEFAULT '',
+  ADD COLUMN summarized_at    timestamp,
+  ADD COLUMN last_activity_at timestamp;
+
+-- Which conversation produced which plan. This edge is why episodic memory
+-- needs no graph store: it is a foreign key, not an inferred time window.
+-- SET NULL, because plan_versions outranks session: deleting a chat must not
+-- delete the plan the user trains on, nor start failing because one points at it.
+ALTER TABLE plan_versions
+  ADD COLUMN session_id text REFERENCES session(id) ON DELETE SET NULL;
 ```
 
 **Rubrics and templates are served from Postgres, but authored in git.** They decide which plans pass, so they are closer to code than data, and the danger of a table is that someone bumps quads MRV from 22 to 30 with one UPDATE — no PR, no diff — leaving every old `verify_report` unexplainable. Two rules keep the audit trail:
@@ -807,6 +839,8 @@ CREATE TABLE rubrics (
 | `assemble_plan` validate fails | Exception + log. This is a bug, not a user error |
 | User changes profile mid-flow | `extract_profile` runs every turn; `profile_hash` changes → verify must not be reused |
 | Concurrent writes from fan-out | `issues` has an `add` reducer. Every other field may be written by exactly one branch |
+| A prompt asked to state a fact it was not handed | The gap is filled, not noticed — `compose_answer` once announced a 5-day plan as 4-day by sourcing the number from free-text memory. Anything a prompt tells the model to state must appear in the data that prompt carries, and `episodic_context` is withheld from `compose_answer` for exactly this reason |
+| A new session starts with no plan in the checkpointer | `load_context` rehydrates `plan` and `macros` from the newest saved version — but only when state has none, so a diff that is staged and awaiting confirmation is not overwritten by the database |
 
 ---
 
