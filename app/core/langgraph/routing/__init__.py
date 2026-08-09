@@ -1,10 +1,10 @@
-"""Routing nodes: an LLM classifier and a deterministic dispatcher.
+"""Routing: the one node where an LLM influences control flow.
 
-Split deliberately. ``classify`` is the only place an LLM influences control
-flow, and it does so by returning a validated ``IntentDecision`` — not by
-choosing to call something. ``dispatch`` then maps that decision to a target
-with plain Python. Routing is never exposed as a tool: given the option to skip
-a mandatory step, a model eventually does.
+``classify`` influences it by returning a validated ``IntentDecision`` — not by
+choosing to call something. Turning that decision into a destination is plain
+Python, and it happens later and elsewhere, at ``intent_branch``, once the
+profile gate has run. Routing is never exposed as a tool: given the option to
+skip a mandatory step, a model eventually does.
 
 Import the nodes from their own modules — ``from
 app.core.langgraph.routing.classify import classify``. Re-exporting them here

@@ -42,6 +42,11 @@ async def classify(state: RootState, config: RunnableConfig) -> Command:
     no decision. Declining on an outage would turn a bad minute for the model
     into a refusal aimed at the user.
 
+    There is no separate dispatcher node. Every turn goes to the same place —
+    the context load, then the profile gate — and the branch the intent selects
+    is taken later, at ``intent_branch``. A node whose only job is to forward to
+    one destination is not a routing decision.
+
     Args:
         state: Current root state.
         config: Runnable config. Not read directly — LangChain propagates it to
@@ -49,7 +54,7 @@ async def classify(state: RootState, config: RunnableConfig) -> Command:
             the same trace.
 
     Returns:
-        A command writing the routing decision and going to ``dispatch``.
+        A command writing the routing decision and going to ``load_context``.
     """
     conversation = "\n".join(
         f"{message['role']}: {message['content']}"
@@ -62,7 +67,7 @@ async def classify(state: RootState, config: RunnableConfig) -> Command:
         logger.exception("routing_classify_failed_defaulting_to_qa", error=str(e))
         return Command(
             update={**NEW_TURN, "intent": "general_qa", "scope": [], "changes": {}},
-            goto="dispatch",
+            goto="load_context",
         )
 
     scope = decision.scope if decision.intent not in _NO_SCOPE_INTENTS else []
@@ -81,7 +86,7 @@ async def classify(state: RootState, config: RunnableConfig) -> Command:
     )
     return Command(
         update={**NEW_TURN, "intent": decision.intent, "scope": scope, "changes": changes},
-        goto="dispatch",
+        goto="load_context",
     )
 
 

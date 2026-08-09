@@ -1,16 +1,19 @@
 """Root graph and the public facade the API depends on.
 
-Shape every turn enters at ``classify``, which is the
-only LLM node that influences control flow, then passes through the
-deterministic ``dispatch`` to exactly one branch. Subgraphs are invoked
-explicitly with a mapped-in state rather than attached as nodes, so state keys
-are never shared by name and an agent cannot read a field it was not given.
+One spine, one branch point. Every turn walks ``classify → load_context →
+extract_profile → check_required`` and only then takes a branch, at
+``intent_branch``. ``classify`` is the only LLM node that influences control
+flow, and it does so by returning a validated decision rather than by choosing
+what to call. Subgraphs are invoked explicitly with a mapped-in state rather
+than attached as nodes, so state keys are never shared by name and an agent
+cannot read a field it was not given.
 
 The API sees only the four facade methods at the bottom. It does not know
-subgraphs exist, and adding one must not change that.
+subgraphs exist, and adding one must not change that. It also does not assemble
+context: the graph loads its own, so a caller that is not this facade is not a
+degraded caller.
 """
 
-import asyncio
 import json
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -32,9 +35,8 @@ from app.core.langgraph.agents.planning.repair import repair_plan
 from app.core.langgraph.agents.qa import EXHAUSTED_ANSWER, FAILURE_ANSWER
 from app.core.langgraph.agents.verification import sort_issues
 from app.core.langgraph.diff import build_diff
-from app.core.langgraph.profile.nodes import check_required, extract_profile, load_profile
+from app.core.langgraph.profile.nodes import check_required, extract_profile, load_context
 from app.core.langgraph.routing.classify import classify
-from app.core.langgraph.routing.dispatch import DISPATCH_TARGETS, dispatch
 from app.core.langgraph.utils import message_text, to_chat_messages
 from app.core.langgraph.versioning import (
     describe_verification_reason,
@@ -45,10 +47,9 @@ from app.core.logging import logger
 from app.core.observability import get_langfuse_callbacks
 from app.core.prompts import load_compose_answer_prompt, load_system_prompt
 from app.schemas.chat import Message
-from app.schemas.graph import Issue, RootState
+from app.schemas.graph import Intent, Issue, RootState
 from app.services.catalog import load_catalog
 from app.services.llm.service import llm_service
-from app.services.memory import memory_service
 from app.services.nutrition import calc_macros
 from app.services.profile import FIELD_LABELS, profile_hash
 from app.services.rubrics import rubric_version
@@ -59,11 +60,51 @@ GRAPH_NAME = "root"
 
 _COMPOSER_MODEL = "gpt-5-mini"
 
+# How a stored profile field is named to a model. Separate from `FIELD_LABELS`,
+# which phrases the same columns as questions to ask the user — "your height
+# (cm)" reads as an interrogation when it appears in a list of things already
+# known.
+_SEMANTIC_LABELS: dict[str, str] = {
+    "weight_kg": "Body weight (kg)",
+    "height_cm": "Height (cm)",
+    "age": "Age",
+    "sex": "Sex",
+    "activity_level": "Daily activity outside training",
+    "days_per_week": "Training days per week",
+    "level": "Training experience (1 new – 5 advanced)",
+    "goal": "Goal",
+    "equipment": "Equipment available",
+    "injuries": "Injuries screened by the rubric",
+    "preferences": "Stated preferences",
+    "unmapped_injury": "Injury described but not in the rubric",
+}
+
 # Repair attempts before the issue list goes to the user instead. Two failures
 # usually means genuinely conflicting constraints — six sessions a week with
 # only bands, and both knees and shoulders hurting — which is a decision for the
 # user, not something an agent resolves by trying again.
 _MAX_REPAIRS = 2
+
+# Every intent maps to exactly one node. A missing key is a bug, not a runtime
+# branch — adding an Intent literal without a target here fails the mapping test.
+#
+# This is the graph's only branch point, and `check_required` is the only node
+# with an edge into it. Those two facts together are what make the profile gate
+# unskippable: there is no path to any branch — not `calc_macro`, not `qa` —
+# that does not pass the gate first.
+#
+# `off_topic` is decided by `classify` rather than by a guardrail node in front
+# of it: the classifier already reads the conversation and already pays for a
+# model call, so the judgment is free, where a separate node would add a
+# round-trip to every turn to catch the rare one.
+INTENT_TARGETS: dict[Intent, str] = {
+    "build_plan": "planning",
+    "change_plan": "patch_plan",
+    "check": "ingest_plan",
+    "revert": "resolve_version",
+    "general_qa": "qa",
+    "off_topic": "decline",
+}
 
 # Intents that overwrite something the user has already approved, and therefore
 # stop for confirmation. `build_plan` is absent on
@@ -189,8 +230,13 @@ class LangGraphAgent:
     async def _qa(self, state: RootState, config: RunnableConfig) -> Command:
         """Run the QA agent on a knowledge question.
 
-        Reads ``messages``, ``plan`` and ``macros``. Writes ``messages`` and
-        ``answer``.
+        Reads ``messages``, ``plan``, ``macros``, ``profile`` and
+        ``episodic_context``. Writes ``messages`` and ``answer``.
+
+        Reached through the profile gate like every other branch, so ``profile``
+        already carries anything the user stated this turn — which is what lets
+        *"I'm 73 kg now, how much protein?"* be answered with 73 rather than with
+        last week's number.
 
         The plan is passed in as rendered read-only text and ``QAState`` has no
         field to write a plan back into, so a knowledge question cannot mutate
@@ -214,7 +260,8 @@ class LangGraphAgent:
                 {
                     "messages": state.messages,
                     "plan_context": _render_plan_context(state.plan, state.macros),
-                    "long_term_memory": state.long_term_memory,
+                    "semantic_context": _render_semantic_context(state.profile),
+                    "episodic_context": state.episodic_context,
                 },
                 config,
             )
@@ -238,7 +285,7 @@ class LangGraphAgent:
         Reads ``missing_fields``. Writes ``answer``.
 
         Deterministic rather than an LLM call, for two reasons: the question
-        must cover **all** missing fields in one turn (§9.1) rather than
+        must cover **all** missing fields in one turn rather than
         trickling them out one at a time, and a fixed wording means a user who
         answers half of them sees the same question again for the rest.
 
@@ -259,31 +306,30 @@ class LangGraphAgent:
         return Command(update={"answer": question}, goto="finalize")
 
     async def _intent_branch(self, state: RootState, config: RunnableConfig) -> Command:
-        """Route a profile-complete turn to the branch that handles its intent.
+        """Route a gated turn to the branch that handles its intent.
 
         Reads ``intent``. Writes nothing.
 
-        Deterministic. ``build_plan`` is implemented; the other write intents
-        answer honestly rather than being routed somewhere that would invent a
-        result.
+        The graph's only branch point, and a lookup rather than a decision: the
+        classifier already made the judgment, and keeping the step deterministic
+        is what makes everything upstream of it unskippable. An intent with no
+        target answers honestly instead of being routed somewhere that would
+        invent a result.
 
         Args:
             state: Current root state.
             config: Runnable config. Unused — no I/O.
 
         Returns:
-            A command going to ``planning`` or ``not_implemented``.
+            A command going to the node registered for the intent.
         """
-        if state.intent == "build_plan":
-            return Command(goto="planning")
-        if state.intent == "change_plan":
-            return Command(goto="patch_plan")
-        if state.intent == "revert":
-            return Command(goto="resolve_version")
-        if state.intent == "check":
-            return Command(goto="ingest_plan")
+        if state.intent is None:
+            logger.warning("routing_branch_without_intent")
+            return Command(goto=INTENT_TARGETS["general_qa"])
 
-        return Command(goto="not_implemented")
+        target = INTENT_TARGETS.get(state.intent, "not_implemented")
+        logger.info("routing_branched", intent=state.intent, target=target)
+        return Command(goto=target)
 
     async def _ingest_plan(self, state: RootState, config: RunnableConfig) -> Command:
         """Parse a plan the user pasted in, so the verifiers have something to score.
@@ -295,6 +341,19 @@ class LangGraphAgent:
         pasted someone else's programme to ask an opinion, and writing it to
         ``plan`` would replace the plan they actually follow with one they were
         only curious about.
+
+        When the message carries no plan at all, the user's own saved plan is
+        assessed instead — *"is my plan any good?"* is a real question and this
+        is the only branch that can answer it, because it is the only one that
+        runs the verifiers. Reading it into ``submitted_plan`` keeps that
+        distinction intact and costs nothing: ``check`` is read-only, so no path
+        from here reaches ``snapshot``.
+
+        The fallback is on "nothing plan-shaped was found", not on
+        "``submitted_plan`` is empty". A message that did carry a plan the
+        parser could not read leaves ``unresolved`` or ``incomplete`` behind, and
+        answering that with a review of a different plan would look like an
+        answer to what they pasted.
 
         Args:
             state: Current root state.
@@ -320,6 +379,14 @@ class LangGraphAgent:
         incomplete = result.get("incomplete") or []
 
         if submitted is None or not submitted.get("days"):
+            nothing_was_pasted = not unresolved and not incomplete
+            if nothing_was_pasted and state.plan:
+                logger.info("ingest_falling_back_to_saved_plan")
+                return Command(
+                    update={"submitted_plan": state.plan, "issues": [_reviewing_saved_plan_note()]},
+                    goto="calc_macro",
+                )
+
             return Command(
                 update={"submitted_plan": None, "issues": _ingest_notes(unresolved, incomplete)},
                 goto="ask_clarify_plan",
@@ -448,7 +515,7 @@ class LangGraphAgent:
         The snapshot becomes a *draft*, not the plan. It still passes through
         ``calc_macro``, all three verifiers and the confirm gate, because a plan
         that was valid when it was saved may not be valid now: the user may have
-        lost weight, or declared an injury that did not exist then (§9.5).
+        lost weight, or declared an injury that did not exist then.
 
         Args:
             state: Current root state.
@@ -531,7 +598,7 @@ class LangGraphAgent:
         Reads ``pending_commit``. Writes nothing.
 
         Implemented with ``interrupt()`` rather than by asking a question and
-        hoping the next turn continues (§10). The difference matters: an
+        hoping the next turn continues. The difference matters: an
         interrupt checkpoints the graph *here*, so the answer resumes this run
         with ``draft_plan``, ``computed_macros`` and ``issues`` intact. Asking
         conversationally would require rebuilding all of it from the transcript,
@@ -647,7 +714,7 @@ class LangGraphAgent:
 
         The deliberate bottleneck of the graph: there is no path from a plan to
         an answer that skips it, which is what stops a modified plan keeping
-        stale macros (§9.2). It re-runs after every repair, because a swapped
+        stale macros. It re-runs after every repair, because a swapped
         exercise can change the session count.
 
         Args:
@@ -676,7 +743,7 @@ class LangGraphAgent:
 
         Invoked with ``scope=[]``, which the verification graph reads as "run
         everything". A write intent does not get to narrow the checks — only a
-        read-only ``check`` turn does (§9.3).
+        read-only ``check`` turn does.
 
         The subgraph receives no messages, and has no field to put them in.
 
@@ -696,7 +763,7 @@ class LangGraphAgent:
                 "computed_macros": state.computed_macros or {},
                 "catalog": load_catalog(),
                 # Empty scope means "run everything", which is mandatory for a
-                # write. Only `check` lets the user's wording narrow it (§9.3).
+                # write. Only `check` lets the user's wording narrow it.
                 "scope": state.scope if state.intent == "check" else [],
                 "rubric_version": rubric_version(),
                 "issues": [],
@@ -728,7 +795,7 @@ class LangGraphAgent:
         if state.verdict == "fail":
             # Out of attempts. Two failed repairs usually means genuinely
             # conflicting constraints, which the user has to resolve — so the
-            # issue list is presented rather than a plan being saved anyway (§8).
+            # issue list is presented rather than a plan being saved anyway.
             return Command(goto="compose_answer")
 
         # There is no edge from here to `snapshot` for it, so a `check` turn
@@ -750,7 +817,7 @@ class LangGraphAgent:
         and ``repair_count``.
 
         ``repair_count`` lives in state because the loop crosses node
-        boundaries, where a local variable does not survive (§2.3). Control
+        boundaries, where a local variable does not survive. Control
         returns to ``calc_macro``, not to ``verification``: a changed plan can
         change the macros, and re-verifying against stale ones would score
         something the user is not being given.
@@ -811,12 +878,15 @@ class LangGraphAgent:
                 rubric_version=rubric_version(),
                 # Append-only history: the version this one supersedes is
                 # recorded rather than replaced, so an undo has something to
-                # come back to (§9.5).
+                # come back to.
                 parent_id=state.current_version_id,
                 # A restore is an append, not a rewind. Recording where the
                 # content came from is what lets the user undo the undo — and
                 # they will ("actually, put the 5-day one back").
                 restored_from=state.revert_target,
+                # The edge the episodic layer reads: this conversation produced
+                # this plan.
+                session_id=(config.get("metadata") or {}).get("session_id"),
             )
             update["current_version_id"] = ref["version_id"]
             update["version_index"] = await version_index(int(user_id))
@@ -857,7 +927,17 @@ class LangGraphAgent:
             response = await llm_service.call(
                 [
                     SystemMessage(
-                        content=load_system_prompt(long_term_memory=state.long_term_memory)
+                        # `episodic_context` is withheld here, and must stay
+                        # withheld. This node already announced a 5-day plan as
+                        # 4-day by sourcing the number from long-term memory
+                        # instead of the data it was handed (docs/workflow.md
+                        # every fact this prompt asks for has to come from
+                        # the rendered text above it. Adding a second
+                        # free-text account of the user's plan history is the
+                        # same bug with more material.
+                        content=load_system_prompt(
+                            semantic_context=_render_semantic_context(state.profile)
+                        )
                     ),
                     HumanMessage(content=prompt),
                 ],
@@ -1005,19 +1085,6 @@ class LangGraphAgent:
         state = await graph.aget_state(config)
         answer = state.values.get("answer", "")
 
-        # Written after the answer is in hand and never awaited: mem0 runs an
-        # extraction pass, and the user is waiting for their plan, not for the
-        # assistant's notes about them.
-        if answer:
-            memory_service.add_in_background(
-                user_id,
-                [
-                    *[{"role": m.role, "content": m.content} for m in messages],
-                    {"role": "assistant", "content": answer},
-                ],
-                metadata={"session_id": session_id},
-            )
-
         return [Message(role="assistant", content=answer)] if answer else []
 
     async def get_stream_response(
@@ -1155,32 +1222,22 @@ class LangGraphAgent:
         confirm gate would never receive it, and the plan they were shown would
         be rebuilt from scratch — possibly differently.
 
-        Long-term memory is searched here, exactly once per turn, and the result
-        is put into root state. Every agent reads ``long_term_memory`` from
-        state rather than querying: five agents each searching would multiply
-        the cost and let them reason over different retrievals of the same fact.
-
-        The search runs **concurrently** with the state read rather than after
-        it. They are independent, and serialising them adds mem0's latency to
-        every turn for no reason.
+        That is the whole job. Context — profile, plan, episodes — is loaded by
+        ``load_context`` inside the graph, so the facade cannot be the reason a
+        turn has it, and a direct ``ainvoke`` is not a second-class caller.
 
         Args:
             graph: The compiled root graph.
             config: The config for this thread.
             messages: Messages submitted this turn.
-            user_id: Owner of the session, or ``None`` when anonymous.
+            user_id: Owner of the session, or ``None`` when anonymous. Unused —
+                the graph reads it from ``config``.
 
         Returns:
             ``Command(resume=...)`` when the thread is parked at an interrupt,
-            otherwise the normal message input carrying retrieved memory.
+            otherwise the normal message input.
         """
-        latest = next(
-            (message.content for message in reversed(messages) if message.role == "user"), ""
-        )
-        state, relevant_memory = await asyncio.gather(
-            graph.aget_state(config),
-            memory_service.search(user_id, latest),
-        )
+        state = await graph.aget_state(config)
 
         if state.next and state.tasks and state.tasks[0].interrupts:
             reply = next(
@@ -1190,10 +1247,7 @@ class LangGraphAgent:
 
             return Command(resume=reply)
 
-        return {
-            "messages": _to_langchain(messages),
-            "long_term_memory": relevant_memory,
-        }
+        return {"messages": _to_langchain(messages)}
 
     async def _pending_interrupt(
         self, graph: CompiledStateGraph, config: RunnableConfig, session_id: str
@@ -1241,24 +1295,12 @@ def _add_nodes(builder: StateGraph, agent: "LangGraphAgent") -> None:
         builder: The state graph to populate.
         agent: The agent whose bound node methods are being registered.
     """
-    builder.add_node("classify", classify, destinations=("dispatch",))
-    builder.add_node(
-        "dispatch", dispatch, destinations=tuple(sorted(set(DISPATCH_TARGETS.values())))
-    )
-    # The QA agent — an LLM with `search_knowledge` and a prompt — enters the
-    # root graph as this one node. Its own model/tool loop is internal, which is
-    # why it needs no edges here beyond the one out.
-    builder.add_node("qa", agent._qa, destinations=("finalize",))
-    # The other terminal branch off `dispatch`. It sits beside `qa` rather than
-    # among the plan nodes because that is the whole guarantee: an off-topic turn
-    # reaches exactly one node, and that node has no edge to anything that reads
-    # or writes a plan.
-    builder.add_node("decline", agent._decline, destinations=("finalize",))
-
-    # The profile gate: three root nodes, not a packaged agent — a straight line
-    # that only orchestrates this graph. `check_required` is the only one with
-    # an edge to `intent_branch`, which is what keeps the gate unskippable.
-    builder.add_node("load_profile", load_profile, destinations=("extract_profile",))
+    # One spine. Every turn walks the same four nodes before anything branches,
+    # which is why the gate needs no guarding of its own: `check_required` is
+    # the only edge into `intent_branch`, and `intent_branch` is the only edge
+    # into any branch at all.
+    builder.add_node("classify", classify, destinations=("load_context",))
+    builder.add_node("load_context", load_context, destinations=("extract_profile",))
     builder.add_node("extract_profile", extract_profile, destinations=("check_required",))
     builder.add_node(
         "check_required", check_required, destinations=("ask_missing", "intent_branch")
@@ -1267,14 +1309,17 @@ def _add_nodes(builder: StateGraph, agent: "LangGraphAgent") -> None:
     builder.add_node(
         "intent_branch",
         agent._intent_branch,
-        destinations=(
-            "planning",
-            "patch_plan",
-            "resolve_version",
-            "ingest_plan",
-            "not_implemented",
-        ),
+        destinations=(*sorted(set(INTENT_TARGETS.values())), "not_implemented"),
     )
+
+    # The QA agent — an LLM with `search_knowledge` and a prompt — enters the
+    # root graph as this one node. Its own model/tool loop is internal, which is
+    # why it needs no edges here beyond the one out.
+    builder.add_node("qa", agent._qa, destinations=("finalize",))
+    # It sits beside `qa` rather than among the plan nodes because that is the
+    # whole guarantee: an off-topic turn reaches exactly one node, and that node
+    # has no edge to anything that reads or writes a plan.
+    builder.add_node("decline", agent._decline, destinations=("finalize",))
     builder.add_node(
         "ingest_plan", agent._ingest_plan, destinations=("calc_macro", "ask_clarify_plan")
     )
@@ -1354,6 +1399,30 @@ def _ingest_notes(unresolved: list[dict], incomplete: list[str]) -> list[Issue]:
         )
 
     return notes
+
+
+def _reviewing_saved_plan_note() -> Issue:
+    """Say which plan is being assessed when the user pasted none.
+
+    Carried as an issue so it travels to the answer through the same channel as
+    every rubric finding — the same reason ``_restore_note`` exists. Without it
+    the review reads as an assessment of something the user just sent, and a
+    report on the wrong plan is worse than a request to paste one.
+
+    Returns:
+        The note.
+    """
+    return Issue(
+        source="volume",
+        severity="info",
+        location="Reviewing your saved plan",
+        message=(
+            "You didn't paste a plan, so this is a review of the plan I have "
+            "saved for you. Paste a different one and I'll assess that instead."
+        ),
+        suggestion=None,
+        rubric_ref="ingest.saved_plan",
+    )
 
 
 def _restore_note(label: str, verification_reason: str) -> Issue:
@@ -1575,6 +1644,46 @@ def _render_plan_context(plan: dict[str, Any] | None, macros: dict[str, Any] | N
     if macros:
         parts.append(f"Macros: {json.dumps(macros, ensure_ascii=False)}")
     return "\n".join(parts)
+
+
+def _render_semantic_context(profile: dict[str, Any]) -> str:
+    """Render standing facts about the user as text for a prompt.
+
+    Derived at the point of use rather than carried in state, and that is not an
+    optimisation. ``extract_profile`` merges what the user said this turn *after*
+    the profile is loaded, so a string rendered at load time would be one turn
+    stale — it would still say 68 kg on the turn the user says they are 73. The
+    profile itself is the state; this is a view of it.
+
+    ``preferences`` and ``unmapped_injury`` are included: they are the two fields
+    that carry the user's own words, and they are the reason a knowledge answer
+    can avoid suggesting the movement that hurts.
+
+    Args:
+        profile: The merged profile.
+
+    Returns:
+        One ``label: value`` per known field, or an empty string when nothing is
+        known — the prompt loaders supply their own wording for that case.
+    """
+    if not profile:
+        return ""
+
+    lines: list[str] = []
+    for field, value in profile.items():
+        if value is None or value == "":
+            continue
+        # An empty list is an answer, not a blank: `injuries: []` means the user
+        # said they have none, and a prompt that omits it invites the model to
+        # ask again.
+        rendered = (
+            (", ".join(str(item) for item in value) or "none")
+            if isinstance(value, list)
+            else str(value)
+        )
+        lines.append(f"- {_SEMANTIC_LABELS.get(field, field)}: {rendered}")
+
+    return "\n".join(lines)
 
 
 agent = LangGraphAgent()
