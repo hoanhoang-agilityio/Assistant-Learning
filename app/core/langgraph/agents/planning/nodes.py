@@ -35,12 +35,12 @@ async def select_template(state: PlanningState, config: RunnableConfig) -> Comma
     Reads ``profile`` and ``goal``. Writes ``template``, ``slots`` and ``issues``.
 
     Takes the most popular match rather than asking a model: days per week, goal
-    and level are exact criteria, so there is nothing to judge (§6.1).
+    and level are exact criteria, so there is nothing to judge.
 
     No matching template is a *conflicting constraint*, and it is reported here
     rather than later. Discovering at verify time that six sessions a week with
     only resistance bands has no programme wastes the whole pipeline and gives
-    the user a worse explanation (§12).
+    the user a worse explanation.
 
     Args:
         state: Current planning state.
@@ -94,10 +94,10 @@ async def filter_candidates(state: PlanningState, config: RunnableConfig) -> Com
     that slot plus a line saying why — not a refusal to produce a plan.
 
     Every legal candidate is attached, with no exclusion for exercises used by an
-    earlier slot. Avoiding repeats across the week is ``choose_exercises``'s job
-    (§6.3), and doing it here would be wrong twice over: it reserves an exercise
-    the model has not chosen yet, and it shrinks later slots' lists on the
-    strength of that guess — which can empty a slot that had legal options.
+    earlier slot. Avoiding repeats across the week is ``choose_exercises``'s job,
+    and doing it here would be wrong twice over: it reserves an exercise the
+    model has not chosen yet, and it shrinks later slots' lists on the strength
+    of that guess — which can empty a slot that had legal options.
 
     Args:
         state: Current planning state.
@@ -216,7 +216,7 @@ async def assemble_plan(state: PlanningState, config: RunnableConfig) -> Command
     Validation is strict and the failure is an exception, not an issue: sets and
     reps must still equal the template's, and every exercise id must exist in the
     catalog. A mismatch means an earlier node corrupted the plan, which is a bug
-    to fix rather than a finding to show the user (§6.4).
+    to fix rather than a finding to show the user.
 
     Args:
         state: Current planning state.

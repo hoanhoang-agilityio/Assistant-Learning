@@ -10,7 +10,7 @@ an exercise name must never exist only in the vector store.
 ``joint_actions`` and ``loaded_positions`` are the columns the injury check reads.
 They are what make a contraindication rule survive catalog growth: mapping an
 injury to attributes catches an exercise added tomorrow, mapping it to names does
-not (§7.3).
+not.
 """
 
 from sqlalchemy import JSON, Column
