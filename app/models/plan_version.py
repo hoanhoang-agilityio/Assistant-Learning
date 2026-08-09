@@ -19,7 +19,7 @@ plan must be re-checked.
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, ForeignKey, String
 from sqlmodel import Field
 
 from app.models.base import BaseModel
@@ -32,6 +32,25 @@ class PlanVersion(BaseModel, table=True):
 
     id: str = Field(primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True)
+
+    # The conversation this snapshot came out of. This is the edge the episodic
+    # layer walks: a session summary says what the user and the assistant did,
+    # and this says which plan came of it. Without it the two can only be
+    # correlated by timestamp, which silently misattributes a version whenever
+    # a user has two sessions open.
+    #
+    # Nullable because an anonymous turn never reaches `_snapshot`'s write path,
+    # because every row written before this column existed has no session to
+    # point at — and because deleting a conversation nulls it. This table
+    # outranks `session`: a user deleting a chat must keep the plan they train
+    # on, so the constraint is ON DELETE SET NULL (see the migration), never
+    # CASCADE and never the default RESTRICT.
+    session_id: str | None = Field(
+        default=None,
+        sa_column=Column(
+            String, ForeignKey("session.id", ondelete="SET NULL"), nullable=True, index=True
+        ),
+    )
 
     label: str = Field(default="")
     plan: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
