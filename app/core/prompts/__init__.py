@@ -18,7 +18,6 @@ _PROMPTS_DIR = Path(__file__).parent
 
 _SUPERVISOR_PROMPT_TEMPLATE = (_PROMPTS_DIR / "supervisor.md").read_text(encoding="utf-8")
 _CLASSIFY_PROMPT_TEMPLATE = (_PROMPTS_DIR / "classify.md").read_text(encoding="utf-8")
-_QA_PROMPT_TEMPLATE = (_PROMPTS_DIR / "qa.md").read_text(encoding="utf-8")
 _EXTRACT_PROFILE_TEMPLATE = (_PROMPTS_DIR / "extract_profile.md").read_text(encoding="utf-8")
 
 # Used verbatim, not formatted: the message being summarised or titled is sent
@@ -171,35 +170,10 @@ def load_extract_profile_prompt(conversation: str) -> str:
     return _EXTRACT_PROFILE_TEMPLATE.format(conversation=conversation)
 
 
-def load_qa_prompt(
-    plan_context: str, semantic_context: str = "", episodic_context: str = ""
-) -> str:
-    """Render the general-knowledge answering prompt.
-
-    Args:
-        plan_context: Read-only summary of the user's current plan and macros,
-            used to personalise the answer. Empty when they have no plan.
-        semantic_context: What is known about this user, rendered from their
-            profile *after* this turn's facts were merged into it — the agent
-            never looks anything up about the user for itself.
-        episodic_context: Earlier sessions, loaded once per turn for the same
-            reason. Empty when there are none.
-
-    Returns:
-        The formatted QA prompt.
-    """
-    return _QA_PROMPT_TEMPLATE.format(
-        plan_context=plan_context or "The user has no saved plan.",
-        semantic_context=semantic_context or "Nothing recorded about this user yet.",
-        episodic_context=episodic_context or "No earlier conversations with this user.",
-    )
-
-
 __all__ = [
     "SESSION_SUMMARY_PROMPT",
     "SESSION_TITLE_PROMPT",
     "load_classify_prompt",
     "load_extract_profile_prompt",
-    "load_qa_prompt",
     "load_supervisor_prompt",
 ]

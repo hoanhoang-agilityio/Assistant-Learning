@@ -326,7 +326,7 @@ fallback. Same shape as the others.
 
 ## 7. `qa_agent`
 
-Unchanged. `agents/qa/graph.py` is already `create_agent` with five middleware
+Unchanged. `agents/qa/agent.py` is already `create_agent` with five middleware
 and no nodes; it is the reference for the two agents above rather than something
 the conversion touches.
 

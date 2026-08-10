@@ -23,18 +23,17 @@ from langchain.agents.middleware import (
 from langchain_core.messages import SystemMessage
 from langgraph.graph.state import CompiledStateGraph
 
+from app.core.langgraph.agents.qa.prompts import load_qa_agent_prompt
 from app.core.langgraph.agents.qa.state import QAState
-from app.core.langgraph.agents.qa.tools import estimate_macros
+from app.core.langgraph.agents.qa.tools import estimate_macros, search_knowledge
 from app.core.langgraph.models import default_model, resilience_middleware
-from app.core.langgraph.tools import tools as shared_tools
-from app.core.prompts import load_qa_prompt
 
 AGENT_NAME = "qa"
 
 # `estimate_macros` is owned by this agent rather than shared, and that is the
 # point of it: QA is read-only and has no path to a save, so a hypothetical
 # number computed here cannot reach a stored plan. No other agent gets it.
-tools = [*shared_tools, estimate_macros]
+tools = [search_knowledge, estimate_macros]
 
 # Tool calls one question may cost. A knowledge question needs one lookup,
 # occasionally two, and a what-if adds one estimate; a model still calling tools
@@ -72,7 +71,7 @@ def _qa_prompt(request: ModelRequest) -> SystemMessage:
     """
     state = request.state
     return SystemMessage(
-        content=load_qa_prompt(
+        content=load_qa_agent_prompt(
             state["plan_context"],
             state.get("semantic_context", ""),
             state.get("episodic_context", ""),

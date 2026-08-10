@@ -7,7 +7,7 @@ anything that patches or reloads it — the same trap ``routing/__init__.py``
 records.
 """
 
-from app.core.langgraph.agents.qa.graph import (
+from app.core.langgraph.agents.qa.agent import (
     AGENT_NAME,
     EXHAUSTED_ANSWER,
     FAILURE_ANSWER,

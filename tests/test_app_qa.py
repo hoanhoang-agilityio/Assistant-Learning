@@ -18,7 +18,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app.core.langgraph.agents.qa import build_qa_agent
-from app.core.langgraph.agents.qa.graph import _MAX_SEARCHES
+from app.core.langgraph.agents.qa.agent import _MAX_SEARCHES
 from app.core.langgraph.agents.qa.tools import estimate_macros
 from tests.conftest import FakeChatModel, stub_model, tool_call
 from tests.support import call
@@ -70,7 +70,7 @@ def test_the_agent_is_declared_not_assembled(monkeypatch):
     package = Path(__file__).resolve().parent.parent / "app/core/langgraph/agents/qa"
     assert {path.name for path in package.glob("*.py")} == {
         "__init__.py",
-        "graph.py",
+        "agent.py",
         "state.py",
         "tools.py",
     }

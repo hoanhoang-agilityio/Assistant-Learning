@@ -212,7 +212,7 @@ def test_the_qa_agent_still_cannot_hold_a_plan():
 
 def test_estimate_macros_is_qa_only():
     """Safe there because QA is read-only; unsafe anywhere with a path to a save."""
-    from app.core.langgraph.agents.qa.graph import tools as qa_tools
+    from app.core.langgraph.agents.qa.agent import tools as qa_tools
 
     assert "estimate_macros" in {tool.name for tool in qa_tools}
     for module in (planning_tools, review_tools, supervisor_tools):

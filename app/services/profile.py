@@ -62,7 +62,7 @@ REQUIRED_FIELDS: dict[Intent, tuple[str, ...]] = {
     # for the user's height. The gate protects computation — `calc_macros`
     # raises without an activity level — and QA computes nothing. A QA answer
     # that needs a number it does not have gives the per-kg form and asks for
-    # the weight in the same breath (`qa.md`); it does not stop the turn.
+    # the weight in the same breath (`qa_agent.md`); it does not stop the turn.
     #
     # Do not add a field here. If a QA question genuinely needs one, the
     # deterministic way to know that is a `classify` output, not this tuple,
