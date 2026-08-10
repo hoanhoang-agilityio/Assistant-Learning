@@ -263,10 +263,10 @@ def send_message(client: httpx.Client, session_token: str, text: str) -> list[di
     from its checkpointer, keyed by the session the token is scoped to, so
     replaying stored turns here would duplicate them.
 
-    ``/chatbot/chat`` is used rather than ``/chatbot/chat/stream`` because the
-    streaming endpoint only forwards tokens from the QA node: a plan build,
-    change, revert or review answers from ``compose_answer`` and would stream
-    nothing at all.
+    ``/chatbot/chat`` is used rather than ``/chatbot/chat/stream`` because a
+    turn that stops at the confirm gate has no streamed answer to show: the
+    question is produced by the interrupt, after the stream has ended. The
+    non-streaming endpoint returns it as an ordinary message.
 
     Args:
         client: An open API client.

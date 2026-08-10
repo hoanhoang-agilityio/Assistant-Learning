@@ -191,7 +191,7 @@ def candidates_for_slot(
 ) -> list[dict]:
     """Return candidates for a slot, preferring exercises not already used.
 
-    This is what ``choose_exercises`` and ``repair`` call. It exists because
+    This is what the planning agent's slot tools call. It exists because
     avoiding repeats across the week is a *preference*, while equipment,
     skill and contraindications are *constraints*. Treating the preference as a
     constraint makes plans unbuildable: a pattern with one qualifying exercise

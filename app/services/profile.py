@@ -38,7 +38,7 @@ REQUIRED_FIELDS: dict[Intent, tuple[str, ...]] = {
         # without the user ever having claimed to be a beginner.
         "level",
     ),
-    # A change re-runs calc_macro and all three verifiers, so it needs the same
+    # A change recomputes macros and re-runs all three verifiers, so it needs the same
     # inputs as a build.
     "change_plan": (
         "weight_kg",
@@ -56,7 +56,7 @@ REQUIRED_FIELDS: dict[Intent, tuple[str, ...]] = {
     # but not the programme-shaping fields.
     "check": ("weight_kg", "height_cm", "age", "sex", "activity_level", "injuries"),
     "revert": (),
-    # Empty, and load-bearing. Every turn passes through `check_required`,
+    # Empty, and load-bearing. Every plan-producing tool checks this constant,
     # including questions about pain and injury, so this tuple is the only thing
     # standing between "how do I train around a sore knee?" and a form asking
     # for the user's height. The gate protects computation — `calc_macros`
@@ -133,7 +133,7 @@ async def get_profile(user_id: int) -> dict[str, Any]:
     Returns:
         The profile, or an empty dict when the user has none yet. Never
         ``None`` — every caller treats a missing profile as an empty one and
-        lets ``check_required`` decide what to ask for.
+        lets a tool's profile precondition decide what to ask for.
     """
     with Session(engine) as session:
         row = session.exec(select(UserProfile).where(UserProfile.user_id == user_id)).first()
