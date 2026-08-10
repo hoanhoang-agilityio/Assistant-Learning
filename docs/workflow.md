@@ -227,6 +227,8 @@ flowchart TD
     EXTP --> CHKR{"check_required<br/>det"}
     CHKR -->|missing fields| ASKM["ask_missing<br/>LLM"]
     ASKM --> OUT
+    CHKR -->|goal contradicted| ASKG["ask_goal<br/>det"]
+    ASKG --> OUT
     CHKR -->|complete| BRANCH{"intent_branch<br/>by intent"}
 
     BRANCH -->|general_qa| QA["qa<br/>agent: LLM + search_knowledge"]
@@ -289,8 +291,9 @@ flowchart TD
 |---|---|---|---|
 | `classify` | `messages` | `intent`, `scope`, `changes` | — |
 | `qa` | `messages`, `plan`, `macros` (read-only) | `answer` | `search_knowledge` |
-| `extract_profile` | `messages`, `profile` | `profile` | — |
+| `extract_profile` | `messages`, `profile` | `profile`, `goal_conflict` | — |
 | `ask_missing` | `missing_fields`, `intent` | `answer` | — |
+| `ask_goal` | `goal_conflict` | `answer` | — |
 | `resolve_version` | `messages`, `version_index` | `revert_target` | — |
 | `ingest_plan` | `messages` | `submitted_plan` | `resolve_exercise` |
 | `choose_exercises` | `draft_plan.slots`, `profile` | `draft_plan` | `get_exercise_candidates` |
