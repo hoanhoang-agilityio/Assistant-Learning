@@ -46,12 +46,13 @@ from app.core.langgraph.versioning import (
 from app.core.logging import logger
 from app.core.observability import get_langfuse_callbacks
 from app.core.prompts import load_compose_answer_prompt, load_system_prompt
+from app.models.exercise import UNIT_SECONDS
 from app.schemas.chat import Message
 from app.schemas.graph import Intent, Issue, RootState
 from app.services.catalog import load_catalog
 from app.services.llm.service import llm_service
 from app.services.nutrition import calc_macros
-from app.services.profile import FIELD_LABELS, profile_hash
+from app.services.profile import FIELD_LABELS, GOAL_LABELS, profile_hash
 from app.services.rubrics import rubric_version
 from app.services.templates import get_template
 from app.services.versions import get_version, insert_version, version_index
@@ -135,6 +136,24 @@ _DECLINED_ANSWER = (
 
 _NO_HISTORY_ANSWER = (
     "There's no earlier version to go back to — the plan you have is the only one I've saved."
+)
+
+# What the composer is told about the plan it is being shown. The model cannot
+# tell a plan built this turn from the one the user already had — the rendered
+# text is identical — and mistaking the second for the first is what turns "I
+# could not read your change request" into an answer that reads like a rebuild.
+#
+# Written as a labelled outcome plus a directive, deliberately: prose here gets
+# copied into the answer verbatim, third person and all.
+_ANSWER_STATUS_NEW = "The plan below was produced by this turn. Report it as the result."
+_ANSWER_STATUS_UNCHANGED = (
+    "No new plan was produced. The plan below is the one already held, and it is "
+    "unchanged — nothing applied, nothing lost. Open by making that clear, then let "
+    "the findings explain why."
+)
+_ANSWER_STATUS_NO_PLAN = (
+    "No plan was produced and none is held. Describe no plan; explain what is needed, "
+    "from the findings."
 )
 
 # The topic gate's whole reply. Deliberately a constant and not a model call:
@@ -302,6 +321,42 @@ class LangGraphAgent:
             "Before I can put a plan together I need a few things:\n\n"
             + "\n".join(f"- {label}" for label in labels)
             + "\n\nYou can answer them all in one message."
+        )
+        return Command(update={"answer": question}, goto="finalize")
+
+    async def _ask_goal(self, state: RootState, config: RunnableConfig) -> Command:
+        """Ask which goal to use when the turn contradicts the stored one.
+
+        Reads ``goal_conflict``. Writes ``answer``.
+
+        A separate node from ``ask_missing`` because the two questions have
+        nothing in common but their position: that one lists fields nobody has
+        answered, this one puts two answers side by side and asks which still
+        holds. Deterministic for the same reason — the wording must not drift
+        between turns, or a user who answers it sees a differently phrased
+        version of the question they just answered.
+
+        The turn stops here. Going on to build with either goal is the guess
+        this node exists to avoid, and the user's reply arrives as an ordinary
+        next turn, where an outright answer lands in ``goal`` and overwrites the
+        stored value through the normal path.
+
+        Args:
+            state: Current root state.
+            config: Runnable config. Unused — no I/O.
+
+        Returns:
+            A command writing the question and going to ``finalize``.
+        """
+        conflict = state.goal_conflict or {}
+        stored = GOAL_LABELS.get(conflict.get("stored", ""), conflict.get("stored", ""))
+        implied = GOAL_LABELS.get(conflict.get("implied", ""), conflict.get("implied", ""))
+
+        question = (
+            f"Your profile has **{stored}** as your goal, but this message reads "
+            f"more like **{implied}**.\n\n"
+            "It changes your calorie target in opposite directions, so I would "
+            "rather ask than guess: which one should I plan for?"
         )
         return Command(update={"answer": question}, goto="finalize")
 
@@ -912,15 +967,27 @@ class LangGraphAgent:
             A command writing the answer and going to ``END``.
         """
         issues = sort_issues(state.issues)
+
+        # A turn can end here having produced nothing: a change request the
+        # patcher could not read leaves `draft_plan` empty and routes straight
+        # to this node. Falling back to the plan the user already has is what
+        # keeps the answer honest — rendering `None` printed "No plan could be
+        # produced." at someone whose plan was sitting intact in state, which
+        # reads as though this turn had destroyed it.
+        produced = state.submitted_plan or state.draft_plan
+        plan = produced if produced is not None else state.plan
+        macros = state.computed_macros if produced is not None else state.macros
+
         # The goal the macros were computed for, not the profile's — they are
         # the same value, and quoting the one the numbers came from is what
         # keeps the sentence and the targets below it from disagreeing.
-        goal = (state.computed_macros or {}).get("goal")
+        goal = (macros or {}).get("goal")
         prompt = load_compose_answer_prompt(
             verdict=state.verdict or "unknown",
-            plan=_render_plan(state.submitted_plan or state.draft_plan, goal),
-            macros=json.dumps(state.computed_macros or {}, ensure_ascii=False),
+            plan=_render_plan(plan, goal),
+            macros=json.dumps(macros or {}, ensure_ascii=False),
             issues=_render_issues(issues),
+            status=_ANSWER_STATUS_NEW if produced is not None else _answer_status_unchanged(plan),
         )
 
         try:
@@ -1303,9 +1370,15 @@ def _add_nodes(builder: StateGraph, agent: "LangGraphAgent") -> None:
     builder.add_node("load_context", load_context, destinations=("extract_profile",))
     builder.add_node("extract_profile", extract_profile, destinations=("check_required",))
     builder.add_node(
-        "check_required", check_required, destinations=("ask_missing", "intent_branch")
+        "check_required",
+        check_required,
+        destinations=("ask_missing", "ask_goal", "intent_branch"),
     )
     builder.add_node("ask_missing", agent._ask_missing, destinations=("finalize",))
+    # A terminal branch beside `ask_missing`, not a step on the spine. The gate
+    # property still holds: `check_required` remains the only edge into
+    # `intent_branch`, and this node has no edge to it at all.
+    builder.add_node("ask_goal", agent._ask_goal, destinations=("finalize",))
     builder.add_node(
         "intent_branch",
         agent._intent_branch,
@@ -1499,6 +1572,49 @@ def _is_affirmative(answer: object) -> bool:
     return bool(words) and len(words) <= 3 and words[0] in _AFFIRMATIVE
 
 
+def _answer_status_unchanged(plan: dict[str, Any] | None) -> str:
+    """Say which kind of "nothing was produced" this turn is.
+
+    Args:
+        plan: The plan the user already has, if any.
+
+    Returns:
+        The status line for the composer.
+    """
+    return _ANSWER_STATUS_UNCHANGED if plan else _ANSWER_STATUS_NO_PLAN
+
+
+def _render_prescription(exercise: dict[str, Any], catalog: dict[str, dict]) -> str:
+    """Render one exercise's sets and either its reps or its hold time.
+
+    The plan stores the slot's rep range verbatim — ``build_plan`` asserts it
+    still equals the template's — so the unit cannot be read from the plan. It
+    is a property of the movement, and it is looked up here rather than copied
+    into the plan so that stored plans render correctly without a backfill.
+
+    Args:
+        exercise: One entry from a day's ``exercises``.
+        catalog: The exercise catalog, keyed by id.
+
+    Returns:
+        The prescription as text, e.g. ``4 sets x 6-8 reps, RIR 1-2`` or
+        ``3 sets x 30-60 seconds, RIR 1-2``.
+    """
+    reps = exercise["reps"]
+    rir = exercise["rir"]
+    entry = catalog.get(exercise.get("exercise_id") or "") or {}
+    duration = entry.get("duration_seconds")
+
+    # Falls back to reps for anything the catalog no longer holds — a retired
+    # exercise in an old plan renders as it always did rather than raising.
+    if entry.get("unit") == UNIT_SECONDS and duration:
+        measure = f"{duration[0]}-{duration[1]} seconds"
+    else:
+        measure = f"{reps[0]}-{reps[1]} reps"
+
+    return f"{exercise['sets']} sets x {measure}, RIR {rir[0]}-{rir[1]}"
+
+
 def _render_plan(plan: dict[str, Any] | None, goal: str | None = None) -> str:
     """Render a plan as compact text for the composer prompt.
 
@@ -1538,15 +1654,11 @@ def _render_plan(plan: dict[str, Any] | None, goal: str | None = None) -> str:
     # composer ran together with the previous day's last exercise, producing an
     # answer that read as one long chest session; an ordinal the model has to
     # carry through makes two days impossible to merge into one heading.
+    catalog = load_catalog()
     for index, day in enumerate(plan["days"], start=1):
         lines.append(f"Day {index} — {day['name']}:")
         for exercise in day["exercises"]:
-            reps = exercise["reps"]
-            rir = exercise["rir"]
-            lines.append(
-                f"  - {exercise['name']}: {exercise['sets']} sets x {reps[0]}-{reps[1]} reps, "
-                f"RIR {rir[0]}-{rir[1]}"
-            )
+            lines.append(f"  - {exercise['name']}: {_render_prescription(exercise, catalog)}")
         lines.append("")
     return "\n".join(lines).rstrip()
 

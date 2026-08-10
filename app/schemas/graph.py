@@ -52,6 +52,19 @@ class Issue(TypedDict):
     rubric_ref: str
 
 
+class GoalConflict(TypedDict):
+    """A goal this turn implies, set against the one already stored.
+
+    Both sides are carried because the question put to the user names them
+    both — "you had muscle gain, this reads like fat loss" — and neither is
+    recoverable later: ``stored`` is about to be read by ``calc_macros``, and
+    ``implied`` is never written to the profile at all.
+    """
+
+    stored: str
+    implied: str
+
+
 def accumulate_issues(left: list[Issue], right: list[Issue] | None) -> list[Issue]:
     """Reducer for ``issues``: accumulate within a turn, ``None`` clears.
 
@@ -149,7 +162,21 @@ class ProfileExtraction(BaseModel):
     days_per_week: int | None = Field(default=None, description="Training sessions per week")
     level: int | None = Field(default=None, description="Training experience, 1 (new) to 5")
     goal: str | None = Field(
-        default=None, description="fat_loss, muscle_gain, recomp or general_health"
+        default=None,
+        description=(
+            "fat_loss, muscle_gain, recomp or general_health. Only when the user "
+            "states their goal outright. Overwrites the stored one."
+        ),
+    )
+    implied_goal: str | None = Field(
+        default=None,
+        description=(
+            "The same vocabulary, but for a goal the user only implies while "
+            "saying something else — 'keep muscle while losing fat' asked as a "
+            "protein question. Never set this and `goal` together: an outright "
+            "statement belongs in `goal`. This one never overwrites the stored "
+            "goal; it is what makes the assistant ask instead of assuming."
+        ),
     )
     equipment: list[str] | None = Field(
         default=None, description="Equipment tokens the user has access to"
@@ -200,6 +227,14 @@ class RootState(BaseModel):
     profile: dict = Field(default_factory=dict, description="User profile as loaded and extracted")
     missing_fields: list[str] = Field(
         default_factory=list, description="Required profile fields still unanswered"
+    )
+    goal_conflict: GoalConflict | None = Field(
+        default=None,
+        description=(
+            "Set when this turn implies a goal that contradicts the stored one. "
+            "A stale goal is silent and expensive — it flips the calorie target "
+            "from a deficit to a surplus — so the turn asks instead of guessing."
+        ),
     )
 
     plan: dict | None = Field(default=None, description="Approved plan — the source of truth")
@@ -258,5 +293,8 @@ NEW_TURN: dict[str, Any] = {
     "computed_macros": None,
     "submitted_plan": None,
     "revert_target": None,
+    # Derived from this turn's wording, so it must not outlive it. Left set, the
+    # turn after the user resolves the conflict would be asked about it again.
+    "goal_conflict": None,
     "answer": "",
 }

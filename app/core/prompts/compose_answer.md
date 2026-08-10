@@ -31,8 +31,12 @@ Present the plan and the review findings to the user.
 
 # Structure
 
-1. One sentence on what was built, using the `Split`, `Sessions a week` and
-   `Goal` lines exactly as given below.
+1. One opening sentence you write yourself, reporting the outcome named under
+   `What happened` and quoting the `Split`, `Sessions a week` and `Goal` values
+   exactly as given. Address the reader as "you" — never write "the user". Start
+   with the sentence itself, never with a label such as "Outcome:" or "Status:".
+   Opening a `no_change` turn as though a plan had just been built is the one
+   thing this sentence must not do: it reads as though their plan was replaced.
 2. The plan. **Every `Day N — <name>:` line below is a separate training day
    and must become its own section in the answer**, in the same order and with
    the same numbering: a markdown heading alone on its own line
@@ -53,6 +57,13 @@ Be concise. This is a plan to act on, not an essay about training.
 # Verdict
 
 {verdict}
+
+# What happened
+
+An instruction to you about what this turn did, not text for the reader. Never
+quote it, label it, or reuse its wording.
+
+{status}
 
 # Plan
 

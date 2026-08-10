@@ -119,7 +119,9 @@ def load_qa_prompt(
     )
 
 
-def load_compose_answer_prompt(verdict: str, plan: str, macros: str, issues: str) -> str:
+def load_compose_answer_prompt(
+    verdict: str, plan: str, macros: str, issues: str, status: str
+) -> str:
     """Render the answer-composition prompt.
 
     Every argument is pre-rendered text rather than an object, so the node
@@ -131,11 +133,17 @@ def load_compose_answer_prompt(verdict: str, plan: str, macros: str, issues: str
         plan: The plan, rendered day by day.
         macros: The nutrition targets.
         issues: The findings, most severe first.
+        status: Whether the plan below was produced this turn or is the one the
+            user already had. Decided in code, because the model cannot tell the
+            two apart from the plan text and the difference is the whole meaning
+            of the answer.
 
     Returns:
         The formatted prompt.
     """
-    return _COMPOSE_ANSWER_TEMPLATE.format(verdict=verdict, plan=plan, macros=macros, issues=issues)
+    return _COMPOSE_ANSWER_TEMPLATE.format(
+        verdict=verdict, plan=plan, macros=macros, issues=issues, status=status
+    )
 
 
 def load_resolve_version_prompt(versions: str, query: str) -> str:

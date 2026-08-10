@@ -23,7 +23,8 @@ Return **exactly** one of these tokens, or `null`. Anything else is discarded.
 - `activity_level` — their life *outside* training, since training is counted
   separately: `sedentary` (desk job, little walking), `light`, `moderate`,
   `active`, `very_active` (physical job)
-- `goal`: `fat_loss`, `muscle_gain`, `recomp`, `general_health`
+- `goal`: `fat_loss`, `muscle_gain`, `recomp`, `general_health`. See the section
+  below — most goal talk belongs in `implied_goal` instead.
 - `injuries`: `knee_pain_patellofemoral`, `shoulder_impingement`.
   Return `[]` when the user says they have none. Leave `null` if they have not
   said either way. If they describe an injury that is **not** in this list, set
@@ -37,6 +38,38 @@ Return **exactly** one of these tokens, or `null`. Anything else is discarded.
   they name.
 - `level`: 1 for a beginner, 3 for a couple of years of consistent training, 5
   for advanced. Infer only from an explicit statement about experience.
+
+# `goal` versus `implied_goal`
+
+A stored goal decides whether the user is fed a calorie deficit or a surplus, so
+a stale one is expensive and completely silent. But a goal read out of a passing
+remark is just as wrong. So there are two fields, and **at most one of them is
+ever set**.
+
+Use `goal` when the user says what they are after, plainly:
+
+- "my goal is fat loss" → `goal: fat_loss`
+- "I want to put on size" → `goal: muscle_gain`
+- "switch me to a cut" → `goal: fat_loss`
+
+Use `implied_goal` when a goal is only visible *through* something else they
+said — a question, a constraint, a complaint:
+
+- "how much protein to keep muscle while losing fat?" → `implied_goal: fat_loss`
+- "I'm trying to get leaner before summer, what split?" → `implied_goal: fat_loss`
+- "I keep failing to gain weight" → `implied_goal: muscle_gain`
+
+Set **neither** when nothing points at a goal at all. "What is RIR?" and "can I
+train with a sore knee?" carry no goal, and most turns are like that.
+
+The difference is what the system does next: `goal` is stored, `implied_goal`
+only makes the assistant *ask* whether the goal has changed. So when you are
+unsure which one applies, choose `implied_goal` — being asked a question is a
+small cost, and being switched to the wrong calorie target without being asked
+is not.
+
+This split applies to `goal` only. Every other field keeps the rule at the top:
+if the user did not state it, leave it `null`.
 
 # `preferences`
 

@@ -30,7 +30,7 @@ from langgraph.types import Command
 from app.core.langgraph.utils import dump_messages
 from app.core.logging import logger
 from app.core.prompts import load_extract_profile_prompt
-from app.schemas.graph import Intent, Issue, ProfileExtraction, RootState
+from app.schemas.graph import GoalConflict, Intent, Issue, ProfileExtraction, RootState
 from app.services import profile as profile_service
 from app.services.episodes import recent_episodes
 from app.services.llm.service import llm_service
@@ -67,6 +67,13 @@ _EQUIPMENT_TOKENS = frozenset(
 )
 
 _MIN_LEVEL, _MAX_LEVEL = 1, 5
+
+# The intents whose turn spends the goal — both run `calc_macro`, where the goal
+# picks a deficit or a surplus. `check` scores a plan the user pasted and
+# `general_qa` answers a question; interrupting either to confirm a goal would
+# be a form in place of an answer, which is what `REQUIRED_FIELDS` keeps empty
+# for `general_qa` to prevent.
+_GOAL_SENSITIVE_INTENTS: frozenset[Intent] = frozenset({"build_plan", "change_plan"})
 
 # Intents whose turn ends without a plan, and therefore without a rendered issue
 # list. `check` is absent: it produces no *new* plan but it does run the
@@ -201,8 +208,16 @@ async def extract_profile(state: RootState, config: RunnableConfig) -> Command:
     if changed and user_id is not None:
         await profile_service.upsert_profile(user_id, updates)
 
+    conflict = _goal_conflict(extraction, merged)
+    if conflict:
+        logger.info(
+            "profile_goal_conflict",
+            stored=conflict["stored"],
+            implied=conflict["implied"],
+        )
+
     logger.info("profile_extracted", extracted=sorted(updates), changed=changed)
-    return Command(update={"profile": merged}, goto="check_required")
+    return Command(update={"profile": merged, "goal_conflict": conflict}, goto="check_required")
 
 
 async def check_required(state: RootState, config: RunnableConfig) -> Command:
@@ -229,7 +244,8 @@ async def check_required(state: RootState, config: RunnableConfig) -> Command:
         config: Runnable config. Unused — no I/O.
 
     Returns:
-        A command going to ``ask_missing`` when anything is outstanding, and to
+        A command going to ``ask_missing`` when anything is outstanding, to
+        ``ask_goal`` when the turn contradicts the stored goal, and to
         ``intent_branch`` otherwise.
     """
     intent = state.intent or "general_qa"
@@ -241,12 +257,22 @@ async def check_required(state: RootState, config: RunnableConfig) -> Command:
         missing=missing,
     )
 
+    # Missing beats conflicting. A profile with nothing in it has no stored goal
+    # to contradict, and asking both questions in one turn buries the one the
+    # user has to think about under a form.
+    if missing:
+        goto = "ask_missing"
+    elif state.goal_conflict and intent in _GOAL_SENSITIVE_INTENTS:
+        goto = "ask_goal"
+    else:
+        goto = "intent_branch"
+
     return Command(
         update={
             "missing_fields": missing,
             "issues": _unmapped_injury_notes(state.profile, missing, intent),
         },
-        goto="ask_missing" if missing else "intent_branch",
+        goto=goto,
     )
 
 
@@ -316,13 +342,18 @@ def _clean(extraction: ProfileExtraction) -> dict:
     unknown equipment string silently matches no exercise. Discarding it means
     ``check_required`` asks again, which is the correct recovery.
 
+    ``implied_goal`` is removed here rather than filtered downstream. What this
+    returns is merged straight into ``profile``, so leaving it in would store the
+    very guess the field exists to avoid storing.
+
     Args:
         extraction: The model's structured output.
 
     Returns:
-        Only the fields that are present and valid.
+        Only the profile fields that are present and valid.
     """
     raw = extraction.model_dump(exclude_none=True)
+    raw.pop("implied_goal", None)
     clean: dict = {}
 
     for key, value in raw.items():
@@ -347,6 +378,37 @@ def _clean(extraction: ProfileExtraction) -> dict:
             clean[key] = value
 
     return clean
+
+
+def _goal_conflict(extraction: ProfileExtraction, merged: dict) -> GoalConflict | None:
+    """Decide whether this turn's implied goal contradicts the stored one.
+
+    Deliberately narrow. A conflict needs an implied goal in the vocabulary, a
+    stored goal to contradict, and the two to actually differ — anything less is
+    not a question worth interrupting the user with.
+
+    Nothing is raised when the user *stated* a goal this turn: ``goal`` has
+    already overwritten the stored one by the time this runs, so ``merged``
+    holds what they just said and there is nothing to ask about.
+
+    Args:
+        extraction: The model's structured output, before cleaning.
+        merged: The profile after this turn's stated facts were applied.
+
+    Returns:
+        The conflict, or ``None`` when there is nothing to ask.
+    """
+    implied = extraction.implied_goal
+    if implied not in GOALS:
+        if implied is not None:
+            _drop("implied_goal", implied)
+        return None
+
+    stored = merged.get("goal")
+    if not stored or stored == implied:
+        return None
+
+    return GoalConflict(stored=stored, implied=implied)
 
 
 def _drop(key: str, value: object) -> None:

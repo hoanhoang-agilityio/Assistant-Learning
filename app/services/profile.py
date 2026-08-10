@@ -86,6 +86,16 @@ FIELD_LABELS: dict[str, str] = {
     "level": "your training experience (1 = new, 5 = advanced)",
 }
 
+# Goals in the words a user would recognise. `ask_goal` puts two of these in
+# front of the user and asks which holds; showing `fat_loss` there would be
+# naming a database value at them, the same fault `FIELD_LABELS` exists to fix.
+GOAL_LABELS: dict[str, str] = {
+    "fat_loss": "fat loss",
+    "muscle_gain": "muscle gain",
+    "recomp": "recomp (lose fat and gain muscle at once)",
+    "general_health": "general health",
+}
+
 # Fields the user answers as "none" rather than leaving blank. An empty list is
 # a complete answer for these; for every other field, empty means unanswered.
 _EMPTY_IS_AN_ANSWER = frozenset({"injuries"})
