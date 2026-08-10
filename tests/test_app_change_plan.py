@@ -1,15 +1,20 @@
-"""Tests for the change_plan branch and the confirm gate.
+"""Tests for changing a plan the user already approved.
 
-The confirm gate is the only place in this system where the graph stops
-mid-request and waits for a person. The properties worth pinning down are
-therefore about what happens *while it is stopped*:
+``patch_plan`` no longer has a root node of its own: it is the body of the
+planning agent's change mode (``docs/supervisor-architecture.md`` §1). It shares
+every input and every output with the build path, so ``mode="change"`` is one
+parameter rather than a second branch — and the tests follow it there.
 
-* the stored plan is untouched until the user says yes
-* declining leaves it untouched permanently
-* the answer resumes the paused run rather than starting a new one — otherwise
-  the plan the user approves is not the plan they were shown
-* a change re-runs macros and every verifier, because an added session moves
-  TDEE and breaks a deficit that was correct before
+Two rules shape the change path, and both are asserted below:
+
+**Modification must not become regeneration.** Rebuilding from scratch would
+quietly drop every exercise the user has been happy with for six weeks. What
+carries forward is carried, and what a new injury rules out is re-picked.
+
+**A change cannot take a shortcut past the checks.** Adding a session raises
+TDEE and breaks a deficit that was correct before, so the change goes through
+``commit_draft`` like a build does — the same macros, the same verifiers, the
+same handle.
 """
 
 import json
@@ -17,22 +22,13 @@ import uuid
 from pathlib import Path
 
 import pytest
-from langchain_core.messages import AIMessage
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import StateGraph
 
-from app.core.langgraph.agents import AGENTS
-from app.core.langgraph.agents.planning.patch import patch_plan
-from app.core.langgraph.agents.planning.state import ExerciseChoices
+from app.core.langgraph import drafts
+from app.core.langgraph.agents.planning.patch import SUPPORTED_CHANGES, patch_plan
+from app.core.langgraph.agents.planning.tools import _change_slots, commit_draft, get_template_slots
 from app.core.langgraph.diff import build_diff
-from app.core.langgraph.graph import (
-    CONFIRM_REQUIRED_INTENTS,
-    LangGraphAgent,
-    _add_nodes,
-    _is_affirmative,
-)
-from app.schemas.graph import IntentDecision, ProfileExtraction, RootState
-from tests.seed import CONTRAINDICATIONS
+from tests.seed import CONTRAINDICATIONS, TEMPLATES
+from tests.support import call, message, updates
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
 
@@ -55,11 +51,6 @@ PROFILE = {
     "preferences": "",
 }
 
-_DEFAULTS = {
-    name: (field.default_factory() if field.default_factory else field.default)
-    for name, field in RootState.model_fields.items()
-}
-
 
 @pytest.fixture(scope="module")
 def catalog() -> dict[str, dict]:
@@ -71,11 +62,8 @@ def catalog() -> dict[str, dict]:
 @pytest.fixture(scope="module")
 def approved_plan(catalog) -> dict:
     """A 4-day plan standing in for one the user already accepted."""
-    plan, issues = patch_plan({"days": []}, {}, PROFILE, catalog)
-    # patch_plan refuses an empty plan, so build the fixture directly.
     from app.services.catalog import candidates_for_slot
     from app.services.templates import iter_slots
-    from tests.seed import TEMPLATES
 
     template = TEMPLATES["upper_lower_4day"]
     by_day: dict[str, list[dict]] = {}
@@ -104,278 +92,180 @@ def approved_plan(catalog) -> dict:
     }
 
 
-class _FakeLLM:
-    """Module-scoped stand-in for the shared llm_service singleton."""
-
-    def bind_tools(self, _tools):
-        """No-op: the agent binds tools at construction."""
-        return self
-
-    async def call(self, _messages, *_args, **kwargs):
-        response_format = kwargs.get("response_format")
-        if response_format is ProfileExtraction:
-            return ProfileExtraction()
-        if response_format is ExerciseChoices:
-            return ExerciseChoices(choices=[])
-        if response_format is not None:
-            return response_format()
-        return AIMessage(content="Done.")
+@pytest.fixture(autouse=True)
+def _catalog_from_the_seed_file(monkeypatch, catalog):
+    """Point every catalog read at the seed file rather than at Postgres."""
+    monkeypatch.setattr("app.services.catalog.load_catalog", lambda *a, **k: catalog)
+    monkeypatch.setattr(
+        "app.core.langgraph.agents.planning.tools.load_catalog", lambda *a, **k: catalog
+    )
+    monkeypatch.setattr("app.core.langgraph.rendering.load_catalog", lambda *a, **k: catalog)
 
 
 @pytest.fixture
-def pipeline(monkeypatch, catalog, approved_plan):
-    """Compile the root graph with storage and every model boundary stubbed."""
-    calls: dict[str, list] = {"versions": []}
+def scored(monkeypatch):
+    """Score every plan as a pass, without a rubric database behind it."""
+    seen: list[dict] = []
 
-    monkeypatch.setattr("app.core.langgraph.graph.load_catalog", lambda *a, **k: catalog)
-    monkeypatch.setattr("app.services.catalog.load_catalog", lambda *a, **k: catalog)
+    async def fake_score(plan, profile, config=None, scope=None):
+        seen.append({"plan": plan, "profile": profile})
+        sessions = len(plan.get("days") or [])
+        return (
+            {"kcal": 1900 + sessions * 50, "tdee": 2200 + sessions * 50, "goal": profile["goal"]},
+            [],
+            "pass",
+        )
 
-    async def fake_insert_version(**kwargs):
-        calls["versions"].append(kwargs)
-        return {"version_id": "v-new", "label": "v2", "created_at": "2026-08-05T00:00:00"}
-
-    async def fake_version_index(_user_id):
-        return []
-
-    async def fake_get_profile(_user_id):
-        return dict(PROFILE)
-
-    async def fake_upsert(_user_id, _profile):
-        return None
-
-    monkeypatch.setattr("app.core.langgraph.graph.insert_version", fake_insert_version)
-    monkeypatch.setattr("app.core.langgraph.graph.version_index", fake_version_index)
+    monkeypatch.setattr("app.core.langgraph.agents.planning.tools.score", fake_score)
     monkeypatch.setattr(
-        "app.core.langgraph.profile.nodes.profile_service.get_profile", fake_get_profile
+        "app.core.langgraph.agents.planning.tools.profile_hash", lambda _profile: "hash"
     )
-
-    # `load_context` reads two stores besides the profile. Stubbed so a test
-    # asserts what it set up, not what happens to be seeded in the developer's
-    # Postgres — the graph state a test passes in is the only plan it has.
-    async def fake_latest_version(_user_id):
-        return None
-
-    async def fake_recent_episodes(_user_id, _session_id):
-        return ""
-
-    monkeypatch.setattr("app.core.langgraph.profile.nodes.latest_version", fake_latest_version)
-    monkeypatch.setattr("app.core.langgraph.profile.nodes.recent_episodes", fake_recent_episodes)
-    monkeypatch.setattr(
-        "app.core.langgraph.profile.nodes.profile_service.upsert_profile", fake_upsert
-    )
-
-    for module in (
-        "app.core.langgraph.agents.planning.nodes",
-        "app.core.langgraph.profile.nodes",
-        "app.core.langgraph.graph",
-    ):
-        monkeypatch.setattr(f"{module}.llm_service", _FakeLLM())
-
-    def _build(changes: dict):
-        async def fake_classify(_conversation):
-            return IntentDecision(intent="change_plan", scope=[], changes=changes)
-
-        monkeypatch.setattr("app.core.langgraph.routing.classify.llm_classify", fake_classify)
-
-        agent = LangGraphAgent()
-        agent._agents = {name: build() for name, build in AGENTS.items()}
-        builder = StateGraph(RootState)
-        _add_nodes(builder, agent)
-        builder.set_entry_point("classify")
-        graph = builder.compile(checkpointer=MemorySaver(), name="change-test")
-
-        config = {
-            "configurable": {"thread_id": str(uuid.uuid4())},
-            "metadata": {"user_id": "1"},
-        }
-        return graph, config, calls
-
-    return _build
+    monkeypatch.setattr("app.core.langgraph.agents.planning.tools.rubric_version", lambda: "v1")
+    return seen
 
 
-async def _start(graph, config, approved_plan, text="make it 5 days", **extra):
-    """Run a change turn up to wherever it stops, and return the state.
-
-    ``extra`` seeds additional state on the first invoke. Seeding rather than
-    calling ``aupdate_state`` later matters: writing to a thread that is parked
-    at an interrupt disturbs the pending task, and the resume then finds nothing
-    to resume.
-    """
-    await graph.ainvoke(
-        {
-            "messages": [{"role": "user", "content": text}],
-            "plan": approved_plan,
-            "macros": {"kcal": 2000, "tdee": 2500, "protein_g": 150, "fat_g": 60, "carbs_g": 210},
-            **extra,
-        },
-        config,
-    )
-    return await _state(graph, config)
-
-
-async def _state(graph, config) -> dict:
-    """Return the thread's state merged over the declared defaults."""
-    snapshot = await graph.aget_state(config)
-    return dict(_DEFAULTS) | snapshot.values
-
-
-async def _resume(graph, config, reply: str):
-    """Answer a pending interrupt through the same path the API uses."""
-    from langgraph.types import Command
-
-    await graph.ainvoke(Command(resume=reply), config)
-    return await _state(graph, config)
-
-
-# ---------------------------------------------------------------------------
-# The gate stops
-# ---------------------------------------------------------------------------
-
-
-async def test_a_change_stops_at_the_confirm_gate(pipeline, approved_plan):
-    """A change overwrites an approved plan, so it must ask first."""
-    graph, config, calls = pipeline({"days": 3})
-    await _start(graph, config, approved_plan)
-
-    snapshot = await graph.aget_state(config)
-    assert snapshot.next, "the graph ran to completion instead of stopping"
-    assert snapshot.tasks[0].interrupts, "no interrupt was raised"
-
-    payload = snapshot.tasks[0].interrupts[0].value
-    assert payload["type"] == "confirm_change"
-    assert "4 → 3 sessions" in payload["question"]
-    assert calls["versions"] == [], "a version was written before the user agreed"
-
-
-async def test_the_stored_plan_is_untouched_while_paused(pipeline, approved_plan):
-    """The plan the user has must not change just because a change was proposed."""
-    graph, config, _calls = pipeline({"days": 3})
-    values = await _start(graph, config, approved_plan)
-
-    assert values["plan"] == approved_plan
-    assert values["draft_plan"] != approved_plan, "nothing was actually drafted"
-    assert values["pending_commit"] is not None
-
-
-async def test_the_diff_is_shown_against_the_current_plan(pipeline, approved_plan):
-    """The user is being told what they are about to lose."""
-    graph, config, _calls = pipeline({"days": 3})
-    values = await _start(graph, config, approved_plan)
-
-    diff = values["pending_commit"]
-    assert diff["days_before"] == 4
-    assert diff["days_after"] == 3
-    assert diff["removed"], "a 4→3 day change must remove something"
-
-
-# ---------------------------------------------------------------------------
-# Declining
-# ---------------------------------------------------------------------------
-
-
-async def test_declining_leaves_the_plan_alone(pipeline, approved_plan):
-    """A "no" must be final, and must not half-apply the change."""
-    graph, config, calls = pipeline({"days": 3})
-    await _start(graph, config, approved_plan)
-    values = await _resume(graph, config, "no thanks")
-
-    assert values["plan"] == approved_plan
-    assert values["pending_commit"] is None
-    assert calls["versions"] == []
-    assert "Nothing has changed" in values["answer"]
-
-
-@pytest.mark.parametrize("reply", ["no", "not yet", "wait, what does that remove?", ""])
-async def test_anything_that_is_not_a_yes_is_a_no(pipeline, approved_plan, reply):
-    """An ambiguous reply must not be read as consent."""
-    graph, config, calls = pipeline({"days": 3})
-    await _start(graph, config, approved_plan)
-    values = await _resume(graph, config, reply)
-
-    assert calls["versions"] == [], f"{reply!r} was treated as approval"
-    assert values["plan"] == approved_plan
-
-
-# ---------------------------------------------------------------------------
-# Accepting
-# ---------------------------------------------------------------------------
-
-
-async def test_accepting_applies_the_change_and_versions_it(pipeline, approved_plan):
-    """A "yes" resumes the same run and commits the plan the user was shown."""
-    graph, config, calls = pipeline({"days": 3})
-    paused = await _start(graph, config, approved_plan)
-    shown = paused["draft_plan"]
-
-    values = await _resume(graph, config, "yes")
-
-    assert len(calls["versions"]) == 1
-    assert calls["versions"][0]["plan"] == shown, (
-        "the committed plan is not the plan the user approved"
-    )
-    assert values["plan"] == shown
-    assert values["pending_commit"] is None
-
-
-async def test_the_new_version_records_its_parent(pipeline, approved_plan):
-    """History is append-only, so an undo has something to return to."""
-    graph, config, calls = pipeline({"days": 3})
-    await _start(graph, config, approved_plan, current_version_id="v-old")
-    await _resume(graph, config, "yes")
-
-    assert calls["versions"][0]["parent_id"] == "v-old"
-
-
-async def test_macros_are_recomputed_for_the_new_day_count(pipeline, approved_plan):
-    """An extra session raises TDEE, so the old targets cannot be reused."""
-    graph, config, _calls = pipeline({"days": 3})
-    values = await _start(graph, config, approved_plan)
-
-    computed = values["computed_macros"]
-    assert computed is not None
-    assert computed["tdee"] != 2500, "the macros were carried over unchanged"
-    assert values["verdict"] is not None, "the verifiers did not run on the new plan"
-
-
-async def test_the_answer_is_composed_from_this_turn_only(pipeline, approved_plan, monkeypatch):
-    """A 4→5 day change was announced to the user as a 4-day plan.
-
-    Two causes, both here. The composer is told to open with the split, the
-    sessions a week and the goal, and nothing in its prompt carried them — so it
-    took all three from the only other place they appeared, the plan being
-    replaced. And ``issues`` accumulated across turns, so the findings backing
-    that sentence up still named `Upper A` and `Lower B`.
-
-    Asserted on the prompt rather than the prose: what the composer is *handed*
-    is the contract, and the answer itself changes with every prompt edit.
-    """
-    captured: dict[str, str] = {}
-
-    def spy(**kwargs):
-        captured.update(kwargs)
-        return "composed"
-
-    monkeypatch.setattr("app.core.langgraph.graph.load_compose_answer_prompt", spy)
-
-    graph, config, _calls = pipeline({"days": 5})
-    stale = {
-        "source": "volume",
-        "severity": "warn",
-        "location": "Upper A / vertical push",
-        "message": "No vertical push exercise matches your equipment.",
-        "suggestion": None,
-        "rubric_ref": "catalog.no_candidates",
+def _state(catalog: dict, plan: dict, **overrides) -> dict:
+    """Build a planning state in change mode."""
+    return {
+        "messages": [],
+        "profile": dict(PROFILE),
+        "goal": "fat_loss",
+        "preferences": "",
+        "mode": "change",
+        "changes": {"days": 3},
+        "base_plan": plan,
+        "base_macros": {"kcal": 2100, "tdee": 2400, "goal": "fat_loss"},
+        "template": None,
+        "slots": [],
+        "notes": [],
+        "draft_id": None,
+        **overrides,
     }
-    await _start(graph, config, approved_plan, issues=[stale])
-    values = await _resume(graph, config, "yes")
 
-    assert len(values["plan"]["days"]) == 5, "the fixture no longer exercises a 4→5 change"
-    assert "Sessions a week: 5" in captured["plan"]
-    assert "Chest / Back / Legs / Upper / Lower, 5 days" in captured["plan"]
-    assert "Goal: fat_loss" in captured["plan"]
-    assert "Upper A / vertical push" not in captured["issues"], (
-        "the previous turn's findings were reported as this turn's"
+
+def _config() -> dict:
+    """A runnable config with a unique thread id."""
+    return {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+
+# ---------------------------------------------------------------------------
+# Change mode, through the agent's tools
+# ---------------------------------------------------------------------------
+
+
+async def test_a_change_offers_the_slots_with_what_the_plan_already_uses(catalog, approved_plan):
+    """The model is shown the current exercise, so keeping it is the default.
+
+    This is what stops a change reading as a rebuild. Without
+    ``current_exercise_id`` the model has nothing marking which option the user
+    has been training for six weeks, and a perfectly valid plan replaces all of
+    them.
+    """
+    result = await call(get_template_slots, _state(catalog, approved_plan), _config())
+    slots = updates(result)["slots"]
+
+    assert slots
+    carried = [slot for slot in slots if "current_exercise_id" in slot]
+    assert carried, "no slot carried the exercise the plan already uses"
+    for slot in carried:
+        assert slot["current_exercise_id"] in catalog
+
+
+async def test_committing_a_change_with_no_choices_keeps_the_current_exercises(
+    catalog, approved_plan, scored
+):
+    """The normal path: apply the change, keep what it did not touch."""
+    drafts.clear()
+    prepared = await call(get_template_slots, _state(catalog, approved_plan), _config())
+    written = updates(prepared)
+
+    result = await call(
+        commit_draft,
+        _state(
+            catalog,
+            approved_plan,
+            template=written["template"],
+            slots=written["slots"],
+            notes=written["notes"],
+        ),
+        _config(),
+        choices=[],
     )
+    draft = drafts.read(updates(result)["draft_id"])
+
+    before = {e["exercise_id"] for d in approved_plan["days"] for e in d["exercises"]}
+    after = {e["exercise_id"] for d in draft.plan["days"] for e in d["exercises"]}
+    assert after & before, "the change discarded every exercise the user had"
+    assert len(draft.plan["days"]) == 3, "the change was not applied"
+
+
+async def test_macros_are_recomputed_for_the_new_day_count(catalog, approved_plan, scored):
+    """An extra session raises TDEE, so the old targets cannot be reused."""
+    drafts.clear()
+    prepared = await call(get_template_slots, _state(catalog, approved_plan), _config())
+    written = updates(prepared)
+
+    result = await call(
+        commit_draft,
+        _state(catalog, approved_plan, template=written["template"], slots=written["slots"]),
+        _config(),
+        choices=[],
+    )
+    draft = drafts.read(updates(result)["draft_id"])
+
+    assert draft.macros["tdee"] != 2400, "the change kept the macros of the old day count"
+    assert scored, "the change skipped the verifiers"
+
+
+async def test_a_change_carries_a_diff_and_a_build_does_not(catalog, approved_plan, scored):
+    """The diff is what the confirm question shows; a build has nothing to show."""
+    drafts.clear()
+    prepared = await call(get_template_slots, _state(catalog, approved_plan), _config())
+    written = updates(prepared)
+
+    changed = await call(
+        commit_draft,
+        _state(catalog, approved_plan, template=written["template"], slots=written["slots"]),
+        _config(),
+        choices=[],
+    )
+    assert drafts.read(updates(changed)["draft_id"]).diff is not None
+
+    built = await call(
+        commit_draft,
+        _state(
+            catalog,
+            approved_plan,
+            mode="build",
+            base_plan=None,
+            template=written["template"],
+            slots=written["slots"],
+        ),
+        _config(),
+        choices=[],
+    )
+    assert drafts.read(updates(built)["draft_id"]).diff is None
+
+
+async def test_an_unapplicable_change_refuses_rather_than_rebuilding(catalog, approved_plan):
+    """A change nobody can apply must not quietly become a fresh plan."""
+    result = await call(
+        get_template_slots, _state(catalog, approved_plan, changes={"tempo": "slow"}), _config()
+    )
+
+    assert updates(result)["template"] is None
+    assert message(result).status == "error"
+    assert "tempo" in message(result).content
+
+
+def test_change_slots_reports_a_template_the_library_has_lost(catalog, approved_plan):
+    """A plan built from a retired programme cannot be patched, and says so."""
+    orphaned = {**approved_plan, "template_id": "no_longer_in_the_library"}
+    template, slots, notes = _change_slots(orphaned, {"goal": "recomp"}, PROFILE, catalog)
+
+    assert template is None
+    assert slots == []
+    assert notes[-1]["rubric_ref"] == "templates.missing"
 
 
 # ---------------------------------------------------------------------------
@@ -425,34 +315,20 @@ def test_patch_refuses_when_there_is_no_plan(catalog):
     assert issues[0]["rubric_ref"] == "change.no_plan"
 
 
+def test_the_supported_changes_are_the_ones_the_tool_advertises():
+    """A delta the model can name and the patcher cannot apply is a dead end."""
+    assert SUPPORTED_CHANGES == {"days", "goal"}
+
+    from app.core.langgraph.supervisor import tools as supervisor_tools
+
+    doc = supervisor_tools.planning_agent.description
+    for change in SUPPORTED_CHANGES:
+        assert change in doc, f"{change} is applicable but never mentioned to the model"
+
+
 # ---------------------------------------------------------------------------
-# Units
+# The diff
 # ---------------------------------------------------------------------------
-
-
-def test_confirm_required_matches_the_workflow_table():
-    """Writes over approved work confirm; reads never do."""
-    assert CONFIRM_REQUIRED_INTENTS == {"change_plan", "revert"}
-
-
-@pytest.mark.parametrize(
-    ("reply", "expected"),
-    [
-        ("yes", True),
-        ("Yes.", True),
-        ("ok", True),
-        ("go ahead", True),
-        ("yes please", True),
-        ("no", False),
-        ("", False),
-        ("not right now", False),
-        ("yes but can you also change the goal?", False),
-        (None, False),
-    ],
-)
-def test_affirmative_detection_defaults_to_no(reply, expected):
-    """Only a recognised yes counts. A long reply is prose, not consent."""
-    assert _is_affirmative(reply) is expected
 
 
 def test_diff_reports_no_change_honestly():
@@ -462,4 +338,38 @@ def test_diff_reports_no_change_honestly():
 
     assert diff["added"] == []
     assert diff["removed"] == []
-    assert "Nothing" in diff["summary"]
+
+
+def test_the_confirm_question_is_built_from_the_draft_not_the_call(catalog, approved_plan):
+    """What the user approves must be what the store holds.
+
+    A question assembled from the model's tool-call arguments would be a question
+    about a different plan than the one about to be written.
+    """
+    drafts.clear()
+    from app.core.langgraph.supervisor.agent import _save_description
+
+    draft = drafts.mint(
+        plan=approved_plan,
+        macros={"kcal": 2100},
+        issues=[],
+        verdict="pass",
+        plan_rendered="Split: Upper / Lower, 4 days",
+        profile_hash="hash",
+        rubric_version="v1",
+        diff={"summary": "Drops you from 4 sessions to 3."},
+    )
+
+    question = _save_description({"args": {"draft_id": draft.draft_id}}, {}, None)
+    assert "Drops you from 4 sessions to 3." in question
+    assert "Split: Upper / Lower, 4 days" in question
+    assert "until you say yes" in question
+
+
+def test_an_expired_draft_does_not_produce_a_confident_question():
+    """A gate that cannot read what it is gating must say so."""
+    drafts.clear()
+    from app.core.langgraph.supervisor.agent import _save_description
+
+    question = _save_description({"args": {"draft_id": "gone"}}, {}, None)
+    assert "expired" in question

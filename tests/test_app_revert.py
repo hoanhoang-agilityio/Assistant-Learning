@@ -1,44 +1,31 @@
-"""Tests for the revert branch.
+"""Tests for going back to an earlier plan.
 
-The one property that matters most here is that **revert is an append, not a
-rewind**. Restoring v1 must produce a v3 whose
-content is v1's, with v2 still on record — otherwise the user cannot undo their
-undo, and they will want to.
+``resolve_version`` is gone. It existed to map *"the original plan"* onto a
+``version_id`` with a model call, and the supervisor has already read the
+conversation that phrase came from — so ``list_versions`` shows the index and
+``restore_version`` takes an id from it
+(``docs/supervisor-architecture.md`` §1, §4.2).
 
-The rest follows from that: a restored plan is a *draft* until confirmed, it is
-re-verified against the profile the user has now rather than the one they had
-then, and an ambiguous request lists the options instead of guessing.
+What did not change is everything that makes a restore safe:
+
+* it is an **append**, not a rewind — the versions since are not deleted, so the
+  user can undo the undo, and they will
+* the restored plan is **re-verified**, because a plan that was valid when it was
+  saved may not be valid now
+* an id the model invented reaches no database lookup
+* the user is told *why* it was re-checked, not just that it was
 """
 
 import json
 import uuid
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import StateGraph
-from langgraph.types import Command
 
-from app.core.langgraph.agents import AGENTS
-from app.core.langgraph.agents.planning.state import ExerciseChoices
-from app.core.langgraph.graph import LangGraphAgent, _add_nodes
-from app.core.langgraph.versioning import (
-    VersionChoice,
-    describe_verification_reason,
-    render_versions,
-    resolve_version_id,
-)
-from app.schemas.graph import IntentDecision, ProfileExtraction, RootState
-
-_CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
-
-pytestmark = pytest.mark.skipif(
-    not _CATALOG_FILE.exists(),
-    reason="data/exercise_seed.json is missing — the catalog fixture needs it",
-)
+from app.core.langgraph import drafts
+from app.core.langgraph.supervisor import tools as supervisor_tools
+from app.core.langgraph.versioning import describe_verification_reason, render_versions
+from tests.support import call, message, updates
 
 PROFILE = {
     "weight_kg": 75.0,
@@ -49,194 +36,150 @@ PROFILE = {
     "days_per_week": 4,
     "level": 3,
     "goal": "fat_loss",
-    "equipment": ["barbell", "cable", "dumbbell", "machine", "bodyweight"],
+    "equipment": ["barbell"],
     "injuries": [],
-    "preferences": "",
 }
 
-_DEFAULTS = {
-    name: (f.default_factory() if f.default_factory else f.default)
-    for name, f in RootState.model_fields.items()
-}
-
-_REF = [
+INDEX = [
     {"version_id": "v3-id", "label": "v3", "created_at": "2026-08-03T00:00:00"},
     {"version_id": "v2-id", "label": "v2", "created_at": "2026-08-02T00:00:00"},
     {"version_id": "v1-id", "label": "v1", "created_at": "2026-08-01T00:00:00"},
 ]
 
 
-@dataclass
-class _StoredVersion:
-    """Stand-in for a PlanVersion row."""
-
-    id: str
-    label: str
-    plan: dict[str, Any]
-    macros: dict[str, Any]
-    profile_hash: str
-    rubric_version: str = "2026.2"
-    created_at: str = "2026-08-01T00:00:00"
-    parent_id: str | None = None
-    restored_from: str | None = None
-    extras: dict = field(default_factory=dict)
-
-
-def _plan(days: int, name: str) -> dict:
-    """A minimal but structurally valid plan."""
+def _plan(name: str) -> dict:
+    """A one-day plan labelled so a test can tell which version it came from."""
     return {
         "template_id": "upper_lower_4day",
         "days": [
             {
-                "name": f"{name} day {index + 1}",
+                "name": f"{name} day",
                 "exercises": [
                     {
-                        "slot_id": f"s{index}",
-                        "exercise_id": "barbell_bench_press",
-                        "name": "Barbell Bench Press",
+                        "slot_id": "s0",
+                        "exercise_id": "back_squat",
+                        "name": "Back Squat",
                         "sets": 4,
-                        "reps": [6, 8],
+                        "reps": [5, 8],
                         "rir": [1, 2],
                     }
                 ],
             }
-            for index in range(days)
         ],
     }
 
 
-class _FakeLLM:
-    """Module-scoped stand-in for the shared llm_service singleton."""
-
-    def bind_tools(self, _tools):
-        """No-op: the agent binds tools at construction."""
-        return self
-
-    async def call(self, _messages, *_args, **kwargs):
-        response_format = kwargs.get("response_format")
-        if response_format is ProfileExtraction:
-            return ProfileExtraction()
-        if response_format is ExerciseChoices:
-            return ExerciseChoices(choices=[])
-        if response_format is not None:
-            return response_format()
-        return AIMessage(content="Restored.")
+def _state(**overrides) -> dict:
+    """Build a supervisor state the version tools can read."""
+    return {
+        "messages": [],
+        "profile": dict(PROFILE),
+        "plan": _plan("current"),
+        "macros": {"kcal": 2100, "tdee": 2400, "goal": "fat_loss"},
+        "episodic_context": "",
+        "current_version_id": "v3-id",
+        "intent_hint": "revert",
+        "missing_fields": [],
+        "goal_conflict": None,
+        **overrides,
+    }
 
 
-@pytest.fixture(scope="module")
-def catalog() -> dict[str, dict]:
-    """The seeded catalog, keyed by id."""
-    rows = json.loads(_CATALOG_FILE.read_text(encoding="utf-8"))
-    return {row["id"]: {**row, "exercise_id": row["id"]} for row in rows}
+def _config(user_id: str | None = "1") -> dict:
+    """A runnable config with a unique thread id and an owner."""
+    return {
+        "configurable": {"thread_id": str(uuid.uuid4())},
+        "metadata": {"user_id": user_id, "session_id": "s-1"},
+    }
+
+
+@pytest.fixture(autouse=True)
+def _stored_versions(monkeypatch):
+    """Serve the version index and the snapshots from memory, not Postgres."""
+    stored = {
+        entry["version_id"]: SimpleNamespace(
+            id=entry["version_id"],
+            user_id=1,
+            label=entry["label"],
+            plan=_plan(entry["label"]),
+            macros={"kcal": 2000, "tdee": 2300, "goal": "fat_loss"},
+            # Deliberately not the current profile's hash: the restore has to
+            # say the details have moved, which is the one line that stops a
+            # re-check reading as a rubber stamp.
+            profile_hash="stale-hash",
+            rubric_version="v1",
+        )
+        for entry in INDEX
+    }
+
+    async def fake_index(_user_id):
+        return list(INDEX)
+
+    async def fake_get(version_id):
+        return stored.get(version_id)
+
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.version_index", fake_index)
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.get_version", fake_get)
+    monkeypatch.setattr(
+        "app.core.langgraph.supervisor.tools.profile_hash", lambda _profile: "current-hash"
+    )
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.rubric_version", lambda: "v1")
+    monkeypatch.setattr("app.core.langgraph.rendering.load_catalog", lambda *a, **k: {})
+    return stored
 
 
 @pytest.fixture
-def pipeline(monkeypatch, catalog):
-    """Compile the root graph with version storage stubbed in memory."""
-    calls: dict[str, list] = {"versions": []}
-    stored = {
-        "v1-id": _StoredVersion("v1-id", "v1", _plan(4, "v1"), {"kcal": 2100}, "hash-old"),
-        "v2-id": _StoredVersion("v2-id", "v2", _plan(5, "v2"), {"kcal": 2300}, "hash-old"),
-        "v3-id": _StoredVersion("v3-id", "v3", _plan(3, "v3"), {"kcal": 2000}, "hash-old"),
-    }
+def scored(monkeypatch):
+    """Score every restored plan as a pass, without a rubric database."""
+    seen: list[dict] = []
 
-    monkeypatch.setattr("app.core.langgraph.graph.load_catalog", lambda *a, **k: catalog)
+    async def fake_score(plan, profile, config=None, scope=None):
+        seen.append({"plan": plan, "profile": profile})
+        return {"kcal": 2050, "tdee": 2350, "goal": profile["goal"]}, [], "pass"
 
-    async def fake_version_index(_user_id):
-        return list(_REF)
-
-    async def fake_get_version(version_id):
-        return stored.get(version_id)
-
-    async def fake_insert_version(**kwargs):
-        calls["versions"].append(kwargs)
-        return {"version_id": "v4-id", "label": "v4", "created_at": "2026-08-04T00:00:00"}
-
-    async def fake_get_profile(_user_id):
-        return dict(PROFILE)
-
-    async def fake_upsert(_user_id, _profile):
-        return None
-
-    monkeypatch.setattr("app.core.langgraph.graph.version_index", fake_version_index)
-    monkeypatch.setattr("app.core.langgraph.graph.get_version", fake_get_version)
-    monkeypatch.setattr("app.core.langgraph.graph.insert_version", fake_insert_version)
-    monkeypatch.setattr(
-        "app.core.langgraph.profile.nodes.profile_service.get_profile", fake_get_profile
-    )
-
-    # `load_context` reads two stores besides the profile. Stubbed so a test
-    # asserts what it set up, not what happens to be seeded in the developer's
-    # Postgres — the graph state a test passes in is the only plan it has.
-    async def fake_latest_version(_user_id):
-        return None
-
-    async def fake_recent_episodes(_user_id, _session_id):
-        return ""
-
-    monkeypatch.setattr("app.core.langgraph.profile.nodes.latest_version", fake_latest_version)
-    monkeypatch.setattr("app.core.langgraph.profile.nodes.recent_episodes", fake_recent_episodes)
-    monkeypatch.setattr(
-        "app.core.langgraph.profile.nodes.profile_service.upsert_profile", fake_upsert
-    )
-
-    for module in (
-        "app.core.langgraph.agents.planning.nodes",
-        "app.core.langgraph.profile.nodes",
-        "app.core.langgraph.graph",
-    ):
-        monkeypatch.setattr(f"{module}.llm_service", _FakeLLM())
-
-    def _build(resolves_to: str | None):
-        async def fake_classify(_conversation):
-            return IntentDecision(intent="revert", scope=[], changes={})
-
-        async def fake_resolve(_query, _index):
-            return resolves_to, "test"
-
-        monkeypatch.setattr("app.core.langgraph.routing.classify.llm_classify", fake_classify)
-        monkeypatch.setattr("app.core.langgraph.graph.resolve_version_id", fake_resolve)
-
-        agent = LangGraphAgent()
-        agent._agents = {name: build() for name, build in AGENTS.items()}
-        builder = StateGraph(RootState)
-        _add_nodes(builder, agent)
-        builder.set_entry_point("classify")
-        graph = builder.compile(checkpointer=MemorySaver(), name="revert-test")
-
-        config = {
-            "configurable": {"thread_id": str(uuid.uuid4())},
-            "metadata": {"user_id": "1"},
-        }
-        return graph, config, calls, stored
-
-    return _build
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.score", fake_score)
+    return seen
 
 
-async def _start(graph, config, **extra) -> dict:
-    """Run a revert turn up to wherever it stops."""
-    await graph.ainvoke(
-        {
-            "messages": [{"role": "user", "content": "go back to the original plan"}],
-            "plan": _plan(3, "current"),
-            "macros": {"kcal": 2000, "tdee": 2500},
-            "current_version_id": "v3-id",
-            **extra,
-        },
-        config,
-    )
-    return await _state(graph, config)
+# ---------------------------------------------------------------------------
+# Listing
+# ---------------------------------------------------------------------------
 
 
-async def _state(graph, config) -> dict:
-    """Return the thread's state merged over the declared defaults."""
-    return dict(_DEFAULTS) | (await graph.aget_state(config)).values
+async def test_the_versions_are_listed_for_the_user_to_choose_from():
+    """The list is loaded fresh: a plan may have been saved in another session."""
+    result = await call(supervisor_tools.list_versions, _state(), _config())
+    body = json.loads(message(result).content)
+
+    assert body["status"] == "versions"
+    assert body["current"] == "v3-id"
+    for entry in INDEX:
+        assert entry["version_id"] in body["rendered"]
 
 
-async def _resume(graph, config, reply: str) -> dict:
-    """Answer a pending interrupt the way the API does."""
-    await graph.ainvoke(Command(resume=reply), config)
-    return await _state(graph, config)
+async def test_one_version_is_no_history_at_all(monkeypatch):
+    """The only version saved is the plan they already have."""
+
+    async def only_one(_user_id):
+        return INDEX[:1]
+
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.version_index", only_one)
+
+    result = await call(supervisor_tools.list_versions, _state(), _config())
+    assert json.loads(message(result).content)["status"] == "no_history"
+
+
+async def test_an_anonymous_session_has_no_history():
+    """Nothing was stored, so there is nothing to go back to."""
+    result = await call(supervisor_tools.list_versions, _state(), _config(user_id=None))
+    assert json.loads(message(result).content)["status"] == "no_history"
+
+
+def test_render_versions_marks_the_current_one():
+    """The user is choosing between them, so which one they are on matters."""
+    rendered = render_versions(INDEX)
+    assert "(current)" in rendered.splitlines()[0]
+    assert "(current)" not in "\n".join(rendered.splitlines()[1:])
 
 
 # ---------------------------------------------------------------------------
@@ -244,149 +187,112 @@ async def _resume(graph, config, reply: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-async def test_revert_stops_at_the_confirm_gate(pipeline):
-    """A restore overwrites an approved plan, so it asks first."""
-    graph, config, calls, _stored = pipeline("v1-id")
-    await _start(graph, config)
+async def test_restoring_produces_a_draft_not_a_saved_plan(scored):
+    """A restore stops at the confirm gate like any other overwrite."""
+    drafts.clear()
+    result = await call(supervisor_tools.restore_version, _state(), _config(), version_id="v1-id")
+    body = json.loads(message(result).content)
 
-    snapshot = await graph.aget_state(config)
-    assert snapshot.tasks and snapshot.tasks[0].interrupts
-    assert calls["versions"] == [], "a version was written before the user agreed"
+    assert body["status"] == "draft"
+    assert "plan" not in updates(result), "a restore changed the stored plan on its own"
 
-
-async def test_restoring_appends_a_new_version(pipeline):
-    """Restore v1 creates v4 with v1's content — it does not rewind.
-
-    The intermediate versions must survive, or the user cannot undo the undo.
-    """
-    graph, config, calls, stored = pipeline("v1-id")
-    await _start(graph, config)
-    values = await _resume(graph, config, "yes")
-
-    assert len(calls["versions"]) == 1
-    saved = calls["versions"][0]
-    assert saved["restored_from"] == "v1-id", "the restore source was not recorded"
-    assert saved["parent_id"] == "v3-id", "the superseded version was not recorded"
-
-    # Nothing was deleted or rewritten.
-    assert set(stored) == {"v1-id", "v2-id", "v3-id"}
-    assert values["plan"]["days"][0]["name"].startswith("v1")
+    draft = drafts.read(body["draft_id"])
+    assert draft.plan["days"][0]["name"].startswith("v1")
 
 
-async def test_the_restored_plan_is_reverified(pipeline):
+async def test_the_restored_plan_is_reverified(scored):
     """A plan that was valid when saved may not be valid for the user now."""
-    graph, config, _calls, _stored = pipeline("v1-id")
-    values = await _start(graph, config)
+    drafts.clear()
+    await call(supervisor_tools.restore_version, _state(), _config(), version_id="v1-id")
 
-    assert values["verdict"] is not None, "the verifiers did not run on the restored plan"
-    assert values["computed_macros"] is not None, "macros were not recomputed"
+    assert scored, "the verifiers did not run on the restored plan"
+    assert scored[0]["plan"]["days"][0]["name"].startswith("v1")
 
 
-async def test_the_answer_says_whether_the_old_checks_still_apply(pipeline):
+async def test_the_restored_draft_carries_recomputed_macros(scored):
+    """The old targets belong to the old profile."""
+    drafts.clear()
+    result = await call(supervisor_tools.restore_version, _state(), _config(), version_id="v1-id")
+    draft = drafts.read(json.loads(message(result).content)["draft_id"])
+
+    assert draft.macros["kcal"] == 2050, "the version's stored macros were reused"
+
+
+async def test_the_answer_says_whether_the_old_checks_still_apply(scored):
     """The user is told why it was re-checked, not just that it was."""
-    graph, config, _calls, _stored = pipeline("v1-id")
-    values = await _start(graph, config)
+    drafts.clear()
+    result = await call(supervisor_tools.restore_version, _state(), _config(), version_id="v1-id")
+    draft = drafts.read(json.loads(message(result).content)["draft_id"])
 
-    notes = [i for i in values["issues"] if i["rubric_ref"] == "versions.restore"]
+    notes = [issue for issue in draft.issues if issue["rubric_ref"] == "versions.restore"]
     assert len(notes) == 1
     assert "changed" in notes[0]["message"], (
         "a stale profile hash must be reported, not silently ignored"
     )
 
 
-async def test_declining_a_restore_keeps_the_current_plan(pipeline):
-    """Backing out must leave the user exactly where they were."""
-    graph, config, calls, _stored = pipeline("v1-id")
-    before = await _start(graph, config)
-    values = await _resume(graph, config, "no")
+async def test_a_restore_is_an_append_and_records_where_it_came_from(scored, monkeypatch):
+    """Restore v1 creates v4 with v1's content — it does not rewind.
 
-    assert calls["versions"] == []
-    assert values["plan"] == before["plan"]
-    assert values["plan"]["days"][0]["name"].startswith("current")
+    The intermediate versions must survive, or the user cannot undo the undo.
+    """
+    drafts.clear()
+    written: list[dict] = []
+
+    async def fake_insert(**kwargs):
+        written.append(kwargs)
+        return {"version_id": "v4-id", "label": "v4", "created_at": "2026-08-10T00:00:00"}
+
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.insert_version", fake_insert)
+
+    restored = await call(supervisor_tools.restore_version, _state(), _config(), version_id="v1-id")
+    draft_id = json.loads(message(restored).content)["draft_id"]
+    await call(supervisor_tools.save_plan, _state(), _config(), draft_id=draft_id)
+
+    assert len(written) == 1
+    assert written[0]["restored_from"] == "v1-id", "the restore source was not recorded"
+    assert written[0]["parent_id"] == "v3-id", "the superseded version was not recorded"
+    assert written[0]["plan"]["days"][0]["name"].startswith("v1")
+
+
+async def test_a_version_that_does_not_exist_is_reported(scored):
+    """An id the model invented reaches no lookup that could succeed."""
+    result = await call(supervisor_tools.restore_version, _state(), _config(), version_id="made-up")
+    body = json.loads(message(result).content)
+
+    assert body["status"] == "refused"
+    assert "list_versions" in body["reason"]
+    assert scored == []
+
+
+async def test_another_users_version_is_not_readable(scored, _stored_versions):
+    """An id belonging to someone else is not a version this session may read."""
+    _stored_versions["v1-id"].user_id = 999
+
+    result = await call(supervisor_tools.restore_version, _state(), _config(), version_id="v1-id")
+    body = json.loads(message(result).content)
+
+    assert body["status"] == "refused"
+    # Worded as though it does not exist. Saying "that is not yours" would
+    # confirm it is someone's.
+    assert "no version" in body["reason"]
+    assert scored == []
 
 
 # ---------------------------------------------------------------------------
-# Ambiguity
+# Explaining the re-check
 # ---------------------------------------------------------------------------
-
-
-async def test_an_ambiguous_request_lists_the_versions(pipeline):
-    """Ask rather than guess — a wrong restore costs the current plan."""
-    graph, config, calls, _stored = pipeline(None)
-    values = await _start(graph, config)
-
-    assert calls["versions"] == []
-    assert values["draft_plan"] is None
-    assert "v1" in values["answer"] and "v2" in values["answer"]
-
-
-async def test_a_missing_version_is_reported(pipeline):
-    """A version deleted between listing and loading must not crash the turn."""
-    graph, config, calls, _stored = pipeline("gone-id")
-    values = await _start(graph, config)
-
-    assert calls["versions"] == []
-    assert "couldn't find" in values["answer"]
-
-
-# ---------------------------------------------------------------------------
-# resolve_version_id in isolation
-# ---------------------------------------------------------------------------
-
-
-async def test_resolver_rejects_an_id_it_invented(monkeypatch):
-    """A hallucinated id must never reach a database lookup."""
-
-    class _Inventing:
-        async def call(self, _m, *_a, **_k):
-            return VersionChoice(version_id="not-a-real-id", reason="made up")
-
-    monkeypatch.setattr("app.core.langgraph.versioning.llm_service", _Inventing())
-    version_id, _reason = await resolve_version_id("the old one", _REF)
-    assert version_id is None
-
-
-async def test_resolver_declines_the_current_version(monkeypatch):
-    """Restoring the plan you already have is a no-op, not a new version."""
-
-    class _PicksCurrent:
-        async def call(self, _m, *_a, **_k):
-            return VersionChoice(version_id="v3-id", reason="the newest")
-
-    monkeypatch.setattr("app.core.langgraph.versioning.llm_service", _PicksCurrent())
-    version_id, reason = await resolve_version_id("go back", _REF)
-    assert version_id is None
-    assert "already have" in reason
-
-
-async def test_resolver_returns_none_with_no_history():
-    """Nothing to restore is not an error."""
-    assert await resolve_version_id("go back", []) == (None, "no saved versions")
-    assert (await resolve_version_id("go back", _REF[:1]))[0] is None
-
-
-async def test_resolver_degrades_when_the_model_fails(monkeypatch):
-    """A model failure must ask the user, never pick arbitrarily."""
-
-    class _Broken:
-        async def call(self, _m, *_a, **_k):
-            raise RuntimeError("unavailable")
-
-    monkeypatch.setattr("app.core.langgraph.versioning.llm_service", _Broken())
-    version_id, _reason = await resolve_version_id("the original", _REF)
-    assert version_id is None
-
-
-def test_render_versions_marks_the_current_one():
-    """The user must be able to tell which plan they are on."""
-    rendered = render_versions(_REF)
-    assert "(current)" in rendered.splitlines()[0]
-    assert rendered.count("(current)") == 1
 
 
 def test_verification_reason_distinguishes_a_moved_profile():
-    """The two cases must read differently, or the note tells the user nothing."""
+    """The hash decides what the user is told, not whether the checks run."""
     same = describe_verification_reason("abc", "abc")
-    moved = describe_verification_reason("abc", "xyz")
+    moved = describe_verification_reason("abc", "def")
+
     assert "unchanged" in same
-    assert "changed" in moved and "again" in moved
+    assert "have changed" in moved
+
+
+def test_a_missing_stored_hash_is_treated_as_moved():
+    """An old row without a fingerprint cannot claim its checks still apply."""
+    assert "have changed" in describe_verification_reason("", "def")

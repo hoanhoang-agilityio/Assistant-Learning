@@ -611,27 +611,35 @@ def test_the_qa_agent_reads_memory_from_state():
     assert "episodic_context" in QAState.__annotations__
 
 
-def test_compose_answer_is_not_given_episodic_context():
-    """This node states only what the data it carries says.
+def test_the_answer_is_told_where_a_number_may_come_from():
+    """A recorded failure, and now a weaker guard than it used to be.
 
-    `_compose_answer` once announced a 5-day plan as 4-day, sourcing the number
-    from long-term memory rather than the rendered plan it was handed. Episodic
-    context is a second free-text account of the user's plan history, so handing
-    it to the same prompt is that bug with more material. Asserted structurally
-    because the failure is invisible in review — the prompt still renders, and
-    the wrong number still reads like prose.
+    ``_compose_answer`` once announced a 5-day plan as 4-day, sourcing the number
+    from long-term memory rather than from the rendered plan it was handed. The
+    fix was structural: episodic context was withheld from that node entirely, so
+    there was no second free-text account of the plan for it to misread.
 
-    Semantic context is still handed over, and that is not the same risk: it is
-    rendered from typed profile columns, so there is no free-text account of a
-    plan in it to misread a day count from.
+    That structure is gone with the node. The supervisor both reads the history
+    and writes the answer, so the two cannot be separated by withholding — which
+    makes this a prompt rule, and a prompt rule is weaker than an absent field.
+    What is asserted here is that the rule is stated and that the authoritative
+    section it points at is rendered above it, so a prompt edit that drops either
+    fails rather than passing quietly.
     """
-    import inspect
+    from app.core.prompts import load_supervisor_prompt
 
-    from app.core.langgraph.graph import LangGraphAgent
+    prompt = load_supervisor_prompt(
+        semantic_context="- Body weight (kg): 75",
+        plan_context="Plan: 5 days",
+        episodic_context="In March they trained 4 days a week.",
+    )
 
-    source = inspect.getsource(LangGraphAgent._compose_answer)
-    assert "semantic_context=_render_semantic_context(state.profile)" in source
-    assert "episodic_context=" not in source
+    plan_section = prompt.index("# This user's plan")
+    history_section = prompt.index("# What happened in earlier conversations")
+
+    assert plan_section < history_section, "history is rendered above the plan it must not override"
+    assert "never to state what their plan holds now" in prompt
+    assert "Never retype numbers" in prompt
 
 
 # ---------------------------------------------------------------------------
