@@ -38,6 +38,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.models.exercise import UNIT_REPS, UNIT_SECONDS, UNITS  # noqa: E402
 from app.services.movement_taxonomy import (  # noqa: E402
     MOVEMENT_ATTRIBUTES,
     attributes_for,
@@ -116,6 +117,50 @@ def _known_loaded_positions() -> set[str]:
     return from_taxonomy | from_rubric
 
 
+def _unit_errors(exercise_id: str, row: dict[str, Any]) -> list[str]:
+    """Check ``unit`` and its dependent ``duration_seconds``.
+
+    Deliberately not in ``_REQUIRED_KEYS``: almost every movement is counted in
+    repetitions, the column defaults to that, and requiring the key would mean
+    restating it on all 103 rows so that three of them could differ.
+
+    Args:
+        exercise_id: For the message.
+        row: The seed entry.
+
+    Returns:
+        Errors, empty when the entry is consistent.
+    """
+    unit = row.get("unit", UNIT_REPS)
+    if unit not in UNITS:
+        return [f"{exercise_id}: unit {unit!r}, expected one of {list(UNITS)}"]
+
+    duration = row.get("duration_seconds")
+
+    if unit == UNIT_REPS:
+        # Not merely redundant — it reads as if it were in force, and the next
+        # person to touch the renderer may well make it so.
+        if duration is not None:
+            return [f"{exercise_id}: duration_seconds is set but unit is {UNIT_REPS!r}"]
+        return []
+
+    # A hold with no duration would fall back to the slot's rep range, which is
+    # the exact bug this field exists to prevent.
+    if duration is None:
+        return [f"{exercise_id}: unit is {UNIT_SECONDS!r} but duration_seconds is missing"]
+    if (
+        not isinstance(duration, list)
+        or len(duration) != 2
+        or not all(isinstance(value, int) and value > 0 for value in duration)
+        or duration[0] > duration[1]
+    ):
+        return [
+            f"{exercise_id}: duration_seconds = {duration!r}, "
+            "expected [low, high] positive whole seconds with low <= high"
+        ]
+    return []
+
+
 def validate(rows: list[dict[str, Any]]) -> tuple[list[str], list[str]]:
     """Check the catalog for problems.
 
@@ -166,6 +211,8 @@ def validate(rows: list[dict[str, Any]]) -> tuple[list[str], list[str]]:
 
         if not row["equipment"]:
             errors.append(f"{exercise_id}: empty equipment — no profile can ever match it")
+
+        errors.extend(_unit_errors(exercise_id, row))
 
         unknown_actions = set(row["joint_actions"]) - known_actions
         if unknown_actions:

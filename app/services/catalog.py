@@ -49,6 +49,10 @@ def _to_dict(exercise: Exercise) -> dict:
         "contribution": dict(exercise.contribution),
         "skill_level": exercise.skill_level,
         "fatigue_cost": exercise.fatigue_cost,
+        "unit": exercise.unit,
+        "duration_seconds": (
+            list(exercise.duration_seconds) if exercise.duration_seconds else None
+        ),
     }
 
 
