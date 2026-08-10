@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from app.core.langgraph.agents.verification.checks import check_volume
+from app.models.exercise import UNIT_REPS, UNIT_SECONDS, UNITS
 from app.services.catalog import (
     candidates_for_slot,
     filter_candidates,
@@ -102,6 +103,45 @@ def test_contribution_shares_are_plausible(rows):
 # ---------------------------------------------------------------------------
 # The metadata the safety checks match on
 # ---------------------------------------------------------------------------
+
+
+def test_isometric_holds_are_not_prescribed_in_reps(rows):
+    """A held movement rendered in reps prescribes a 12-second plank.
+
+    The template slot `anti_extension` carries `reps: [12, 20]`, and the same
+    slot is filled by the ab wheel (counted) and the plank (held). Before
+    `unit`, every fill of that slot rendered as reps, so the plank was
+    prescribed as "3 sets x 12-20 reps".
+    """
+    held = {row["id"] for row in rows if row.get("unit") == UNIT_SECONDS}
+    assert "plank" in held, "the plank is the case this field exists for"
+
+    for row in rows:
+        if row["id"].startswith("plank") or row["id"].startswith("side_plank"):
+            assert row.get("unit") == UNIT_SECONDS, (
+                f"{row['id']} is a static hold but is counted in {row.get('unit', UNIT_REPS)!r}"
+            )
+
+
+def test_units_and_durations_agree(rows):
+    """`duration_seconds` is required by, and only by, a `seconds` unit.
+
+    A hold without one falls back to the slot's rep range — the original bug —
+    and a duration on a rep-counted movement reads as if it were in force.
+    """
+    for row in rows:
+        unit = row.get("unit", UNIT_REPS)
+        assert unit in UNITS, f"{row['id']}: unknown unit {unit!r}"
+        duration = row.get("duration_seconds")
+
+        if unit == UNIT_REPS:
+            assert duration is None, f"{row['id']}: duration_seconds set on a rep-counted movement"
+            continue
+
+        assert duration is not None, f"{row['id']}: held movement with no duration_seconds"
+        assert len(duration) == 2 and 0 < duration[0] <= duration[1], (
+            f"{row['id']}: duration_seconds {duration!r} is not an ascending positive pair"
+        )
 
 
 def test_joint_actions_are_not_constant(rows):

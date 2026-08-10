@@ -374,3 +374,89 @@ def test_subgraph_compiles_standalone_and_under_a_checkpointer(catalog):
     builder.add_node("select_template", select_template)
     builder.set_entry_point("select_template")
     assert builder.compile(checkpointer=MemorySaver(), name="planning-test") is not None
+
+
+# ---------------------------------------------------------------------------
+# Rendering the prescription
+# ---------------------------------------------------------------------------
+
+
+def test_a_held_movement_renders_in_seconds_not_reps():
+    """The plank is held, and the slot's rep range must not be read as one.
+
+    `anti_extension` slots carry `reps: [12, 20]`. Rendering that for the plank
+    produced "3 sets x 12-20 reps" — and simply relabelling the same two numbers
+    as seconds would prescribe a 12-second plank, so the duration is a separate
+    range on the catalog entry.
+    """
+    from app.core.langgraph.graph import _render_prescription
+
+    catalog = {
+        "plank": {"unit": "seconds", "duration_seconds": [30, 60]},
+        "ab_wheel": {"unit": "reps", "duration_seconds": None},
+    }
+    slot = {"sets": 3, "reps": [12, 20], "rir": [1, 2]}
+
+    held = _render_prescription({**slot, "exercise_id": "plank"}, catalog)
+    assert held == "3 sets x 30-60 seconds, RIR 1-2"
+    assert "reps" not in held
+
+    # Same slot, same rep range, counted movement — must be untouched.
+    counted = _render_prescription({**slot, "exercise_id": "ab_wheel"}, catalog)
+    assert counted == "3 sets x 12-20 reps, RIR 1-2"
+
+
+def test_prescription_falls_back_to_reps_for_an_unknown_exercise():
+    """A plan naming a retired exercise still renders rather than raising."""
+    from app.core.langgraph.graph import _render_prescription
+
+    exercise = {"exercise_id": "retired_movement", "sets": 4, "reps": [6, 8], "rir": [1, 2]}
+    assert _render_prescription(exercise, {}) == "4 sets x 6-8 reps, RIR 1-2"
+
+    # A pasted plan resolved to no catalog id at all.
+    assert _render_prescription({**exercise, "exercise_id": None}, {}) == (
+        "4 sets x 6-8 reps, RIR 1-2"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Honouring — or admitting — a requested split
+# ---------------------------------------------------------------------------
+
+
+def test_a_requested_split_that_cannot_be_honoured_is_reported():
+    """Silence here delivered a plan that was not the shape asked for.
+
+    `preferences` reaches `choose_exercises` but never template selection, and
+    the library holds exactly one 4-day programme. "an upper body focused 4 day
+    plan" therefore produced the balanced Upper/Lower split with nothing said
+    about it — a reasonable plan, presented as though it were the request.
+    """
+    from app.core.langgraph.agents.planning.nodes import _split_preference_notes
+
+    template = {
+        "name": "Upper / Lower, 4 days",
+        "days": [{"name": n} for n in ("Upper A", "Lower A", "Upper B", "Lower B")],
+    }
+
+    issues = _split_preference_notes("upper-body focused", template, 1)
+    assert len(issues) == 1
+    note = issues[0]
+    assert note["severity"] == "info", "a library limit is not a rubric violation"
+    assert note["rubric_ref"] == "templates.split_preference_unmatched"
+    assert "Upper A / Lower A / Upper B / Lower B" in note["message"], (
+        "the answer must name the split the user is actually getting"
+    )
+
+
+def test_an_exercise_preference_is_not_mistaken_for_a_split_request():
+    """ "Hates burpees" is for `choose_exercises`, and it handles it.
+
+    Reporting a library limit there would be noise on every plan, and noise in
+    the findings is how the real findings stop being read.
+    """
+    from app.core.langgraph.agents.planning.nodes import _split_preference_notes
+
+    template = {"name": "Upper / Lower, 4 days", "days": [{"name": "Upper A"}]}
+    for preference in ("hates burpees", "prefers dumbbells over machines", ""):
+        assert _split_preference_notes(preference, template, 1) == [], preference

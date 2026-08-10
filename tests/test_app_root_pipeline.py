@@ -503,3 +503,102 @@ async def test_a_plan_held_in_state_is_not_overwritten_by_the_database(pipeline,
     values = await _run(graph, config, "how much protein?")
 
     assert values["plan"] == staged
+
+
+# ---------------------------------------------------------------------------
+# The goal gate
+# ---------------------------------------------------------------------------
+
+
+async def test_a_contradicted_goal_is_asked_about_rather_than_used(pipeline):
+    """A stale goal flips the calorie target, silently and with confidence.
+
+    The failure this prevents was found in a real trace: one user message, and a
+    profile carrying `muscle_gain` from an earlier session. "keep muscle while
+    losing fat" was not an outright goal statement, so nothing overwrote the
+    stored value, `check_required` saw `goal` present, and `calc_macros` applied
+    a +10% surplus to a user asking about fat loss.
+    """
+    graph, config, _calls, _agent = pipeline(
+        {**COMPLETE_PROFILE, "goal": "muscle_gain"},
+        extraction=ProfileExtraction(implied_goal="fat_loss"),
+    )
+    values = await _run(graph, config, "how much protein to keep muscle while losing fat?")
+
+    assert values["goal_conflict"] == {"stored": "muscle_gain", "implied": "fat_loss"}
+    assert values["draft_plan"] is None, "the turn must stop rather than build on a guess"
+    assert values["computed_macros"] is None
+
+    answer = values["answer"]
+    assert "muscle gain" in answer and "fat loss" in answer, (
+        f"the question must name both goals in words the user recognises: {answer!r}"
+    )
+    assert "muscle_gain" not in answer, "database tokens must not reach the user"
+
+
+async def test_an_implied_goal_is_never_written_to_the_profile(pipeline):
+    """`implied_goal` exists precisely so it is not stored.
+
+    It reaches the profile only through the merge in `extract_profile`, so a
+    single missed `pop` would persist the guess and make the next turn agree
+    with it — the conflict would resolve itself, wrongly and permanently.
+    """
+    graph, config, _calls, _agent = pipeline(
+        {**COMPLETE_PROFILE, "goal": "muscle_gain"},
+        extraction=ProfileExtraction(implied_goal="fat_loss"),
+    )
+    values = await _run(graph, config)
+
+    assert values["profile"]["goal"] == "muscle_gain", "the stored goal must be untouched"
+    assert "implied_goal" not in values["profile"]
+
+
+async def test_a_stated_goal_overwrites_without_asking(pipeline):
+    """Saying it outright is not a conflict — it is an answer."""
+    graph, config, _calls, _agent = pipeline(
+        {**COMPLETE_PROFILE, "goal": "muscle_gain"},
+        extraction=ProfileExtraction(goal="fat_loss"),
+    )
+    values = await _run(graph, config, "switch me to a cut")
+
+    assert values["goal_conflict"] is None
+    assert values["profile"]["goal"] == "fat_loss"
+    assert values["draft_plan"] is not None, "a stated goal must not stop the turn"
+    assert values["computed_macros"]["kcal"] < values["computed_macros"]["tdee"]
+
+
+async def test_an_implied_goal_matching_the_stored_one_is_not_a_conflict(pipeline):
+    """Agreement must not produce a question."""
+    graph, config, _calls, _agent = pipeline(
+        COMPLETE_PROFILE,  # already fat_loss
+        extraction=ProfileExtraction(implied_goal="fat_loss"),
+    )
+    values = await _run(graph, config)
+
+    assert values["goal_conflict"] is None
+    assert values["draft_plan"] is not None
+
+
+async def test_general_qa_is_never_interrupted_by_a_goal_question(pipeline):
+    """A question gets an answer, not a form — the same property the empty
+    `REQUIRED_FIELDS["general_qa"]` protects."""
+    graph, config, _calls, _agent = pipeline(
+        {**COMPLETE_PROFILE, "goal": "muscle_gain"},
+        intent="general_qa",
+        extraction=ProfileExtraction(implied_goal="fat_loss"),
+    )
+    values = await _run(graph, config, "what does RIR mean when I'm cutting?")
+
+    assert "which one should I plan for" not in values["answer"]
+
+
+async def test_an_unknown_implied_goal_is_discarded(pipeline):
+    """A token outside the vocabulary must not become a question about itself."""
+    graph, config, _calls, _agent = pipeline(
+        {**COMPLETE_PROFILE, "goal": "muscle_gain"},
+        extraction=ProfileExtraction(implied_goal="get_shredded"),
+    )
+    values = await _run(graph, config)
+
+    assert values["goal_conflict"] is None
+    assert values["draft_plan"] is not None
