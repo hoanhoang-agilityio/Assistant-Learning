@@ -67,24 +67,44 @@ train fasted" is a fact, "three weeks ago they dropped to 3 days for work travel
 and the plan was rebuilt" is an episode, and only the second answers "what did I
 change last time?".
 
-**Writing.** There is no "session ended" event, so idleness is the signal. At the
-start of every turn a sweep claims this user's *other* sessions that have been
-quiet longer than `EPISODIC_IDLE_MINUTES`, and fires a background summary for
-each. The claim and the select are one `UPDATE`, so concurrent workers cannot
-both pay for the same summary — the same pattern as
-`app/services/session_naming.py`.
+**Writing.** A session summarises itself at the **end of every turn**, in the
+background: the chat endpoints call `summarize_current_session` once the graph
+has run, and the write lands a second or two later.
 
-The claim is **refreshable**: a session is eligible when it has never been
-summarised *or* when it has been talked in since it was
-(`summarized_at < last_activity_at`). A one-shot claim freezes a conversation at
-whatever turn the sweep happened to catch — summarised at turn 2 of 20, the other
-eighteen never exist as far as the next session is concerned.
+Idleness used to be the signal, and it made the layer structurally one turn late.
+Measured before the change: a session claimed 22 ms after its successor was
+created, its summary landing after that turn had already read. The read happens
+once, in `load_context` at the top of a turn, so a write triggered anywhere
+inside the same turn cannot win. Writing at the end of every turn puts a whole
+user-typing-cycle between the two, and there is nothing left to guess about when
+a conversation ended.
 
-`summarized_at` is still set **before** the model is called, so a failed summary
-is not retried *for the same content*. A session nobody returns to costs exactly
-one call, forever; one that is talked in again is summarised again, because there
-is something new to say. Re-summarising is not free, which is what
-`EPISODIC_IDLE_MINUTES = 30` bounds.
+What it costs is one small-model call per turn where the sweep paid one per
+session, most of them immediately overwritten. Bounded by
+`EPISODIC_SUMMARY_MODEL`, `max_tokens=256` and a transcript truncated to 6000
+characters, and paid off the request path.
+
+**The sweep is now the repair path.** At the start of every turn it still claims
+this user's *other* sessions that have been quiet longer than
+`EPISODIC_IDLE_MINUTES`, and fires a background summary for each. What it
+collects is a turn-end write that never landed — a failed model call, a stream
+the client aborted, a worker that died holding the task.
+
+The claim and the select are one `UPDATE`, so concurrent workers cannot both pay
+for the same summary — the same pattern as `app/services/session_naming.py`. It
+is **refreshable**: a session is eligible when it has never been summarised *or*
+when it has been talked in since it was (`summarized_at < last_activity_at`). A
+one-shot claim freezes a conversation at whatever turn the sweep happened to
+catch — summarised at turn 2 of 20, the other eighteen never exist as far as the
+next session is concerned.
+
+The two writers do not pay twice for the same conversation. `summarized_at` is
+written **with** the summary, and `last_activity_at` is touched at the start of
+the turn, so a successful turn-end write leaves `summarized_at` ahead and the
+sweep's predicate stops matching. A write that never landed leaves it behind, and
+the sweep collects the session once it goes quiet. The sweep's own claim is still
+written **before** the model is called, so a session it cannot summarise does not
+cost a call on every later turn.
 
 **Reading.** `recent_episodes` returns up to `EPISODIC_RECENT_LIMIT` sessions,
 dated, with the labels of the plan versions each produced. Read once per turn by
