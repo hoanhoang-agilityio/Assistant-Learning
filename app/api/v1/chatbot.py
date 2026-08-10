@@ -20,7 +20,7 @@ from app.core.langgraph.graph import LangGraphAgent
 from app.core.limiter import limiter
 from app.models.session import Session
 from app.schemas.chat import ChatRequest, ChatResponse, StreamResponse
-from app.services.episodes import summarize_stale_sessions
+from app.services.episodes import summarize_current_session, summarize_stale_sessions
 from app.services.session_naming import name_session
 
 router = APIRouter()
@@ -46,6 +46,11 @@ async def chat(
             user_id=str(session.user_id),
             username=session.username,
         )
+
+        # After the graph has run, never before it: the summariser reads this
+        # turn back out of the checkpointer, and a summary fired any earlier
+        # would be missing the exchange that just happened.
+        summarize_current_session(session.user_id, session.id, agent.get_chat_history)
 
         return ChatResponse(messages=result)
     except Exception as e:
@@ -78,6 +83,12 @@ async def chat_stream(
                 username=session.username,
             ):
                 yield _frame(StreamResponse(content=chunk))
+            # Only on the path where the stream ran to completion. A turn that
+            # ended in the branch below left a partial transcript behind, and
+            # summarising it would write `summarized_at` over a half account of
+            # the conversation — leaving it alone hands the session to the idle
+            # sweep instead.
+            summarize_current_session(session.user_id, session.id, agent.get_chat_history)
             yield _frame(StreamResponse(done=True))
         except Exception:
             # The response has already started, so the status code is committed.
