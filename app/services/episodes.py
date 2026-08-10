@@ -259,12 +259,12 @@ async def _persist_summary(session_id: str, load_transcript: TranscriptLoader) -
         logger.exception("episode_summary_failed", session_id=session_id)
 
 
-def maybe_summarize_stale_sessions(
+def summarize_stale_sessions(
     user_id: int | str | None, current_session_id: str, load_transcript: TranscriptLoader
 ) -> None:
     """Start summarising any of this user's conversations that have gone idle.
 
-    Synchronous by design, like ``maybe_name_session``: it opens one short
+    Synchronous by design, like ``name_session``: it opens one short
     database session and returns, so a caller cannot accidentally await the
     summarising. Safe to call from any chat endpoint on every turn.
 
@@ -438,7 +438,7 @@ async def recent_episodes(user_id: str | None, exclude_session_id: str) -> str:
 
 __all__ = [
     "NO_EPISODES",
-    "maybe_summarize_stale_sessions",
+    "summarize_stale_sessions",
     "recent_episodes",
     "touch_session",
 ]

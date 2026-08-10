@@ -131,14 +131,14 @@ def _minutes_ago(minutes: int):
 
 async def test_an_anonymous_turn_has_no_episodes_and_sweeps_nothing(episodic_db):
     """The isolation boundary is the same as long-term memory's: no user, no data."""
-    from app.services.episodes import maybe_summarize_stale_sessions, recent_episodes
+    from app.services.episodes import recent_episodes, summarize_stale_sessions
 
     _make_session(episodic_db, "old", idle_minutes=999, summary="they built a plan")
 
     assert await recent_episodes(None, "current") == ""
 
     calls = []
-    maybe_summarize_stale_sessions(None, "current", lambda sid: calls.append(sid))
+    summarize_stale_sessions(None, "current", lambda sid: calls.append(sid))
     assert calls == []
 
 
@@ -224,7 +224,7 @@ async def test_a_failed_summary_is_never_retried(episodic_db, monkeypatch):
 
         return [Message(role="user", content="build me a plan")]
 
-    episodes.maybe_summarize_stale_sessions(1, "current", _transcript)
+    episodes.summarize_stale_sessions(1, "current", _transcript)
     for _ in range(4):
         await asyncio.sleep(0)
 
@@ -258,7 +258,7 @@ async def test_a_summary_is_written_in_the_background(episodic_db, monkeypatch):
 
         return [Message(role="user", content="build me a fat-loss plan")]
 
-    episodes.maybe_summarize_stale_sessions(1, "current", _transcript)
+    episodes.summarize_stale_sessions(1, "current", _transcript)
 
     with DBSession(episodic_db) as db:
         assert db.get(ChatSession, "idle").summary == "", "the write blocked the caller"

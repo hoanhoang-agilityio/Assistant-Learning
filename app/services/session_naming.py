@@ -102,7 +102,7 @@ async def _persist_session_name(session_id: str, user_message: str) -> None:
         logger.exception("session_name_generation_failed", session_id=session_id)
 
 
-def maybe_name_session(session_id: str, session_name: str, messages: list) -> None:
+def name_session(session_id: str, session_name: str, messages: list) -> None:
     """Start auto-naming if the session is still unnamed.
 
     Synchronous by design: it opens one short database session and returns, so a
