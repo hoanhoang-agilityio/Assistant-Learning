@@ -314,11 +314,31 @@ section[data-testid="stSidebar"] hr {
     width: 100%;
 }
 
+/* Text inputs (sign-in / create account) share the same resting green
+   outline as number/select fields. Target stTextInputRootElement — not the
+   inner input div — so password fields include the show/hide toggle and
+   match email field width. On focus, drop the green border so Streamlit's
+   native (red) focus chrome owns the outline.
+
+   BaseWeb adds padding-right on password roots for the mask-toggle
+   (Styletron atomic class, e.g. .st-dd — name is unstable). That inset
+   makes Password / Confirm look shorter than Email; zero it out. The
+   eye button is already a flex sibling inside the root. */
+[data-testid="stForm"] [data-testid="stTextInputRootElement"],
 [data-testid="stForm"] [data-testid="stNumberInputContainer"],
 [data-testid="stForm"] [data-baseweb="select"] > div:first-child {
-    border: 1px solid var(--pt-accent);
+    border: 1px solid var(--pt-accent) !important;
     border-radius: var(--pt-radius-sm);
     background-color: var(--background-color);
+}
+
+[data-testid="stForm"] [data-testid="stTextInputRootElement"] {
+    padding-right: 0 !important;
+}
+
+[data-testid="stForm"] [data-testid="stTextInputRootElement"]:focus-within {
+    /* Match Streamlit's native focus chrome (theme primary / default red). */
+    border-color: var(--primary-color, #ff4b4b) !important;
 }
 
 .pt-form-error {
