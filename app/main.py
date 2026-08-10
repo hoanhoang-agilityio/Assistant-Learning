@@ -16,7 +16,6 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.api import api_router
-from app.core.cache import cache_service
 from app.core.configs.config import settings
 from app.core.limiter import limiter
 from app.core.logging import logger
@@ -35,18 +34,13 @@ async def lifespan(_app: FastAPI):
     # created lazily on first request instead, so the app still boots when
     # Postgres is briefly unavailable.
     langfuse_init()
-    # Logs and degrades rather than raising — the app is fully functional
-    # without a cache, just slower.
-    await cache_service.initialize()
     logger.info(
         "application_startup",
         project_name=settings.PROJECT_NAME,
         version=settings.VERSION,
         environment=settings.ENVIRONMENT.value,
-        cache_backend=cache_service.backend,
     )
     yield
-    await cache_service.close()
     logger.info("application_shutdown")
 
 

@@ -1,10 +1,10 @@
-"""Tests for episodic memory and the cache.
+"""Tests for episodic memory.
 
 Episodic memory is the one subsystem here that is *optional to the answer*.
-Everything it does must therefore fail soft: an unreachable Postgres, a dead
-Valkey, a slow summariser — none of them may cost the user their reply. The
-tests below are mostly about that, plus the one thing that must never fail soft:
-keeping one user's history away from another's.
+Everything it does must therefore fail soft: an unreachable Postgres, a slow
+summariser — neither may cost the user their reply. The tests below are mostly
+about that, plus the one thing that must never fail soft: keeping one user's
+history away from another's.
 
 Semantic memory has no tests of its own here any more. It is ``user_profile``,
 covered by the profile and pipeline suites, and there is no service in front of
@@ -14,44 +14,6 @@ it to fail.
 import asyncio
 
 import pytest
-
-from app.core.cache import CacheService
-
-
-@pytest.fixture
-def cache() -> CacheService:
-    """An in-process cache, the default backend when VALKEY_HOST is unset."""
-    return CacheService()
-
-
-# ---------------------------------------------------------------------------
-# Failing soft
-# ---------------------------------------------------------------------------
-
-
-async def test_a_dead_cache_backend_reads_as_a_miss(cache):
-    """A Valkey outage must degrade to a cache miss, not to a failed request.
-
-    Raising here would turn a restart of an optional service into failed chat
-    turns — strictly worse than the uncached latency the cache exists to avoid.
-    """
-
-    class _DeadClient:
-        async def get(self, _key):
-            raise ConnectionError("valkey down")
-
-        async def set(self, *_args, **_kwargs):
-            raise ConnectionError("valkey down")
-
-    cache._client = _DeadClient()
-
-    assert await cache.get("k") is None
-    await cache.set("k", "v")
-
-
-# ---------------------------------------------------------------------------
-# Episodic memory
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -529,34 +491,6 @@ async def test_the_summary_prompt_forbids_numbers():
     from app.core.prompts import SESSION_SUMMARY_PROMPT
 
     assert "Never state a number" in SESSION_SUMMARY_PROMPT
-
-
-# ---------------------------------------------------------------------------
-# Cache service
-# ---------------------------------------------------------------------------
-
-
-async def test_cache_round_trips(cache):
-    """The in-process backend is a real cache, not a no-op."""
-    await cache.set("k", "v")
-    assert await cache.get("k") == "v"
-
-
-async def test_a_missing_key_is_none(cache):
-    """A miss is None, so callers can tell it apart from a cached empty string."""
-    assert await cache.get("nope") is None
-
-
-async def test_the_default_backend_needs_no_service(cache):
-    """Local development must not require Valkey to be running."""
-    await cache.initialize()
-    assert cache.backend == "memory"
-
-
-async def test_close_is_safe_without_a_connection(cache):
-    """Shutdown must not fail when the cache never connected."""
-    await cache.initialize()
-    await cache.close()
 
 
 # ---------------------------------------------------------------------------

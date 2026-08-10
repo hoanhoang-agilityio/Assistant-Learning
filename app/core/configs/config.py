@@ -240,12 +240,13 @@ class Settings(BaseSettings):
         default_factory=lambda: ["checkpoint_blobs", "checkpoint_writes", "checkpoints"]
     )
 
+    # Rate-limiter storage. Set VALKEY_HOST to share one counter across
+    # instances; unset, slowapi keeps the counts in process, which stops
+    # counting the moment there is more than one worker.
     VALKEY_HOST: str = ""
     VALKEY_PORT: int = 6379
     VALKEY_DB: int = 0
     VALKEY_PASSWORD: str = ""
-    VALKEY_MAX_CONNECTIONS: int = 20
-    CACHE_TTL_SECONDS: int = 60
 
     RATE_LIMIT_DEFAULT: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["200 per day", "50 per hour"]
