@@ -28,6 +28,32 @@ from app.services.templates import iter_slots, query_templates
 
 _CHOOSER_MODEL = "gpt-5-mini"
 
+# Words that describe the *shape* of a programme rather than a movement someone
+# likes or avoids. A preference naming one of these is asking for a split, and
+# the split is the one thing `preferences` cannot influence: it comes from the
+# template library, matched on days, goal and level alone.
+#
+# A list of terms rather than a model call, because this only decides whether to
+# add one explanatory line. It under-fires on phrasings nobody listed here, and
+# that failure is silence — the same silence as before — rather than a wrong
+# claim about what the plan does.
+_SPLIT_SHAPE_TERMS = frozenset(
+    {
+        "upper body",
+        "upper-body",
+        "lower body",
+        "lower-body",
+        "full body",
+        "full-body",
+        "push pull",
+        "push/pull",
+        "push-pull",
+        "bro split",
+        "arnold split",
+        "body part split",
+    }
+)
+
 
 async def select_template(state: PlanningState, config: RunnableConfig) -> Command:
     """Pick the programme skeleton matching the user's hard constraints.
@@ -79,8 +105,55 @@ async def select_template(state: PlanningState, config: RunnableConfig) -> Comma
     template = matches[0]
 
     return Command(
-        update={"template": template, "slots": iter_slots(template)}, goto="filter_candidates"
+        update={
+            "template": template,
+            "slots": iter_slots(template),
+            "issues": _split_preference_notes(state.get("preferences", ""), template, len(matches)),
+        },
+        goto="filter_candidates",
     )
+
+
+def _split_preference_notes(preferences: str, template: dict, match_count: int) -> list[Issue]:
+    """Say out loud when a requested split could not be honoured.
+
+    ``preferences`` reaches ``choose_exercises``, which uses it to pick between
+    the legal options for a slot. It does **not** reach template selection —
+    days, goal and level are the only criteria — so "an upper body focused 4 day
+    plan" silently produced the balanced Upper/Lower split, delivered as though
+    it were what was asked for. Silence there is the fault: the plan is a
+    reasonable one, it is simply not the shape requested.
+
+    Args:
+        preferences: The user's stated preferences, free text.
+        template: The template that was selected.
+        match_count: How many templates matched the hard criteria.
+
+    Returns:
+        One ``info`` issue when the user asked for a split, otherwise nothing.
+    """
+    lowered = preferences.lower()
+    if not any(term in lowered for term in _SPLIT_SHAPE_TERMS):
+        return []
+
+    days = " / ".join(day["name"] for day in template["days"])
+    only = " the only programme" if match_count == 1 else " the closest programme"
+    return [
+        Issue(
+            source="volume",
+            severity="info",
+            location="Programme",
+            message=(
+                f'You asked for a particular split ("{preferences}"). The split comes from '
+                f"the programme library, which is matched on your days a week, goal and "
+                f"experience — not on this preference — and {template['name']} is{only} "
+                f"that matches. Your sessions are therefore {days}. The preference was still "
+                "used when choosing the exercises within each session."
+            ),
+            suggestion=None,
+            rubric_ref="templates.split_preference_unmatched",
+        )
+    ]
 
 
 async def filter_candidates(state: PlanningState, config: RunnableConfig) -> Command:
