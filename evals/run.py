@@ -169,7 +169,6 @@ def main() -> None:
         print(f"✗ Evaluation failed: {e}")
         sys.exit(1)
 
-    report(result)
     logger.info(
         "batch_evaluation_completed",
         scope=scope,

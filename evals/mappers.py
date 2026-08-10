@@ -71,16 +71,40 @@ def _format(messages: list[Any]) -> str:
     return "\n".join(lines)
 
 
+def _hops(messages: list[Any]) -> int:
+    """Count the tool round-trips one turn took.
+
+    Recorded as its own number because trace shape stopped being deterministic
+    when the router became a supervisor (``docs/supervisor-architecture.md``
+    §11.3). A supervisor that takes a different number of hops on the same input
+    makes span-based comparisons noisier, so the answer is to score outcomes and
+    keep hop count visible as a metric rather than let it quietly widen the
+    variance of every other one.
+
+    Args:
+        messages: Serialized messages as Langfuse stored them.
+
+    Returns:
+        How many tool results the turn produced.
+    """
+    return sum(
+        1 for message in messages if isinstance(message, dict) and message.get("type") == "tool"
+    )
+
+
 def trace_mapper(*, item: Any, **kwargs: Any) -> EvaluatorInputs:
-    """Split one turn's ``RootState`` into judge input and generation.
+    """Split one turn's supervisor state into judge input and generation.
 
-    The root graph returns ``RootState``, so ``item.output["messages"]`` is the
-    whole turn: everything but the last message is what the assistant was
-    responding to, the last message is the response.
+    ``item.output["messages"]`` is the whole turn: everything but the last
+    message is what the assistant was responding to, the last message is the
+    response.
 
-    ``intent`` and ``verdict`` ride along in metadata so a domain evaluator can
-    decide the metric does not apply to this turn without re-parsing the
-    transcript or asking the judge to rule on its own applicability.
+    Metadata carries what a domain evaluator needs to decide a metric does not
+    apply to this turn, without re-parsing the transcript or asking the judge to
+    rule on its own applicability. ``verdict`` and ``repair_count`` are no longer
+    among them — both were derived state on the old root graph, and derived state
+    now lives in the draft store rather than in the turn's output. What replaces
+    them is ``hops``: the thing that actually varies.
 
     Args:
         item: A fetched trace.
@@ -101,9 +125,8 @@ def trace_mapper(*, item: Any, **kwargs: Any) -> EvaluatorInputs:
         expected_output=None,
         metadata={
             "trace_id": item.id,
-            "intent": output.get("intent"),
-            "verdict": output.get("verdict"),
-            "repair_count": output.get("repair_count"),
+            "intent": output.get("intent_hint"),
+            "hops": _hops(messages),
         },
     )
 

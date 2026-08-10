@@ -38,6 +38,22 @@ PERSISTENCE_TERMS = (
     "all set",
 )
 
+# Wording that reports a rubric finding. The gate for `verdict_grounding`, and
+# it reads the answer rather than a state field because the verdict now belongs
+# to a draft held by handle rather than to the turn's output.
+FINDING_TERMS = (
+    "mrv",
+    "mev",
+    "volume",
+    "finding",
+    "flagged",
+    "above the",
+    "below the",
+    "rubric",
+    "contraindicat",
+    "left out",
+)
+
 
 async def _judged(
     name: str, input_text: str, output_text: str, metadata: dict | None = None
@@ -155,16 +171,23 @@ async def confirm_discipline(*, input, output, expected_output=None, metadata=No
 async def verdict_grounding(*, input, output, expected_output=None, metadata=None, **kwargs: Any):
     """Score whether reported issues exist in the plan under discussion.
 
-    Gated to turns that reached a verdict. An invented ``rubric_ref`` reads as
-    authoritative and sends the user to fix something that was never wrong,
-    which is why this is worth separating from generic hallucination.
+    Gated on the answer mentioning a finding at all, rather than on a ``verdict``
+    field. The verdict is no longer part of a turn's output: it belongs to a
+    draft, and drafts are held by handle rather than carried in state
+    (``docs/supervisor-architecture.md`` §9). Reading the transcript for it is
+    the outcome-based gate §11.3 asks for — and it is also the right one, since
+    an ungrounded finding is a fault whether or not the turn recorded a verdict.
+
+    An invented ``rubric_ref`` reads as authoritative and sends the user to fix
+    something that was never wrong, which is why this is worth separating from
+    generic hallucination.
     """
     if not input or not output:
         return []
-    verdict = (metadata or {}).get("verdict")
-    if verdict is None:
+    lowered = output.lower()
+    if not any(term in lowered for term in FINDING_TERMS):
         return []
-    return await _judged("verdict_grounding", input, output, {"verdict": verdict})
+    return await _judged("verdict_grounding", input, output, {"hops": (metadata or {}).get("hops")})
 
 
 DOMAIN_EVALUATORS = [
