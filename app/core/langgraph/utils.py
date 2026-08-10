@@ -1,25 +1,12 @@
 """Message helpers shared by every agent package."""
 
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage
 
 from app.schemas.chat import Message
 
 # Roles LangChain will not accept back as input. Tool results are replayed from
 # the checkpoint by the framework itself, so dropping them here is correct.
 _EXPORTABLE_ROLES = {"user", "assistant", "system"}
-
-
-def prepare_messages(messages: list[BaseMessage], system_prompt: str) -> list[BaseMessage]:
-    """Prepend the system prompt to a message list.
-
-    Args:
-        messages: Conversation history from state.
-        system_prompt: Rendered system prompt for this turn.
-
-    Returns:
-        A new list with the system message first. The input list is not mutated.
-    """
-    return [SystemMessage(content=system_prompt), *messages]
 
 
 def dump_messages(messages: list[BaseMessage]) -> list[dict]:
@@ -88,4 +75,4 @@ def message_text(message: BaseMessage) -> str:
     )
 
 
-__all__ = ["dump_messages", "message_text", "prepare_messages", "to_chat_messages"]
+__all__ = ["dump_messages", "message_text", "to_chat_messages"]

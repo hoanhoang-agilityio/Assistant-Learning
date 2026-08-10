@@ -1,14 +1,18 @@
-"""Routing: the one node where an LLM influences control flow.
+"""Routing: the one LLM call that still influences control flow.
 
-``classify`` influences it by returning a validated ``IntentDecision`` — not by
-choosing to call something. Turning that decision into a destination is plain
-Python, and it happens later and elsewhere, at ``intent_branch``, once the
-profile gate has run. Routing is never exposed as a tool: given the option to
-skip a mandatory step, a model eventually does.
+It influences it by returning a validated ``IntentDecision`` — not by choosing
+what to call. Under the old root graph that decision picked a branch; under the
+supervisor it does two narrower things, both inside the topic gate: it ends an
+off-topic turn before the agent loop starts, and it becomes ``intent_hint``,
+which is advisory (``docs/supervisor-architecture.md`` §4.3).
 
-Import the nodes from their own modules — ``from
-app.core.langgraph.routing.classify import classify``. Re-exporting them here
-would bind a *function* named ``classify`` onto this package, shadowing the
-submodule of the same name, so ``app.core.langgraph.routing.classify`` would no
-longer resolve to the module for anything that patches or reloads it.
+Routing is still never exposed as a tool. Given the option to skip a mandatory
+step, a model eventually does — which is why the gate is a ``before_agent`` hook,
+compiled to a real node, rather than something the supervisor may decide to call.
+
+Import from the submodule — ``from app.core.langgraph.routing.classify import
+llm_classify``. Re-exporting here would bind a *function* onto this package,
+shadowing the submodule of the same name, so
+``app.core.langgraph.routing.classify`` would no longer resolve to the module for
+anything that patches or reloads it.
 """

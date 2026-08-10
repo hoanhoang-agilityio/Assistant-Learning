@@ -1,99 +1,40 @@
-"""LLM intent classifier."""
+"""The intent classifier.
+
+Once a root node, now the body of the supervisor's topic gate. What survives the
+conversion is the call itself, and what changed is what its answer is used for:
+one output, two jobs. The topic decision ends the turn before the agent loop
+starts; the intent becomes ``intent_hint``, which is advisory.
+
+That reuse is what keeps the topic gate from costing an extra round-trip. A
+standalone guardrail in front of every turn pays for a second model call to catch
+the rare off-topic message, and the classifier was already reading the
+conversation anyway (``docs/supervisor-architecture.md`` §4.3).
+
+The hint must stay advisory. A hint that routed would be the router this
+architecture replaced, and the supervisor may legitimately disagree with it after
+reading a tool result — recovering from a bad first guess is one of the three
+things the router could not do.
+"""
 
 from langchain_core.messages import HumanMessage
-from langchain_core.runnables import RunnableConfig
-from langgraph.types import Command
 
-from app.core.langgraph.utils import dump_messages
-from app.core.logging import logger
 from app.core.prompts import load_classify_prompt
-from app.schemas.graph import NEW_TURN, IntentDecision, RootState
+from app.schemas.graph import IntentDecision
 from app.services.llm.service import llm_service
 
 # Enough context to disambiguate a follow-up ("make it 5 days") without paying
 # for the whole history on a routing decision.
-_CONTEXT_TURNS = 6
-
-# Intents whose verifier selection comes from the pipeline, not the classifier.
-# Only `check` lets the user's wording decide which rubrics run.
-_NO_SCOPE_INTENTS = frozenset({"build_plan", "change_plan", "revert", "general_qa", "off_topic"})
+CONTEXT_TURNS = 6
 
 _CLASSIFIER_MODEL = "gpt-5-mini"
-
-
-async def classify(state: RootState, config: RunnableConfig) -> Command:
-    """Decide which branch handles this turn.
-
-    Reads ``messages``. Writes ``intent``, ``scope``, ``changes`` and the
-    ``NEW_TURN`` reset.
-
-    Being the entry node of every run makes this the one place that can clear
-    the previous turn's working state, and clearing it is not housekeeping: the
-    checkpointer keeps ``issues``, ``draft_plan`` and the rest, so a change turn
-    that does not reset composes its answer from the *build's* findings — which
-    name the days of a split the user has just replaced. The reset happens
-    before the classification, so it applies to the failure path too.
-
-    A classification failure routes to ``general_qa`` rather than raising: the
-    worst outcome of that fallback is a plain answer, whereas guessing
-    ``change_plan`` would put the user's approved plan on the path to being
-    overwritten. It is deliberately not ``off_topic`` either — the topic gate is
-    a decision the classifier makes, and a classifier that just failed has made
-    no decision. Declining on an outage would turn a bad minute for the model
-    into a refusal aimed at the user.
-
-    There is no separate dispatcher node. Every turn goes to the same place —
-    the context load, then the profile gate — and the branch the intent selects
-    is taken later, at ``intent_branch``. A node whose only job is to forward to
-    one destination is not a routing decision.
-
-    Args:
-        state: Current root state.
-        config: Runnable config. Not read directly — LangChain propagates it to
-            the nested LLM call through contextvars, so the call still lands in
-            the same trace.
-
-    Returns:
-        A command writing the routing decision and going to ``load_context``.
-    """
-    conversation = "\n".join(
-        f"{message['role']}: {message['content']}"
-        for message in dump_messages(state.messages[-_CONTEXT_TURNS:])
-    )
-
-    try:
-        decision = await llm_classify(conversation)
-    except Exception as e:
-        logger.exception("routing_classify_failed_defaulting_to_qa", error=str(e))
-        return Command(
-            update={**NEW_TURN, "intent": "general_qa", "scope": [], "changes": {}},
-            goto="load_context",
-        )
-
-    scope = decision.scope if decision.intent not in _NO_SCOPE_INTENTS else []
-    # Flattened to a plain dict for state: `changes` is consumed by `patch_plan`
-    # as a delta, and `exclude_none` means an unmentioned field is absent rather
-    # than an explicit null the patcher would have to special-case.
-    changes = (
-        decision.changes.model_dump(exclude_none=True) if decision.intent == "change_plan" else {}
-    )
-
-    logger.info(
-        "routing_intent_classified",
-        intent=decision.intent,
-        scope=scope,
-        change_keys=sorted(changes),
-    )
-    return Command(
-        update={**NEW_TURN, "intent": decision.intent, "scope": scope, "changes": changes},
-        goto="load_context",
-    )
 
 
 async def llm_classify(conversation: str) -> IntentDecision:
     """Call the classifier model and return its validated decision.
 
-    Separate from the node so it can be exercised without building a graph.
+    Never parsed out of free text: the call passes
+    ``response_format=IntentDecision``, so an unroutable answer fails validation
+    instead of silently naming a branch.
 
     Args:
         conversation: Recent turns as ``role: content`` lines.
@@ -102,10 +43,15 @@ async def llm_classify(conversation: str) -> IntentDecision:
         The validated intent decision.
 
     Raises:
-        RuntimeError: When every model in the registry fails.
+        RuntimeError: When every model in the registry fails. The caller decides
+            what that means — for the topic gate it means "no decision", not
+            "decline".
     """
     return await llm_service.call(
         [HumanMessage(content=load_classify_prompt(conversation))],
         model_name=_CLASSIFIER_MODEL,
         response_format=IntentDecision,
     )
+
+
+__all__ = ["CONTEXT_TURNS", "llm_classify"]
