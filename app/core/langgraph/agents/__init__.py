@@ -10,11 +10,12 @@ body instead — ``routing/`` and ``profile/`` both sit outside this registry fo
 that reason, now because they are middleware rather than because they were root
 nodes (``docs/supervisor-architecture.md`` §12).
 
-Four names, unchanged in shape by the supervisor conversion. Two of them build
-something different: ``planning`` is a ``create_agent`` loop rather than a fixed
-pipeline, and ``review`` is what ``ingest`` became. ``verification`` stays a
-``StateGraph`` on purpose — it needs arbitrary nodes and edges, which is exactly
-what an agent cannot have.
+Three names. ``planning`` is a ``create_agent`` loop rather than a fixed
+pipeline, ``review`` is what ``ingest`` became, and ``qa`` is unchanged.
+``verification`` is not among them and is not a graph at all: it is the pure
+functions in ``core/langgraph/checks/``, called from
+``core/langgraph/scoring.py`` inside tool bodies. It was a ``StateGraph`` for
+its fan-out, and the fan-out was never worth its own topology.
 
 Agents are built once, on first use, and cached. Building a subgraph per request
 is a real cost, and under a supervisor the same agent may be invoked several
@@ -28,13 +29,11 @@ from langgraph.graph.state import CompiledStateGraph
 from app.core.langgraph.agents.planning import build_planning_agent
 from app.core.langgraph.agents.qa import build_qa_agent
 from app.core.langgraph.agents.review import build_review_agent
-from app.core.langgraph.agents.verification import build_verification_graph
 
 AGENTS: dict[str, Callable[[], CompiledStateGraph]] = {
     "planning": build_planning_agent,
     "review": build_review_agent,
     "qa": build_qa_agent,
-    "verification": build_verification_graph,
 }
 
 _built: dict[str, CompiledStateGraph] = {}

@@ -15,9 +15,9 @@ What these pictures show is now narrower than it used to be, and the narrowing
 is the point. An agent's internal graph is fixed — a ``model`` node, a ``tools``
 node, and one node per middleware hook — so the diagram tells you which hooks are
 wired and nothing about what the model will choose to call. The order of steps is
-no longer a property of the topology; it is a decision made at runtime. Only
-``verification`` still has a shape worth reading off the picture, because it is
-the one graph left with arbitrary nodes and edges.
+no longer a property of the topology; it is a decision made at runtime. Nothing
+left in the registry has arbitrary nodes and edges: ``verification`` did, and it
+is now plain functions called from tool bodies rather than a graph to draw.
 
 Only the Mermaid markup is written by default, and only it is committed. PNG is
 opt-in because rendering posts the markup to the public mermaid.ink service,

@@ -34,14 +34,13 @@ from langgraph.types import Command
 from app.core.langgraph import drafts
 from app.core.langgraph.agents import get_agent
 from app.core.langgraph.agents.qa import EXHAUSTED_ANSWER, FAILURE_ANSWER
-from app.core.langgraph.agents.verification import sort_issues
 from app.core.langgraph.diff import build_diff
 from app.core.langgraph.rendering import (
     render_plan,
     render_plan_context,
     render_semantic_context,
 )
-from app.core.langgraph.scoring import score
+from app.core.langgraph.scoring import score, sort_issues
 from app.core.langgraph.supervisor.state import SupervisorState
 from app.core.langgraph.utils import message_text
 from app.core.langgraph.versioning import describe_verification_reason, render_versions
@@ -317,7 +316,7 @@ async def restore_version(version_id: str, runtime: ToolRuntime) -> Command:
         )
 
     plan = dict(version.plan)
-    macros, issues, verdict = await score(plan, profile, runtime.config)
+    macros, issues, verdict = await score(plan, profile)
     note = _restore_note(
         version.label, describe_verification_reason(version.profile_hash, profile_hash(profile))
     )

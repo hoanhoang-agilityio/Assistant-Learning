@@ -2,8 +2,10 @@
 
 State itself lives with the agent that owns it — ``SupervisorState`` in
 ``core/langgraph/supervisor/``, ``PlanningState`` and ``ReviewState`` in their
-packages, ``VerifyState`` in its own. What is here is the vocabulary they share:
-what a finding is, what a verdict is, and the envelopes a tool may return.
+packages. What is here is the vocabulary they share: what a finding is, what a
+verdict is, and the envelopes a tool may return. Verification has no state of
+its own to place: it is plain functions over their arguments
+(``core/langgraph/scoring.py``).
 
 Two design constraints are enforced here rather than left to convention:
 

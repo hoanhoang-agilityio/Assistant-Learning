@@ -216,7 +216,7 @@ async def commit_draft(runtime: ToolRuntime, choices: list[dict] | None = None) 
     _validate(plan, template, catalog)
 
     profile = state["profile"]
-    macros, issues, verdict = await score(plan, profile, runtime.config)
+    macros, issues, verdict = await score(plan, profile)
     all_issues = _as_issues(state.get("notes") or []) + issues
 
     base_plan = state.get("base_plan")

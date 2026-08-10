@@ -5,7 +5,7 @@ plain arithmetic, so a model participating in it is risk with no upside.
 
 These functions compute what the plan *targets*. Whether those targets are
 acceptable is a separate question answered by
-``app/core/langgraph/agents/verification/checks/macro.py`` against the rubric.
+``app/core/langgraph/checks/macro.py`` against the rubric.
 Keeping the two apart is what lets the verifier disagree with the calculator —
 the calculator applies a requested deficit, the verifier refuses one that is too
 deep, and neither has to know the other's thresholds.

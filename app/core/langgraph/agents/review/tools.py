@@ -24,9 +24,8 @@ from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langgraph.types import Command
 
-from app.core.langgraph.agents.verification import sort_issues
 from app.core.langgraph.rendering import render_plan
-from app.core.langgraph.scoring import score
+from app.core.langgraph.scoring import score, sort_issues
 from app.core.logging import logger
 from app.schemas.graph import Issue, ReviewEnvelope
 from app.services.catalog import load_catalog
@@ -123,7 +122,7 @@ async def score_plan(days: list[dict], runtime: ToolRuntime) -> Command:
         )
 
     profile = runtime.state.get("profile") or {}
-    macros, issues, verdict = await score(plan, profile, runtime.config)
+    macros, issues, verdict = await score(plan, profile)
     # Some lines resolved and some did not. The plan is assessed on what was
     # understood, and the rest is reported — an assessment that quietly ignores
     # three exercises is worse than one that names them.
