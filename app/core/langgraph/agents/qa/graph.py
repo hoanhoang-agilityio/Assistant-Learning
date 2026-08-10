@@ -16,30 +16,32 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
     ModelCallLimitMiddleware,
-    ModelFallbackMiddleware,
     ModelRequest,
-    ModelRetryMiddleware,
     ToolCallLimitMiddleware,
     dynamic_prompt,
 )
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import SystemMessage
 from langgraph.graph.state import CompiledStateGraph
 
-from app.core.configs.config import settings
 from app.core.langgraph.agents.qa.state import QAState
-from app.core.langgraph.tools import tools
+from app.core.langgraph.agents.qa.tools import estimate_macros
+from app.core.langgraph.models import default_model, resilience_middleware
+from app.core.langgraph.tools import tools as shared_tools
 from app.core.prompts import load_qa_prompt
-from app.services.llm.registry import LLMRegistry
-from app.services.llm.service import RETRYABLE_ERRORS
 
 AGENT_NAME = "qa"
 
-# Searches one question may cost. A knowledge question needs one lookup,
-# occasionally two; a model still searching on the fourth is looping, not
-# researching. `continue` lets it answer with what it already retrieved rather
-# than ending the turn on an error the user did not cause.
-_MAX_SEARCHES = 3
+# `estimate_macros` is owned by this agent rather than shared, and that is the
+# point of it: QA is read-only and has no path to a save, so a hypothetical
+# number computed here cannot reach a stored plan. No other agent gets it.
+tools = [*shared_tools, estimate_macros]
+
+# Tool calls one question may cost. A knowledge question needs one lookup,
+# occasionally two, and a what-if adds one estimate; a model still calling tools
+# on the fifth is looping, not researching. `continue` lets it answer with what
+# it already retrieved rather than ending the turn on an error the user did not
+# cause.
+_MAX_SEARCHES = 4
 
 # What the node says when the agent could not produce anything at all. The turn
 # stays alive: an apology is a worse answer than a real one, and a better
@@ -78,32 +80,6 @@ def _qa_prompt(request: ModelRequest) -> SystemMessage:
     )
 
 
-def _qa_model() -> BaseChatModel:
-    """Resolve the model this agent runs on.
-
-    One seam, deliberately: it is where the tests replace the network, and the
-    only place the agent learns which model it is.
-
-    Returns:
-        The configured default chat model.
-    """
-    return LLMRegistry.get_llm(settings.DEFAULT_LLM_MODEL)
-
-
-def _fallback_models() -> list[BaseChatModel]:
-    """Return the other registry models, in registry order.
-
-    Returns:
-        Every model except the default, tried in turn when the default fails —
-        the same circular fallback ``llm_service`` gives the other agents.
-    """
-    return [
-        LLMRegistry.get_llm(name)
-        for name in LLMRegistry.get_all_llm_names()
-        if name != settings.DEFAULT_LLM_MODEL
-    ]
-
-
 def build_qa_agent() -> CompiledStateGraph:
     """Build the general-QA agent.
 
@@ -113,20 +89,7 @@ def build_qa_agent() -> CompiledStateGraph:
     Returns:
         The compiled agent, named so its spans are identifiable in Langfuse.
     """
-    middleware: list[AgentMiddleware] = [
-        _qa_prompt,
-        ModelRetryMiddleware(
-            max_retries=settings.MAX_LLM_CALL_RETRIES,
-            retry_on=RETRYABLE_ERRORS,
-        ),
-    ]
-
-    # Only when there is somewhere to fall back to. The middleware requires at
-    # least one alternative model, so a single-model registry would fail at
-    # build time rather than run without a fallback it never had.
-    fallbacks = _fallback_models()
-    if fallbacks:
-        middleware.append(ModelFallbackMiddleware(*fallbacks))
+    middleware: list[AgentMiddleware] = [_qa_prompt, *resilience_middleware()]
 
     # Two limits, because they stop different things. The tool limit is the
     # normal one: the model is told it has searched enough and answers with what
@@ -138,7 +101,7 @@ def build_qa_agent() -> CompiledStateGraph:
     middleware.append(ModelCallLimitMiddleware(run_limit=_MAX_SEARCHES + 1, exit_behavior="end"))
 
     return create_agent(
-        model=_qa_model(),
+        model=default_model(),
         tools=tools,
         state_schema=QAState,
         middleware=tuple(middleware),
