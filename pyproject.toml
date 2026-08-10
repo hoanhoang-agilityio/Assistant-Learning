@@ -24,7 +24,7 @@ dependencies = [
     "uvicorn[standard]>=0.32,<1.0",
     "streamlit>=1.40,<2.0",
     # Observability
-    "langfuse>=3.0,<4.0",
+    "langfuse>=4.14,<5.0",
     # Database
     "psycopg[binary,pool]>=3.2,<4.0",
     "sqlmodel>=0.0.22,<1.0",
@@ -63,6 +63,9 @@ dev = [
     # TestClient in tests/test_auth_flow.py needs httpx, already a runtime dep.
     "ruff>=0.8,<1.0",
     "pre-commit>=4.0,<5.0",
+]
+evals = [
+    "ragas>=0.4,<0.5",
 ]
 
 [build-system]
