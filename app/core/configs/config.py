@@ -173,9 +173,27 @@ class Settings(BaseSettings):
     MAX_LLM_CALL_RETRIES: int = 3
     LLM_TOTAL_TIMEOUT: int = 60
 
-    LONG_TERM_MEMORY_MODEL: str = "gpt-5-nano"
-    LONG_TERM_MEMORY_EMBEDDER_MODEL: str = "text-embedding-3-small"
-    LONG_TERM_MEMORY_COLLECTION_NAME: str = "longterm_memory"
+    # Semantic memory has no settings of its own. It is `user_profile` — typed
+    # columns, read by primary key — so there is no model, no embedder and no
+    # collection to configure.
+    EPISODIC_MEMORY_ENABLED: bool = True
+    # How long a session must sit idle before it is considered finished and
+    # eligible for summarising. There is no "session ended" event, so this is
+    # the only signal available. Too short and an active conversation is
+    # summarised mid-flight; too long and the user's next session cannot see it.
+    #
+    # Raised from 5 after measuring the failure at the short end: a session was
+    # claimed 22 ms after the next one was created, and its summary landed after
+    # the turn that needed it had already read. Half an hour is long enough that
+    # a user stepping away mid-conversation does not get summarised behind their
+    # back; the claim is refreshable, so a session summarised too early is
+    # re-summarised once it moves on rather than being frozen.
+    EPISODIC_IDLE_MINUTES: int = 30
+    # Sessions rendered into the prompt, newest first. Kept small: this text is
+    # carried on every turn, and the tail of a user's history is what a question
+    # about "last time" actually means.
+    EPISODIC_RECENT_LIMIT: int = 5
+    EPISODIC_SUMMARY_MODEL: str = "gpt-5.4-nano"
 
     KNOWLEDGE_EMBEDDER_MODEL: str = "text-embedding-3-small"
     # Width of the `vector` column in the knowledge_chunks migration. Changing

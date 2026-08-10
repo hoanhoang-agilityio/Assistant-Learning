@@ -1947,7 +1947,12 @@
       "abs": 1.0
     },
     "skill_level": 1,
-    "fatigue_cost": 2
+    "fatigue_cost": 2,
+    "unit": "seconds",
+    "duration_seconds": [
+      30,
+      60
+    ]
   },
   {
     "id": "plank_bodyweight",
@@ -1968,7 +1973,12 @@
       "abs": 1.0
     },
     "skill_level": 1,
-    "fatigue_cost": 2
+    "fatigue_cost": 2,
+    "unit": "seconds",
+    "duration_seconds": [
+      30,
+      60
+    ]
   },
   {
     "id": "preacher_curl_neutral_grip",
@@ -2279,7 +2289,12 @@
       "obliques": 1.0
     },
     "skill_level": 1,
-    "fatigue_cost": 1
+    "fatigue_cost": 1,
+    "unit": "seconds",
+    "duration_seconds": [
+      30,
+      60
+    ]
   },
   {
     "id": "sissy_squat_bodyweight",

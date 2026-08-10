@@ -6,9 +6,9 @@ can be tested against a fixture.
 
 The properties under test are the design's guarantees:
 
-* a contraindicated exercise cannot reach a candidate list (§6.2)
-* sets and reps come from the template, never from anywhere else (§6.1)
-* adding a training day changes TDEE, which is why change_plan must recompute (§9.2)
+* a contraindicated exercise cannot reach a candidate list
+* sets and reps come from the template, never from anywhere else
+* adding a training day changes TDEE, which is why change_plan must recompute
 """
 
 import pytest
@@ -305,3 +305,70 @@ def test_calc_macros_output_passes_the_macro_rubric():
     }
     macros = calc_macros(profile, sessions_per_week=4, goal="fat_loss")
     assert check_macro(macros, profile, MACRO_RULES) == []
+
+
+# ---------------------------------------------------------------------------
+# Accumulating preferences
+# ---------------------------------------------------------------------------
+
+
+def test_a_new_preference_does_not_replace_the_old_ones():
+    """The bug this function exists to close.
+
+    Every other profile column answers a question with one answer, so the
+    generic ``{**stored, **extracted}`` merge is right for them. Preferences are
+    a list wearing a string's clothes: "avoids overhead pressing" and "prefers
+    dumbbells" are both true at once, and replacing loses the first the moment
+    the second is said.
+    """
+    from app.services.profile import merge_preferences
+
+    merged = merge_preferences("avoids overhead pressing", "prefers dumbbells")
+
+    assert "avoids overhead pressing" in merged
+    assert "prefers dumbbells" in merged
+
+
+def test_restating_a_preference_does_not_duplicate_it():
+    """Said twice in different sessions is still one preference.
+
+    Matching is on normalised text, so it collapses the identical and leaves
+    genuinely different wording alone — the same honest limit as the episodic
+    deduper, and for the same reason: guessing at near-matches is how a store
+    starts editing what the user said.
+    """
+    from app.services.profile import merge_preferences
+
+    merged = merge_preferences("Prefers dumbbells", "  prefers   DUMBBELLS  ")
+
+    assert merged == "Prefers dumbbells"
+
+
+def test_preferences_are_capped_and_drop_the_oldest():
+    """The field converges, so a bound is enough and no compaction is needed."""
+    from app.services.profile import _MAX_PREFERENCES, merge_preferences
+
+    stored = "; ".join(f"item {index}" for index in range(_MAX_PREFERENCES))
+    merged = merge_preferences(stored, "the newest thing")
+
+    items = merged.split("; ")
+    assert len(items) == _MAX_PREFERENCES
+    assert items[-1] == "the newest thing"
+    assert "item 0" not in items, "the cap dropped the newest instead of the oldest"
+
+
+def test_several_preferences_stated_at_once_are_kept_apart():
+    """One turn can state two things, and they must not fuse into one item."""
+    from app.services.profile import merge_preferences
+
+    merged = merge_preferences("", "hates burpees; prefers morning sessions")
+
+    assert merged.split("; ") == ["hates burpees", "prefers morning sessions"]
+
+
+def test_an_empty_statement_leaves_the_stored_preferences_alone():
+    """A turn that mentions no preference must not blank the column."""
+    from app.services.profile import merge_preferences
+
+    assert merge_preferences("hates burpees", "") == "hates burpees"
+    assert merge_preferences("hates burpees", None) == "hates burpees"

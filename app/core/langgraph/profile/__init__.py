@@ -1,5 +1,5 @@
-"""Profile gate: the root-graph nodes every write intent passes through."""
+"""Context load and profile gate: the root-graph nodes every turn passes through."""
 
-from app.core.langgraph.profile.nodes import check_required, extract_profile, load_profile
+from app.core.langgraph.profile.nodes import check_required, extract_profile, load_context
 
-__all__ = ["check_required", "extract_profile", "load_profile"]
+__all__ = ["check_required", "extract_profile", "load_context"]

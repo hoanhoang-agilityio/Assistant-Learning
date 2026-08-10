@@ -6,10 +6,10 @@ Postgres, a model or HTTP. The subgraph is compiled standalone with
 
 The properties worth regression-testing are the design's own claims:
 
-* the verifier cannot see the build transcript (§1.3, §7.4)
-* injuries match on attributes, so a newly added exercise is caught (§7.3)
-* a muscle with no landmark is reported as unassessed, not passed (§11)
-* fan-out into ``issues`` merges rather than overwrites (§12)
+* the verifier cannot see the build transcript
+* injuries match on attributes, so a newly added exercise is caught
+* a muscle with no landmark is reported as unassessed, not passed
+* fan-out into ``issues`` merges rather than overwrites
 """
 
 import uuid

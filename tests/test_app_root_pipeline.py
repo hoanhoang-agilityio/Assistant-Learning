@@ -16,6 +16,7 @@ The properties are the ones that keep the design honest:
 import json
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from langchain_core.messages import AIMessage
@@ -27,6 +28,7 @@ from app.core.langgraph.agents.planning.state import ExerciseChoices
 from app.core.langgraph.graph import LangGraphAgent, _add_nodes
 from app.schemas.graph import Intent, IntentDecision, Issue, ProfileExtraction, RootState
 from app.services.templates import iter_slots
+from tests.conftest import FakeChatModel, stub_qa_model
 from tests.seed import TEMPLATES
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
@@ -92,13 +94,35 @@ def pipeline(monkeypatch, catalog):
         "app.core.langgraph.profile.nodes.profile_service.upsert_profile", fake_upsert
     )
 
-    def _build(stored_profile: dict, intent: Intent = "build_plan", extraction=None):
+    def _build(
+        stored_profile: dict,
+        intent: Intent = "build_plan",
+        extraction=None,
+        saved_plan: dict | None = None,
+        saved_macros: dict | None = None,
+    ):
         async def fake_get_profile(_user_id):
             return dict(stored_profile)
 
         monkeypatch.setattr(
             "app.core.langgraph.profile.nodes.profile_service.get_profile",
             fake_get_profile,
+        )
+
+        # `load_context` reads two more stores than the profile. Stubbed here
+        # rather than left to the real engine so a test asserts what it set up,
+        # not what happens to be seeded in the developer's database.
+        async def fake_latest_version(_user_id):
+            if saved_plan is None:
+                return None
+            return SimpleNamespace(plan=saved_plan, macros=saved_macros or {})
+
+        async def fake_recent_episodes(_user_id, _session_id):
+            return ""
+
+        monkeypatch.setattr("app.core.langgraph.profile.nodes.latest_version", fake_latest_version)
+        monkeypatch.setattr(
+            "app.core.langgraph.profile.nodes.recent_episodes", fake_recent_episodes
         )
 
         async def fake_classify(_conversation):
@@ -177,7 +201,7 @@ _DEFAULTS = {
 
 
 async def test_an_empty_profile_asks_for_everything_at_once(pipeline):
-    """§9.1: one question covering every missing field, not one field per turn."""
+    """One question covering every missing field, not one field per turn."""
     graph, config, _calls, _agent = pipeline({})
     values = await _run(graph, config)
 
@@ -244,7 +268,7 @@ async def test_a_complete_profile_produces_a_plan_with_macros(pipeline):
 async def test_macros_cannot_be_bypassed(pipeline):
     """calc_macro is the bottleneck: no plan reaches an answer without it.
 
-    §9.2 depends on this — if a plan could skip the macro step, a modified plan
+    A change turn depends on this — if a plan could skip the macro step, one
     would keep stale targets and the deficit would silently break.
     """
     graph, config, _calls, _agent = pipeline(COMPLETE_PROFILE)
@@ -269,7 +293,7 @@ async def test_the_plan_is_snapshotted_once(pipeline):
 
 
 async def test_prescriptions_survive_the_whole_pipeline(pipeline):
-    """§1.1: the numbers in the answer are the template's, end to end."""
+    """The numbers in the answer are the template's, end to end."""
     graph, config, _calls, _agent = pipeline(COMPLETE_PROFILE)
     values = await _run(graph, config)
 
@@ -302,7 +326,7 @@ def _blocking_issue() -> Issue:
 
 
 async def test_repair_is_capped_and_still_answers(pipeline, monkeypatch):
-    """§8: two attempts, then the issue list goes to the user rather than looping."""
+    """Two attempts, then the issue list goes to the user rather than looping."""
     seen: list[int] = []
 
     async def always_fail(state, config):
@@ -349,11 +373,14 @@ async def test_a_failed_plan_is_not_snapshotted(pipeline, monkeypatch):
     values = await _run(graph, config)
 
     assert calls["versions"] == [], "a failing plan was persisted"
-    assert values["plan"] is None
+    # Not `plan is None`: `load_context` rehydrates whatever the user last
+    # approved, so an empty slot is no longer the signal. What matters is that
+    # the draft that failed verification is not the plan they now hold.
+    assert values["plan"] != values["draft_plan"], "a failing plan became the user's plan"
 
 
 def test_repair_cannot_see_the_conversation():
-    """§8: enforced by the signature, not by a comment."""
+    """Enforced by the signature, not by a comment."""
     import inspect
 
     from app.core.langgraph.agents.planning.repair import repair_plan
@@ -393,20 +420,185 @@ def test_every_declared_intent_has_a_real_branch():
     branch — that must answer honestly rather than fall through to whichever
     node happens to be next.
     """
-    from app.core.langgraph.graph import CONFIRM_REQUIRED_INTENTS, READ_ONLY_INTENTS
-    from app.core.langgraph.routing.dispatch import DISPATCH_TARGETS
+    from app.core.langgraph.graph import (
+        CONFIRM_REQUIRED_INTENTS,
+        INTENT_TARGETS,
+        READ_ONLY_INTENTS,
+    )
 
     handled = {"build_plan", "change_plan", "revert", "check", "general_qa", "off_topic"}
-    assert set(DISPATCH_TARGETS) == handled
+    assert set(INTENT_TARGETS) == handled
+    assert "not_implemented" not in INTENT_TARGETS.values()
     assert CONFIRM_REQUIRED_INTENTS <= handled
     assert READ_ONLY_INTENTS <= handled
 
 
-async def test_general_qa_never_touches_the_profile_nodes(pipeline):
-    """A knowledge question must not be asked for body weight."""
+async def test_general_qa_never_touches_the_profile_nodes(pipeline, monkeypatch):
+    """A knowledge question must not be asked for body weight.
+
+    It passes *through* the gate like every other intent — that is what lets a
+    weight stated this turn reach the answer given this turn — but
+    ``REQUIRED_FIELDS["general_qa"]`` is empty, so it is never held there.
+    """
+    stub_qa_model(monkeypatch, FakeChatModel(responses=[AIMessage(content="ok")], calls=[]))
     graph, config, _calls, _agent = pipeline({}, intent="general_qa")
     values = await _run(graph, config, "what is protein?")
 
     assert values["missing_fields"] == []
     assert values["draft_plan"] is None
     assert values["answer"]
+
+
+async def test_a_question_about_the_saved_plan_is_answered_from_it(pipeline, monkeypatch):
+    """The reported symptom, end to end: a new session must recall the plan.
+
+    Two halves that only work together. Phase 1 rehydrates ``plan`` from the last
+    saved version, because the checkpointer's copy is scoped to the session the
+    user just closed. Phase 2 routes the question to the branch that can render
+    it — ``check`` reads only the pasted message, so it answered "paste the plan"
+    to someone asking what their plan was.
+
+    Asserted on what the agent was handed rather than on its prose: the plan and
+    the profile have to be in the prompt, and no wording change can make that
+    true or false by accident.
+    """
+    saved = {"template_id": "upper_lower_4day", "days": [{"name": "Upper A", "exercises": []}]}
+    fake = stub_qa_model(
+        monkeypatch, FakeChatModel(responses=[AIMessage(content="Here is your plan.")], calls=[])
+    )
+
+    graph, config, _calls, _agent = pipeline(
+        COMPLETE_PROFILE,
+        intent="general_qa",
+        saved_plan=saved,
+        saved_macros={"kcal": 2400, "protein_g": 150},
+    )
+    values = await _run(graph, config, "what is my last plan?")
+
+    assert values["plan"] == saved, "a fresh session did not rehydrate the saved plan"
+
+    system = fake.calls[0][0].content
+    assert "upper_lower_4day" in system, "the plan never reached the prompt"
+    assert "150" in system, "the macros never reached the prompt"
+    assert "Body weight (kg): 75.0" in system, "semantic context never reached the prompt"
+
+
+async def test_a_plan_held_in_state_is_not_overwritten_by_the_database(pipeline, monkeypatch):
+    """Rehydration is a fallback, not a refresh.
+
+    Within a session the checkpointer is the source of truth: it can be holding a
+    patch that was built and shown but not yet approved, and the database only
+    ever has approved versions. Overwriting on every turn would silently discard
+    the thing the user is being asked to confirm.
+    """
+    staged = {"template_id": "staged", "days": []}
+    stored = {"template_id": "already-approved", "days": []}
+
+    stub_qa_model(monkeypatch, FakeChatModel(responses=[AIMessage(content="ok")], calls=[]))
+    graph, config, _calls, _agent = pipeline(
+        COMPLETE_PROFILE, intent="general_qa", saved_plan=stored
+    )
+    await graph.aupdate_state(config, {"plan": staged})
+
+    values = await _run(graph, config, "how much protein?")
+
+    assert values["plan"] == staged
+
+
+# ---------------------------------------------------------------------------
+# The goal gate
+# ---------------------------------------------------------------------------
+
+
+async def test_a_contradicted_goal_is_asked_about_rather_than_used(pipeline):
+    """A stale goal flips the calorie target, silently and with confidence.
+
+    The failure this prevents was found in a real trace: one user message, and a
+    profile carrying `muscle_gain` from an earlier session. "keep muscle while
+    losing fat" was not an outright goal statement, so nothing overwrote the
+    stored value, `check_required` saw `goal` present, and `calc_macros` applied
+    a +10% surplus to a user asking about fat loss.
+    """
+    graph, config, _calls, _agent = pipeline(
+        {**COMPLETE_PROFILE, "goal": "muscle_gain"},
+        extraction=ProfileExtraction(implied_goal="fat_loss"),
+    )
+    values = await _run(graph, config, "how much protein to keep muscle while losing fat?")
+
+    assert values["goal_conflict"] == {"stored": "muscle_gain", "implied": "fat_loss"}
+    assert values["draft_plan"] is None, "the turn must stop rather than build on a guess"
+    assert values["computed_macros"] is None
+
+    answer = values["answer"]
+    assert "muscle gain" in answer and "fat loss" in answer, (
+        f"the question must name both goals in words the user recognises: {answer!r}"
+    )
+    assert "muscle_gain" not in answer, "database tokens must not reach the user"
+
+
+async def test_an_implied_goal_is_never_written_to_the_profile(pipeline):
+    """`implied_goal` exists precisely so it is not stored.
+
+    It reaches the profile only through the merge in `extract_profile`, so a
+    single missed `pop` would persist the guess and make the next turn agree
+    with it — the conflict would resolve itself, wrongly and permanently.
+    """
+    graph, config, _calls, _agent = pipeline(
+        {**COMPLETE_PROFILE, "goal": "muscle_gain"},
+        extraction=ProfileExtraction(implied_goal="fat_loss"),
+    )
+    values = await _run(graph, config)
+
+    assert values["profile"]["goal"] == "muscle_gain", "the stored goal must be untouched"
+    assert "implied_goal" not in values["profile"]
+
+
+async def test_a_stated_goal_overwrites_without_asking(pipeline):
+    """Saying it outright is not a conflict — it is an answer."""
+    graph, config, _calls, _agent = pipeline(
+        {**COMPLETE_PROFILE, "goal": "muscle_gain"},
+        extraction=ProfileExtraction(goal="fat_loss"),
+    )
+    values = await _run(graph, config, "switch me to a cut")
+
+    assert values["goal_conflict"] is None
+    assert values["profile"]["goal"] == "fat_loss"
+    assert values["draft_plan"] is not None, "a stated goal must not stop the turn"
+    assert values["computed_macros"]["kcal"] < values["computed_macros"]["tdee"]
+
+
+async def test_an_implied_goal_matching_the_stored_one_is_not_a_conflict(pipeline):
+    """Agreement must not produce a question."""
+    graph, config, _calls, _agent = pipeline(
+        COMPLETE_PROFILE,  # already fat_loss
+        extraction=ProfileExtraction(implied_goal="fat_loss"),
+    )
+    values = await _run(graph, config)
+
+    assert values["goal_conflict"] is None
+    assert values["draft_plan"] is not None
+
+
+async def test_general_qa_is_never_interrupted_by_a_goal_question(pipeline):
+    """A question gets an answer, not a form — the same property the empty
+    `REQUIRED_FIELDS["general_qa"]` protects."""
+    graph, config, _calls, _agent = pipeline(
+        {**COMPLETE_PROFILE, "goal": "muscle_gain"},
+        intent="general_qa",
+        extraction=ProfileExtraction(implied_goal="fat_loss"),
+    )
+    values = await _run(graph, config, "what does RIR mean when I'm cutting?")
+
+    assert "which one should I plan for" not in values["answer"]
+
+
+async def test_an_unknown_implied_goal_is_discarded(pipeline):
+    """A token outside the vocabulary must not become a question about itself."""
+    graph, config, _calls, _agent = pipeline(
+        {**COMPLETE_PROFILE, "goal": "muscle_gain"},
+        extraction=ProfileExtraction(implied_goal="get_shredded"),
+    )
+    values = await _run(graph, config)
+
+    assert values["goal_conflict"] is None
+    assert values["draft_plan"] is not None

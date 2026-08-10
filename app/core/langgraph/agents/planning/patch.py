@@ -102,7 +102,7 @@ def _change_day_count(
 
     Exercises the user already has are carried into any slot of the same
     movement pattern, so a 4→5 day change reads as an added session rather than
-    a different programme (§9.2).
+    a different programme.
 
     Args:
         plan: The approved plan.

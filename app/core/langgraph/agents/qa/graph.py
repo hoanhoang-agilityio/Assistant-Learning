@@ -70,7 +70,11 @@ def _qa_prompt(request: ModelRequest) -> SystemMessage:
     """
     state = request.state
     return SystemMessage(
-        content=load_qa_prompt(state["plan_context"], state.get("long_term_memory", ""))
+        content=load_qa_prompt(
+            state["plan_context"],
+            state.get("semantic_context", ""),
+            state.get("episodic_context", ""),
+        )
     )
 
 

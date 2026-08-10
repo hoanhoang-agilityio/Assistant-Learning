@@ -27,7 +27,7 @@ from sqlmodel import Session, select  # noqa: E402
 
 from app.core.logging import logger  # noqa: E402
 from app.models.database import engine  # noqa: E402
-from app.models.exercise import Exercise  # noqa: E402
+from app.models.exercise import UNIT_REPS, Exercise  # noqa: E402
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
 
@@ -43,6 +43,19 @@ _FIELDS = (
     "skill_level",
     "fatigue_cost",
 )
+
+# Stated only on the rows that differ from the column default — `unit` appears
+# on the handful of movements held for time, and nowhere else. Kept apart from
+# `_FIELDS` because the update path indexes those directly, which would raise
+# for every row that sensibly omits them.
+#
+# Written on update even when absent, rather than skipped: the seed file is the
+# source of truth, so deleting `unit` from an entry must return that row to
+# reps rather than leave the old value in place.
+_OPTIONAL_FIELDS: dict[str, object] = {
+    "unit": UNIT_REPS,
+    "duration_seconds": None,
+}
 
 
 def seed(rows: list[dict]) -> tuple[int, int]:
@@ -69,6 +82,8 @@ def seed(rows: list[dict]) -> tuple[int, int]:
 
             for field in _FIELDS:
                 setattr(current, field, entry[field])
+            for field, default in _OPTIONAL_FIELDS.items():
+                setattr(current, field, entry.get(field, default))
             session.add(current)
             updated += 1
 

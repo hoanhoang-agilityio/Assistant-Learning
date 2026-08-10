@@ -20,7 +20,8 @@ from app.core.langgraph.graph import LangGraphAgent
 from app.core.limiter import limiter
 from app.models.session import Session
 from app.schemas.chat import ChatRequest, ChatResponse, StreamResponse
-from app.services.session_naming import maybe_name_session
+from app.services.episodes import summarize_stale_sessions
+from app.services.session_naming import name_session
 
 router = APIRouter()
 agent = LangGraphAgent()
@@ -36,7 +37,8 @@ async def chat(
     """Process one chat turn and return the agent's reply."""
     try:
         if settings.SESSION_NAMING_ENABLED:
-            maybe_name_session(session.id, session.name, chat_request.messages)
+            name_session(session.id, session.name, chat_request.messages)
+        summarize_stale_sessions(session.user_id, session.id, agent.get_chat_history)
 
         result = await agent.get_response(
             chat_request.messages,
@@ -59,11 +61,12 @@ async def chat_stream(
 ) -> StreamingResponse:
     """Stream one chat turn as server-sent events."""
 
-    # Outside event_source() on purpose: inside the generator this would not run
+    # Outside event_source() on purpose: inside the generator neither would run
     # until the client starts consuming, and an abandoned stream would leave the
-    # session unnamed.
+    # session unnamed and its predecessors unsummarised.
     if settings.SESSION_NAMING_ENABLED:
-        maybe_name_session(session.id, session.name, chat_request.messages)
+        name_session(session.id, session.name, chat_request.messages)
+    summarize_stale_sessions(session.user_id, session.id, agent.get_chat_history)
 
     async def event_source() -> AsyncGenerator[str, None]:
         """Yield SSE frames, ending with a single ``done`` frame either way."""

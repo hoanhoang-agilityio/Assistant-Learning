@@ -24,18 +24,20 @@ config.set_main_option("sqlalchemy.url", settings.sqlalchemy_database_uri)
 
 target_metadata = SQLModel.metadata
 
-# Tables created and migrated by systems other than Alembic: the LangGraph
-# AsyncPostgresSaver (via checkpointer.setup()) and mem0's pgvector store. They
-# have no SQLModel counterpart, so without this filter the first autogenerate
-# run after the checkpointer exists emits op.drop_table("checkpoints") — and
-# applying that deletes every conversation.
+# Tables created and migrated by a system other than Alembic: the LangGraph
+# AsyncPostgresSaver, via checkpointer.setup(). They have no SQLModel
+# counterpart, so without this filter the first autogenerate run after the
+# checkpointer exists emits op.drop_table("checkpoints") — and applying that
+# deletes every conversation.
+#
+# mem0's two tables were listed here for the same reason and are not any more:
+# revision b1c47e0a9f52 drops them, so there is nothing left for autogenerate to
+# propose dropping.
 EXCLUDE_TABLES = {
     "checkpoints",
     "checkpoint_blobs",
     "checkpoint_writes",
     "checkpoint_migrations",
-    "longterm_memory",
-    "mem0migrations",
 }
 
 

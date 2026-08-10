@@ -72,3 +72,28 @@ class SessionTitle(BaseModel):
         if not v:
             raise ValueError("empty title after normalization")
         return v
+
+
+class SessionSummary(BaseModel):
+    """Structured output schema for an episodic session summary.
+
+    ``max_length`` is the real guardrail, not formatting. This text is carried
+    into the system prompt on every subsequent turn, so a model that decides to
+    recap the whole conversation would push the actual request out of the way
+    and hand the answer a second, competing account of the user's plan.
+    """
+
+    summary: str = Field(
+        min_length=1,
+        max_length=400,
+        description="Two or three sentences on what happened in this conversation",
+    )
+
+    @field_validator("summary")
+    @classmethod
+    def _normalize(cls, v: str) -> str:
+        """Collapse whitespace and strip surrounding quotes."""
+        v = " ".join(v.split()).strip(" \"'`")
+        if not v:
+            raise ValueError("empty summary after normalization")
+        return v

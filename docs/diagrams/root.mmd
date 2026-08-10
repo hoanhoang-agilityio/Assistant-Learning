@@ -6,14 +6,14 @@ config:
 graph TD;
 	__start__([<p>__start__</p>]):::first
 	classify(classify)
-	dispatch(dispatch)
-	qa(qa)
-	decline(decline)
-	load_profile(load_profile)
+	load_context(load_context)
 	extract_profile(extract_profile)
 	check_required(check_required)
 	ask_missing(ask_missing)
+	ask_goal(ask_goal)
 	intent_branch(intent_branch)
+	qa(qa)
+	decline(decline)
 	ingest_plan(ingest_plan)
 	ask_clarify_plan(ask_clarify_plan)
 	resolve_version(resolve_version)
@@ -34,30 +34,31 @@ graph TD;
 	__end__([<p>__end__</p>]):::last
 	__start__ --> classify;
 	ask_clarify_plan -.-> finalize;
+	ask_goal -.-> finalize;
 	ask_missing -.-> finalize;
 	ask_which_version -.-> finalize;
 	build_diff -.-> confirm;
 	calc_macro -.-> verification;
+	check_required -.-> ask_goal;
 	check_required -.-> ask_missing;
 	check_required -.-> intent_branch;
-	classify -.-> dispatch;
+	classify -.-> load_context;
 	compose_answer -.-> finalize;
 	confirm -.-> finalize;
 	confirm -.-> snapshot;
 	decline -.-> finalize;
-	dispatch -.-> decline;
-	dispatch -.-> load_profile;
-	dispatch -.-> qa;
 	extract_profile -.-> check_required;
 	finalize -.-> __end__;
 	ingest_plan -.-> ask_clarify_plan;
 	ingest_plan -.-> calc_macro;
+	intent_branch -.-> decline;
 	intent_branch -.-> ingest_plan;
 	intent_branch -.-> not_implemented;
 	intent_branch -.-> patch_plan;
 	intent_branch -.-> planning;
+	intent_branch -.-> qa;
 	intent_branch -.-> resolve_version;
-	load_profile -.-> extract_profile;
+	load_context -.-> extract_profile;
 	load_snapshot -.-> calc_macro;
 	load_snapshot -.-> finalize;
 	not_implemented -.-> finalize;
