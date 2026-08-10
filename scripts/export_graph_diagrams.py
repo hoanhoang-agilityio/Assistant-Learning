@@ -1,25 +1,31 @@
 #!/usr/bin/env python3
-"""Export the ``app/`` root graph and every subgraph as Mermaid markup and PNG.
+"""Export the supervisor and every agent as Mermaid markup and PNG.
 
 Run::
 
-    uv run python scripts/export_graph_diagrams.py                  # every graph
-    uv run python scripts/export_graph_diagrams.py --graph root     # just the root
-    uv run python scripts/export_graph_diagrams.py --format mmd     # no network
+    uv run python scripts/export_graph_diagrams.py                        # every graph
+    uv run python scripts/export_graph_diagrams.py --graph supervisor     # just one
+    uv run python scripts/export_graph_diagrams.py --format png           # also render
 
-The graphs are compiled here **without a checkpointer**, the same way the
-routing tests do it: drawing a topology needs no Postgres, and requiring one
-would mean the diagrams can only be regenerated on a machine with the database
-up. ``_add_nodes`` exists for exactly this reason — it is the one place the root
-graph's shape is declared, so what is drawn is what runs.
+The graphs are compiled here **without a checkpointer**: drawing a topology
+needs no Postgres, and requiring one would mean the diagrams can only be
+regenerated on a machine with the database up.
 
-The ``destinations=`` argument on every node is what makes the drawing
-truthful: an edge missing there is an edge missing from the picture, and a
-branch nothing routes to shows up as unreachable rather than hiding.
+What these pictures show is now narrower than it used to be, and the narrowing
+is the point. An agent's internal graph is fixed — a ``model`` node, a ``tools``
+node, and one node per middleware hook — so the diagram tells you which hooks are
+wired and nothing about what the model will choose to call. The order of steps is
+no longer a property of the topology; it is a decision made at runtime. Only
+``verification`` still has a shape worth reading off the picture, because it is
+the one graph left with arbitrary nodes and edges.
 
-PNG rendering defaults to ``MermaidDrawMethod.API``, which posts the Mermaid
-markup to the public mermaid.ink service. Pass ``--format mmd`` to stay local,
-or ``--draw-method pyppeteer`` to render offline in a headless browser.
+Only the Mermaid markup is written by default, and only it is committed. PNG is
+opt-in because rendering posts the markup to the public mermaid.ink service,
+which rejects some of the identifiers ``create_agent`` generates — a middleware
+named ``ToolCallLimitMiddleware[commit_draft]`` escapes into brackets the API
+will not parse. A missing PNG for one agent and not another is worse than none,
+so the ``.mmd`` files are the artifact; pass ``--draw-method pyppeteer`` to
+render locally when a picture is actually wanted.
 """
 
 import argparse
@@ -30,38 +36,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from langchain_core.runnables.graph import MermaidDrawMethod  # noqa: E402
-from langgraph.graph import StateGraph  # noqa: E402
 from langgraph.graph.state import CompiledStateGraph  # noqa: E402
 
 from app.core.langgraph.agents import AGENTS  # noqa: E402
-from app.core.langgraph.graph import GRAPH_NAME, LangGraphAgent, _add_nodes  # noqa: E402
-from app.schemas.graph import RootState  # noqa: E402
+from app.core.langgraph.supervisor import AGENT_NAME, build_supervisor  # noqa: E402
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "docs" / "diagrams"
 
 
-def build_root_graph() -> CompiledStateGraph:
-    """Compile the root graph for drawing only.
-
-    No checkpointer and no connection pool: persistence has no bearing on the
-    topology, and ``create_graph()`` would refuse to build outside production
-    when Postgres is unreachable.
-
-    Returns:
-        The compiled root graph.
-    """
-    builder = StateGraph(RootState)
-    _add_nodes(builder, LangGraphAgent())
-    builder.set_entry_point("classify")
-    return builder.compile(name=GRAPH_NAME)
-
-
-# The root graph plus every agent in the registry, so adding an agent adds its
+# The supervisor plus every agent in the registry, so adding an agent adds its
 # diagram with no edit here (`app/core/langgraph/agents/__init__.py`).
 GRAPH_BUILDERS: dict[str, Callable[[], CompiledStateGraph]] = {
-    GRAPH_NAME: build_root_graph,
+    AGENT_NAME: build_supervisor,
     **AGENTS,
 }
 
@@ -70,7 +58,7 @@ def export_graph_diagram(
     name: str,
     output_dir: Path,
     *,
-    formats: Iterable[str] = ("mmd", "png"),
+    formats: Iterable[str] = ("mmd",),
     draw_method: MermaidDrawMethod = MermaidDrawMethod.API,
 ) -> dict[str, Path]:
     """Export one graph's diagram to the output directory.
@@ -118,7 +106,7 @@ def export_graph_diagram(
 def export_all_graph_diagrams(
     output_dir: Path,
     *,
-    formats: Iterable[str] = ("mmd", "png"),
+    formats: Iterable[str] = ("mmd",),
     draw_method: MermaidDrawMethod = MermaidDrawMethod.API,
 ) -> dict[str, dict[str, Path]]:
     """Export diagrams for the root graph and every registered agent.
@@ -167,7 +155,7 @@ def parse_args() -> argparse.Namespace:
         action="append",
         choices=("mmd", "png"),
         dest="formats",
-        help="Output format to generate. Defaults to both mmd and png.",
+        help="Output format to generate. Defaults to mmd only; png needs the network.",
     )
     parser.add_argument(
         "--draw-method",
@@ -185,7 +173,7 @@ def main() -> int:
         Process exit code.
     """
     args = parse_args()
-    formats = tuple(args.formats or ("mmd", "png"))
+    formats = tuple(args.formats or ("mmd",))
     draw_method = MermaidDrawMethod(args.draw_method)
 
     if args.graph:

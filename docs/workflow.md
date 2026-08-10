@@ -2,6 +2,19 @@
 
 Design document for the LangGraph-based workout plan build/verify system.
 
+> **Orchestration is a supervisor agent** (see §3). Detail and conversion notes
+> live in `docs/supervisor-architecture.md`: the supervisor decides the order of
+> steps via tool calls; `patch_plan` and `resolve_version` are gone as root
+> nodes; guarantees that used to be edges now live in middleware, tool bodies,
+> and the draft store.
+>
+> Everything *below* the orchestration still holds, and this remains its
+> reference: the three principles in §1, the plan and catalog shapes, the rubrics
+> and what each check asserts, the confirm rules, and the reasoning behind every
+> one of them. Where a later section names a node — `classify`, `intent_branch`,
+> `calc_macro`, `compose_answer` — read it as naming the *job*; the supervisor
+> document says where that job went.
+
 ---
 
 ## 1. Three principles that govern the entire design
@@ -218,68 +231,55 @@ Parent map-out: `issues`, `verdict` → `verdict_gate`.
 
 ## 3. Overall diagram
 
-```mermaid
-flowchart TD
-    START([User query]) --> CLS["classify<br/>LLM"]
+What runs today (`app/core/langgraph/supervisor/`, `tools = [planning_agent,
+review_agent, qa_agent, list_versions, restore_version, save_plan]`): a
+supervisor model loop. Subagents are **tools**, not handoffs — results return to
+the supervisor, which writes the final answer. Middleware runs the old spine
+(topic gate, load context, extract profile) before the loop; `verification` is
+not a supervisor tool — it is called inside `commit_draft` / `score_plan`.
 
-    CLS --> LOADC["load_context<br/>det"]
-    LOADC --> EXTP["extract_profile<br/>LLM"]
-    EXTP --> CHKR{"check_required<br/>det"}
-    CHKR -->|missing fields| ASKM["ask_missing<br/>LLM"]
-    ASKM --> OUT
-    CHKR -->|goal contradicted| ASKG["ask_goal<br/>det"]
-    ASKG --> OUT
-    CHKR -->|complete| BRANCH{"intent_branch<br/>by intent"}
-
-    BRANCH -->|general_qa| QA["qa<br/>agent: LLM + search_knowledge"]
-    BRANCH -->|off_topic| DECL["decline<br/>det"]
-    BRANCH -->|revert| RESV["resolve_version<br/>LLM"]
-    BRANCH -->|build_plan| SELT["select_template<br/>det"]
-    BRANCH -->|change_plan| PATCH["patch_plan<br/>det"]
-    BRANCH -->|check| ING["ingest_plan<br/>LLM + resolve_exercise"]
-
-    QA --> OUT
-    DECL --> OUT
-
-    RESV -->|unclear| ASKV["ask_which_version<br/>LLM"]
-    RESV -->|has id| LOADS["load_snapshot<br/>det"]
-    ASKV --> OUT
-    LOADS --> GATE
-
-    SELT --> FILT["filter_candidates<br/>det"]
-    FILT --> CHOOSE["choose_exercises<br/>LLM + get_exercise_candidates"]
-    CHOOSE --> ASM["assemble_plan<br/>det"]
-
-    ASM --> CALC
-    PATCH --> CALC
-    ING -->|parse ok| CALC["calc_macro<br/>det"]
-    ING -->|parse fail| ASKP["ask_clarify_plan<br/>LLM"]
-    ASKP --> OUT
-
-    CALC --> GATE{{"fan-out by scope"}}
-    GATE --> VM["verify_macro<br/>det"]
-    GATE --> VV["verify_volume<br/>det"]
-    GATE --> VI["verify_injury<br/>det"]
-
-    VM --> MRG["merge_issues<br/>det"]
-    VV --> MRG
-    VI --> MRG
-
-    MRG --> VERD{"verdict?"}
-    VERD -->|fail and repair_count < 2| REP["repair<br/>LLM + get_exercise_candidates"]
-    REP --> CALC
-    VERD -->|fail and out of retries| CMP
-    VERD -->|pass/warn, read-only intent| CMP
-    VERD -->|pass/warn, write intent| DIFF["build_diff<br/>det"]
-
-    DIFF --> CONF["confirm<br/>interrupt"]
-    CONF -->|user declines| CMP
-    CONF -->|user accepts| SNAP["snapshot_version<br/>det"]
-    SNAP --> CMP["compose_answer<br/>LLM"]
-    CMP --> OUT([Response])
+```
+                         ┌─────────────────┐
+                         │   Supervisor    │
+                         │     Agent       │
+                         └────────┬────────┘
+                                  │
+                          tool call / decision
+                                  │
+     ┌──────────────┬─────────────┼─────────────┬──────────────┐
+     ▼              ▼             ▼             ▼              ▼
+┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
+│ planning │  │  review  │  │    qa    │  │  list_ / │  │  save_   │
+│  agent   │  │  agent   │  │  agent   │  │ restore_ │  │  plan    │
+│  (tool)  │  │  (tool)  │  │  (tool)  │  │ version  │  │  (tool)  │
+└────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘
+     │             │             │             │             │
+     ▼             ▼             ▼             ▼             ▼
+   result        result        result        result    HITL confirm
+     │             │             │             │        then result
+     │             │             │             │             │
+     └─────────────┴─────────────┴─────────────┴─────────────┘
+                                  │
+                                  ▼
+                          Supervisor Agent
+                                  │
+                                  ▼
+                             Final Answer
 ```
 
-**How to read the diagram:** `calc_macro` is an intentional bottleneck — there is no path from `patch_plan` to `confirm` that skips recomputing macros and verify. That is how the "modify must not take a shortcut" principle is enforced.
+| Supervisor tool | What it does |
+|---|---|
+| `planning_agent` | Build or change a plan (`mode="build"\|"change"`); returns a draft handle |
+| `review_agent` | Ingest + score a pasted plan; no `draft_id` (read-only) |
+| `qa_agent` | Training/nutrition Q&A (`search_knowledge`, `estimate_macros`) |
+| `list_versions` / `restore_version` | Show history; stage a prior version as a draft |
+| `save_plan` | Persist a draft; interrupted by `HumanInTheLoopMiddleware` before write |
+
+**How to read the diagram:** the supervisor may call several tools in one turn
+and re-decide after each result. Macros + verify still cannot be skipped on a
+write path — they live inside `commit_draft` / `score_plan` / `restore_version`,
+not as optional supervisor tools. Full mermaid (middleware, draft store, HITL)
+is in `docs/supervisor-architecture.md` §3.
 
 ---
 

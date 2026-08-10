@@ -139,19 +139,27 @@ that no longer exists goes away.
 
 | Prompt | Gets it | |
 |---|---|---|
-| `system.md` | yes | Under its own heading, never merged with `semantic_context` |
+| `supervisor.md` | yes | Under its own heading, below the plan it must not override |
 | `qa.md` | yes | For "what did I do before" questions |
-| `compose_answer.md` | **no** | |
+| `planning_agent.md`, `review_agent.md` | **no** | Neither writes prose about the plan's history |
 
-`_compose_answer` is excluded and must stay excluded. It once announced a 5-day
-plan as 4-day, sourcing the number from free-text memory instead of the rendered
-plan it was handed. Episodic summaries are a second free-text account of the
-user's plan history; handing them to that same prompt is the same bug with more
-material. `semantic_context` is still passed, and that is a different risk: it is
-rendered from typed columns, so there is no prose account of a plan in it to
-misread a day count from. `tests/test_app_memory.py` asserts the exclusion
-structurally, because the failure is invisible in review — the prompt still
-renders, and the wrong number still reads like prose.
+This used to be a stronger rule, and the weakening is worth stating plainly.
+`compose_answer` was excluded outright: it once announced a 5-day plan as 4-day,
+sourcing the number from free-text memory instead of the rendered plan it was
+handed, and episodic summaries are a second free-text account of the user's plan
+history. Withholding them from that one prompt was structural.
+
+The supervisor both reads the history and writes the answer, so the two can no
+longer be separated by withholding. What replaces the structure is ordering plus
+a rule: `# This user's plan` is rendered above `# What happened in earlier
+conversations`, and the prompt says earlier conversations are history and never a
+source for what the plan holds now. `tests/test_app_memory.py` asserts both, so a
+prompt edit that drops either fails — but a prompt rule is weaker than an absent
+field, and this is the honest price of the supervisor conversion
+(`docs/supervisor-architecture.md` §11).
+
+`semantic_context` remains a different risk: it is rendered from typed columns,
+so there is no prose account of a plan in it to misread a day count from.
 
 The other mitigations: `session_summary.md` forbids stating any number at all,
 and `EPISODIC_MEMORY_ENABLED=false` turns the layer off entirely.

@@ -1,0 +1,32 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	model(model)
+	tools(tools)
+	topic_gate\2ebefore_agent(topic_gate.before_agent)
+	load_context\2ebefore_agent(load_context.before_agent)
+	extract_profile\2ebefore_model(extract_profile.before_model)
+	HumanInTheLoopMiddleware\2eafter_model(HumanInTheLoopMiddleware.after_model)
+	ModelCallLimitMiddleware\2ebefore_model(ModelCallLimitMiddleware.before_model)
+	ModelCallLimitMiddleware\2eafter_model(ModelCallLimitMiddleware.after_model)
+	__end__([<p>__end__</p>]):::last
+	HumanInTheLoopMiddleware\2eafter_model -.-> __end__;
+	HumanInTheLoopMiddleware\2eafter_model -.-> extract_profile\2ebefore_model;
+	HumanInTheLoopMiddleware\2eafter_model -.-> tools;
+	ModelCallLimitMiddleware\2eafter_model --> HumanInTheLoopMiddleware\2eafter_model;
+	ModelCallLimitMiddleware\2ebefore_model -.-> __end__;
+	ModelCallLimitMiddleware\2ebefore_model -.-> model;
+	__start__ --> topic_gate\2ebefore_agent;
+	extract_profile\2ebefore_model --> ModelCallLimitMiddleware\2ebefore_model;
+	load_context\2ebefore_agent --> extract_profile\2ebefore_model;
+	model --> ModelCallLimitMiddleware\2eafter_model;
+	tools -.-> extract_profile\2ebefore_model;
+	topic_gate\2ebefore_agent -.-> __end__;
+	topic_gate\2ebefore_agent -.-> load_context\2ebefore_agent;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
