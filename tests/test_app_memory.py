@@ -270,6 +270,122 @@ async def test_a_summary_is_written_in_the_background(episodic_db, monkeypatch):
         assert db.get(ChatSession, "idle").summary == "a fat-loss plan was built and saved"
 
 
+async def test_a_session_summarizes_itself_when_a_turn_ends(episodic_db, monkeypatch):
+    """The write the whole layer hangs on.
+
+    No idle window and no claim: the session being chatted in right now is the
+    one summarised, so the account of it is already in the database by the time
+    the user opens their next conversation. Waiting for it to go quiet instead
+    is what made episodic memory one turn late — the summary landed after the
+    next session had read.
+    """
+    from sqlmodel import Session as DBSession
+
+    import app.services.episodes as episodes
+    from app.models.session import Session as ChatSession
+    from app.schemas.chat import SessionSummary
+
+    _make_session(episodic_db, "current", idle_minutes=0)
+
+    async def _summarize(_messages, **_kwargs):
+        return SessionSummary(summary="they dropped to 3 days for work travel")
+
+    monkeypatch.setattr(episodes.llm_service, "call", _summarize)
+
+    async def _transcript(_session_id):
+        from app.schemas.chat import Message
+
+        return [Message(role="user", content="I can only train 3 days")]
+
+    episodes.summarize_current_session(1, "current", _transcript)
+
+    with DBSession(episodic_db) as db:
+        assert db.get(ChatSession, "current").summary == "", "the write blocked the turn"
+
+    for _ in range(4):
+        await asyncio.sleep(0)
+
+    with DBSession(episodic_db) as db:
+        assert db.get(ChatSession, "current").summary == "they dropped to 3 days for work travel"
+
+
+async def test_a_summarized_turn_takes_its_session_out_of_the_sweep(episodic_db, monkeypatch):
+    """The two writers must not pay twice for the same conversation.
+
+    ``summarized_at`` is written with the summary, and the turn touched
+    ``last_activity_at`` before it, so the sweep's predicate no longer matches
+    however long the session then sits idle.
+    """
+    import app.services.episodes as episodes
+    from app.schemas.chat import SessionSummary
+
+    _make_session(episodic_db, "past", idle_minutes=999)
+
+    async def _summarize(_messages, **_kwargs):
+        return SessionSummary(summary="a plan was built")
+
+    monkeypatch.setattr(episodes.llm_service, "call", _summarize)
+
+    async def _transcript(_session_id):
+        from app.schemas.chat import Message
+
+        return [Message(role="user", content="build me a plan")]
+
+    episodes.summarize_current_session(1, "past", _transcript)
+    for _ in range(4):
+        await asyncio.sleep(0)
+
+    assert episodes._claim_stale_sessions(1, "current") == [], (
+        "a session already summarised by its own turn was swept again"
+    )
+
+
+async def test_a_lost_turn_end_summary_is_collected_by_the_sweep(episodic_db, monkeypatch):
+    """The failure the idle sweep still exists for.
+
+    A model call that failed, a stream the client aborted, a worker that died
+    holding the task: none of them write ``summarized_at``, so the session is
+    still eligible once it goes quiet.
+    """
+    import app.services.episodes as episodes
+
+    _make_session(episodic_db, "past", idle_minutes=999)
+
+    async def _boom(_messages, **_kwargs):
+        raise RuntimeError("model unavailable")
+
+    monkeypatch.setattr(episodes.llm_service, "call", _boom)
+
+    async def _transcript(_session_id):
+        from app.schemas.chat import Message
+
+        return [Message(role="user", content="build me a plan")]
+
+    episodes.summarize_current_session(1, "past", _transcript)
+    for _ in range(4):
+        await asyncio.sleep(0)
+
+    assert episodes._claim_stale_sessions(1, "current") == ["past"]
+
+
+async def test_an_anonymous_turn_summarizes_nothing(episodic_db):
+    """Same boundary as the sweep and as retrieval: no user, no episode.
+
+    An anonymous session has nobody to carry its history forward to, so paying
+    for a summary of it buys nothing.
+    """
+    import app.services.episodes as episodes
+
+    _make_session(episodic_db, "current", idle_minutes=0)
+
+    calls = []
+    episodes.summarize_current_session(None, "current", lambda sid: calls.append(sid))
+    for _ in range(4):
+        await asyncio.sleep(0)
+
+    assert calls == []
+
+
 async def test_episodes_name_the_plan_each_session_produced(episodic_db):
     """The FK is what replaces a graph store: which conversation made which plan.
 
