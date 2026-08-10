@@ -275,7 +275,7 @@ async def test_the_question_the_user_sees_describes_the_plan(turn, _a_draft_to_s
     answer = await _run_until_gate(agent, session, _a_draft_to_save)
 
     assert "Sessions a week: 1" in answer[0].content
-    assert "until you say yes" in answer[0].content
+    assert "This will become your plan." in answer[0].content
 
 
 # ---------------------------------------------------------------------------

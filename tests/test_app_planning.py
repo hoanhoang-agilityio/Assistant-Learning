@@ -366,7 +366,7 @@ def scored(monkeypatch):
     """
     seen: list[dict] = []
 
-    async def fake_score(plan, profile, config=None, scope=None):
+    async def fake_score(plan, profile, scope=None):
         seen.append({"plan": plan, "profile": profile})
         return (
             {"kcal": 2100, "tdee": 2400, "goal": profile.get("goal"), "protein_g": 150},

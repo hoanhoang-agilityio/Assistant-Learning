@@ -114,7 +114,7 @@ def test_filter_excludes_exercises_above_skill_level():
 
 
 def test_filter_excludes_contraindicated_exercises():
-    """workflow.md 6.2: the injury filter is in the query, not in the prompt."""
+    """workflow.md 4.1: the injury filter is in the query, not in the prompt."""
     profile = {**FULL_GYM, "injuries": ["knee_pain_patellofemoral"]}
     forbidden = forbidden_joint_actions(profile, CONTRAINDICATIONS)
     positions = forbidden_loaded_positions(profile, CONTRAINDICATIONS)
@@ -158,7 +158,7 @@ def test_unknown_injury_forbids_nothing_here():
 
 
 def test_every_slot_carries_its_own_prescription():
-    """workflow.md 6.1: sets, reps and RIR live on the slot, not in a model."""
+    """workflow.md 4.1: sets, reps and RIR live on the slot, not in a model."""
     for template_id, template in TEMPLATES.items():
         for slot in iter_slots(template):
             assert isinstance(slot["sets"], int), f"{template_id}/{slot['slot_id']}"
@@ -225,7 +225,7 @@ def test_mifflin_st_jeor_rejects_an_unknown_sex():
 
 
 def test_adding_a_training_day_raises_tdee():
-    """workflow.md 9.2: this is why change_plan must recompute macros."""
+    """workflow.md 4.4: this is why change_plan must recompute macros."""
     bmr = mifflin_st_jeor(75, 175, 28, "male")
     four = compute_tdee(bmr, "sedentary", 4)
     five = compute_tdee(bmr, "sedentary", 5)
@@ -292,7 +292,7 @@ def test_calc_macros_rejects_an_unknown_goal():
 
 def test_calc_macros_output_passes_the_macro_rubric():
     """The calculator and the verifier must agree on a normal profile."""
-    from app.core.langgraph.agents.verification.checks import check_macro
+    from app.core.langgraph.checks import check_macro
     from tests.seed import MACRO_RULES
 
     profile = {

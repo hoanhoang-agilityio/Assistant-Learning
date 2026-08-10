@@ -133,7 +133,7 @@ def scored(monkeypatch):
     """Score every restored plan as a pass, without a rubric database."""
     seen: list[dict] = []
 
-    async def fake_score(plan, profile, config=None, scope=None):
+    async def fake_score(plan, profile, scope=None):
         seen.append({"plan": plan, "profile": profile})
         return {"kcal": 2050, "tdee": 2350, "goal": profile["goal"]}, [], "pass"
 

@@ -89,6 +89,7 @@ def estimate_macros(
         ensure_ascii=False,
     )
 
+
 @tool
 async def search_knowledge(query: str, top_k: int = 4) -> list[dict]:
     """Search the training and nutrition knowledge base.
@@ -110,5 +111,6 @@ async def search_knowledge(query: str, top_k: int = 4) -> list[dict]:
     passages = await knowledge_service.search(query, top_k=top_k)
     logger.info("search_knowledge_called", query=query, top_k=top_k, results=len(passages))
     return [passage.model_dump() for passage in passages]
+
 
 __all__ = ["estimate_macros", "search_knowledge"]

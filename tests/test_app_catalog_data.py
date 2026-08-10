@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from app.core.langgraph.agents.verification.checks import check_volume
+from app.core.langgraph.checks import check_volume
 from app.models.exercise import UNIT_REPS, UNIT_SECONDS, UNITS
 from app.services.catalog import (
     candidates_for_slot,

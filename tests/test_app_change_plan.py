@@ -107,7 +107,7 @@ def scored(monkeypatch):
     """Score every plan as a pass, without a rubric database behind it."""
     seen: list[dict] = []
 
-    async def fake_score(plan, profile, config=None, scope=None):
+    async def fake_score(plan, profile, scope=None):
         seen.append({"plan": plan, "profile": profile})
         sessions = len(plan.get("days") or [])
         return (
@@ -363,7 +363,6 @@ def test_the_confirm_question_is_built_from_the_draft_not_the_call(catalog, appr
     question = _save_description({"args": {"draft_id": draft.draft_id}}, {}, None)
     assert "Drops you from 4 sessions to 3." in question
     assert "Split: Upper / Lower, 4 days" in question
-    assert "until you say yes" in question
 
 
 def test_an_expired_draft_does_not_produce_a_confident_question():

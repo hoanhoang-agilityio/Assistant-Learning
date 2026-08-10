@@ -30,7 +30,6 @@ from app.core.langgraph import drafts
 from app.core.langgraph.agents.planning import tools as planning_tools
 from app.core.langgraph.agents.qa import QAState
 from app.core.langgraph.agents.review import tools as review_tools
-from app.core.langgraph.agents.verification.state import VerifyState
 from app.core.langgraph.graph import DECLINED_MESSAGE, _is_affirmative
 from app.core.langgraph.supervisor import WRITE_TOOLS, SupervisorState, build_supervisor_with
 from app.core.langgraph.supervisor import tools as supervisor_tools
@@ -187,14 +186,23 @@ def test_every_minted_draft_carries_macros():
 def test_the_verifier_still_has_nowhere_to_put_a_transcript():
     """Blind rubric scoring, and now more strongly than before.
 
-    The verifier runs inside a plain function that is never handed a message
-    list, so there is nothing to pass in even by mistake.
+    ``VerifyState`` used to enforce this by omitting ``messages``. With the
+    subgraph gone the guarantee is in the signatures: neither :func:`score` nor
+    the checks it calls take an argument a transcript could arrive in.
     """
-    assert "messages" not in VerifyState.__annotations__
-
     from app.core.langgraph import scoring
 
-    assert "messages" not in inspect.getsource(scoring.score)
+    verifiers = (
+        scoring.score,
+        scoring.run_checks,
+        scoring.verify_macro,
+        scoring.verify_volume,
+        scoring.verify_injury,
+    )
+    for function in verifiers:
+        assert "messages" not in inspect.signature(function).parameters
+
+    assert "messages" not in inspect.getsource(scoring)
 
 
 def test_the_qa_agent_still_cannot_hold_a_plan():

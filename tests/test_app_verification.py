@@ -1,26 +1,25 @@
-"""Tests for the verification agent.
+"""Tests for verification: the rubric checks and the scoring facade over them.
 
 Every check here is a pure function over a fixture catalog, so nothing touches
-Postgres, a model or HTTP. The subgraph is compiled standalone with
-``MemorySaver`` and asserted on state, per the skill's per-agent testing rule.
+Postgres, a model or HTTP. Verification is no longer a subgraph, so what is
+asserted is the behaviour of :func:`run_checks` and :func:`score` rather than a
+topology.
 
 The properties worth regression-testing are the design's own claims:
 
 * the verifier cannot see the build transcript
 * injuries match on attributes, so a newly added exercise is caught
 * a muscle with no landmark is reported as unassessed, not passed
-* fan-out into ``issues`` merges rather than overwrites
+* scope narrows which checks run, and an empty scope runs all three
 """
 
-import uuid
+import inspect
 
 import pytest
-from langgraph.checkpoint.memory import MemorySaver
 
-from app.core.langgraph.agents.verification.checks import check_injury, check_macro, check_volume
-from app.core.langgraph.agents.verification.graph import build_verification_graph, route_scope
-from app.core.langgraph.agents.verification.nodes import sort_issues
-from app.core.langgraph.agents.verification.state import VerifyState
+from app.core.langgraph import scoring
+from app.core.langgraph.checks import check_injury, check_macro, check_volume
+from app.core.langgraph.scoring import run_checks, score, sort_issues
 from tests.seed import CONTRAINDICATIONS, MACRO_RULES, RUBRIC_VERSION, VOLUME_LANDMARKS
 
 CATALOG = {
@@ -90,9 +89,15 @@ def _severities(issues: list, source: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def test_verify_state_has_no_messages():
-    """workflow.md 1.3/7.4: the verifier must be blind to the build transcript."""
-    assert "messages" not in VerifyState.__annotations__
+def test_the_verifier_cannot_be_handed_a_transcript():
+    """workflow.md 1.3: the verifier must be blind to the build process.
+
+    ``VerifyState`` enforced this by omitting ``messages``. With the subgraph
+    gone the same guarantee is in the signatures — there is no argument a
+    message list could arrive in.
+    """
+    for function in (score, run_checks, check_macro, check_volume, check_injury):
+        assert "messages" not in inspect.signature(function).parameters
 
 
 def test_all_rubrics_share_one_version():
@@ -251,7 +256,7 @@ def test_injury_blocks_on_joint_action_not_exercise_name():
 
 
 def test_injury_catches_a_newly_added_exercise():
-    """workflow.md 7.3: a name list would miss hack_squat; an attribute rule does not."""
+    """workflow.md 6.3: a name list would miss hack_squat; an attribute rule does not."""
     profile = {**PROFILE, "injuries": ["knee_pain_patellofemoral"]}
     plan = _plan(_day("Legs", ("hack_squat", 4)))
     issues = check_injury(plan, profile, CATALOG, CONTRAINDICATIONS)
@@ -292,133 +297,119 @@ def test_injury_reports_an_unknown_injury_as_unassessed():
 
 
 # ---------------------------------------------------------------------------
-# Subgraph
+# run_checks and score
 # ---------------------------------------------------------------------------
 
 
-def test_subgraph_compiles_standalone():
-    """The agent must build without the root graph and without a checkpointer."""
-    graph = build_verification_graph()
-    assert graph.name == "verification"
-    assert {"verify_macro", "verify_volume", "verify_injury", "merge_issues"} <= set(
-        graph.get_graph().nodes
+MACROS = {"kcal": 2100, "protein_g": 150, "fat_g": 70, "tdee": 2600}
+
+# `score` computes the macros itself, so it needs the fields `calc_macros`
+# requires — which the checks alone do not read.
+SCORE_PROFILE = {**PROFILE, "activity_level": "light", "goal": "muscle_gain"}
+
+
+@pytest.fixture
+def rubrics(monkeypatch):
+    """Serve the seeded rubrics to the scoring helpers without a database.
+
+    ``run_checks`` loads each rubric itself — that is the point of the helper,
+    since a caller that had to fetch three rubrics could fetch two — so the
+    seam the tests need is the loader, not an argument.
+    """
+    monkeypatch.setattr(scoring, "macro_rules", lambda: MACRO_RULES)
+    monkeypatch.setattr(scoring, "volume_landmarks", lambda: VOLUME_LANDMARKS)
+    monkeypatch.setattr(scoring, "contraindications", lambda: CONTRAINDICATIONS)
+
+
+def _run(scope=None, **overrides):
+    """Run the checks over a default plan and profile."""
+    state = {
+        "plan": _plan(_day("Legs", ("bb_back_squat", 4))),
+        "profile": PROFILE,
+        "computed_macros": MACROS,
+        **overrides,
+    }
+    return run_checks(state["plan"], state["profile"], state["computed_macros"], CATALOG, scope)
+
+
+def test_run_checks_collects_findings_from_every_check(rubrics):
+    """All three checks contribute to one issue list."""
+    issues, verdict = _run(
+        profile={**PROFILE, "injuries": ["knee_pain_patellofemoral"]},
+        computed_macros={"kcal": 1200, "protein_g": 90, "fat_g": 70, "tdee": 2600},
     )
+    assert {issue["source"] for issue in issues} == {"macro", "volume", "injury"}
+    assert verdict == "fail"
 
 
 @pytest.mark.parametrize(
     ("scope", "expected"),
     [
-        (["injury"], ["verify_injury"]),
-        (["macro", "volume"], ["verify_macro", "verify_volume"]),
-        ([], ["verify_macro", "verify_volume", "verify_injury"]),
+        (["injury"], {"injury"}),
+        (["macro", "volume"], {"macro", "volume"}),
+        ([], {"macro", "volume", "injury"}),
+        (None, {"macro", "volume", "injury"}),
+        (["nonsense"], {"macro", "volume", "injury"}),
     ],
 )
-def test_route_scope_selects_the_named_checks(scope, expected):
-    """An empty scope means all three; a named scope means exactly those."""
-    assert route_scope({"scope": scope}) == expected
+def test_scope_selects_the_named_checks(rubrics, scope, expected):
+    """A named scope runs exactly those; anything else assesses everything.
 
-
-def _state(**overrides) -> dict:
-    """Build a verify state with sane defaults."""
-    return {
-        "plan": _plan(_day("Legs", ("bb_back_squat", 4))),
-        "profile": PROFILE,
-        "computed_macros": {"kcal": 2100, "protein_g": 150, "fat_g": 70, "tdee": 2600},
-        "catalog": CATALOG,
-        "scope": [],
-        "rubric_version": RUBRIC_VERSION,
-        "issues": [],
-        "verdict": None,
-        **overrides,
-    }
-
-
-async def test_fanout_merges_issues_from_every_branch():
-    """All three branches write `issues` concurrently — the reducer must merge them."""
-    graph = build_verification_graph()
-    profile = {**PROFILE, "injuries": ["knee_pain_patellofemoral"]}
-    result = await graph.ainvoke(
-        _state(
-            profile=profile,
-            computed_macros={"kcal": 1200, "protein_g": 90, "fat_g": 70, "tdee": 2600},
-            plan=_plan(_day("Legs", ("bb_back_squat", 4))),
-        ),
-        {"configurable": {"thread_id": str(uuid.uuid4())}},
+    An unrecognised scope must not scope *out* every check — scoring nothing
+    and reporting a pass is the one outcome that must be unreachable.
+    """
+    issues, _ = _run(
+        scope=scope,
+        profile={**PROFILE, "injuries": ["knee_pain_patellofemoral"]},
+        computed_macros={"kcal": 1200, "protein_g": 90, "fat_g": 70},
+        plan=_plan(_day("Legs", ("bb_back_squat", 4)), _day("More legs", ("leg_press", 30))),
     )
-    sources = {issue["source"] for issue in result["issues"]}
-    assert sources == {"macro", "volume", "injury"}
-    assert result["verdict"] == "fail"
+    assert {issue["source"] for issue in issues} == expected
 
 
-async def test_scope_limits_which_checks_run():
-    """A scoped `check` turn must not pay for verifiers it did not ask for."""
-    graph = build_verification_graph()
-    result = await graph.ainvoke(
-        _state(
-            scope=["injury"],
-            profile={**PROFILE, "injuries": ["knee_pain_patellofemoral"]},
-            computed_macros={"kcal": 1200, "protein_g": 90, "fat_g": 70},
-        ),
-        {"configurable": {"thread_id": str(uuid.uuid4())}},
-    )
-    assert {issue["source"] for issue in result["issues"]} == {"injury"}
-
-
-async def test_clean_plan_passes():
+def test_clean_plan_passes(rubrics):
     """A plan inside every threshold produces a pass verdict."""
-    graph = build_verification_graph()
-    result = await graph.ainvoke(
-        _state(
-            scope=["macro", "injury"],
-            plan=_plan(_day("Legs", ("leg_press", 5))),
-        ),
-        {"configurable": {"thread_id": str(uuid.uuid4())}},
-    )
-    assert result["issues"] == []
-    assert result["verdict"] == "pass"
+    issues, verdict = _run(scope=["macro", "injury"], plan=_plan(_day("Legs", ("leg_press", 5))))
+    assert issues == []
+    assert verdict == "pass"
 
 
-async def test_warnings_alone_do_not_fail():
+def test_warnings_alone_do_not_fail(rubrics):
     """A warn-only run must not spend the repair budget."""
-    graph = build_verification_graph()
-    result = await graph.ainvoke(
-        _state(scope=["volume"], plan=_plan(_day("Legs", ("leg_press", 3)))),
-        {"configurable": {"thread_id": str(uuid.uuid4())}},
+    _, verdict = _run(scope=["volume"], plan=_plan(_day("Legs", ("leg_press", 3))))
+    assert verdict == "warn"
+
+
+async def test_score_computes_macros_and_verifies_them_together(rubrics, monkeypatch):
+    """The pairing `commit_draft` depends on: no verdict without macros.
+
+    The macros the checks are graded on are the ones :func:`score` just
+    computed, so a plan cannot be assessed against a target nobody produced.
+    """
+    monkeypatch.setattr(scoring, "load_catalog", lambda *a, **k: CATALOG)
+
+    macros, issues, verdict = await score(_plan(_day("Legs", ("leg_press", 5))), SCORE_PROFILE)
+
+    assert macros["kcal"] > 0
+    assert verdict in ("pass", "warn", "fail")
+    assert all(issue["source"] in ("macro", "volume", "injury") for issue in issues)
+
+
+async def test_score_counts_sessions_off_the_plan(rubrics, monkeypatch):
+    """TDEE follows the days the user will actually train, not the days asked for."""
+    monkeypatch.setattr(scoring, "load_catalog", lambda *a, **k: CATALOG)
+    profile = {**SCORE_PROFILE, "days_per_week": 6}
+
+    two_days, *_ = await score(
+        _plan(_day("A", ("leg_press", 4)), _day("B", ("bb_bench_press", 4))), profile
     )
-    assert result["verdict"] == "warn"
+    six_days, *_ = await score({"days": []}, profile)
 
-
-async def test_subgraph_runs_under_a_checkpointer():
-    """The agent must also compile and run when a checkpointer is supplied."""
-    from langgraph.graph import END, START, StateGraph
-
-    from app.core.langgraph.agents.verification.graph import route_scope as router
-    from app.core.langgraph.agents.verification.nodes import (
-        merge_issues,
-        verify_injury,
-        verify_macro,
-        verify_volume,
-    )
-
-    builder = StateGraph(VerifyState)
-    builder.add_node("verify_macro", verify_macro)
-    builder.add_node("verify_volume", verify_volume)
-    builder.add_node("verify_injury", verify_injury)
-    builder.add_node("merge_issues", merge_issues)
-    builder.add_conditional_edges(START, router, ["verify_macro", "verify_volume", "verify_injury"])
-    for node in ("verify_macro", "verify_volume", "verify_injury"):
-        builder.add_edge(node, "merge_issues")
-    builder.add_edge("merge_issues", END)
-    graph = builder.compile(checkpointer=MemorySaver(), name="verification-test")
-
-    result = await graph.ainvoke(
-        _state(scope=["macro"]), {"configurable": {"thread_id": str(uuid.uuid4())}}
-    )
-    assert result["verdict"] == "pass"
+    assert six_days["tdee"] > two_days["tdee"]
 
 
 def test_sort_issues_puts_blocks_first():
-    """Ordering is presentation, applied by the consumer, not written back to state."""
+    """Ordering is presentation, applied by the consumer, not by the checks."""
     issues = [
         {
             "source": "volume",
