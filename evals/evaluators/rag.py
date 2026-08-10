@@ -24,8 +24,21 @@ from ragas.metrics import Faithfulness, LLMContextPrecisionWithoutReference
 from app.core.configs.config import settings
 
 # Faithfulness decomposes an answer into claims and verifies each, so it is
-# several LLM calls per sample and the slowest thing in a run.
-SCORE_TIMEOUT_SECONDS = 120.0
+# several LLM calls per sample and the slowest thing in a run. Measured at ~120s
+# for one 4.5KB answer against `gpt-5`, which is what this app's answers weigh,
+# so the old 120s cap was landing on the wrong side of the coin flip.
+SCORE_TIMEOUT_SECONDS = 300.0
+
+# Ragas defaults to 1024, which a reasoning model spends on reasoning tokens
+# before it emits a single character of the structured output — the run then
+# dies on `IncompleteOutputException`, not on anything about the data. Ragas'
+# own `_map_openai_params` documents 4096+ as the floor for the gpt-5 series,
+# but that is sized for tutorial-length answers: decomposing a full training
+# plan into claims needs far more, and 8192 still truncated on real traffic.
+# The cap only bounds a spend that never happens on short answers, so it is set
+# well clear of where truncation was observed. Ragas maps it to
+# `max_completion_tokens` for us.
+JUDGE_MAX_TOKENS = 16384
 
 # `LangchainLLMWrapper` is deprecated in ragas 0.4 and warns pointing here.
 _llm = llm_factory(
@@ -34,6 +47,7 @@ _llm = llm_factory(
         api_key=settings.EVALUATION_API_KEY,
         base_url=settings.EVALUATION_BASE_URL,
     ),
+    max_tokens=JUDGE_MAX_TOKENS,
 )
 _faithfulness = Faithfulness(llm=_llm)
 _context_precision = LLMContextPrecisionWithoutReference(llm=_llm)
@@ -42,9 +56,10 @@ _context_precision = LLMContextPrecisionWithoutReference(llm=_llm)
 def _response_text(output: Any) -> str:
     """Extract a response string for ragas from a mapped output.
 
-    The tool observation holds the retrieval, not the assistant's answer, so a
-    caller wanting true faithfulness must supply the answer through
-    ``metadata["response"]``.
+    The tool observation holds the retrieval, not the assistant's answer, so in
+    practice the answer arrives through ``metadata["response"]``, which
+    ``observation_mapper`` fills from the parent trace. This fallback only
+    covers a caller that mapped a plain string into ``output``.
 
     Args:
         output: Whatever the mapper put in ``output``.
