@@ -204,6 +204,8 @@ async def login(
         token_type="bearer",
         expires_at=token.expires_at,
         refresh_token=raw_refresh,
+        email=user.email,
+        username=user.username,
     )
 
 
@@ -221,12 +223,20 @@ async def refresh_access_token(request: Request, refresh_token: str = Form(...))
             status_code=401, detail="Invalid or expired refresh token", headers=_UNAUTHORIZED
         )
 
+    user = await database_service.get_user(user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=401, detail="Invalid or expired refresh token", headers=_UNAUTHORIZED
+        )
+
     token, raw_refresh = await _issue_login_tokens(user_id)
     return TokenResponse(
         access_token=token.access_token,
         token_type="bearer",
         expires_at=token.expires_at,
         refresh_token=raw_refresh,
+        email=user.email,
+        username=user.username,
     )
 
 

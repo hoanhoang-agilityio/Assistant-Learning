@@ -26,6 +26,8 @@ class TokenResponse(BaseResponse):
     token_type: str = Field(default="bearer", description="The type of token")
     expires_at: datetime = Field(..., description="When the access token expires")
     refresh_token: str = Field(..., description="Opaque refresh credential")
+    email: str | None = Field(default=None, description="Account email, when known")
+    username: str | None = Field(default=None, description="Optional display name")
 
 
 class UserCreate(BaseModel):

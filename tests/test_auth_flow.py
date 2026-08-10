@@ -183,6 +183,8 @@ def test_login_succeeds(client, registered):
     body = response.json()
     assert body["token_type"] == "bearer"
     assert body["refresh_token"]
+    assert body["email"] == registered["email"]
+    assert body["username"] == "tester"
 
 
 def test_wrong_password_is_unauthorized(client, registered):
