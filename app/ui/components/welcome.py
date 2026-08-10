@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from html import escape
+
 import streamlit as st
 
-from app.ui.wording import SUGGESTIONS, WELCOME_BODY, WELCOME_TITLE
+from app.ui.wording import SUGGESTIONS, WELCOME_BODY, welcome_title
 
 
 def render_welcome() -> None:
@@ -14,10 +16,12 @@ def render_welcome() -> None:
     message travels the same path as anything typed into the chat box — one
     send path, not two.
     """
+    auth = st.session_state.get("auth") or {}
+    title = welcome_title(auth.get("username"))
     st.markdown(
         '<div class="pt-welcome">'
-        f'<p class="pt-welcome__title">{WELCOME_TITLE}</p>'
-        f'<p class="pt-empty-state">{WELCOME_BODY}</p>'
+        f'<p class="pt-welcome__title">{escape(title)}</p>'
+        f'<p class="pt-empty-state">{escape(WELCOME_BODY)}</p>'
         "</div>",
         unsafe_allow_html=True,
     )

@@ -101,8 +101,8 @@ def _render_sign_in(client: httpx.Client) -> None:
         return
 
     state.sign_in(
-        email=email,
-        username=None,
+        email=tokens.get("email") or email,
+        username=tokens.get("username"),
         access_token=tokens["access_token"],
         expires_at=tokens["expires_at"],
         refresh_token=tokens["refresh_token"],

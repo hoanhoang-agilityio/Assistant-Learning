@@ -46,7 +46,20 @@ SUGGESTIONS: list[tuple[str, str, str]] = [
     ),
 ]
 
-WELCOME_TITLE = "👋 Hey! I'm PT AI — your personal training assistant."
+def welcome_title(username: str | None = None) -> str:
+    """Build the empty-state greeting.
+
+    Args:
+        username: Display name from the signed-in account, when known.
+
+    Returns:
+        A one-line welcome that addresses the user by name when available.
+    """
+    name = " ".join((username or "").split())
+    if name:
+        return f"👋 Hey {name}! I'm PT AI — your personal training assistant."
+    return "👋 Hey! I'm PT AI — your personal training assistant."
+
 
 WELCOME_BODY = (
     "Tell me your goal, your stats and how many days a week you can train, and I'll "
@@ -108,6 +121,6 @@ __all__ = [
     "TAGLINE",
     "THINKING_LABEL",
     "WELCOME_BODY",
-    "WELCOME_TITLE",
     "conversation_title",
+    "welcome_title",
 ]

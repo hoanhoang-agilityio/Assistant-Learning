@@ -142,6 +142,10 @@ def user_token(client: httpx.Client) -> str:
         # refresh and sign the user out mid-conversation.
         refresh_token=tokens["refresh_token"],
     )
+    if tokens.get("email"):
+        auth["email"] = tokens["email"]
+    if "username" in tokens:
+        auth["username"] = tokens.get("username")
     return str(tokens["access_token"])
 
 

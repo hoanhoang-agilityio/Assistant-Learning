@@ -122,7 +122,7 @@ def login(client: httpx.Client, *, email: str, password: str) -> dict[str, Any]:
         password: The account's password.
 
     Returns:
-        A ``TokenResponse`` body.
+        A ``TokenResponse`` body, including ``email`` and ``username`` when set.
 
     Raises:
         httpx.HTTPStatusError: 401 when the credentials do not match.
