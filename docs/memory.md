@@ -188,6 +188,7 @@ write path into the table.
 * **Anonymous turns have no memory of any kind.** `user_id` is the isolation
   boundary for all three persistent layers, and pooling anonymous users under a
   shared key would show one stranger's details to another.
-* **Every layer fails soft except isolation.** A dead cache, an unreachable
-  Postgres on the episodic read — each costs personalisation and returns `""`.
-  None of them may cost the user their answer.
+* **Every layer fails soft except isolation.** An unreachable Postgres on the
+  episodic read, a pgvector timeout on a knowledge lookup — each costs
+  personalisation and returns `""` or `[]`. None of them may cost the user their
+  answer.
