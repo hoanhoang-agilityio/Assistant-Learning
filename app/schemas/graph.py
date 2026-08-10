@@ -1,23 +1,25 @@
-"""Graph state and the value types that cross agent boundaries.
+"""The value types that cross agent boundaries.
 
-Three design constraints are enforced here rather than left to convention:
+State itself lives with the agent that owns it — ``SupervisorState`` in
+``core/langgraph/supervisor/``, ``PlanningState`` and ``ReviewState`` in their
+packages. What is here is the vocabulary they share: what a finding is, what a
+verdict is, and the envelopes a tool may return. Verification has no state of
+its own to place: it is plain functions over their arguments
+(``core/langgraph/scoring.py``).
+
+Two design constraints are enforced here rather than left to convention:
 
 * **State stays small.** LangGraph re-serialises the whole state after *every*
-  node, so full plan snapshots live in Postgres and state carries only
-  ``VersionRef`` index entries.
-* **Only fan-out fields get reducers.** ``issues`` is written by the three
-  verify branches concurrently and therefore needs one. Every other field
-  is written by exactly one branch; giving it a reducer would hide a
-  lost-update bug rather than prevent one.
-* **Working fields are turn-scoped.** State survives in the checkpointer, so a
-  field a turn writes and the answer reads has to be cleared when the next turn
-  starts (``NEW_TURN``) — otherwise the second turn's answer is composed partly
-  from the first turn's findings.
+  node, so full plan snapshots live in Postgres or in the draft store, and state
+  carries only ids.
+* **A handle is not content.** ``DraftEnvelope`` carries a ``draft_id`` and a
+  rendering; ``ReviewEnvelope`` deliberately carries neither an id nor anything
+  a save would accept. The difference between "a plan the user will follow" and
+  "a plan the user asked about" is that one field.
 """
 
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Literal, TypedDict
 
-from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
 
 Intent = Literal[
@@ -65,37 +67,79 @@ class GoalConflict(TypedDict):
     implied: str
 
 
-def accumulate_issues(left: list[Issue], right: list[Issue] | None) -> list[Issue]:
-    """Reducer for ``issues``: accumulate within a turn, ``None`` clears.
-
-    Plain ``add`` is right inside a turn — the three verify branches fan out and
-    every one of their findings belongs in the same answer — and wrong across
-    turns, because there is no value a node can write to get back to an empty
-    list. The findings of a build then travel into the answer for the change
-    that follows it, where they name days of a split the user no longer has.
-
-    ``None`` is the clear signal, written once per run by ``classify``. An empty
-    list cannot be it: a verifier that found nothing writes ``[]``, and that
-    must not erase what the branch beside it found.
-
-    Args:
-        left: Findings accumulated so far this turn.
-        right: Findings to add, or ``None`` to start a new turn.
-
-    Returns:
-        The merged findings, or an empty list when clearing.
-    """
-    if right is None:
-        return []
-    return left + right
-
-
 class VersionRef(TypedDict):
     """Pointer to a plan snapshot stored in the ``plan_versions`` table."""
 
     version_id: str
     label: str
     created_at: str
+
+
+class DraftEnvelope(TypedDict):
+    """What a plan-producing tool returns to the supervisor.
+
+    The ``draft_id`` is a *handle*, and that is the whole mechanic
+    The plan JSON itself never travels through the
+    supervisor's context, so there is no moment where a model retypes a set
+    count on its way to being saved. ``save_plan`` accepts the handle and reads
+    the content back out of the draft store.
+
+    ``plan_rendered`` is text to describe the plan from, not material to
+    reconstruct it out of. ``diff`` is ``None`` for a build — there is nothing to
+    compare against — and is what the confirm question shows for everything else.
+    """
+
+    status: Literal["draft"]
+    draft_id: str
+    plan_rendered: str
+    macros: dict
+    issues: list[Issue]
+    verdict: Verdict
+    diff: dict | None
+
+
+class ReviewEnvelope(TypedDict):
+    """What ``score_plan`` returns for a plan the user pasted in.
+
+    Deliberately carries **no** ``draft_id``. That absence is the enforcement:
+    a review produces nothing ``save_plan`` will accept, so the plan someone was
+    only curious about cannot become the plan they follow. The two separate
+    state fields that used to enforce it are gone; the missing handle replaces
+    them.
+    """
+
+    status: Literal["review"]
+    plan_rendered: str
+    macros: dict
+    issues: list[Issue]
+    verdict: Verdict
+
+
+class MissingFields(TypedDict):
+    """Refusal returned by a tool whose profile precondition is unmet.
+
+    Returned rather than raised: the supervisor's next move is to ask for the
+    listed fields, and a refusal it can read is what makes calling the tool
+    anyway achieve nothing but a list of what to ask for.
+    """
+
+    status: Literal["missing_fields"]
+    fields: list[str]
+
+
+class ToolRefusal(TypedDict):
+    """Any other precondition a tool declined on, with the reason to relay."""
+
+    status: Literal["refused"]
+    reason: str
+
+
+class SavedVersion(TypedDict):
+    """What ``save_plan`` returns once the snapshot is in ``plan_versions``."""
+
+    status: Literal["saved"]
+    version_id: str
+    label: str
 
 
 class PlanChanges(BaseModel):
@@ -195,106 +239,3 @@ class ProfileExtraction(BaseModel):
             "in their own words. Set this instead of guessing a key."
         ),
     )
-
-
-class RootState(BaseModel):
-    """State of the root graph — only what crosses agent boundaries.
-
-    Subgraphs declare their own narrower state and the parent maps in and out
-    explicitly, so a verifier cannot see the build transcript even by accident.
-    """
-
-    messages: Annotated[list, add_messages] = Field(default_factory=list)
-    # Semantic memory has no field here on purpose: it is `profile`, and the
-    # rendered form a prompt wants is derived from it at the point of use. A
-    # second copy in state would be written before `extract_profile` merges this
-    # turn's facts, and would therefore always be one turn behind.
-    episodic_context: str = Field(
-        default="", description="Earlier sessions, retrieved once per turn by load_context"
-    )
-
-    intent: Intent | None = Field(
-        default=None, description="Set by classify, read by check_required and intent_branch"
-    )
-    scope: list[VerifyScope] = Field(
-        default_factory=list, description="Which verifiers run this turn"
-    )
-    changes: dict = Field(default_factory=dict, description="Delta to apply for change_plan")
-    revert_target: str | None = Field(
-        default=None, description="version_id resolved from natural language for revert"
-    )
-
-    profile: dict = Field(default_factory=dict, description="User profile as loaded and extracted")
-    missing_fields: list[str] = Field(
-        default_factory=list, description="Required profile fields still unanswered"
-    )
-    goal_conflict: GoalConflict | None = Field(
-        default=None,
-        description=(
-            "Set when this turn implies a goal that contradicts the stored one. "
-            "A stale goal is silent and expensive — it flips the calorie target "
-            "from a deficit to a surplus — so the turn asks instead of guessing."
-        ),
-    )
-
-    plan: dict | None = Field(default=None, description="Approved plan — the source of truth")
-    macros: dict | None = Field(default=None, description="Macros belonging to the approved plan")
-    submitted_plan: dict | None = Field(
-        default=None,
-        description="Plan the user pasted in for review. Never written to `plan`.",
-    )
-    computed_macros: dict | None = Field(
-        default=None, description="Macros recomputed this turn, for comparison against `macros`"
-    )
-    draft_plan: dict | None = Field(default=None, description="Uncommitted working plan")
-
-    issues: Annotated[list[Issue], accumulate_issues] = Field(
-        default_factory=list,
-        description="Written concurrently by the three verify branches — reducer is mandatory",
-    )
-    verdict: Verdict | None = Field(default=None, description="Set by merge_issues")
-    repair_count: int = Field(
-        default=0, description="Repair attempts this turn. Capped at 2 — must live in state."
-    )
-
-    version_index: list[VersionRef] = Field(
-        default_factory=list, description="Index only; snapshots live in Postgres"
-    )
-    current_version_id: str | None = Field(
-        default=None, description="Version the user last approved"
-    )
-    pending_commit: dict | None = Field(
-        default=None, description="Staged diff awaiting the interrupt() confirm gate"
-    )
-
-    answer: str = Field(default="", description="Final user-facing text for this turn")
-
-
-# Written by `classify`, the entry node of every run, so each turn starts from
-# the same blank working set no matter which branch ran before it.
-#
-# These are the fields a turn *derives*: findings, verdict, the working plan and
-# its macros. The checkpointer keeps them, and a later turn reads them — so
-# without this a change_plan answer is composed from the build's draft, the
-# build's findings and, when nothing new was produced, the build's plan.
-#
-# What is deliberately absent is as important. `plan`, `macros`, `profile`,
-# `version_index` and `current_version_id` are what the user *has*; they are
-# meant to survive, and clearing them here would delete the plan every turn.
-#
-# A resume does not run `classify`, which is exactly right: the "yes" answering
-# a confirm gate continues the run that staged the change, and the diff it was
-# shown must still be there.
-NEW_TURN: dict[str, Any] = {
-    "issues": None,
-    "verdict": None,
-    "repair_count": 0,
-    "draft_plan": None,
-    "computed_macros": None,
-    "submitted_plan": None,
-    "revert_target": None,
-    # Derived from this turn's wording, so it must not outlive it. Left set, the
-    # turn after the user resolves the conflict would be asked about it again.
-    "goal_conflict": None,
-    "answer": "",
-}

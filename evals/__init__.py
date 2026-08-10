@@ -8,8 +8,9 @@ imports from it, so an eval cannot change a turn's outcome even by accident.
 The run loop itself is the Langfuse SDK's ``run_batched_evaluation``: it owns
 pagination, concurrency, retries, per-item error isolation, the resume token and
 the final flush of scores. What lives here is only what is specific to this
-project — the mappers that read ``RootState``, and the evaluators.
+project — the mappers that read the supervisor's output, and the evaluators.
 
 A regression an eval catches is a quality regression. Anything that must fail
-hard belongs in the verify subgraph (``app/core/langgraph/``) or in ``tests/``.
+hard belongs in the rubric checks (``app/core/langgraph/checks/``) or in
+``tests/``.
 """

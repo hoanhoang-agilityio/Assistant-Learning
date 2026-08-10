@@ -18,7 +18,7 @@ import pytest
 from docx import Document as new_document
 
 from app.core.configs.config import settings
-from app.core.langgraph.tools.search_knowledge import search_knowledge
+from app.core.langgraph.agents.qa.tools import search_knowledge
 from app.services import knowledge as knowledge_module
 from app.services.knowledge import (
     MAX_CHUNK_CHARS,

@@ -5,7 +5,7 @@ plain arithmetic, so a model participating in it is risk with no upside.
 
 These functions compute what the plan *targets*. Whether those targets are
 acceptable is a separate question answered by
-``app/core/langgraph/agents/verification/checks/macro.py`` against the rubric.
+``app/core/langgraph/checks/macro.py`` against the rubric.
 Keeping the two apart is what lets the verifier disagree with the calculator —
 the calculator applies a requested deficit, the verifier refuses one that is too
 deep, and neither has to know the other's thresholds.
@@ -119,9 +119,10 @@ def split_macros(
 def calc_macros(profile: dict, sessions_per_week: int, goal: str) -> dict:
     """Compute the full macro target set for a profile and a plan.
 
-    This is what ``calc_macro`` calls. It is deliberately a plain function rather
-    than a tool: it must run on every build, change and check, so there is
-    nothing for a model to decide.
+    Called from ``app.core.langgraph.scoring.score``, which is the one place
+    macros and rubric checks are computed together. Deliberately a plain function
+    rather than a tool: it must run on every build, change and review, so there
+    is nothing for a model to decide.
 
     Args:
         profile: Reads ``weight_kg``, ``height_cm``, ``age``, ``sex`` and
@@ -135,7 +136,7 @@ def calc_macros(profile: dict, sessions_per_week: int, goal: str) -> dict:
 
     Raises:
         KeyError: When a required profile field is absent. The profile gate
-            (``check_required``) runs before this and is what asks the user, so
+            on the calling tool runs before this and is what asks the user, so
             reaching here without a field is a routing bug, not user error.
         ValueError: When sex, activity level or goal is not recognised.
     """

@@ -1,10 +1,12 @@
-"""Tests for the check branch — reviewing a plan the user pasted in.
+"""Tests for the review agent — assessing a plan the user pasted in.
 
-Two failures define this branch, and both are silent:
+Two failures define this agent, and both are silent:
 
 **Overwriting the user's own plan.** They pasted someone else's programme to ask
-an opinion. Writing it to ``plan`` replaces what they actually follow with what
-they were merely curious about.
+an opinion. Turning that into the plan they follow replaces what they actually
+train with what they were merely curious about. Under the supervisor
+architecture this is prevented structurally rather than by two state fields:
+nothing here mints a ``draft_id``, and ``save_plan`` accepts nothing else.
 
 **Guessing an exercise name.** Reading "leg press" as "leg extension" does not
 produce a slightly-wrong review — it produces a confident review of a plan the
@@ -12,25 +14,21 @@ user is not doing, in which the injury check cleared a movement they never
 perform.
 """
 
+import inspect
 import json
 import uuid
 from pathlib import Path
 
 import pytest
-from langchain_core.messages import AIMessage
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import StateGraph
 
-from app.core.langgraph.agents import AGENTS
-from app.core.langgraph.agents.ingest.state import ParsedDay, ParsedExercise, ParsedPlan
-from app.core.langgraph.agents.planning.state import ExerciseChoices
-from app.core.langgraph.graph import READ_ONLY_INTENTS, LangGraphAgent, _add_nodes
-from app.schemas.graph import IntentDecision, ProfileExtraction, RootState
+from app.core.langgraph.agents.review.state import ReviewState
+from app.core.langgraph.agents.review.tools import lookup_exercise, score_plan
 from app.services.exercise_resolver import (
     CONFIDENCE_THRESHOLD,
     normalise,
     resolve_exercise,
 )
+from tests.support import call, message, updates
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
 
@@ -53,30 +51,6 @@ PROFILE = {
     "preferences": "",
 }
 
-_DEFAULTS = {
-    name: (f.default_factory() if f.default_factory else f.default)
-    for name, f in RootState.model_fields.items()
-}
-
-OWN_PLAN = {
-    "template_id": "upper_lower_4day",
-    "days": [
-        {
-            "name": "My day",
-            "exercises": [
-                {
-                    "slot_id": "s0",
-                    "exercise_id": "back_squat",
-                    "name": "Back Squat",
-                    "sets": 4,
-                    "reps": [5, 8],
-                    "rir": [1, 2],
-                }
-            ],
-        }
-    ],
-}
-
 
 @pytest.fixture(scope="module")
 def catalog() -> dict[str, dict]:
@@ -85,161 +59,114 @@ def catalog() -> dict[str, dict]:
     return {row["id"]: {**row, "exercise_id": row["id"]} for row in rows}
 
 
-def _parsed(*lines: tuple[str, int | None, list[int] | None]) -> ParsedPlan:
-    """Build the parser's output from ``(name, sets, reps)`` tuples."""
-    return ParsedPlan(
-        is_a_plan=True,
-        days=[
-            ParsedDay(
-                name="Pasted day",
-                exercises=[
-                    ParsedExercise(raw_name=name, sets=sets, reps=reps)
-                    for name, sets, reps in lines
-                ],
-            )
-        ],
-    )
-
-
 @pytest.fixture
-def pipeline(monkeypatch, catalog):
-    """Compile the root graph with storage and every model boundary stubbed."""
-    calls: dict[str, list] = {"versions": []}
+def scored(monkeypatch):
+    """Score every plan as a pass, without a rubric database behind it.
 
-    monkeypatch.setattr("app.core.langgraph.graph.load_catalog", lambda *a, **k: catalog)
-
-    async def fake_insert_version(**kwargs):
-        calls["versions"].append(kwargs)
-        return {"version_id": "v", "label": "v1", "created_at": "2026-08-05T00:00:00"}
-
-    async def fake_version_index(_user_id):
-        return []
-
-    async def fake_get_profile(_user_id):
-        return dict(PROFILE)
-
-    async def fake_upsert(_user_id, _profile):
-        return None
-
-    monkeypatch.setattr("app.core.langgraph.graph.insert_version", fake_insert_version)
-    monkeypatch.setattr("app.core.langgraph.graph.version_index", fake_version_index)
-    monkeypatch.setattr(
-        "app.core.langgraph.profile.nodes.profile_service.get_profile", fake_get_profile
-    )
-
-    # `load_context` reads two stores besides the profile. Stubbed so a test
-    # asserts what it set up, not what happens to be seeded in the developer's
-    # Postgres — the graph state a test passes in is the only plan it has.
-    async def fake_latest_version(_user_id):
-        return None
-
-    async def fake_recent_episodes(_user_id, _session_id):
-        return ""
-
-    monkeypatch.setattr("app.core.langgraph.profile.nodes.latest_version", fake_latest_version)
-    monkeypatch.setattr("app.core.langgraph.profile.nodes.recent_episodes", fake_recent_episodes)
-    monkeypatch.setattr(
-        "app.core.langgraph.profile.nodes.profile_service.upsert_profile", fake_upsert
-    )
-
-    def _build(parsed: ParsedPlan, scope: list[str] | None = None):
-        class _FakeLLM:
-            """Per-module stand-in for the shared llm_service singleton."""
-
-            def bind_tools(self, _tools):
-                return self
-
-            async def call(self, _messages, *_a, **kwargs):
-                fmt = kwargs.get("response_format")
-                if fmt is ParsedPlan:
-                    return parsed
-                if fmt is ProfileExtraction:
-                    return ProfileExtraction()
-                if fmt is ExerciseChoices:
-                    return ExerciseChoices(choices=[])
-                if fmt is not None:
-                    return fmt()
-                return AIMessage(content="Here's my read on that plan.")
-
-        for module in (
-            "app.core.langgraph.agents.planning.nodes",
-            "app.core.langgraph.profile.nodes",
-            "app.core.langgraph.agents.ingest.nodes",
-            "app.core.langgraph.graph",
-        ):
-            monkeypatch.setattr(f"{module}.llm_service", _FakeLLM())
-
-        async def fake_classify(_conversation):
-            return IntentDecision(intent="check", scope=scope or [], changes={})
-
-        monkeypatch.setattr("app.core.langgraph.routing.classify.llm_classify", fake_classify)
-
-        agent = LangGraphAgent()
-        agent._agents = {name: build() for name, build in AGENTS.items()}
-        builder = StateGraph(RootState)
-        _add_nodes(builder, agent)
-        builder.set_entry_point("classify")
-        graph = builder.compile(checkpointer=MemorySaver(), name="check-test")
-
-        config = {
-            "configurable": {"thread_id": str(uuid.uuid4())},
-            "metadata": {"user_id": "1"},
-        }
-        return graph, config, calls
-
-    return _build
-
-
-async def _run(graph, config, text="what do you think of this plan?", plan=OWN_PLAN) -> dict:
-    """Run a check turn and return the final state.
-
-    ``plan`` is what the user already has saved. Pass ``None`` for someone who
-    has never built one — the branch behaves differently, because there is then
-    nothing to review when the message carries no plan.
+    What ``score_plan`` has to guarantee is that macros were computed and the
+    verifiers ran on what was *understood*. Which findings the real rubrics
+    produce is ``test_app_verification.py``'s subject.
     """
-    await graph.ainvoke({"messages": [{"role": "user", "content": text}], "plan": plan}, config)
-    return dict(_DEFAULTS) | (await graph.aget_state(config)).values
+    seen: list[dict] = []
+
+    async def fake_score(plan, profile, scope=None):
+        seen.append({"plan": plan, "profile": profile, "scope": scope})
+        return {"kcal": 2100, "tdee": 2400, "goal": profile.get("goal")}, [], "pass"
+
+    monkeypatch.setattr("app.core.langgraph.agents.review.tools.score", fake_score)
+    monkeypatch.setattr("app.core.langgraph.rendering.load_catalog", lambda *a, **k: {})
+    return seen
+
+
+def _state(catalog: dict, **overrides) -> ReviewState:
+    """Build a review state the tools can read."""
+    return {
+        "messages": [],
+        "catalog": catalog,
+        "profile": dict(PROFILE),
+        "submitted_plan": None,
+        "unresolved": [],
+        "incomplete": [],
+        "scored": False,
+        **overrides,
+    }
+
+
+def _config() -> dict:
+    """A runnable config with a unique thread id."""
+    return {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+
+def _days(*lines: tuple[str, int | None, list[int] | None]) -> list[dict]:
+    """Build the model's transcription from ``(name, sets, reps)`` tuples."""
+    return [
+        {
+            "name": "Pasted day",
+            "exercises": [
+                {"raw_name": name, "sets": sets, "reps": reps} for name, sets, reps in lines
+            ],
+        }
+    ]
 
 
 # ---------------------------------------------------------------------------
-# Read-only
+# Read-only, structurally
 # ---------------------------------------------------------------------------
 
 
-async def test_a_pasted_plan_never_becomes_the_users_plan(pipeline):
-    """The plan they follow must survive asking about someone else's."""
-    graph, config, calls = pipeline(_parsed(("Barbell Bench Press", 4, [6, 8])))
-    values = await _run(graph, config)
-
-    assert values["submitted_plan"] is not None, "nothing was ingested"
-    assert values["plan"] == OWN_PLAN, "the pasted plan overwrote the stored one"
-    assert values["draft_plan"] is None
-    assert calls["versions"] == [], "a review created a version"
-
-
-def test_check_is_declared_read_only():
-    """The routing constant and the branch behaviour must agree."""
-    assert "check" in READ_ONLY_INTENTS
-
-
-async def test_a_pasted_plan_is_reviewed(pipeline):
-    """The point of the branch: findings, not silence."""
-    graph, config, _calls = pipeline(
-        _parsed(("Barbell Bench Press", 8, [6, 8]), ("Back Squat", 8, [5, 8]))
+async def test_a_review_produces_no_handle_anything_could_be_saved_from(catalog, scored):
+    """The absence of a draft_id is what keeps a pasted plan from being adopted."""
+    result = await call(
+        score_plan, _state(catalog), _config(), days=_days(("Barbell Bench Press", 4, [6, 8]))
     )
-    values = await _run(graph, config)
 
-    assert values["verdict"] in {"pass", "warn", "fail"}
-    assert values["answer"]
+    written = updates(result)
+    assert written["scored"] is True
+    assert "draft_id" not in written
+    assert "draft_id" not in message(result).content
 
 
-async def test_scope_narrows_which_verifiers_run(pipeline):
-    """Only a check turn lets the user's wording pick the checks."""
-    graph, config, _calls = pipeline(_parsed(("Back Squat", 8, [5, 8])), scope=["injury"])
-    values = await _run(graph, config, "my knee hurts, is this plan ok?")
+def test_the_agent_has_nowhere_to_write_a_plan():
+    """Its state carries what was understood, not a plan anything accepts."""
+    annotations = ReviewState.__annotations__
+    assert "plan" not in annotations
+    assert "draft_id" not in annotations
+    assert "submitted_plan" in annotations
 
-    sources = {issue["source"] for issue in values["issues"] if issue["source"] != "volume"}
-    assert "macro" not in sources, "a macro check ran for an injury-scoped request"
+
+def test_no_review_tool_can_reach_the_draft_store():
+    """A review that could mint a handle would be a review that could be saved."""
+    from app.core.langgraph.agents.review import tools as review_tools
+
+    for tool in review_tools.tools:
+        source = inspect.getsource(tool.coroutine or tool.func)
+        assert "drafts" not in source, f"{tool.name} reaches the draft store"
+
+
+async def test_a_pasted_plan_is_reviewed(catalog, scored):
+    """The point of the agent: findings, not silence."""
+    result = await call(
+        score_plan,
+        _state(catalog),
+        _config(),
+        days=_days(("Barbell Bench Press", 8, [6, 8]), ("Back Squat", 8, [5, 8])),
+    )
+    body = json.loads(message(result).content)
+
+    assert body["verdict"] in {"pass", "warn", "fail"}
+    assert body["macros"], "a review without macros is a review of nothing"
+    assert scored, "the verifiers never ran"
+
+
+async def test_the_review_assesses_what_was_understood(catalog, scored):
+    """The scorer sees resolved catalog ids, never the raw text."""
+    await call(
+        score_plan, _state(catalog), _config(), days=_days(("db shoulder press", 3, [8, 12]))
+    )
+
+    exercises = scored[0]["plan"]["days"][0]["exercises"]
+    assert exercises[0]["exercise_id"] == "dumbbell_shoulder_press"
+    assert "raw_name" not in exercises[0]
 
 
 # ---------------------------------------------------------------------------
@@ -247,87 +174,90 @@ async def test_scope_narrows_which_verifiers_run(pipeline):
 # ---------------------------------------------------------------------------
 
 
-async def test_an_unrecognised_exercise_is_reported_not_guessed(pipeline):
+async def test_an_unrecognised_exercise_is_reported_not_guessed(catalog, scored):
     """A low-confidence name is a question, never a nearest match."""
-    graph, config, _calls = pipeline(
-        _parsed(("Zercher good morning off pins", 3, [8, 10]), ("Back Squat", 4, [5, 8]))
+    result = await call(
+        score_plan,
+        _state(catalog),
+        _config(),
+        days=_days(("Zercher good morning off pins", 3, [8, 10]), ("Back Squat", 4, [5, 8])),
     )
-    values = await _run(graph, config)
 
-    unresolved = [i for i in values["issues"] if i["rubric_ref"] == "ingest.unresolved_exercise"]
+    body = json.loads(message(result).content)
+    unresolved = [
+        issue for issue in body["issues"] if issue["rubric_ref"] == "ingest.unresolved_exercise"
+    ]
     assert len(unresolved) == 1
     assert "Zercher" in unresolved[0]["location"]
 
     reviewed = {
         exercise["exercise_id"]
-        for day in (values["submitted_plan"] or {}).get("days", [])
+        for day in updates(result)["submitted_plan"]["days"]
         for exercise in day["exercises"]
     }
     assert reviewed == {"back_squat"}, "an unidentified line was silently included"
 
 
-async def test_a_line_without_sets_is_excluded_and_reported(pipeline):
+async def test_a_line_without_sets_is_excluded_and_reported(catalog, scored):
     """Assuming a typical set count puts invented volume into a real review."""
-    graph, config, _calls = pipeline(
-        _parsed(("Barbell Bench Press", None, None), ("Back Squat", 4, [5, 8]))
+    result = await call(
+        score_plan,
+        _state(catalog),
+        _config(),
+        days=_days(("Barbell Bench Press", None, None), ("Back Squat", 4, [5, 8])),
     )
-    values = await _run(graph, config)
 
-    missing = [i for i in values["issues"] if i["rubric_ref"] == "ingest.missing_prescription"]
+    body = json.loads(message(result).content)
+    missing = [
+        issue for issue in body["issues"] if issue["rubric_ref"] == "ingest.missing_prescription"
+    ]
     assert len(missing) == 1
 
     reviewed = {
         exercise["exercise_id"]
-        for day in (values["submitted_plan"] or {}).get("days", [])
+        for day in updates(result)["submitted_plan"]["days"]
         for exercise in day["exercises"]
     }
     assert "barbell_bench_press" not in reviewed
 
 
-async def test_no_plan_pasted_reviews_the_one_they_have(pipeline):
-    """ "Is my plan any good?" is a real question, and this is the only branch
-    that can answer it — the verifiers live here and nowhere else.
-
-    Reviewing the saved plan cannot cost them anything: ``check`` is read-only,
-    so no path from here reaches ``snapshot``.
-    """
-    graph, config, calls = pipeline(ParsedPlan(is_a_plan=False, days=[]))
-    values = await _run(graph, config, "is my plan any good?")
-
-    assert values["submitted_plan"] == OWN_PLAN, "the saved plan was never assessed"
-    assert values["plan"] == OWN_PLAN, "reviewing the saved plan altered it"
-    assert calls["versions"] == [], "a review created a version"
-    assert values["verdict"] is not None, "the verifiers never ran"
-    # The answer must say which plan this is about. A report on a plan the user
-    # did not send, presented as a report on one they did, is worse than asking.
-    assert any(issue["rubric_ref"] == "ingest.saved_plan" for issue in values["issues"])
-
-
-async def test_no_plan_pasted_and_none_saved_still_asks(pipeline):
-    """The fallback needs something to fall back to."""
-    graph, config, calls = pipeline(ParsedPlan(is_a_plan=False, days=[]))
-    values = await _run(graph, config, "should I train fasted?", plan=None)
-
-    assert values["submitted_plan"] is None
-    assert calls["versions"] == []
-    assert "couldn't find a training plan" in values["answer"]
-
-
-async def test_a_wholly_unreadable_plan_asks_rather_than_reviews(pipeline):
-    """If nothing could be identified there is nothing honest to say about it.
-
-    And specifically: it must not fall back to the saved plan. The user did send
-    something, so a review of a different plan would read as an answer to what
-    they sent. That is why the fallback tests "nothing plan-shaped was found"
-    rather than "``submitted_plan`` is empty".
-    """
-    graph, config, _calls = pipeline(
-        _parsed(("qqq zzz wwww", 3, [8, 10]), ("xyzzy plugh", 3, [8, 10]))
+async def test_a_wholly_unreadable_plan_asks_rather_than_reviews(catalog, scored):
+    """If nothing could be identified there is nothing honest to say about it."""
+    result = await call(
+        score_plan,
+        _state(catalog),
+        _config(),
+        days=_days(("qqq zzz wwww", 3, [8, 10]), ("xyzzy plugh", 3, [8, 10])),
     )
-    values = await _run(graph, config)
 
-    assert values["verdict"] is None, "a verdict was produced from nothing"
-    assert "couldn't read" in values["answer"]
+    assert updates(result)["scored"] is False
+    assert message(result).status == "error"
+    assert "qqq zzz wwww" in message(result).content, "the question must name what was unclear"
+    assert scored == [], "a verdict was produced from nothing"
+
+
+async def test_nothing_at_all_is_an_ask_not_a_crash(catalog, scored):
+    """An empty transcription must not become an assessment of an empty plan."""
+    result = await call(score_plan, _state(catalog), _config(), days=[])
+
+    assert updates(result)["scored"] is False
+    assert message(result).status == "error"
+    assert scored == []
+
+
+async def test_a_low_confidence_lookup_names_the_options(catalog, scored):
+    """The model is handed candidates to ask about, never a pick to run with."""
+    answer = json.loads(call(lookup_exercise, _state(catalog), raw_text="press"))
+
+    assert answer["exercise_id"] is None
+    assert answer["candidates"]
+    assert "do not pick one" in answer["note"]
+
+
+def test_a_confident_lookup_returns_the_match(catalog):
+    """The common case still resolves, or the tool would be useless."""
+    answer = json.loads(call(lookup_exercise, _state(catalog), raw_text="Barbell Bench Press"))
+    assert answer["exercise_id"] == "barbell_bench_press"
 
 
 # ---------------------------------------------------------------------------
@@ -351,9 +281,7 @@ def test_shorthand_resolves(catalog):
 
 def test_word_order_does_not_matter(catalog):
     """ "bench press barbell" is the same exercise as "Barbell Bench Press"."""
-    assert resolve_exercise("bench press barbell", catalog)["exercise_id"] == (
-        "barbell_bench_press"
-    )
+    assert resolve_exercise("bench press barbell", catalog)["exercise_id"] == "barbell_bench_press"
 
 
 def test_an_ambiguous_name_returns_candidates_not_a_pick(catalog):

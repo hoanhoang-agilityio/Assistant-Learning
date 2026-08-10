@@ -52,7 +52,7 @@ class UserProfile(BaseModel, table=True):
     injuries: list[str] = Field(default_factory=list, sa_column=_text_array())
 
     # Free text the user stated about what they like or want to avoid. Passed to
-    # `choose_exercises` as an extracted string rather than as a transcript, so
+    # the planning agent as an extracted string rather than as a transcript, so
     # the planner cannot be steered by anything not deliberately extracted.
     preferences: str = Field(default="")
 

@@ -1,489 +1,283 @@
-# Fitness Agent — Graph, State & Tools Architecture
+# Fitness Agent — domain rules
 
-Design document for the LangGraph-based workout plan build/verify system.
+What a plan is, what makes one acceptable, and which of those rules a model is
+allowed near. This is the reference for the **content**: the plan and catalog
+shapes, the profile gate, the three rubric checks, the confirm rules, storage
+and the injury policy.
 
----
-
-## 1. Three principles that govern the entire design
-
-**1.1. The LLM does not invent numbers.** Every number — sets, reps, RIR, calories, macros — comes from a template or a formula. The LLM may only *choose* from a pre-filtered list. The hallucination surface collapses to a single decision: "among these 6 valid exercises, which one?"
-
-**1.2. Control flow is not a tool.** If the agent may decide whether to call `verify_profile`, some turns it will skip it. Every mandatory step lives on the graph, not in the tool list.
-
-The graph is one spine and one branch point: `classify → load_context → extract_profile → check_required`, and only `check_required` has an edge to `intent_branch`, which is the only edge into any branch at all. Two edges carry the whole property, so both are asserted structurally in `tests/test_app_graph_routing.py`. That includes `general_qa` and `off_topic`, which pass the gate like everything else — see 9.4 for why passing it is not the same as being blocked by it.
-
-**1.3. The verifier is blind to the build process.** The verifier receives `(plan, profile, macros, rubric)` — not `messages`. Enforced by types: the verify subgraph uses a separate `VerifyState` with no `messages` field, so a violation is a type error, not a convention breach.
+**Orchestration is not here.** Who calls what, in what order, and why the order
+is a model's decision rather than a graph's is
+[`docs/supervisor-architecture.md`](supervisor-architecture.md). Memory layers
+are [`docs/memory.md`](memory.md); auth is
+[`docs/authentication.md`](authentication.md).
 
 ---
 
-## 2. State
+## 1. Three principles
 
-### 2.1. Supporting types
+**1.1. The LLM does not invent numbers.** Sets, reps, RIR come from the template;
+calories and macros come from a formula. The model may only *choose* from a
+pre-filtered list, so the hallucination surface collapses to one decision: "among
+these 8 legal exercises, which one?"
 
-```python
-from typing import Annotated, Literal, TypedDict
-from operator import add
+**1.2. Control flow is not a tool.** A step the model may decide to skip is a
+step that will be skipped. Steps that must run every turn are **middleware**,
+which compiles to nodes the model cannot route around; steps that are conditions
+on proceeding are **preconditions inside tool bodies**, returning a refusal the
+model can read but not argue with. Nothing mandatory is exposed as a tool the
+model chooses to call.
 
-Intent = Literal[
-    "build_plan",    # create a new plan
-    "change_plan",   # edit an existing plan
-    "check",         # grade a plan/macro — scope decides which verifiers run
-    "revert",        # restore a previous version
-    "general_qa",    # knowledge question
-    "off_topic",     # outside training and nutrition — declined, no model runs
-]
-
-VerifyScope = Literal["macro", "volume", "injury"]
-
-class Issue(TypedDict):
-    source: VerifyScope
-    severity: Literal["info", "warn", "block"]
-    location: str              # "Push A / Back squat"
-    message: str
-    suggestion: dict | None    # replacement exercise, not just an error report
-    rubric_ref: str            # "volume.quads.mrv" — traceable
-
-class VersionRef(TypedDict):   # ~100 bytes, lives in state
-    version_id: str
-    label: str
-    created_at: str
-```
-
-### 2.2. Main state
-
-```python
-class State(TypedDict):
-    # --- conversation ---
-    messages: Annotated[list, add]
-    episodic_context: str           # earlier sessions, loaded once by load_context
-    # No semantic field: semantic memory *is* `profile`, and the rendered form a
-    # prompt wants is derived from it at the point of use. A stored copy would be
-    # written before `extract_profile` merges this turn's facts, so it would
-    # always be one turn behind.
-
-    # --- routing ---
-    intent: Intent
-    scope: list[VerifyScope]        # which verifiers are on for this turn
-    changes: dict                   # delta for change_plan, e.g. {"days": 5}
-    revert_target: str | None
-
-    # --- profile ---
-    profile: dict
-    missing_fields: list[str]
-
-    # --- plan ---
-    plan: dict | None               # plan the system holds (source of truth)
-    macros: dict | None             # macros attached to the current plan
-    submitted_plan: dict | None     # plan the user PASTED IN — not *the* plan
-    computed_macros: dict | None    # macros computed for comparison
-    draft_plan: dict | None         # uncommitted draft
-
-    # --- verify ---
-    issues: Annotated[list[Issue], accumulate_issues]  # fan-out; None clears (§2.3b)
-    verdict: Literal["pass", "warn", "fail"] | None
-    repair_count: int
-
-    # --- version ---
-    version_index: list[VersionRef]       # index only; snapshots live in DB
-    current_version_id: str | None
-    pending_commit: dict | None           # staged, awaiting user confirm
-
-    # --- output ---
-    answer: str
-```
-
-### 2.3. Three fields that are easy to overlook
-
-| Field | Why they must stay separate |
-|---|---|
-| `submitted_plan` vs `plan` | User pastes someone else's plan for feedback. If `ingest_plan` writes straight into `plan`, you overwrite their approved plan with something they only wanted an opinion on. |
-| `computed_macros` vs `macros` | `verify_macro` is a comparison of two values — both must exist at once. |
-| `repair_count` | The loop crosses many nodes; a local variable does not survive. |
-
-### 2.3b. What a turn keeps and what it must throw away
-
-State lives in the checkpointer, so every field above survives into the *next* turn. Split them:
-
-| | Fields | Lifetime |
-|---|---|---|
-| **What the user has** | `plan`, `macros`, `profile`, `version_index`, `current_version_id` | Survives. Clearing these deletes the plan. |
-| **What a turn derives** | `issues`, `verdict`, `repair_count`, `draft_plan`, `computed_macros`, `submitted_plan`, `revert_target`, `answer` | Cleared at the start of every run by `classify` (`NEW_TURN` in `app/schemas/graph.py`). |
-
-Skipping the reset does not look like a bug in the branch that leaks — it looks like a wrong answer three turns later. A build reports "no vertical push exercise fits — Upper A", the user asks for five days, and the change is presented with the *build's* findings still attached, naming days of a split that no longer exists. Worse, `submitted_plan` outranks `draft_plan` everywhere it is read, so one `check` turn makes every later build compose its answer from the plan the user pasted a week ago.
-
-`issues` therefore needs a reducer that can clear: `add` accumulates within the turn (three verifiers fan out into one answer) but has no value meaning "empty". `accumulate_issues` reads `None` as the reset and `[]` as a verifier that found nothing — conflating them lets the volume check erase what the injury check found.
-
-A **resume** does not run `classify` and must not reset: the "yes" answering a confirm gate continues the run that staged the diff.
-
-### 2.4. Why `version_index` instead of full versions
-
-LangGraph serializes the entire state after **every node**. If history holds 8 versions × full plan JSON, every conversation turn rewrites everything many times — cost grows quadratically.
-
-Full snapshots live in the Postgres `plan_versions` table. State only keeps `VersionRef`s sufficient for `resolve_version` to map "the original plan" → `version_id`. Only when the user confirms a revert do we `SELECT` the full snapshot.
-
-### 2.5. Subgraph states
-
-Each subgraph declares its own narrower state. The parent maps fields in and out explicitly — a field that does not exist on the subgraph cannot leak in or be written back by accident.
-
-| Subgraph | State type | Has `messages`? | Why |
-|---|---|---|---|
-| QA | `QAState` | Yes | The question *is* the conversation |
-| Ingest | `IngestState` | Yes | The pasted plan *is* what the user typed |
-| Planning | `PlanningState` | No | Preferences arrive as an extracted string, not a transcript |
-| Verification | `VerifyState` | No | Blind to the build process (§1.3) |
-
-#### `QAState` — general_qa
-
-QA is the one branch that is an *agent* rather than a pipeline: a model, a tool and a prompt, declared with `create_agent`. There are no nodes in its package — the model/tool loop and its exit conditions come from the framework, and the policies around it are middleware:
-
-| Middleware | Replaces |
-|---|---|
-| `dynamic_prompt` | The system prompt built per call from state |
-| `ModelRetryMiddleware` | `llm_service`'s tenacity retry, same retryable-error set |
-| `ModelFallbackMiddleware` | `llm_service`'s circular fallback, same registry order |
-| `ToolCallLimitMiddleware` | "you have searched enough, answer with what you have" |
-| `ModelCallLimitMiddleware` | The hard floor under a model that only ever calls tools |
-
-```python
-class QAState(AgentState):     # messages comes from AgentState
-    plan_context: str          # rendered read-only text of plan + macros
-    semantic_context: str      # rendered from `profile`, after this turn's merge
-    episodic_context: str      # loaded once by load_context — never by the agent
-```
-
-No `plan` / `draft_plan` / `macros` field to write to. The parent passes `plan` and `macros` in as `plan_context` (a string), so a knowledge question cannot mutate the plan even by mistake.
-
-Parent map-in: `messages`, `plan_context = render(plan, macros)`, `semantic_context = render(profile)`, `episodic_context`.
-Parent map-out: the final answer, as one `AIMessage` and as `answer`. The tool round-trip stays inside the agent — the root transcript is what every other node reads, and `dump_messages` cannot represent a `ToolMessage`.
-
-#### `IngestState` — check (pasted plan)
-
-```python
-class IngestState(TypedDict):
-    messages: Annotated[list, add_messages]
-    catalog: dict
-
-    submitted_plan: dict | None
-    unresolved: list[dict]     # lines that could not be resolved confidently
-    incomplete: list[str]      # lines missing sets/reps
-```
-
-Writes to `submitted_plan`, never to `plan`. Non-empty `unresolved` / `incomplete` means the parent must ask — never guess (§5.2, §9.3).
-
-Parent map-in: `messages`, `catalog`, empty `submitted_plan` / `unresolved` / `incomplete`.
-Parent map-out: `submitted_plan`; unresolved/incomplete become `issues` notes, then route to `calc_macro` or `ask_clarify_plan`.
-
-#### `PlanningState` — build_plan
-
-```python
-class PlanningState(TypedDict):
-    profile: dict
-    goal: str
-    preferences: str           # extracted string, not a transcript
-    catalog: dict
-
-    template: dict | None
-    slots: list[dict]          # template slots + candidates from filter_candidates
-    draft_plan: dict | None
-
-    issues: Annotated[list[Issue], add]
-```
-
-No `messages`. The one conversational input the planner needs ("I hate deadlifts") arrives as `preferences`, so the reason an exercise was chosen is traceable to a value in state.
-
-Parent map-in: `profile`, `goal`, `preferences`, `catalog`, empty working fields.
-Parent map-out: `draft_plan`, `issues` → `calc_macro`, or `compose_answer` when no plan could be produced.
-
-#### `VerifyState` — verification
-
-```python
-class VerifyState(TypedDict):
-    plan: dict
-    profile: dict
-    computed_macros: dict
-    catalog: dict
-    scope: list[VerifyScope]   # which checks run; empty → all three
-    rubric_version: str
-    issues: Annotated[list[Issue], add]
-    verdict: Verdict | None
-    # NO messages — that is the point
-```
-
-The verifier cannot see the build transcript even if someone accidentally tries to pass it in. `scope` drives the fan-out: a `check` turn about knee pain does not pay for a macro comparison the user never asked; write intents pass `scope=[]`, which the subgraph reads as "run everything".
-
-Parent map-in: `plan = submitted_plan or draft_plan`, `profile`, `computed_macros`, `catalog`, `scope` (only narrowed for `check`), `rubric_version`, empty `issues`.
-Parent map-out: `issues`, `verdict` → `verdict_gate`.
+**1.3. The verifier is blind to how the plan was built.** It receives
+`(plan, profile, macros, catalog, rubric)` — never `messages`. Enforced by
+signature: `score(plan, profile, scope)` in `app/core/langgraph/scoring.py` has
+no argument a transcript could arrive in.
 
 ---
 
-## 3. Overall diagram
+## 2. Shapes
 
-```mermaid
-flowchart TD
-    START([User query]) --> CLS["classify<br/>LLM"]
+### 2.1. Plan
 
-    CLS --> LOADC["load_context<br/>det"]
-    LOADC --> EXTP["extract_profile<br/>LLM"]
-    EXTP --> CHKR{"check_required<br/>det"}
-    CHKR -->|missing fields| ASKM["ask_missing<br/>LLM"]
-    ASKM --> OUT
-    CHKR -->|goal contradicted| ASKG["ask_goal<br/>det"]
-    ASKG --> OUT
-    CHKR -->|complete| BRANCH{"intent_branch<br/>by intent"}
-
-    BRANCH -->|general_qa| QA["qa<br/>agent: LLM + search_knowledge"]
-    BRANCH -->|off_topic| DECL["decline<br/>det"]
-    BRANCH -->|revert| RESV["resolve_version<br/>LLM"]
-    BRANCH -->|build_plan| SELT["select_template<br/>det"]
-    BRANCH -->|change_plan| PATCH["patch_plan<br/>det"]
-    BRANCH -->|check| ING["ingest_plan<br/>LLM + resolve_exercise"]
-
-    QA --> OUT
-    DECL --> OUT
-
-    RESV -->|unclear| ASKV["ask_which_version<br/>LLM"]
-    RESV -->|has id| LOADS["load_snapshot<br/>det"]
-    ASKV --> OUT
-    LOADS --> GATE
-
-    SELT --> FILT["filter_candidates<br/>det"]
-    FILT --> CHOOSE["choose_exercises<br/>LLM + get_exercise_candidates"]
-    CHOOSE --> ASM["assemble_plan<br/>det"]
-
-    ASM --> CALC
-    PATCH --> CALC
-    ING -->|parse ok| CALC["calc_macro<br/>det"]
-    ING -->|parse fail| ASKP["ask_clarify_plan<br/>LLM"]
-    ASKP --> OUT
-
-    CALC --> GATE{{"fan-out by scope"}}
-    GATE --> VM["verify_macro<br/>det"]
-    GATE --> VV["verify_volume<br/>det"]
-    GATE --> VI["verify_injury<br/>det"]
-
-    VM --> MRG["merge_issues<br/>det"]
-    VV --> MRG
-    VI --> MRG
-
-    MRG --> VERD{"verdict?"}
-    VERD -->|fail and repair_count < 2| REP["repair<br/>LLM + get_exercise_candidates"]
-    REP --> CALC
-    VERD -->|fail and out of retries| CMP
-    VERD -->|pass/warn, read-only intent| CMP
-    VERD -->|pass/warn, write intent| DIFF["build_diff<br/>det"]
-
-    DIFF --> CONF["confirm<br/>interrupt"]
-    CONF -->|user declines| CMP
-    CONF -->|user accepts| SNAP["snapshot_version<br/>det"]
-    SNAP --> CMP["compose_answer<br/>LLM"]
-    CMP --> OUT([Response])
-```
-
-**How to read the diagram:** `calc_macro` is an intentional bottleneck — there is no path from `patch_plan` to `confirm` that skips recomputing macros and verify. That is how the "modify must not take a shortcut" principle is enforced.
-
----
-
-## 4. Node table
-
-### 4.1. LLM nodes
-
-| Node | Reads state | Writes state | Allowed tools |
-|---|---|---|---|
-| `classify` | `messages` | `intent`, `scope`, `changes` | — |
-| `qa` | `messages`, `plan`, `macros` (read-only) | `answer` | `search_knowledge` |
-| `extract_profile` | `messages`, `profile` | `profile`, `goal_conflict` | — |
-| `ask_missing` | `missing_fields`, `intent` | `answer` | — |
-| `ask_goal` | `goal_conflict` | `answer` | — |
-| `resolve_version` | `messages`, `version_index` | `revert_target` | — |
-| `ingest_plan` | `messages` | `submitted_plan` | `resolve_exercise` |
-| `choose_exercises` | `draft_plan.slots`, `profile` | `draft_plan` | `get_exercise_candidates` |
-| `repair` | `issues`, `draft_plan`, `profile` | `draft_plan`, `repair_count` | `get_exercise_candidates` |
-| `compose_answer` | everything | `answer` | — |
-
-`compose_answer` is handed pre-rendered text, never the state objects — so every fact its prompt asks for has to be *in* that text. The prompt opens the answer with the split, the sessions a week and the goal; when those were not rendered, the model still produced the sentence, sourcing all three from free-text memory and from findings that mentioned a day name. A 5-day plan was announced as 4-day. **Anything the prompt tells the model to state must appear in the data the prompt carries; a gap is filled, not noticed.**
-
-### 4.2. Deterministic nodes
-
-| Node | Reads state | Writes state | Internal function |
-|---|---|---|---|
-| `decline` | — | `answer` | — |
-| `load_context` | `plan` | `profile`, `episodic_context`, and `plan`/`macros` when state has none | `db.get_profile`, `db.latest_version`, `recent_episodes` |
-| `check_required` | `profile`, `intent` | `missing_fields` | `REQUIRED_FIELDS[intent]` |
-| `select_template` | `profile` | `draft_plan` (empty frame) | `db.query_templates` |
-| `filter_candidates` | `draft_plan`, `profile` | `draft_plan.slots[].candidates` | `db.query_exercises` |
-| `assemble_plan` | `draft_plan` | `draft_plan` | `validate_schema` |
-| `patch_plan` | `plan`, `changes` | `draft_plan` | `deep_merge` |
-| `calc_macro` | `profile`, `draft_plan` | `computed_macros` | `mifflin_st_jeor`, `split_macros` |
-| `verify_macro` | `computed_macros`, `draft_plan` | `issues` | rubric `macro_rules` |
-| `verify_volume` | `draft_plan`, catalog | `issues` | rubric `volume_landmarks` |
-| `verify_injury` | `draft_plan`, `profile.injuries` | `issues` | rubric `contraindications` |
-| `merge_issues` | `issues` | `verdict` | sort by severity |
-| `build_diff` | `plan`, `draft_plan` | `pending_commit` | `json_diff` |
-| `snapshot_version` | `pending_commit` | `plan`, `macros`, `version_index`, `current_version_id` | `db.insert_version` |
-| `load_snapshot` | `revert_target` | `draft_plan`, `computed_macros` | `db.get_version` |
-
----
-
-## 5. Tools
-
-Only **three** functions are exposed to the LLM. Everything else is internal; nodes call them directly.
-
-### 5.1. `get_exercise_candidates`
-
-```python
-@tool
-def get_exercise_candidates(
-    slot_id: str,
-    exclude_ids: list[str] = [],
-) -> list[dict]:
-    """Return valid exercises for one slot in the template.
-
-    Filters already applied (cannot be bypassed):
-      - movement_pattern matches the slot
-      - equipment ⊆ equipment the user has
-      - skill_level <= user level
-      - joint_actions ∩ contraindications = ∅
-
-    Returns at most 8 exercises, each with id, name, primary_muscles,
-    equipment, fatigue_cost. Does NOT return set/rep — those belong to the slot.
-    """
-```
-
-Called by: `choose_exercises`, `repair`.
-
-Key point: injury filtering lives **inside** the tool, not in the prompt. The LLM has no way to retrieve a contraindicated exercise even if it wants to.
-
-### 5.2. `resolve_exercise`
-
-```python
-@tool
-def resolve_exercise(raw_text: str) -> dict:
-    """Map a free-form exercise name to an exercise_id in the catalog.
-
-    Three tiers; stop at the first confident enough:
-      1. exact match on the alias table        → confidence 1.0
-      2. pg_trgm fuzzy, threshold 0.6          → confidence 0.8
-      3. vector search top-3, threshold .85    → confidence = score
-
-    Returns {"exercise_id": None, "confidence": 0.4, "candidates": [...]}
-    when not confident enough. The calling node MUST handle None by
-    asking the user again — never guess.
-    """
-```
-
-Called by: `ingest_plan`.
-
-Mis-mapping "leg press" to "leg extension" makes the injury check grade completely wrong. Returning `None` is correct behavior, not a failure.
-
-### 5.3. `search_knowledge`
-
-```python
-@tool
-def search_knowledge(query: str, top_k: int = 4) -> list[dict]:
-    """Semantic search over the nutrition/training knowledge base.
-    Only for general_qa. Do not use it to fetch build-plan data."""
-```
-
-Called by: `qa`.
-
-Data source: `data/knowledge/*.docx`. Each `Heading 2` is a passage (over-long sections
-are split, with the heading repeated on every part), embedded with `text-embedding-3-small`
-and stored in the `knowledge_chunks` table. Loaded via `scripts/seed_knowledge.py` —
-idempotent; only re-embeds passages whose content changed.
-
-Passages below `KNOWLEDGE_MIN_SCORE` are dropped. Vector search always returns a full
-`top_k`, so without a threshold an out-of-scope question still gets the least-related
-passages — and the model will cite them. Returning `[]` is correct: the `qa.md` prompt
-already tells the model to answer on its own and state that the knowledge base has no
-documents on that topic.
-
-### 5.4. Internal functions (LLM cannot call them)
-
-| Function | Calling node | Why not a tool |
-|---|---|---|
-| `db.get_profile` | `load_context` | Must always run; nothing to decide |
-| `db.latest_version` | `load_context` | Same row every turn; a tool would spend a round-trip deciding whether to spend 1 ms |
-| `db.query_templates` | `select_template` | Hard-criteria filter |
-| `db.query_exercises` | `filter_candidates` | Same as above |
-| `calculator_macro` | `calc_macro` | Pure arithmetic — LLM involvement is pure risk |
-| `verify_macro/volume/injury` | verify nodes | Must run; must not be skippable |
-| `find_alternative` | `verify_injury` | Catalog query by attributes |
-| `db.insert_version` | `snapshot_version` | Side effect; needs confirm first |
-
----
-
-## 6. Build plan — from template to JSON
-
-This is the inside of the `build_plan` branch.
-
-```mermaid
-flowchart LR
-    A["select_template<br/>det"] --> B["filter_candidates<br/>det"]
-    B --> C["choose_exercises<br/>LLM"]
-    C --> D["assemble_plan<br/>det"]
-```
-
-### 6.1. `select_template` — deterministic
-
-```python
-SELECT * FROM templates
-WHERE days_per_week = :days
-  AND :goal  = ANY(goal)
-  AND :level = ANY(level)
-ORDER BY popularity DESC LIMIT 3;
-```
-
-Pick top-1, or let the LLM choose among 3 if the user has special requirements. The template already contains set counts, rep ranges, and RIR ranges for each slot.
-
-**This answers "where do sets/reps come from": from the template, not from the model.**
-
-### 6.2. `filter_candidates` — deterministic
-
-For each slot, filter the catalog:
-
-```python
-candidates = [
-    ex for ex in catalog
-    if ex.movement_pattern == slot.pattern
-    and set(ex.equipment) <= set(profile.equipment)
-    and ex.skill_level <= profile.level
-    and not (set(ex.joint_actions) & forbidden_actions)
-]
-```
-
-`forbidden_actions` = union of `avoid_joint_actions` from every injury the user declared.
-
-### 6.3. `choose_exercises` — LLM
-
-Receives a slot + a list of 5–8 candidates, picks 1. This is the **only** place the LLM participates in plan creation.
-
-Prefer LLM choice over random because it handles what rules cannot:
-- avoid duplication across sessions in the week
-- balance barbell / dumbbell / machine
-- respect preferences stated in the query ("I hate deadlifts")
-
-### 6.4. `assemble_plan` — deterministic
-
-Assemble the JSON, then hard-validate:
-- every `exercise_id` exists in the catalog
-- every slot is filled
-- sets/reps match the original template (the LLM must not edit them)
-
-Validate fail → not a user error; raise an exception and log. This is a bug.
-
----
-
-## 7. Verify — what data grading uses
-
-Three rubrics, seeded from `data/rubric_seed.json` into the `rubrics` table, with `rubric_version` so old results can be reproduced.
-
-### 7.1. `verify_macro`
-
-Reads: `computed_macros`, `draft_plan.macros`, `profile`, rubric `macro_rules`.
+Produced by `commit_draft`, stored in `plan_versions.plan`, and the input to
+every check.
 
 ```json
 {
-  "rubric_version": "2026.1",
+  "template_id": "upper_lower_4day",
+  "days": [
+    {
+      "name": "Upper A",
+      "exercises": [
+        {
+          "slot_id": "ul4_horiz_push",
+          "exercise_id": "bb_bench_press",
+          "name": "Barbell bench press",
+          "sets": 4,
+          "reps": [6, 8],
+          "rir": [1, 2]
+        }
+      ]
+    }
+  ]
+}
+```
+
+A malformed plan reaching a check is a bug upstream, so the checks degrade to an
+`info` issue naming what could not be assessed rather than crashing the turn.
+
+### 2.2. Catalog entry
+
+Keyed by `exercise_id`. `contribution` is what makes set counting honest, and
+`joint_actions` / `loaded_positions` are what injury rules match on — never the
+name.
+
+```json
+{
+  "bb_bench_press": {
+    "name": "Barbell bench press",
+    "movement_pattern": "horizontal_push",
+    "joint_actions": ["shoulder_horizontal_adduction", "elbow_extension"],
+    "loaded_positions": ["shoulder_end_range_external"],
+    "contribution": {"chest": 1.0, "triceps": 0.5, "front_delts": 0.5},
+    "equipment": ["barbell", "bench"],
+    "skill_level": 2,
+    "fatigue_cost": 3
+  }
+}
+```
+
+### 2.3. Issue and the envelopes
+
+```python
+class Issue(TypedDict):
+    source: VerifyScope            # "macro" | "volume" | "injury"
+    severity: Literal["info", "warn", "block"]
+    location: str                  # "Push A / Barbell back squat"
+    message: str
+    suggestion: dict | None        # a replacement, not just a complaint
+    rubric_ref: str                # "volume.quads.mrv" — traceable to the rule
+```
+
+`suggestion` carries a fix so a repair attempt has something to act on;
+`rubric_ref` is what makes a verdict explainable months later against a stored
+`rubric_version`.
+
+Tools return one of five envelopes, all in `app/schemas/graph.py`:
+
+| Envelope | Returned by | Carries a `draft_id`? |
+|---|---|---|
+| `DraftEnvelope` | `commit_draft`, `restore_version` | **Yes** — the handle `save_plan` needs |
+| `ReviewEnvelope` | `score_plan` | **No**, deliberately — a review cannot become a saved plan |
+| `MissingFields` | any tool whose profile precondition failed | — |
+| `ToolRefusal` | any other declined precondition | — |
+| `SavedVersion` | `save_plan` | — |
+
+The plan JSON never travels through the supervisor's context; only the handle
+and a rendering do. That is what stops a model retyping a set count on the way
+to storage.
+
+---
+
+## 3. The profile gate
+
+`REQUIRED_FIELDS` in `app/services/profile.py` is a **constant, per intent**, not
+a model's judgment. Given the choice, a model eventually decides a profile looks
+complete and proceeds with `activity_level = None`, producing a TDEE that is
+wrong by several hundred calories and looks authoritative.
+
+| Intent | Required |
+|---|---|
+| `build_plan`, `change_plan` | weight, height, age, sex, activity level, days/week, equipment, injuries, goal, level |
+| `check` | weight, height, age, sex, activity level, injuries — the body data the macro and injury checks read, not the programme-shaping fields |
+| `revert` | none |
+| `general_qa` | **none, and load-bearing** |
+
+`level` is required because candidate filtering compares against it. Left
+unasked it defaulted to 1 — not a neutral default but the strictest possible
+filter, dropping whole movement patterns without the user ever claiming to be a
+beginner.
+
+The empty tuple for `general_qa` is what stands between *"how do I train around a
+sore knee?"* and a form asking for the user's height. The gate protects
+*computation* — `calc_macros` raises without an activity level — and a knowledge
+question computes nothing. A QA answer missing a number **degrades**: it gives
+the per-kg form and asks for the weight in the same breath rather than ending
+the turn with questions and no answer.
+
+Missing fields are asked for in **one** batched turn, using `FIELD_LABELS` — the
+question says "how active your day-to-day life is" rather than naming a database
+column.
+
+---
+
+## 4. Building a plan
+
+Inside `planning_agent`, three tools (`agents/planning/tools.py`). The
+boundaries are the design: *if the model runs the first step and skips the
+second, is the result wrong?*
+
+```
+get_template_slots  →  get_exercise_candidates  →  commit_draft
+ (template + slots        (the one choice)          (assemble + score +
+  + candidates)                                      mint the handle)
+```
+
+### 4.1. `get_template_slots` — template selection and filtering, bundled
+
+Templates are matched on `days_per_week`, `goal` and `level`, ordered by
+`popularity`; five are seeded from `data/template_seed.json`. The template
+already carries `sets`, `reps` and `rir` for every slot — **this is where set and
+rep counts come from, not the model.**
+
+Candidate filtering rides along because a slot list without candidates is
+useless and filtering is not a decision. Four filters, none advisory
+(`services/catalog.py`):
+
+* movement pattern matches the slot
+* the exercise's equipment ⊆ what the user has
+* skill level ≤ the user's level
+* no joint action or loaded position is contraindicated by a declared injury
+
+Empty result = conflicting constraints to report, never permission to relax a
+filter. Candidates come back cheapest-fatigue first, capped at 8: the legal list
+for a compound slot can run to thirty, and a model choosing from thirty spends
+context it needs for the rest of the week.
+
+### 4.2. `get_exercise_candidates` — the one place the model chooses
+
+It picks one candidate per slot. Preferred over a random pick because it handles
+what rules cannot: avoiding duplication across the week, balancing
+barbell/dumbbell/machine, and honouring *"I hate deadlifts"*.
+
+Injury filtering lives **inside** the tool, never in the prompt. A rule stated in
+a prompt is a rule a model can weigh against something else.
+
+`preferences` cannot influence the *split* — that comes from the template
+library, matched on days, goal and level alone. A preference naming a programme
+shape ("full body", "bro split") gets one explanatory line rather than silent
+non-compliance.
+
+### 4.3. `commit_draft` — assemble, score, mint
+
+Assembles the JSON, hard-validates it (every `exercise_id` in the catalog, every
+slot filled, sets/reps unchanged from the template), computes macros, runs the
+three checks, and writes the result to the draft store. A validation failure is a
+bug: it raises and logs rather than being reported to the user.
+
+These four cannot be separated. A tool that returned a plan without having
+verified it is a tool that will eventually be called on its own — and
+`commit_draft` is the only path that mints a `draft_id`.
+
+### 4.4. Changing a plan
+
+Same agent, `mode="change"`. The delta is merged into the existing JSON
+(`planning/patch.py`), keeping every constraint the plan already satisfied;
+regenerating from scratch loses them. Adding a training day raises TDEE, which
+moves the deficit — so macros and all three checks re-run. There is no shortcut
+for a "small" change.
+
+---
+
+## 5. Reviewing a plan the user pasted
+
+Inside `review_agent`: `lookup_exercise` and `score_plan`
+(`agents/review/tools.py`). The model transcribes the lines; it never decides
+what an exercise *is*.
+
+`resolve_exercise` (`services/exercise_resolver.py`) is tiered, and every tier
+reports a confidence:
+
+| Tier | Rule | Confidence |
+|---|---|---|
+| 1 | exact match on the normalised name or the id | `1.0` |
+| 2 | every meaningful query token appears in exactly one name | `0.8` |
+| 3 | character similarity, must clear the bar alone | the score itself |
+
+Below `CONFIDENCE_THRESHOLD = 0.85` it returns `exercise_id: None` plus the
+closest candidates. **That is correct behaviour, not a failure.** Mapping "leg
+press" onto "leg extension" does not produce a slightly-wrong review; it produces
+a confident review of a plan the user is not doing, clearing a movement they
+never perform and missing the one they do.
+
+Tiers 2 and 3 run in process over ~100 catalog rows. `pg_trgm` and pgvector are
+the right answer at scale; neither extension is installed here, and the contract
+callers depend on — `(exercise_id, confidence, candidates)` — does not change
+when the backend does.
+
+Lines that resolved are assessed; lines that did not are **reported, never
+guessed**. A review that silently omits three exercises is worse than one that
+names them. Sets and reps are never defaulted (a guessed set count is counted as
+real volume); RIR is, because it affects no check.
+
+`score_plan` returns a `ReviewEnvelope` with no handle. The distinction between
+"a plan the user follows" and "a plan the user asked about" is that missing
+field.
+
+---
+
+## 6. The three checks
+
+Pure functions in `app/core/langgraph/checks/`, called by
+`run_checks` in `app/core/langgraph/scoring.py` — no graph, no model, no I/O.
+Rubrics are seeded from `data/rubric_seed.json` into the `rubrics` table and
+carry a `rubric_version` (currently `2026.2`) so an old verdict stays
+reproducible.
+
+`scope` narrows which checks run: `["injury"]` for a question about knee pain,
+empty for anything that could be saved. An empty or unrecognised scope runs all
+three — scoring nothing and reporting a pass is the one outcome that must be
+unreachable.
+
+Verdict: any `block` → `fail`; any `warn` → `warn`; otherwise `pass`. Warnings
+never fail a plan — they are judgment calls the user is entitled to overrule.
+
+### 6.1. `check_macro`
+
+Reads `computed_macros` and `profile` against `macro_rules`:
+
+```json
+{
+  "rubric_version": "2026.2",
   "protein_g_per_kg": {"min": 1.6, "target": 2.0, "max": 2.5},
   "fat_g_per_kg": {"min": 0.6},
   "deficit": {"max_pct_bw_per_week": 1.0, "max_pct_tdee": 25},
@@ -491,34 +285,37 @@ Reads: `computed_macros`, `draft_plan.macros`, `profile`, rubric `macro_rules`.
 }
 ```
 
-Fail when: protein below floor, deficit too deep, kcal below floor.
+Blocks on protein below the floor, fat below the floor, kcal below the
+sex-specific floor, and a deficit deeper than 25% of TDEE — each with the
+corrected number as a `suggestion`. Without body weight it reports that the
+targets were **not assessed** rather than assuming one.
 
-### 7.2. `verify_volume`
+### 6.2. `check_volume`
 
-Reads: `draft_plan`, catalog (to map exercises → muscle groups), rubric `volume_landmarks`.
+Reads the plan and the catalog against `volume_landmarks`: fourteen muscle
+groups, each with `mev` / `mav` / `mrv` and a cited `source`, plus:
 
 ```json
 {
-  "rubric_version": "2026.1",
-  "quads":      {"mev": 8, "mav": [12, 18], "mrv": 22},
-  "chest":      {"mev": 8, "mav": [12, 20], "mrv": 22},
-  "side_delts": {"mev": 8, "mav": [16, 22], "mrv": 26},
-  "frequency":  {"min_per_week": 2, "max_per_week": 4},
-  "session":    {"max_sets": 25, "max_hard_sets_per_muscle": 10}
+  "frequency": {"min_per_week": 2, "max_per_week": 3},
+  "session":   {"max_sets": 25, "max_hard_sets_per_muscle": 10}
 }
 ```
 
-Catalog is required for conversion — one bench set contributes 1.0 set to chest, 0.5 to triceps and front delts:
+Sets are counted **fractionally** through `contribution`: one bench set is 1.0 to
+chest and 0.5 each to triceps and front delts. Counting it whole for every muscle
+it touches inflates every total and blocks plans that are fine.
 
-```json
-"contribution": {"chest": 1.0, "triceps": 0.5, "front_delts": 0.5}
-```
+Above MRV blocks (suggesting the top of MAV); below MEV warns — too little
+volume is not dangerous. Frequency and session length warn. A muscle group with
+no landmark, or an exercise missing from the catalog, produces an `info` issue
+saying so: silence reads as approval. Muscles whose `mev` is 0 are exempt from
+the frequency minimum — the rubric is saying they need no direct work, and
+demanding a weekly minimum for them would contradict it.
 
-Fail when: sets/week outside MEV–MRV, frequency < 2, session too long, two consecutive days hitting the same heavy muscle group.
+### 6.3. `check_injury`
 
-### 7.3. `verify_injury`
-
-Reads: `draft_plan`, catalog, `profile.injuries`, rubric `contraindications`.
+Reads the plan, `profile.injuries` and the catalog against `contraindications`:
 
 ```json
 {
@@ -527,331 +324,172 @@ Reads: `draft_plan`, catalog, `profile.injuries`, rubric `contraindications`.
     "avoid_joint_actions": ["knee_flexion_deep"],
     "avoid_loaded_positions": ["knee_end_range"],
     "limit": [{"pattern": "lunge", "max_sets_week": 4}]
-  },
-  "shoulder_impingement": {
-    "severity": "block",
-    "avoid_joint_actions": ["shoulder_abduction_overhead"],
-    "avoid_loaded_positions": ["shoulder_end_range_external"]
   }
 }
 ```
 
-**Map injuries to forbidden attributes, not to exercise name lists.** If you write `"knee pain": ["squat", "lunge"]`, tomorrow `hack_squat` lands in the catalog and slips through. Mapping to `joint_actions` means every new exercise is graded correctly automatically, because the rule is a set intersection:
+**Injuries map to forbidden attributes, never to exercise-name lists.** Write
+`"knee pain": ["squat", "lunge"]` and tomorrow `hack_squat` lands in the catalog
+and slips through. As a set intersection over `joint_actions` and
+`loaded_positions`, every exercise added later is graded correctly for free.
 
-```python
-def verify_injury(plan, profile, catalog, rubric) -> list[Issue]:
-    issues = []
-    forbidden = union(rubric[i]["avoid_joint_actions"]
-                      for i in profile["injuries"])
-    for day in plan["days"]:
-        for ex in day["exercises"]:
-            meta = catalog[ex["exercise_id"]]
-            hits = set(meta["joint_actions"]) & forbidden
-            if hits:
-                issues.append(Issue(
-                    source="injury",
-                    severity="block",
-                    location=f"{day['name']} / {meta['name']}",
-                    message=f"Contraindicated: {sorted(hits)}",
-                    suggestion=find_alternative(meta, forbidden),
-                    rubric_ref=f"contraindications.{profile['injuries'][0]}",
-                ))
-    return issues
-```
+Pattern limits (`max_sets_week`) apply across the week, not per session. Each
+block carries a safe alternative — one that does not carry the same
+contraindication. An injury with no rubric entry is reported as **not assessed**;
+a free-text injury the extractor could not map is stored as `unmapped_injury`
+rather than guessed at.
 
-No LLM in this function.
-
-**Note:** `filter_candidates` already filters injuries at build time, but `verify_injury` **must still run** — because `patch_plan` and `ingest_plan` introduce exercises without going through that filter.
-
-### 7.4. Verify subgraph with its own state
-
-Full field list and parent map-in/out: see §2.5 (`VerifyState`). Summary:
-
-```python
-class VerifyState(TypedDict):
-    plan: dict
-    profile: dict
-    computed_macros: dict
-    catalog: dict
-    scope: list[VerifyScope]   # empty → run all three checks
-    rubric_version: str
-    issues: Annotated[list[Issue], add]
-    verdict: Verdict | None
-    # NO messages — that is the point
-```
-
-The verifier cannot see the build process even if someone accidentally tries to pass it in.
+Candidate filtering already excludes contraindicated exercises at build time, but
+this check must still run: `patch_plan` and a pasted plan both introduce
+exercises that never passed that filter.
 
 ---
 
-## 8. Repair loop
+## 7. When to stop trying
 
-```mermaid
-flowchart LR
-    MRG["merge_issues"] --> V{"verdict"}
-    V -->|"pass / warn"| NEXT["continue"]
-    V -->|"fail, count < 2"| REP["repair<br/>LLM"]
-    V -->|"fail, count >= 2"| ESC["return issue list<br/>for user decision"]
-    REP --> CALC["calc_macro"]
-    CALC --> MRG
-```
+The repair loop is the planning agent's own loop, capped by middleware rather
+than by a counter in state:
 
-`repair` receives `issues` + `draft_plan`, calls `get_exercise_candidates` to replace violating exercises. It does **not** receive `messages` — same reason as the verifier.
-
-After 2 attempts, stop and present issues to the user. Do not let the agent repair forever: if two tries fail, the constraints are usually contradictory (user wants 6 days/week, only has resistance bands, pain in both knees and shoulders) — that needs the user, not more agent loops.
-
----
-
-## 9. Four scenarios — detailed flows
-
-### 9.1. "I want a fat-loss plan" — missing information
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant G as Graph
-    participant DB as Postgres
-
-    U->>G: "want a fat-loss plan"
-    G->>G: classify → intent=build_plan
-    G->>DB: load_context
-    DB-->>G: {} or old profile
-    G->>G: extract_profile → extracts nothing
-    G->>G: check_required → missing 7 fields
-    G->>U: ask_missing (batched in one turn)
-    U->>G: "75kg, 175cm, 28yo, desk job, 4 days, full gym, left knee pain"
-    G->>G: extract_profile → fills everything
-    G->>G: check_required → OK
-    G->>G: select_template → filter → choose → assemble
-    G->>G: calc_macro → verify ×3 → merge
-    G->>G: build_diff → confirm
-    U->>G: OK
-    G->>DB: snapshot_version v1
-    G->>U: plan + report
-```
-
-`REQUIRED_FIELDS["build_plan"]` = weight, height, age, sex, activity level, days/week, level, equipment, injuries, goal.
-
-This list is a **deterministic constant**; do not let the LLM decide what to ask. If it decides, some turns it will think "enough already" and enter the loop with `activity_level = None`.
-
-Batch all questions into one turn; do not ask one by one.
-
-### 9.2. "Change 4 days to 5" — change_plan
-
-```mermaid
-flowchart LR
-    A["classify<br/>intent=change_plan<br/>changes={days: 5}"] --> B["patch_plan"]
-    B --> C["calc_macro<br/>TDEE CHANGES"]
-    C --> D["verify ×3"]
-    D --> E["build_diff"]
-    E --> F["confirm<br/>REQUIRED"]
-    F --> G["snapshot v2"]
-```
-
-Core point: adding one training day raises TEA → raises TDEE → breaks the current deficit. So `calc_macro` and all three verifiers must re-run; no shortcuts.
-
-`patch_plan` only merges the delta into the JSON, keeping every existing constraint (goal, equipment, level). Routing straight back to `build_plan` regenerates from scratch and loses context.
-
-If the change is structural (4→5 days changes the split), `patch_plan` re-calls `select_template` for the new frame but **keeps previously chosen exercises** in slots that still match the pattern.
-
-Confirm is mandatory: we are overwriting an approved plan.
-
-### 9.3. "Is this plan OK? I have knee pain" — check
-
-```mermaid
-flowchart TD
-    A["classify<br/>intent=check<br/>scope=[macro,volume,injury]"] --> B["load + extract profile"]
-    B --> C["ingest_plan<br/>LLM + resolve_exercise"]
-    C -->|"low confidence"| D["ask_clarify_plan"]
-    C -->|"parse OK"| E["calc_macro"]
-    E --> F["verify ×3"]
-    F --> G["compose_answer"]
-    G --> H["NO snapshot"]
-```
-
-`ingest_plan` is the step the other three cases do not have. Without normalizing to the schema, verify has nothing to grade.
-
-Write to `submitted_plan`, **not** to `plan`.
-
-Low confidence from `resolve_exercise`, or missing sets/reps → ask again, do not guess.
-
-This is a read-only branch: skip `build_diff`, `confirm`, `snapshot_version`.
-
-### 9.4. "What is protein?" — general_qa
-
-Does not touch the plan graph. But reads `plan`/`macros` from state for personalization:
-
-> Protein is… Your plan currently sets 150g/day, i.e. 2g/kg — at the target level for a fat-loss phase.
-
-This is what makes a PT chatbot different from a general knowledge bot.
-
-**It passes through the gate, and is never held there.** `REQUIRED_FIELDS["general_qa"]` is `()`, deliberately and load-bearingly: the gate protects *computation* — `calc_macros` raises without an activity level — and a knowledge question computes nothing. A question about pain must get an answer, not a form. The tuple's emptiness is what guarantees that, so it carries a test of its own.
-
-Passing through the gate is what makes the layer useful rather than merely harmless. `extract_profile` runs first, so *"I'm 73 kg now, how much protein?"* is answered with 73 rather than with last week's number — the profile absorbs what was said *this turn* before the answer is written.
-
-A QA turn that is missing a number it needs **degrades**; it does not ask. `qa.md` gives the per-kg form and asks for the weight in the same breath, because `ask_missing` ends a turn with questions and no answer — right for `build_plan`, wrong for "how much protein?".
-
-**Technical constraint:** this node may only return `{"answer": ...}`. No other keys. A knowledge question must not mutate the plan.
-
-### 9.5. "Go back to the original plan" — revert
-
-```mermaid
-flowchart TD
-    A["classify → revert"] --> B["resolve_version<br/>LLM maps language → version_id"]
-    B -->|"null"| C["list versions for user to pick"]
-    B -->|"has id"| D["load_snapshot from DB"]
-    D --> E{"profile_hash match?"}
-    E -->|"match"| F["reuse old verify_report"]
-    E -->|"changed"| G["re-verify ×3"]
-    F --> H["build_diff"]
-    G --> H
-    H --> I["confirm"]
-    I --> J["snapshot a NEW version"]
-```
-
-**Revert is append, not rewind.** Restoring v1 creates v4 with v1's content, with `restored_from: "v1"`, `parent_id: "v3"`. v2 and v3 remain — delete them and the user cannot undo the undo, and they will need to ("actually, go back to the 5-day version").
-
-**`profile_hash` gate:** between v1 and now, the user may have lost 3kg (old macros are wrong) or newly reported knee pain (v1 passed injury check when there was no injury). Blind restore returns a plan that was once valid but is now contraindicated. If the hash matches, verify is guaranteed to produce the same result — skip and save 3 compute passes.
-
-**Diff is shown against the current plan**, not the target. Users care about "what am I about to lose":
-
-> Reverting to v1 (4 days, PPL). Dropping: day 5, the shoulder volume cut from v3. Macros back to 2100 kcal (currently 2300). Re-verified because weight changed 78 → 75kg.
-
----
-
-## 10. Confirm rules
-
-| Intent | Confirm? | Reason |
+| Limit | Value | Behaviour |
 |---|---|---|
-| `build_plan` | No | User has nothing to lose yet |
-| `change_plan` | **Yes** | Overwrites an approved plan |
-| `revert` | **Yes** | Overwrites an approved plan |
-| `check` | No | Read-only |
-| `general_qa` | No | Read-only |
-| `off_topic` | No | Declined before any branch runs |
+| `commit_draft` calls | 3 | `continue` — the agent reports what is unresolved |
+| `get_exercise_candidates` calls | 12 | `continue` — one failed check can name several slots |
+| model calls (planning) | 17 | `end` — a floor under a model that only ever calls tools |
+| model calls (supervisor) | 8 | `end` — a two-intent turn legitimately runs three or four hops |
 
-### 10.1. The topic gate
+Two or three failed attempts usually means genuinely conflicting constraints —
+six days a week, bands only, both knees painful — and that is a decision for the
+user. An uncapped loop turns it into a timeout.
 
-`off_topic` is the one intent with no branch behind it. `intent_branch` sends it
-to `decline`, which writes a constant and goes to `finalize` — no model call and
-no path to anything that touches a plan. It does pass through `load_context` on
-the way, like every turn; `extract_profile` returns immediately for it, so an
-off-topic message costs no model call and writes nothing to the profile.
+---
 
-It lives in the classifier rather than in a guardrail node in front of it
-because `classify` already reads the conversation and already pays for a model
-call; a separate gate would add a round-trip to every turn to catch the rare
-one. It is deliberately **not** the fallback when classification fails — that
-stays `general_qa`. A classifier that just errored has made no judgment, and
-turning a model outage into a refusal aimed at the user is the worse failure.
+## 8. Confirm rules
+
+| Action | Confirm? | Reason |
+|---|---|---|
+| Build a plan | No | Nothing is overwritten until `save_plan` |
+| **Save a plan** (`save_plan`) | **Yes** | The only write to `plan_versions` |
+| Review a pasted plan | No | Read-only, and mints no handle |
+| Knowledge question | No | Read-only |
+| Off topic | No | Declined before the agent loop starts |
+
+The gate is `HumanInTheLoopMiddleware`, interrupting on the **tool name**
+`save_plan` — not on a model's judgment about whether a change is significant.
+`interrupt()` freezes state at the pause point, so "yes" resumes the run that
+staged the plan rather than rebuilding one from the transcript. Only `approve`
+and `reject` are allowed decisions: an `edit` could hand back a different
+`draft_id`, which is exactly the substitution the draft store exists to prevent.
+Anything that is not a recognised yes is a no, and leaves the stored plan
+untouched.
+
+The question the user sees is rendered from the **draft** — its diff, its
+rendering, its findings — never from the model's tool-call arguments.
+
+### 8.1. The topic gate
+
+`off_topic` is the one classification with nothing behind it: the gate writes a
+constant and ends the turn before the agent loop starts, so no model call and no
+tool. It reuses the classifier the turn was paying for anyway — a separate
+guardrail would add a round-trip to every turn to catch the rare one — and it is
+deliberately **not** the fallback when classification fails. That stays
+`general_qa`: a classifier that just errored has made no judgment, and turning a
+model outage into a refusal aimed at the user is the worse failure.
 
 The boundary is narrow on purpose. Pain, injury, supplements, sleep and body
-composition are in domain and route to `general_qa`, which answers them as
-training questions and says plainly that a diagnosis is not what it is giving.
-That disclaimer lives in `qa.md`, not `system.md`: the QA agent builds its
-system prompt with `@dynamic_prompt`, so `system.md` never reaches it.
-
-`confirm` is implemented with LangGraph's `interrupt()`, not by asking and waiting for the next turn — that way state is frozen at the pause point.
+composition are in domain and answered as training questions, with a plain
+statement that this is not a diagnosis. That disclaimer lives in the QA agent's
+prompt, which is where the model that answers reads from.
 
 ---
 
-## 11. Storage
+## 9. Versions and revert
+
+**A restore is append, not rewind.** Restoring v1 creates v4 carrying v1's
+content, with `restored_from = v1` and `parent_id = v3`. v2 and v3 stay — delete
+them and the user cannot undo the undo, and they will need to.
+
+**A restored plan is always re-verified.** The old verdict is not reused: between
+v1 and now the user may have lost 3 kg, or declared knee pain that did not exist
+then, and a blind restore returns a plan that was once valid and is now
+contraindicated. `profile_hash` is not used to *skip* the checks — they are pure
+functions over data already in memory — but to tell the user *which* case they
+are in: "your details are unchanged, so the same checks apply" or "your details
+have changed, so it was checked again".
+
+**The diff is shown against the current plan**, not the target. Users care about
+what they are about to lose:
+
+> Reverting to v1 (4 days, PPL). Dropping: day 5, the shoulder volume cut from
+> v3. Macros back to 2100 kcal (currently 2300).
+
+`list_versions` renders the index deterministically — a model paraphrasing it
+could drop or reorder the entry the user is trying to choose between — and
+`restore_version` takes an id from that list. An id belonging to another user is
+refused with the same wording as one that does not exist; saying so differently
+would confirm it exists.
+
+---
+
+## 10. Storage
 
 | Data | Where | Why |
 |---|---|---|
-| Exercise catalog (~200 rows) | Postgres + GIN index | Needs precise array/set ops, not semantic search |
-| Template library | Postgres, seeded from `data/template_seed.json` | Config; changes go through review of the seed file |
-| Rubrics ×3 | Postgres, PK `(name, version)` | `rubric_version` must reproduce old results, so a version is never rewritten |
-| User profile | Postgres | |
-| `plan_versions` | Postgres | Full snapshots |
-| Conversation state | LangGraph Postgres checkpointer | Keyed by `thread_id = session.id`, so it stops at the session boundary |
-| Session summaries (`session.summary`) | Postgres | Episodic memory — what survives that boundary. See `docs/memory.md` |
-| Semantic memory | `user_profile` | Standing facts about the user, typed and undated |
-| Exercise aliases + embeddings | pgvector | Only for `resolve_exercise` |
-| Knowledge base (`knowledge_chunks`) | pgvector | Only for `search_knowledge`; source is `data/knowledge/*.docx` |
+| Exercise catalog (~100 rows) | Postgres `exercises`, GIN-indexed | Precise array/set ops, not semantic search |
+| Template library (5) | Postgres `templates`, seeded from `data/template_seed.json` | Config; changes go through a reviewed diff |
+| Rubrics ×3 | Postgres `rubrics`, PK `(name, version)` | A cited version must stay reproducible |
+| User profile | Postgres `user_profile` | Semantic memory: standing, typed, undated facts |
+| Plan snapshots | Postgres `plan_versions` | Immutable; `session_id` records which conversation produced it |
+| Conversation state | LangGraph Postgres checkpointer | Keyed by `thread_id = session.id` |
+| Session summaries | Postgres `session.summary` | Episodic memory — see `docs/memory.md` |
+| Knowledge base | pgvector `knowledge_chunks` | Only for `search_knowledge`; source is `data/knowledge/*.docx` |
+| Drafts | In-process TTL cache, 30 min | Derived state that must not outlive the decision it supports |
 
-```sql
-CREATE TABLE exercises (
-  id                text PRIMARY KEY,
-  name              text NOT NULL,
-  movement_pattern  text NOT NULL,
-  primary_muscles   text[] NOT NULL,
-  secondary_muscles text[] NOT NULL,
-  equipment         text[] NOT NULL,
-  joint_actions     text[] NOT NULL,
-  loaded_positions  text[] NOT NULL,
-  contribution      jsonb NOT NULL,
-  skill_level       int NOT NULL,
-  fatigue_cost      int NOT NULL
-);
-CREATE INDEX ON exercises USING GIN (joint_actions);
-CREATE INDEX ON exercises USING GIN (equipment);
+**Rubrics and templates are served from Postgres but authored in git.** They
+decide which plans pass, so they are closer to code than to data, and the danger
+of a table is that someone bumps quads MRV from 22 to 30 with one `UPDATE` — no
+PR, no diff — leaving every stored verdict unexplainable. Two rules keep the
+audit trail:
 
-CREATE TABLE templates (
-  id            text PRIMARY KEY,   -- "upper_lower_4day"; stored plans reference it
-  name          text NOT NULL,
-  days_per_week int NOT NULL,
-  goal          text[] NOT NULL,
-  level         int[] NOT NULL,
-  popularity    int NOT NULL,
-  days          jsonb NOT NULL      -- day → slots, read whole by iter_slots
-);
-CREATE INDEX ON templates USING GIN (goal);
-CREATE INDEX ON templates USING GIN (level);
+* `data/rubric_seed.json` and `data/template_seed.json` are the source of truth;
+  rows are written only by `scripts/seed_config.py`.
+* `rubrics` is keyed by `(name, version)`. Re-seeding a changed rule at an
+  existing version is refused: bump `rubric_version` and the new document is
+  inserted beside the old one, with `is_active` moving to it.
 
-CREATE TABLE rubrics (
-  name      text NOT NULL,          -- macro_rules | volume_landmarks | contraindications
-  version   text NOT NULL,
-  payload   jsonb NOT NULL,
-  is_active boolean NOT NULL,
-  PRIMARY KEY (name, version)       -- a cited version is inserted beside, never rewritten
-);
-
--- Episodic memory. `summarized_at` is a claim column, not a completion marker:
--- it is set before the model is called, so a summary is attempted exactly once.
-ALTER TABLE session
-  ADD COLUMN summary          text NOT NULL DEFAULT '',
-  ADD COLUMN summarized_at    timestamp,
-  ADD COLUMN last_activity_at timestamp;
-
--- Which conversation produced which plan. This edge is why episodic memory
--- needs no graph store: it is a foreign key, not an inferred time window.
--- SET NULL, because plan_versions outranks session: deleting a chat must not
--- delete the plan the user trains on, nor start failing because one points at it.
-ALTER TABLE plan_versions
-  ADD COLUMN session_id text REFERENCES session(id) ON DELETE SET NULL;
-```
-
-**Rubrics and templates are served from Postgres, but authored in git.** They decide which plans pass, so they are closer to code than data, and the danger of a table is that someone bumps quads MRV from 22 to 30 with one UPDATE — no PR, no diff — leaving every old `verify_report` unexplainable. Two rules keep the audit trail:
-
-* `data/rubric_seed.json` and `data/template_seed.json` are the source of truth. Rows are written only by `scripts/seed_config.py`, so a rule still changes through a reviewed diff.
-* `rubrics` is keyed by `(name, version)`. Seeding a changed rule at an existing version is refused; bump `rubric_version` and the new document is inserted beside the old one, with `is_active` moving to it. A version that a stored `verify_report` cites is never rewritten.
-
-**Postgres is the single source of truth.** Embeddings are derived data and must be re-indexed when the catalog changes. Do not let exercise names exist only in the vector store.
+Embeddings are derived data and must be re-indexed when their source changes. No
+exercise name exists only in a vector store.
 
 ---
 
-## 12. Failure modes to handle
+## 11. Failure modes
 
 | Situation | Handling |
 |---|---|
-| `resolve_exercise` confidence < 0.85 | Ask the user; do not guess |
-| Pasted plan missing sets/reps | Ask the user; do not assume |
-| Verify fails twice | Stop, present issues, let the user decide |
-| Contradictory constraints (6 days + bands only) | Detect in `select_template` when no template matches → report early; do not wait for verify |
-| `assemble_plan` validate fails | Exception + log. This is a bug, not a user error |
-| User changes profile mid-flow | `extract_profile` runs every turn; `profile_hash` changes → verify must not be reused |
-| Concurrent writes from fan-out | `issues` has an `add` reducer. Every other field may be written by exactly one branch |
-| A prompt asked to state a fact it was not handed | The gap is filled, not noticed — `compose_answer` once announced a 5-day plan as 4-day by sourcing the number from free-text memory. Anything a prompt tells the model to state must appear in the data that prompt carries, and `episodic_context` is withheld from `compose_answer` for exactly this reason |
-| A new session starts with no plan in the checkpointer | `load_context` rehydrates `plan` and `macros` from the newest saved version — but only when state has none, so a diff that is staged and awaiting confirmation is not overwritten by the database |
+| `resolve_exercise` below 0.85 | Report the line with candidates; never guess |
+| Pasted line missing sets or reps | Report it; sets are never defaulted (RIR is) |
+| Repair attempts exhausted | Stop, present the findings, let the user decide |
+| No template matches (6 days + bands only) | Reported at `get_template_slots`, not left for the checks to discover |
+| A slot no legal exercise fills | The slot is left out with a `warn` naming the constraint responsible (injury, or equipment and level); the session count that feeds TDEE is read off the plan, not the profile |
+| `_validate` fails after assembly | Exception and log. A bug, not user error |
+| Profile changes mid-conversation | `extract_profile` runs every turn; a restore re-verifies against the profile now |
+| Goal stated vs goal implied | `implied_goal` never overwrites the stored goal — it makes the assistant ask instead of assuming |
+| A prompt asked to state a fact it was not handed | The gap is filled, not noticed. Anything a prompt tells the model to state must appear in the data that prompt carries — a 5-day plan was once announced as 4-day because the number was not rendered into the text |
+| New session with no plan in the checkpointer | `load_context` rehydrates `plan` and `macros` from the newest saved version, but only when state has none, so a draft awaiting confirmation is not overwritten |
+| Draft expired before the user answered | `save_plan` refuses with a readable reason — a draft that old was checked against a profile that may have moved |
+| A failing plan reaches `save_plan` | Refused there, not only when the answer is composed, listing every blocking finding. A `fail` verdict is never stored |
+| Signed-out session saves a plan | It becomes what the conversation holds but no row is written — there is no user to own it |
 
 ---
 
-## 13. On injury data
+## 12. On injury data
 
-Self-reported `"knee pain"` is not a diagnosis. The contraindication table currently assumes knee pain = patellofemoral, when it might be a meniscus tear — and the "safe alternative" would still be wrong.
+Self-reported "knee pain" is not a diagnosis. The contraindication table assumes
+patellofemoral pain when it might be a meniscus tear — in which case the "safe
+alternative" would still be wrong. Therefore:
 
-Therefore:
-- default severity is conservative; prefer removing exercises over keeping them
-- output must state this is an exercise-adjustment suggestion, not a substitute for seeing a clinician
-- for acute injuries or escalating pain, do not propose a plan; recommend professional care
+* default severity is conservative; prefer removing an exercise over keeping it
+* the answer must say this is an exercise adjustment, not clinical advice
+* an injury that could not be mapped to a rubric key is stored verbatim and
+  reported as unassessed — never approximated to the nearest key
+* for acute injuries or escalating pain, do not propose a plan; recommend
+  professional care

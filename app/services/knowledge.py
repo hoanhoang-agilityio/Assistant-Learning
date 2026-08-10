@@ -21,10 +21,9 @@ the embedding does not, unless the heading is in the text.
 say the knowledge base had no material on it. A pgvector timeout costs a
 citation, not the answer.
 
-Deliberately uncached, unlike memory search: the cache TTL is a minute
-(``CACHE_TTL_SECONDS``), questions repeat across users on a much longer scale
-than that, and a stale passage is worth less than the one embedding call it
-saves.
+Deliberately uncached. A short-lived cache would not pay: questions repeat
+across users on a much longer scale than any TTL worth holding, and a stale
+passage is worth less than the one embedding call it saves.
 """
 
 import asyncio

@@ -24,7 +24,8 @@ services:
     networks:
       - monitoring
 
-  # Valkey (Redis-compatible) cache — optional, set VALKEY_HOST=valkey in your .env to enable
+  # Valkey (Redis-compatible) — rate-limiter storage. Optional: set VALKEY_HOST=valkey in
+  # your .env to share one counter across instances instead of per-process counts.
   valkey:
     image: valkey/valkey:8.1.6-alpine
     ports:

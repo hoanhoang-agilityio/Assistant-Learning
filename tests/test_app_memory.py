@@ -1,10 +1,10 @@
-"""Tests for episodic memory and the cache.
+"""Tests for episodic memory.
 
 Episodic memory is the one subsystem here that is *optional to the answer*.
-Everything it does must therefore fail soft: an unreachable Postgres, a dead
-Valkey, a slow summariser — none of them may cost the user their reply. The
-tests below are mostly about that, plus the one thing that must never fail soft:
-keeping one user's history away from another's.
+Everything it does must therefore fail soft: an unreachable Postgres, a slow
+summariser — neither may cost the user their reply. The tests below are mostly
+about that, plus the one thing that must never fail soft: keeping one user's
+history away from another's.
 
 Semantic memory has no tests of its own here any more. It is ``user_profile``,
 covered by the profile and pipeline suites, and there is no service in front of
@@ -14,44 +14,6 @@ it to fail.
 import asyncio
 
 import pytest
-
-from app.core.cache import CacheService
-
-
-@pytest.fixture
-def cache() -> CacheService:
-    """An in-process cache, the default backend when VALKEY_HOST is unset."""
-    return CacheService()
-
-
-# ---------------------------------------------------------------------------
-# Failing soft
-# ---------------------------------------------------------------------------
-
-
-async def test_a_dead_cache_backend_reads_as_a_miss(cache):
-    """A Valkey outage must degrade to a cache miss, not to a failed request.
-
-    Raising here would turn a restart of an optional service into failed chat
-    turns — strictly worse than the uncached latency the cache exists to avoid.
-    """
-
-    class _DeadClient:
-        async def get(self, _key):
-            raise ConnectionError("valkey down")
-
-        async def set(self, *_args, **_kwargs):
-            raise ConnectionError("valkey down")
-
-    cache._client = _DeadClient()
-
-    assert await cache.get("k") is None
-    await cache.set("k", "v")
-
-
-# ---------------------------------------------------------------------------
-# Episodic memory
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -270,6 +232,122 @@ async def test_a_summary_is_written_in_the_background(episodic_db, monkeypatch):
         assert db.get(ChatSession, "idle").summary == "a fat-loss plan was built and saved"
 
 
+async def test_a_session_summarizes_itself_when_a_turn_ends(episodic_db, monkeypatch):
+    """The write the whole layer hangs on.
+
+    No idle window and no claim: the session being chatted in right now is the
+    one summarised, so the account of it is already in the database by the time
+    the user opens their next conversation. Waiting for it to go quiet instead
+    is what made episodic memory one turn late — the summary landed after the
+    next session had read.
+    """
+    from sqlmodel import Session as DBSession
+
+    import app.services.episodes as episodes
+    from app.models.session import Session as ChatSession
+    from app.schemas.chat import SessionSummary
+
+    _make_session(episodic_db, "current", idle_minutes=0)
+
+    async def _summarize(_messages, **_kwargs):
+        return SessionSummary(summary="they dropped to 3 days for work travel")
+
+    monkeypatch.setattr(episodes.llm_service, "call", _summarize)
+
+    async def _transcript(_session_id):
+        from app.schemas.chat import Message
+
+        return [Message(role="user", content="I can only train 3 days")]
+
+    episodes.summarize_current_session(1, "current", _transcript)
+
+    with DBSession(episodic_db) as db:
+        assert db.get(ChatSession, "current").summary == "", "the write blocked the turn"
+
+    for _ in range(4):
+        await asyncio.sleep(0)
+
+    with DBSession(episodic_db) as db:
+        assert db.get(ChatSession, "current").summary == "they dropped to 3 days for work travel"
+
+
+async def test_a_summarized_turn_takes_its_session_out_of_the_sweep(episodic_db, monkeypatch):
+    """The two writers must not pay twice for the same conversation.
+
+    ``summarized_at`` is written with the summary, and the turn touched
+    ``last_activity_at`` before it, so the sweep's predicate no longer matches
+    however long the session then sits idle.
+    """
+    import app.services.episodes as episodes
+    from app.schemas.chat import SessionSummary
+
+    _make_session(episodic_db, "past", idle_minutes=999)
+
+    async def _summarize(_messages, **_kwargs):
+        return SessionSummary(summary="a plan was built")
+
+    monkeypatch.setattr(episodes.llm_service, "call", _summarize)
+
+    async def _transcript(_session_id):
+        from app.schemas.chat import Message
+
+        return [Message(role="user", content="build me a plan")]
+
+    episodes.summarize_current_session(1, "past", _transcript)
+    for _ in range(4):
+        await asyncio.sleep(0)
+
+    assert episodes._claim_stale_sessions(1, "current") == [], (
+        "a session already summarised by its own turn was swept again"
+    )
+
+
+async def test_a_lost_turn_end_summary_is_collected_by_the_sweep(episodic_db, monkeypatch):
+    """The failure the idle sweep still exists for.
+
+    A model call that failed, a stream the client aborted, a worker that died
+    holding the task: none of them write ``summarized_at``, so the session is
+    still eligible once it goes quiet.
+    """
+    import app.services.episodes as episodes
+
+    _make_session(episodic_db, "past", idle_minutes=999)
+
+    async def _boom(_messages, **_kwargs):
+        raise RuntimeError("model unavailable")
+
+    monkeypatch.setattr(episodes.llm_service, "call", _boom)
+
+    async def _transcript(_session_id):
+        from app.schemas.chat import Message
+
+        return [Message(role="user", content="build me a plan")]
+
+    episodes.summarize_current_session(1, "past", _transcript)
+    for _ in range(4):
+        await asyncio.sleep(0)
+
+    assert episodes._claim_stale_sessions(1, "current") == ["past"]
+
+
+async def test_an_anonymous_turn_summarizes_nothing(episodic_db):
+    """Same boundary as the sweep and as retrieval: no user, no episode.
+
+    An anonymous session has nobody to carry its history forward to, so paying
+    for a summary of it buys nothing.
+    """
+    import app.services.episodes as episodes
+
+    _make_session(episodic_db, "current", idle_minutes=0)
+
+    calls = []
+    episodes.summarize_current_session(None, "current", lambda sid: calls.append(sid))
+    for _ in range(4):
+        await asyncio.sleep(0)
+
+    assert calls == []
+
+
 async def test_episodes_name_the_plan_each_session_produced(episodic_db):
     """The FK is what replaces a graph store: which conversation made which plan.
 
@@ -416,34 +494,6 @@ async def test_the_summary_prompt_forbids_numbers():
 
 
 # ---------------------------------------------------------------------------
-# Cache service
-# ---------------------------------------------------------------------------
-
-
-async def test_cache_round_trips(cache):
-    """The in-process backend is a real cache, not a no-op."""
-    await cache.set("k", "v")
-    assert await cache.get("k") == "v"
-
-
-async def test_a_missing_key_is_none(cache):
-    """A miss is None, so callers can tell it apart from a cached empty string."""
-    assert await cache.get("nope") is None
-
-
-async def test_the_default_backend_needs_no_service(cache):
-    """Local development must not require Valkey to be running."""
-    await cache.initialize()
-    assert cache.backend == "memory"
-
-
-async def test_close_is_safe_without_a_connection(cache):
-    """Shutdown must not fail when the cache never connected."""
-    await cache.initialize()
-    await cache.close()
-
-
-# ---------------------------------------------------------------------------
 # One read per turn
 # ---------------------------------------------------------------------------
 
@@ -495,27 +545,35 @@ def test_the_qa_agent_reads_memory_from_state():
     assert "episodic_context" in QAState.__annotations__
 
 
-def test_compose_answer_is_not_given_episodic_context():
-    """This node states only what the data it carries says.
+def test_the_answer_is_told_where_a_number_may_come_from():
+    """A recorded failure, and now a weaker guard than it used to be.
 
-    `_compose_answer` once announced a 5-day plan as 4-day, sourcing the number
-    from long-term memory rather than the rendered plan it was handed. Episodic
-    context is a second free-text account of the user's plan history, so handing
-    it to the same prompt is that bug with more material. Asserted structurally
-    because the failure is invisible in review — the prompt still renders, and
-    the wrong number still reads like prose.
+    ``_compose_answer`` once announced a 5-day plan as 4-day, sourcing the number
+    from long-term memory rather than from the rendered plan it was handed. The
+    fix was structural: episodic context was withheld from that node entirely, so
+    there was no second free-text account of the plan for it to misread.
 
-    Semantic context is still handed over, and that is not the same risk: it is
-    rendered from typed profile columns, so there is no free-text account of a
-    plan in it to misread a day count from.
+    That structure is gone with the node. The supervisor both reads the history
+    and writes the answer, so the two cannot be separated by withholding — which
+    makes this a prompt rule, and a prompt rule is weaker than an absent field.
+    What is asserted here is that the rule is stated and that the authoritative
+    section it points at is rendered above it, so a prompt edit that drops either
+    fails rather than passing quietly.
     """
-    import inspect
+    from app.core.prompts import load_supervisor_prompt
 
-    from app.core.langgraph.graph import LangGraphAgent
+    prompt = load_supervisor_prompt(
+        semantic_context="- Body weight (kg): 75",
+        plan_context="Plan: 5 days",
+        episodic_context="In March they trained 4 days a week.",
+    )
 
-    source = inspect.getsource(LangGraphAgent._compose_answer)
-    assert "semantic_context=_render_semantic_context(state.profile)" in source
-    assert "episodic_context=" not in source
+    plan_section = prompt.index("# This user's plan")
+    history_section = prompt.index("# What happened in earlier conversations")
+
+    assert plan_section < history_section, "history is rendered above the plan it must not override"
+    assert "never to state what their plan holds now" in prompt
+    assert "Never retype numbers" in prompt
 
 
 # ---------------------------------------------------------------------------

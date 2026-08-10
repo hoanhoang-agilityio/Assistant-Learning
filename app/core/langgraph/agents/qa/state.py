@@ -27,3 +27,8 @@ class QAState(AgentState):
     # list will report a thing that was true in March as true today.
     semantic_context: str
     episodic_context: str
+    # The profile as a dict, for `estimate_macros` alone. It is the same data
+    # `semantic_context` renders, and it is here because arithmetic cannot be
+    # done on prose. Nothing writes it back: this state still has no field a plan
+    # or a macro target could be stored in.
+    profile: dict

@@ -8,24 +8,42 @@ but it stores *facts*, typed and undated. "Trains four days a week" is a fact;
 plan was rebuilt" is an episode, and it is what a question like "what did I
 change last time?" is actually asking for.
 
-This module writes one summary per finished session and reads back the most
-recent few. Four rules, each with a failure it prevents:
+This module keeps one summary per session, refreshed as the session runs, and
+reads back the most recent few. Five rules, each with a failure it prevents:
 
-**Summarising is claimed, and the claim expires when the conversation moves on.**
-``session.summarized_at`` is set by the same ``UPDATE`` that selects the session,
-so several uvicorn workers sweeping at the same moment cannot each pay for the
-same summary. A session is eligible again once ``last_activity_at`` passes
-``summarized_at`` — otherwise a conversation summarised at turn 2 of 20 would
-record those two turns and freeze, and the other eighteen would never exist as
-far as the next session is concerned.
+**A session summarises itself at the end of every turn.** There is no "session
+ended" event to hang the write on, and the obvious proxy — wait for the
+conversation to go quiet — made the layer structurally one turn late: the
+summary of the session the user just left landed *after* the session they moved
+to had already read. The read happens once, at the top of a turn, so a write
+triggered anywhere inside that same turn cannot win. Writing at the *end* of
+every turn puts a whole user-typing-cycle between the two, and drops the
+guesswork about when a conversation is over.
 
-That still leaves a failed summary un-retried, which is the intended trade: the
-claim is written *before* the model call, so a session that always fails does not
-cost an LLM call on every later turn. It is retried only when there is something
-new to summarise.
+What that costs is one small-model call per turn where the sweep paid one per
+session, most of them immediately overwritten. Bounded by
+``EPISODIC_SUMMARY_MODEL``, ``max_tokens=256`` and a truncated transcript, and
+paid in the background.
 
-**Nothing here blocks or fails a turn.** The sweep is one ``UPDATE`` and returns;
-the model call runs in the background; every read catches and returns ``""``.
+**The idle sweep is the repair path.** It still runs at the start of every turn,
+over this user's *other* sessions, and it is what covers a turn-end write that
+never landed — a failed model call, an aborted stream, a worker that died
+holding the task.
+
+Its claim is what stops two uvicorn workers paying for the same summary:
+``summarized_at`` is set by the same ``UPDATE`` that selects the session. The
+claim is refreshable — a session is eligible again once ``last_activity_at``
+passes ``summarized_at`` — because a one-shot claim would freeze a conversation
+at whatever turn the sweep caught it on.
+
+The two paths do not pay twice for the same conversation. ``summarized_at`` is
+written *with* the summary and ``last_activity_at`` is touched at the start of
+the turn, so a successful turn-end write leaves ``summarized_at`` ahead and the
+sweep's predicate stops matching. A write that never landed leaves it behind,
+and the sweep collects the session once it goes quiet.
+
+**Nothing here blocks or fails a turn.** Both writers hand off to a background
+task and return; every read catches and returns ``""``.
 
 **Retrieval is chronological, not semantic.** "Last time", "three weeks ago",
 "the one before that" are questions about *when*, and a nearest-neighbour search
@@ -212,31 +230,51 @@ def _claim_stale_sessions(user_id: int, exclude_session_id: str) -> list[str]:
 
 
 def _store_summary(session_id: str, summary: str) -> None:
-    """Write a generated summary onto its session row.
+    """Write a generated summary onto its session row and mark it current.
+
+    ``summarized_at`` is written here, with the summary, and not only by the
+    sweep's claim. That is what keeps the two writers off each other: a turn-end
+    summary lands after ``last_activity_at`` was touched at the start of that
+    turn, so the sweep's ``needs_summary`` predicate stops matching the row and
+    the same conversation is not summarised twice.
 
     Args:
-        session_id: The claimed session.
+        session_id: The session being summarised.
         summary: The generated text.
     """
     with DBSession(engine) as db:
         db.exec(
-            update(ChatSession).where(col(ChatSession.id) == session_id).values(summary=summary)
+            update(ChatSession)
+            .where(col(ChatSession.id) == session_id)
+            .values(summary=summary, summarized_at=_utcnow())
         )
         db.commit()
 
 
-async def _persist_summary(session_id: str, load_transcript: TranscriptLoader) -> None:
-    """Summarise one claimed session and store it. Never raises.
+def _fire(session_id: str, load_transcript: TranscriptLoader) -> None:
+    """Start one background summary and hold a reference to it until it ends.
 
     Args:
-        session_id: The session this caller claimed.
+        session_id: The session to summarise.
+        load_transcript: Reads the session's messages from the checkpointer.
+    """
+    task = asyncio.create_task(_persist_summary(session_id, load_transcript))
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+
+
+async def _persist_summary(session_id: str, load_transcript: TranscriptLoader) -> None:
+    """Summarise one session and store it. Never raises.
+
+    Args:
+        session_id: The session to summarise.
         load_transcript: Reads the session's messages from the checkpointer.
     """
     try:
         transcript = _render_transcript(await load_transcript(session_id))
         if not transcript:
-            # Claimed and empty: a session the user opened and abandoned. The
-            # claim stays, so it is never looked at again.
+            # A session the user opened and abandoned. Reached from the sweep,
+            # whose claim stays written, so it is not looked at again.
             logger.info("episode_skipped_empty", session_id=session_id)
             return
 
@@ -254,24 +292,61 @@ async def _persist_summary(session_id: str, load_transcript: TranscriptLoader) -
         _store_summary(session_id, result.summary)
         logger.info("episode_summarized", session_id=session_id)
     except Exception:
-        # The claim is already written, so this is not retried. A missing
-        # summary costs recall on a later turn and nothing on this one.
+        # Nothing is retried from here, and nothing needs to be: no
+        # `summarized_at` was written, so the next turn in this session
+        # overwrites the attempt and a session with no next turn is collected by
+        # the sweep once it goes quiet. A missing summary costs recall on a later
+        # turn and nothing on this one.
         logger.exception("episode_summary_failed", session_id=session_id)
+
+
+def summarize_current_session(
+    user_id: int | str | None, session_id: str, load_transcript: TranscriptLoader
+) -> None:
+    """Refresh this session's own summary in the background. Never raises.
+
+    Called at the **end** of a turn, once the graph has written that turn to the
+    checkpointer: ``load_transcript`` reads it back from there, so firing this
+    any earlier would summarise the conversation without the exchange that just
+    happened.
+
+    Nothing is claimed here. The claim exists so that two workers do not pay for
+    the same summary, and turns within one session do not overlap — a session
+    token is scoped to one conversation and the client is waiting on its answer.
+    A repeated write is last-one-wins on a column whose whole purpose is to be
+    overwritten.
+
+    Args:
+        user_id: Owner of the session. ``None`` for an anonymous turn, which has
+            no history to carry into a later one.
+        session_id: The session whose turn just finished.
+        load_transcript: Reads the session's messages from the checkpointer.
+    """
+    if not settings.EPISODIC_MEMORY_ENABLED or not user_id:
+        return
+
+    _fire(session_id, load_transcript)
 
 
 def summarize_stale_sessions(
     user_id: int | str | None, current_session_id: str, load_transcript: TranscriptLoader
 ) -> None:
-    """Start summarising any of this user's conversations that have gone idle.
+    """Repair any of this user's conversations whose own summary never landed.
 
-    Synchronous by design, like ``name_session``: it opens one short
-    database session and returns, so a caller cannot accidentally await the
-    summarising. Safe to call from any chat endpoint on every turn.
+    The repair path, not the main one — ``summarize_current_session`` is what
+    normally writes a summary, and this collects what it dropped: a failed model
+    call, a stream the client aborted, a worker that died holding the task. A
+    session whose turn-end write succeeded no longer matches ``needs_summary``.
+
+    Synchronous by design, like ``name_session``: it opens one short database
+    session and returns, so a caller cannot accidentally await the summarising.
+    Safe to call from any chat endpoint on every turn.
 
     Args:
         user_id: Owner of the sessions. ``None`` for an anonymous turn, which
             has no history to build.
-        current_session_id: The session being chatted in, never swept.
+        current_session_id: The session being chatted in, never swept — it
+            summarises itself at the end of this turn instead.
         load_transcript: Reads a session's messages from the checkpointer.
     """
     if not settings.EPISODIC_MEMORY_ENABLED or not user_id:
@@ -286,9 +361,7 @@ def summarize_stale_sessions(
         return
 
     for session_id in claimed:
-        task = asyncio.create_task(_persist_summary(session_id, load_transcript))
-        _BACKGROUND_TASKS.add(task)
-        task.add_done_callback(_BACKGROUND_TASKS.discard)
+        _fire(session_id, load_transcript)
 
 
 def _newest_first(sessions: list[ChatSession]) -> list[ChatSession]:
@@ -438,7 +511,8 @@ async def recent_episodes(user_id: str | None, exclude_session_id: str) -> str:
 
 __all__ = [
     "NO_EPISODES",
-    "summarize_stale_sessions",
     "recent_episodes",
+    "summarize_current_session",
+    "summarize_stale_sessions",
     "touch_session",
 ]

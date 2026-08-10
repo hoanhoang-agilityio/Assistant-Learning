@@ -67,24 +67,44 @@ train fasted" is a fact, "three weeks ago they dropped to 3 days for work travel
 and the plan was rebuilt" is an episode, and only the second answers "what did I
 change last time?".
 
-**Writing.** There is no "session ended" event, so idleness is the signal. At the
-start of every turn a sweep claims this user's *other* sessions that have been
-quiet longer than `EPISODIC_IDLE_MINUTES`, and fires a background summary for
-each. The claim and the select are one `UPDATE`, so concurrent workers cannot
-both pay for the same summary — the same pattern as
-`app/services/session_naming.py`.
+**Writing.** A session summarises itself at the **end of every turn**, in the
+background: the chat endpoints call `summarize_current_session` once the graph
+has run, and the write lands a second or two later.
 
-The claim is **refreshable**: a session is eligible when it has never been
-summarised *or* when it has been talked in since it was
-(`summarized_at < last_activity_at`). A one-shot claim freezes a conversation at
-whatever turn the sweep happened to catch — summarised at turn 2 of 20, the other
-eighteen never exist as far as the next session is concerned.
+Idleness used to be the signal, and it made the layer structurally one turn late.
+Measured before the change: a session claimed 22 ms after its successor was
+created, its summary landing after that turn had already read. The read happens
+once, in `load_context` at the top of a turn, so a write triggered anywhere
+inside the same turn cannot win. Writing at the end of every turn puts a whole
+user-typing-cycle between the two, and there is nothing left to guess about when
+a conversation ended.
 
-`summarized_at` is still set **before** the model is called, so a failed summary
-is not retried *for the same content*. A session nobody returns to costs exactly
-one call, forever; one that is talked in again is summarised again, because there
-is something new to say. Re-summarising is not free, which is what
-`EPISODIC_IDLE_MINUTES = 30` bounds.
+What it costs is one small-model call per turn where the sweep paid one per
+session, most of them immediately overwritten. Bounded by
+`EPISODIC_SUMMARY_MODEL`, `max_tokens=256` and a transcript truncated to 6000
+characters, and paid off the request path.
+
+**The sweep is now the repair path.** At the start of every turn it still claims
+this user's *other* sessions that have been quiet longer than
+`EPISODIC_IDLE_MINUTES`, and fires a background summary for each. What it
+collects is a turn-end write that never landed — a failed model call, a stream
+the client aborted, a worker that died holding the task.
+
+The claim and the select are one `UPDATE`, so concurrent workers cannot both pay
+for the same summary — the same pattern as `app/services/session_naming.py`. It
+is **refreshable**: a session is eligible when it has never been summarised *or*
+when it has been talked in since it was (`summarized_at < last_activity_at`). A
+one-shot claim freezes a conversation at whatever turn the sweep happened to
+catch — summarised at turn 2 of 20, the other eighteen never exist as far as the
+next session is concerned.
+
+The two writers do not pay twice for the same conversation. `summarized_at` is
+written **with** the summary, and `last_activity_at` is touched at the start of
+the turn, so a successful turn-end write leaves `summarized_at` ahead and the
+sweep's predicate stops matching. A write that never landed leaves it behind, and
+the sweep collects the session once it goes quiet. The sweep's own claim is still
+written **before** the model is called, so a session it cannot summarise does not
+cost a call on every later turn.
 
 **Reading.** `recent_episodes` returns up to `EPISODIC_RECENT_LIMIT` sessions,
 dated, with the labels of the plan versions each produced. Read once per turn by
@@ -119,19 +139,27 @@ that no longer exists goes away.
 
 | Prompt | Gets it | |
 |---|---|---|
-| `system.md` | yes | Under its own heading, never merged with `semantic_context` |
+| `supervisor.md` | yes | Under its own heading, below the plan it must not override |
 | `qa.md` | yes | For "what did I do before" questions |
-| `compose_answer.md` | **no** | |
+| `planning_agent.md`, `review_agent.md` | **no** | Neither writes prose about the plan's history |
 
-`_compose_answer` is excluded and must stay excluded. It once announced a 5-day
-plan as 4-day, sourcing the number from free-text memory instead of the rendered
-plan it was handed. Episodic summaries are a second free-text account of the
-user's plan history; handing them to that same prompt is the same bug with more
-material. `semantic_context` is still passed, and that is a different risk: it is
-rendered from typed columns, so there is no prose account of a plan in it to
-misread a day count from. `tests/test_app_memory.py` asserts the exclusion
-structurally, because the failure is invisible in review — the prompt still
-renders, and the wrong number still reads like prose.
+This used to be a stronger rule, and the weakening is worth stating plainly.
+`compose_answer` was excluded outright: it once announced a 5-day plan as 4-day,
+sourcing the number from free-text memory instead of the rendered plan it was
+handed, and episodic summaries are a second free-text account of the user's plan
+history. Withholding them from that one prompt was structural.
+
+The supervisor both reads the history and writes the answer, so the two can no
+longer be separated by withholding. What replaces the structure is ordering plus
+a rule: `# This user's plan` is rendered above `# What happened in earlier
+conversations`, and the prompt says earlier conversations are history and never a
+source for what the plan holds now. `tests/test_app_memory.py` asserts both, so a
+prompt edit that drops either fails — but a prompt rule is weaker than an absent
+field, and this is the honest price of the supervisor conversion
+(`docs/supervisor-architecture.md` §11).
+
+`semantic_context` remains a different risk: it is rendered from typed columns,
+so there is no prose account of a plan in it to misread a day count from.
 
 The other mitigations: `session_summary.md` forbids stating any number at all,
 and `EPISODIC_MEMORY_ENABLED=false` turns the layer off entirely.
@@ -160,6 +188,7 @@ write path into the table.
 * **Anonymous turns have no memory of any kind.** `user_id` is the isolation
   boundary for all three persistent layers, and pooling anonymous users under a
   shared key would show one stranger's details to another.
-* **Every layer fails soft except isolation.** A dead cache, an unreachable
-  Postgres on the episodic read — each costs personalisation and returns `""`.
-  None of them may cost the user their answer.
+* **Every layer fails soft except isolation.** An unreachable Postgres on the
+  episodic read, a pgvector timeout on a knowledge lookup — each costs
+  personalisation and returns `""` or `[]`. None of them may cost the user their
+  answer.

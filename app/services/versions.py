@@ -95,7 +95,7 @@ async def get_version(version_id: str) -> PlanVersion | None:
 async def latest_version(user_id: int) -> PlanVersion | None:
     """Load the newest snapshot this user saved.
 
-    ``RootState.plan`` lives in the checkpointer, keyed on the session, so a new
+    ``SupervisorState.plan`` lives in the checkpointer, keyed on the session, so a new
     conversation starts without one even though the plan is right here. This is
     what ``load_context`` rehydrates from — the only reason a user's plan
     survives closing the tab.

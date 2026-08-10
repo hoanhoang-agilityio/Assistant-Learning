@@ -99,6 +99,7 @@ def conversation_title(name: str, fallback: str, *, max_length: int = 40) -> str
         return title
     return title[: max_length - 1].rstrip() + "…"
 
+
 __all__ = [
     "CHAT_PLACEHOLDER",
     "ERROR_COPY",
