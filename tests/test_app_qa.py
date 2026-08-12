@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from app.core.langgraph.agents.qa import build_qa_agent
+from app.core.langgraph.agents.qa import qa_agent
 from app.core.langgraph.agents.qa.agent import _MAX_SEARCHES
 from app.core.langgraph.agents.qa.tools import estimate_macros
 from tests.conftest import FakeChatModel, stub_model, tool_call
@@ -39,7 +39,6 @@ def _state(**overrides) -> dict:
     return {
         "messages": [],
         "plan_context": "",
-        "semantic_context": "",
         "episodic_context": "",
         "profile": dict(PROFILE),
         **overrides,
@@ -76,7 +75,7 @@ def test_the_agent_is_declared_not_assembled(monkeypatch):
     }
 
     stub_model(monkeypatch)
-    agent = build_qa_agent()
+    agent = qa_agent()
     assert agent.name == "qa"
     assert {"model", "tools"} <= set(agent.get_graph().nodes)
 
@@ -99,7 +98,7 @@ async def test_the_agent_stops_searching_after_the_cap(monkeypatch):
         ),
     )
 
-    result = await build_qa_agent().ainvoke(
+    result = await qa_agent().ainvoke(
         _state(messages=[HumanMessage(content="is creatine worth it?")])
     )
 
@@ -134,7 +133,7 @@ async def test_tool_calls_survive_intact_across_rounds(monkeypatch):
         ),
     )
 
-    result = await build_qa_agent().ainvoke(_state(messages=[HumanMessage(content="creatine?")]))
+    result = await qa_agent().ainvoke(_state(messages=[HumanMessage(content="creatine?")]))
 
     assert result["messages"][-1].content == "Yes, 3-5 g a day."
     follow_up = fake.calls[1]

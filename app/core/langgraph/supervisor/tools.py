@@ -38,7 +38,6 @@ from app.core.langgraph.diff import build_diff
 from app.core.langgraph.rendering import (
     render_plan,
     render_plan_context,
-    render_semantic_context,
 )
 from app.core.langgraph.scoring import score, sort_issues
 from app.core.langgraph.supervisor.state import SupervisorState
@@ -201,13 +200,6 @@ async def qa_agent(question: str, runtime: ToolRuntime) -> Command:
     Handles knowledge questions, questions about the plan the user already has,
     and what-if questions about their targets. It searches the knowledge base and
     can estimate hypothetical macros; it changes nothing.
-
-    Args:
-        question: What the user asked, in their own words.
-        runtime: Tool runtime, read for the supervisor's state and config.
-
-    Returns:
-        The answer as text.
     """
     state: SupervisorState = runtime.state
 
@@ -216,7 +208,6 @@ async def qa_agent(question: str, runtime: ToolRuntime) -> Command:
             {
                 "messages": [HumanMessage(content=question)],
                 "plan_context": render_plan_context(state.get("plan"), state.get("macros")),
-                "semantic_context": render_semantic_context(state.get("profile") or {}),
                 "episodic_context": state.get("episodic_context") or "",
                 "profile": state.get("profile") or {},
             },

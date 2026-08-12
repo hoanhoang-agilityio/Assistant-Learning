@@ -11,16 +11,17 @@ from app.core.langgraph.agents.qa.agent import (
     AGENT_NAME,
     EXHAUSTED_ANSWER,
     FAILURE_ANSWER,
-    build_qa_agent,
+    qa_agent,
 )
 from app.core.langgraph.agents.qa.state import QAState
-from app.core.langgraph.agents.qa.tools import estimate_macros
+from app.core.langgraph.agents.qa.tools import estimate_macros, search_knowledge
 
 __all__ = [
     "AGENT_NAME",
     "EXHAUSTED_ANSWER",
     "FAILURE_ANSWER",
     "QAState",
-    "build_qa_agent",
+    "qa_agent",
     "estimate_macros",
+    "search_knowledge",
 ]

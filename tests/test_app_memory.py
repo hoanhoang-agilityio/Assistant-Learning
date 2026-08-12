@@ -541,7 +541,6 @@ def test_the_qa_agent_reads_memory_from_state():
     """The one agent that personalises must receive memory, not fetch it."""
     from app.core.langgraph.agents.qa import QAState
 
-    assert "semantic_context" in QAState.__annotations__
     assert "episodic_context" in QAState.__annotations__
 
 
