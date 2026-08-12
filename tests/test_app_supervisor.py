@@ -215,7 +215,7 @@ def test_the_qa_agent_still_cannot_hold_a_plan():
     from langchain.agents.middleware import AgentState
 
     added = set(QAState.__annotations__) - set(AgentState.__annotations__)
-    assert added == {"plan_context", "semantic_context", "episodic_context", "profile"}
+    assert added == {"plan_context", "episodic_context", "profile"}
 
 
 def test_estimate_macros_is_qa_only():
