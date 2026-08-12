@@ -26,13 +26,17 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.config import get_config
 from langgraph.runtime import Runtime
 
-from app.core.langgraph.profile.extraction import clean_extraction, goal_conflict
-from app.core.langgraph.prompts import load_extract_profile_prompt
-from app.core.langgraph.rendering import render_plan_context, render_semantic_context
-from app.core.langgraph.routing.classify import CONTEXT_TURNS, llm_classify
-from app.core.langgraph.supervisor.prompts import load_supervisor_prompt
+from app.core.langgraph.plans.rendering import render_plan_context
+from app.core.langgraph.runtime.context import get_session_id, get_user_id
+from app.core.langgraph.runtime.messages import dump_messages
+from app.core.langgraph.supervisor.classification import CONTEXT_TURNS, llm_classify
+from app.core.langgraph.supervisor.profile_extraction import clean_extraction, goal_conflict
+from app.core.langgraph.supervisor.prompt_context import render_semantic_context
+from app.core.langgraph.supervisor.prompts import (
+    load_extract_profile_prompt,
+    load_supervisor_prompt,
+)
 from app.core.langgraph.supervisor.state import NEW_TURN, SupervisorState
-from app.core.langgraph.utils import dump_messages
 from app.core.logging import logger
 from app.schemas.graph import ProfileExtraction
 from app.services import profile as profile_service
@@ -132,14 +136,15 @@ async def load_context(state: SupervisorState, runtime: Runtime) -> dict[str, An
     Returns:
         The loaded context.
     """
-    user_id = _user_id()
+    config = get_config()
+    user_id = get_user_id(config)
     if user_id is None:
         # Anonymous session: nothing stored, and nothing to store. The profile
         # preconditions still run, so the user is asked for what this turn needs.
         logger.info("context_anonymous_session")
         return {"profile": {}, "episodic_context": ""}
 
-    session_id = _session_id()
+    session_id = get_session_id(config)
     stored, latest, episodes = await asyncio.gather(
         profile_service.get_profile(user_id),
         latest_version(user_id),
@@ -223,7 +228,7 @@ async def extract_profile(state: SupervisorState, runtime: Runtime) -> dict[str,
     # `merged`, not `updates`, so re-stating a preference the profile already
     # holds is not counted as a change.
     changed = any(stored.get(key) != merged[key] for key in updates)
-    user_id = _user_id()
+    user_id = get_user_id(get_config())
     if changed and user_id is not None:
         await profile_service.upsert_profile(user_id, updates)
 
@@ -303,28 +308,6 @@ def _has_new_user_input(state: SupervisorState) -> bool:
         if getattr(message, "type", "") in {"ai", "tool"}:
             return False
     return False
-
-
-def _user_id() -> int | None:
-    """Read the session owner from the runnable config.
-
-    Middleware hooks are handed a ``Runtime``, not a ``RunnableConfig``, so the
-    ids the facade put in ``metadata`` are read from the ambient config instead.
-
-    Returns:
-        The user id, or ``None`` for an anonymous session.
-    """
-    user_id = (get_config().get("metadata") or {}).get("user_id")
-    return int(user_id) if user_id else None
-
-
-def _session_id() -> str:
-    """Read the session id the checkpointer is keyed on.
-
-    Returns:
-        The thread id, or an empty string when there is none.
-    """
-    return (get_config().get("configurable") or {}).get("thread_id", "")
 
 
 # Order is load-bearing. The topic gate runs first so an off-topic turn never

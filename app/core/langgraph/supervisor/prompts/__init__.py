@@ -9,6 +9,8 @@ from app.services.profile import FIELD_LABELS, GOAL_LABELS
 _PROMPTS_DIR = Path(__file__).parent
 
 _SUPERVISOR_PROMPT_TEMPLATE = (_PROMPTS_DIR / "supervisor.md").read_text(encoding="utf-8")
+_CLASSIFY_PROMPT_TEMPLATE = (_PROMPTS_DIR / "classify.md").read_text(encoding="utf-8")
+_EXTRACT_PROFILE_TEMPLATE = (_PROMPTS_DIR / "extract_profile.md").read_text(encoding="utf-8")
 
 _NO_MEMORY_BODY = "Nothing recorded yet."
 # Deliberately says "none available" rather than "this user has none": a
@@ -58,6 +60,16 @@ def load_supervisor_prompt(
         conflict_block=_conflict_block(goal_conflict),
         hint_block=_hint_block(intent_hint),
     )
+
+
+def load_classify_prompt(conversation: str) -> str:
+    """Render the intent-classifier prompt."""
+    return _CLASSIFY_PROMPT_TEMPLATE.format(conversation=conversation)
+
+
+def load_extract_profile_prompt(conversation: str) -> str:
+    """Render the profile-extraction prompt."""
+    return _EXTRACT_PROFILE_TEMPLATE.format(conversation=conversation)
 
 
 def _missing_block(fields: list[str]) -> str:
@@ -130,4 +142,4 @@ def _hint_block(intent: str | None) -> str:
     )
 
 
-__all__ = ["load_supervisor_prompt"]
+__all__ = ["load_classify_prompt", "load_extract_profile_prompt", "load_supervisor_prompt"]

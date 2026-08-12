@@ -33,8 +33,8 @@ from langchain_core.messages import ToolCall
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
 
-from app.core.langgraph import drafts
-from app.core.langgraph.models import default_model, resilience_middleware
+from app.core.langgraph.runtime import draft_store
+from app.core.langgraph.runtime.models import default_model, resilience_middleware
 from app.core.langgraph.supervisor.middleware import middleware as spine
 from app.core.langgraph.supervisor.state import SupervisorState
 from app.core.langgraph.supervisor.tools import tools
@@ -71,7 +71,7 @@ def _save_description(tool_call: ToolCall, state: SupervisorState, runtime: Runt
     Returns:
         The question to put to the user.
     """
-    draft = drafts.read(str(tool_call["args"].get("draft_id", "")))
+    draft = draft_store.read(str(tool_call["args"].get("draft_id", "")))
     if draft is None:
         return "Save this plan? (The draft could not be read back — it may have expired.)"
 
