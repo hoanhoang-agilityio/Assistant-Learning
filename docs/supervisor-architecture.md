@@ -571,12 +571,14 @@ it is not.
 ```
 app/core/langgraph/
   graph.py              the facade the API calls; owns the checkpointer pool
+  prompts/              shared .md: classify, extract_profile, session title/summary
   supervisor/
     agent.py            build_supervisor() — create_agent + middleware + HITL
     middleware.py       topic_gate, load_context, extract_profile, supervisor_prompt
     tools.py            planning_agent, review_agent, qa_agent,
                         list_versions, restore_version, save_plan
     state.py            SupervisorState, NEW_TURN
+    prompts/            supervisor.md
   agents/
     __init__.py         AGENTS registry
     planning/           agent.py · tools.py · patch.py · state.py · prompts/

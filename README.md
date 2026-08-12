@@ -360,8 +360,7 @@ app/
 ├── core/
 │   ├── configs/       # pydantic-settings; resolves the env file from the project root
 │   ├── langgraph/     # the agent system — see below
-│   ├── prompts/       # .md prompt files, read once at import
-│   ├── observability.py # one Langfuse handler, attached at the root config
+│   ├── observability/ # Langfuse handler package, attached at the root config
 │   ├── logging.py     # structlog + per-request context binding
 │   ├── limiter.py     # slowapi; Valkey-backed when VALKEY_HOST is set
 │   └── middleware.py
@@ -391,11 +390,13 @@ validation constants but never a service, a model or the graph.
 core/langgraph/
 ├── graph.py          # the facade the API calls — four methods, and the only thing that
 │                     #   knows about the checkpointer pool or a chat turn
+├── prompts/          # shared .md prompts: classify, extract_profile, session title/summary
 ├── supervisor/
 │   ├── agent.py      # build_supervisor() — create_agent + middleware + the confirm gate
 │   ├── middleware.py # topic_gate · load_context · extract_profile · dynamic_prompt
 │   ├── tools.py      # planning_agent · review_agent · qa_agent · list/restore · save_plan
-│   └── state.py      # SupervisorState — eight fields, all of which outlive the turn
+│   ├── state.py      # SupervisorState — eight fields, all of which outlive the turn
+│   └── prompts/      # supervisor.md — system prompt owned by the supervisor
 ├── agents/
 │   ├── __init__.py   # the registry: one line per agent, built once and cached
 │   ├── planning/     # build and change, as one agent with mode="build"|"change"
