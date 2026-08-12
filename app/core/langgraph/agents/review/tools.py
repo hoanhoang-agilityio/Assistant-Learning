@@ -8,8 +8,8 @@ from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langgraph.types import Command
 
-from app.core.langgraph.rendering import render_plan
-from app.core.langgraph.scoring import score, sort_issues
+from app.core.langgraph.plans.rendering import render_plan
+from app.core.langgraph.verification.scoring import score, sort_issues
 from app.schemas.graph import Issue, ReviewEnvelope
 from app.services.catalog import load_catalog
 from app.services.exercise_resolver import resolve_exercise
