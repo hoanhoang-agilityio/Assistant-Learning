@@ -488,7 +488,7 @@ async def test_the_summary_prompt_forbids_numbers():
     doc records what happens when a free-text memory carries a number the plan
     disagrees with: the model states the memory's number.
     """
-    from app.core.prompts import SESSION_SUMMARY_PROMPT
+    from app.core.langgraph.prompts import SESSION_SUMMARY_PROMPT
 
     assert "Never state a number" in SESSION_SUMMARY_PROMPT
 
@@ -559,7 +559,7 @@ def test_the_answer_is_told_where_a_number_may_come_from():
     section it points at is rendered above it, so a prompt edit that drops either
     fails rather than passing quietly.
     """
-    from app.core.prompts import load_supervisor_prompt
+    from app.core.langgraph.supervisor.prompts import load_supervisor_prompt
 
     prompt = load_supervisor_prompt(
         semantic_context="- Body weight (kg): 75",

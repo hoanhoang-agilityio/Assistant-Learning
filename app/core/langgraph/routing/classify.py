@@ -18,7 +18,7 @@ things the router could not do.
 
 from langchain_core.messages import HumanMessage
 
-from app.core.prompts import load_classify_prompt
+from app.core.langgraph.prompts import load_classify_prompt
 from app.schemas.graph import IntentDecision
 from app.services.llm.service import llm_service
 

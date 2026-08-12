@@ -70,8 +70,8 @@ from sqlmodel import Session as DBSession
 from sqlmodel import col, select, update
 
 from app.core.configs.config import settings
+from app.core.langgraph.prompts import SESSION_SUMMARY_PROMPT
 from app.core.logging import logger
-from app.core.prompts import SESSION_SUMMARY_PROMPT
 from app.models.database import engine
 from app.models.plan_version import PlanVersion
 from app.models.session import Session as ChatSession

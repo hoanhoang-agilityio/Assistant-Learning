@@ -27,12 +27,13 @@ from langgraph.config import get_config
 from langgraph.runtime import Runtime
 
 from app.core.langgraph.profile.extraction import clean_extraction, goal_conflict
+from app.core.langgraph.prompts import load_extract_profile_prompt
 from app.core.langgraph.rendering import render_plan_context, render_semantic_context
 from app.core.langgraph.routing.classify import CONTEXT_TURNS, llm_classify
+from app.core.langgraph.supervisor.prompts import load_supervisor_prompt
 from app.core.langgraph.supervisor.state import NEW_TURN, SupervisorState
 from app.core.langgraph.utils import dump_messages
 from app.core.logging import logger
-from app.core.prompts import load_extract_profile_prompt, load_supervisor_prompt
 from app.schemas.graph import ProfileExtraction
 from app.services import profile as profile_service
 from app.services.episodes import recent_episodes
