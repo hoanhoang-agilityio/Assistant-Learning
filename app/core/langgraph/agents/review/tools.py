@@ -1,20 +1,4 @@
-"""Tools of the review agent.
-
-Two tools. The model transcribes what the user pasted and hands the lines over;
-it never decides what an exercise *is*. That judgment is a three-tier match
-against the catalog inside :func:`lookup_exercise` and inside :func:`score_plan`,
-and it is deterministic on purpose — a model that "helpfully" normalised
-"leg press" to "leg extension" would destroy the only evidence that the match
-was uncertain.
-
-Low confidence is reported, never guessed. A review that silently omits three
-exercises is worse than one that names them
-(``docs/supervisor-architecture.md`` §6.2).
-
-``score_plan`` returns a report and deliberately mints **no** ``draft_id``. That
-absence is what keeps a pasted plan from becoming the user's own: a review
-produces nothing ``save_plan`` will accept.
-"""
+"""Tools of the review agent."""
 
 import json
 from typing import Any
@@ -26,15 +10,10 @@ from langgraph.types import Command
 
 from app.core.langgraph.rendering import render_plan
 from app.core.langgraph.scoring import score, sort_issues
-from app.core.logging import logger
 from app.schemas.graph import Issue, ReviewEnvelope
 from app.services.catalog import load_catalog
 from app.services.exercise_resolver import resolve_exercise
 
-# What a line is prescribed when the user gave no RIR. Reps and sets are never
-# defaulted — a guessed set count is counted as real volume and changes the
-# assessment — but RIR affects no check, so refusing a line for want of one
-# would drop an exercise the user really is doing.
 _DEFAULT_RIR = [2, 3]
 
 
@@ -46,13 +25,6 @@ def lookup_exercise(raw_text: str, runtime: ToolRuntime) -> str:
     before assessing the plan. You do not need to call it for every line —
     ``score_plan`` resolves names itself.
 
-    Args:
-        raw_text: The exercise name exactly as the user wrote it.
-        runtime: Tool runtime, read for the catalog in state.
-
-    Returns:
-        The matched exercise as JSON, or the closest candidates with a null
-        match when nothing clears the confidence threshold.
     """
     catalog = runtime.state.get("catalog") or load_catalog()
     resolution = resolve_exercise(raw_text, catalog)
@@ -91,15 +63,6 @@ async def score_plan(days: list[dict], runtime: ToolRuntime) -> Command:
 
     This is read-only. It produces an assessment, not a plan that can be saved.
 
-    Args:
-        days: ``[{"name": "Push A", "exercises": [{"raw_name": "bench",
-            "sets": 4, "reps": [6, 8], "rir": [1, 2]}]}]``. ``rir`` is optional.
-        runtime: Tool runtime, read for the catalog, the profile and this call's
-            id.
-
-    Returns:
-        A command writing what was understood into state and reporting the
-        verdict, the targets and the findings back to the model.
     """
     catalog = runtime.state.get("catalog") or load_catalog()
     plan, unresolved, incomplete = _resolve_days(days, catalog)
@@ -140,13 +103,6 @@ async def score_plan(days: list[dict], runtime: ToolRuntime) -> Command:
         verdict=verdict,
     )
 
-    logger.info(
-        "review_plan_scored",
-        verdict=verdict,
-        days=len(plan["days"]),
-        unresolved=len(unresolved),
-        incomplete=len(incomplete),
-    )
     return Command(
         update={
             "submitted_plan": plan,
@@ -176,12 +132,6 @@ def _resolve_days(
     to this agent: the plan gets reviewed, the review looks authoritative, and it
     describes exercises the user is not doing.
 
-    Args:
-        days: The plan as the model transcribed it.
-        catalog: Exercise metadata keyed by id.
-
-    Returns:
-        ``(plan, unresolved, incomplete)``.
     """
     resolved_days: list[dict] = []
     unresolved: list[dict] = []
@@ -243,12 +193,6 @@ def _ingest_notes(unresolved: list[dict], incomplete: list[str]) -> list[Issue]:
     every rubric finding. That is what stops a review quietly omitting three
     exercises it did not understand and still reading as a complete assessment.
 
-    Args:
-        unresolved: Exercise lines that no catalog entry matched confidently.
-        incomplete: Lines missing the sets or reps the volume check needs.
-
-    Returns:
-        One ``warn`` issue per problem.
     """
     notes: list[Issue] = []
 
@@ -288,15 +232,7 @@ def _ingest_notes(unresolved: list[dict], incomplete: list[str]) -> list[Issue]:
 
 
 def _render_nothing_understood(unresolved: list[dict], incomplete: list[str]) -> str:
-    """Say why nothing could be assessed, naming what was unclear.
-
-    Args:
-        unresolved: Lines that matched nothing confidently.
-        incomplete: Lines missing sets or reps.
-
-    Returns:
-        Text for the model to turn into a question.
-    """
+    """Say why nothing could be assessed, naming what was unclear."""
     if not unresolved and not incomplete:
         return (
             "Nothing plan-shaped was found in what you passed. Ask the user to paste the "
