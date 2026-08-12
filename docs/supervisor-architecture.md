@@ -601,7 +601,7 @@ app/core/langgraph/
 ```python
 AGENTS: dict[str, Callable[[], CompiledStateGraph]] = {
     "planning": build_planning_agent,
-    "review":   build_review_agent,
+    "review":   review_agent,
     "qa":       qa_agent,
 }
 ```

@@ -57,14 +57,8 @@ def _to_dict(exercise: Exercise) -> dict:
 
 
 def load_catalog(refresh: bool = False) -> dict[str, dict]:
-    """Return the whole catalog keyed by ``exercise_id``.
+    """Return the whole catalog keyed by ``exercise_id``."""
 
-    Args:
-        refresh: Re-read from Postgres instead of using the cached copy.
-
-    Returns:
-        Every exercise, keyed by id. Empty when the table has not been seeded.
-    """
     global _CACHE
     if _CACHE is not None and not refresh:
         return _CACHE

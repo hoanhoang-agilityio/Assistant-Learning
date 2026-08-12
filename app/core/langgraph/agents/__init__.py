@@ -6,11 +6,11 @@ from langgraph.graph.state import CompiledStateGraph
 
 from app.core.langgraph.agents.planning import build_planning_agent
 from app.core.langgraph.agents.qa import qa_agent
-from app.core.langgraph.agents.review import build_review_agent
+from app.core.langgraph.agents.review import review_agent
 
 AGENTS: dict[str, Callable[[], CompiledStateGraph]] = {
     "planning": build_planning_agent,
-    "review": build_review_agent,
+    "review": review_agent,
     "qa": qa_agent,
 }
 
@@ -29,8 +29,6 @@ def build_all() -> dict[str, CompiledStateGraph]:
 
     Called once at startup so the first user turn does not pay for compilation.
 
-    Returns:
-        Every agent, keyed by name.
     """
     return {name: get_agent(name) for name in AGENTS}
 

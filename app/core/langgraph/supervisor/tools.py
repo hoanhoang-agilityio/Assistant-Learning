@@ -1,27 +1,4 @@
-"""The supervisor's tools.
-
-Six of them, and the shape of the list is what §2's translation rule produced.
-For every pair of adjacent steps in the old graph, the question was: *if the
-agent runs the first and skips the second, is the result wrong?* Where the answer
-was yes and the two belonged to one operation, they became one tool body — which
-is why there is no ``build_diff`` tool and no ``calc_macro`` tool here.
-
-Three properties are enforced structurally rather than by prompt:
-
-* **The profile gate is a precondition, not a tool.** Given ``check_profile()``
-  as an option, some turns the model decides the profile looks complete and
-  proceeds with ``activity_level = None``, producing a TDEE wrong by several
-  hundred calories that looks authoritative. So it is checked on the first line
-  of every tool that could produce a plan, and no such tool accepts ``profile``
-  as a parameter — one that did would let the model fill in ``weight_kg=75`` for
-  a user who never said it (§10).
-* **``save_plan`` takes no plan argument.** The content comes from the draft
-  store, so the numbers written to ``plan_versions`` are the numbers that were
-  verified, not a version the model retyped (§4.2).
-* **Subagents are called as tools, not handed control.** A handoff would end the
-  supervisor's turn, and the confirm gate, the save and the final answer all live
-  at supervisor level — nothing would be left to run them.
-"""
+"""The supervisor's tools."""
 
 import json
 from typing import Any
@@ -148,14 +125,6 @@ async def review_agent(pasted: str, runtime: ToolRuntime) -> Command:
     plan someone pasted to ask an opinion about must not replace the one they
     follow, and there is no handle in the result for ``save_plan`` to accept.
 
-    Args:
-        pasted: The plan text as the user wrote it. Copy it across verbatim;
-            correcting spelling or expanding abbreviations destroys the evidence
-            that a name was ambiguous.
-        runtime: Tool runtime, read for the supervisor's state and config.
-
-    Returns:
-        The assessment, or a refusal naming what is missing.
     """
     state: SupervisorState = runtime.state
     profile = state.get("profile") or {}
@@ -178,11 +147,7 @@ async def review_agent(pasted: str, runtime: ToolRuntime) -> Command:
     )
 
     report = message_text(result["messages"][-1]) if result.get("messages") else ""
-    logger.info(
-        "review_agent_finished",
-        scored=bool(result.get("scored")),
-        unresolved=len(result.get("unresolved") or []),
-    )
+
     return _result(
         runtime.tool_call_id,
         {
