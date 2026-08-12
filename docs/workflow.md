@@ -29,7 +29,7 @@ model chooses to call.
 
 **1.3. The verifier is blind to how the plan was built.** It receives
 `(plan, profile, macros, catalog, rubric)` — never `messages`. Enforced by
-signature: `score(plan, profile, scope)` in `app/core/langgraph/scoring.py` has
+signature: `score(plan, profile, scope)` in `app/core/langgraph/verification/scoring.py` has
 no argument a transcript could arrive in.
 
 ---
@@ -257,8 +257,8 @@ field.
 
 ## 6. The three checks
 
-Pure functions in `app/core/langgraph/checks/`, called by
-`run_checks` in `app/core/langgraph/scoring.py` — no graph, no model, no I/O.
+Pure functions in `app/core/langgraph/verification/`, called by
+`run_checks` in `app/core/langgraph/verification/scoring.py` — no graph, no model, no I/O.
 Rubrics are seeded from `data/rubric_seed.json` into the `rubrics` table and
 carry a `rubric_version` (currently `2026.2`) so an old verdict stays
 reproducible.

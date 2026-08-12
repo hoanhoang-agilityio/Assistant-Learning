@@ -74,7 +74,7 @@ def scored(monkeypatch):
         return {"kcal": 2100, "tdee": 2400, "goal": profile.get("goal")}, [], "pass"
 
     monkeypatch.setattr("app.core.langgraph.agents.review.tools.score", fake_score)
-    monkeypatch.setattr("app.core.langgraph.rendering.load_catalog", lambda *a, **k: {})
+    monkeypatch.setattr("app.core.langgraph.plans.rendering.load_catalog", lambda *a, **k: {})
     return seen
 
 

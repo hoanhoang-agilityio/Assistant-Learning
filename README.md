@@ -65,7 +65,7 @@ uv run ruff check app tests scripts evals
 The suite needs no secrets and makes no network calls: every agent holds a chat model
 directly — `create_agent` needs one — so `tests/conftest.py` patches `LLMRegistry.get_llm`
 with a scripted `FakeChatModel`. All four agents resolve their model through
-`app.core.langgraph.models`, which is why that is one patch rather than one per package;
+`app.core.langgraph.runtime.models`, which is why that is one patch rather than one per package;
 an agent added later is stubbed by the same call instead of reaching the network until
 someone notices.
 

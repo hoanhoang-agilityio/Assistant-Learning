@@ -11,9 +11,9 @@ each. Read the two together — that one is the *domain*, this one is the
 *orchestration* and what the change to it cost.
 
 Where the code lives, section by section: the draft store in
-`app/core/langgraph/drafts/`, the supervisor in `app/core/langgraph/supervisor/`,
+`app/core/langgraph/runtime/draft_store.py`, the supervisor in `app/core/langgraph/supervisor/`,
 the agents in `app/core/langgraph/agents/`, and the one function that bundles
-macros with verification in `app/core/langgraph/scoring.py`.
+macros with verification in `app/core/langgraph/verification/scoring.py`.
 
 ---
 

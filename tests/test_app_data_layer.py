@@ -292,7 +292,7 @@ def test_calc_macros_rejects_an_unknown_goal():
 
 def test_calc_macros_output_passes_the_macro_rubric():
     """The calculator and the verifier must agree on a normal profile."""
-    from app.core.langgraph.checks import check_macro
+    from app.core.langgraph.verification import check_macro
     from tests.seed import MACRO_RULES
 
     profile = {

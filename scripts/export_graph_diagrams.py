@@ -38,7 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from langchain_core.runnables.graph import MermaidDrawMethod  # noqa: E402
 from langgraph.graph.state import CompiledStateGraph  # noqa: E402
 
-from app.core.langgraph.agents import AGENTS  # noqa: E402
+from app.core.langgraph.agents.registry import AGENTS  # noqa: E402
 from app.core.langgraph.supervisor import AGENT_NAME, build_supervisor  # noqa: E402
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -47,7 +47,7 @@ DEFAULT_OUTPUT_DIR = _PROJECT_ROOT / "docs" / "diagrams"
 
 
 # The supervisor plus every agent in the registry, so adding an agent adds its
-# diagram with no edit here (`app/core/langgraph/agents/__init__.py`).
+# diagram with no edit here (`app/core/langgraph/agents/registry.py`).
 GRAPH_BUILDERS: dict[str, Callable[[], CompiledStateGraph]] = {
     AGENT_NAME: build_supervisor,
     **AGENTS,

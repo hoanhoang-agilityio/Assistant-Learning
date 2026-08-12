@@ -46,6 +46,7 @@ SUGGESTIONS: list[tuple[str, str, str]] = [
     ),
 ]
 
+
 def welcome_title(username: str | None = None) -> str:
     """Build the empty-state greeting.
 

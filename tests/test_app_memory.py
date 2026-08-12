@@ -591,7 +591,7 @@ def test_reasoning_model_content_blocks_are_read_as_text():
     """
     from langchain_core.messages import AIMessage
 
-    from app.core.langgraph.utils import message_text
+    from app.core.langgraph.runtime.messages import message_text
 
     blocks = AIMessage(
         content=[
@@ -616,7 +616,7 @@ def test_no_node_reads_content_directly():
     offenders = [
         f"{path.relative_to(root)}:{n}"
         for path in root.rglob("*.py")
-        if path.name != "utils.py"
+        if path.name != "messages.py"
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
         if "isinstance(" in line and ".content, str)" in line
     ]

@@ -26,11 +26,11 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
-from app.core.langgraph import drafts
 from app.core.langgraph.agents.planning import tools as planning_tools
 from app.core.langgraph.agents.qa import QAState
 from app.core.langgraph.agents.review import tools as review_tools
-from app.core.langgraph.graph import DECLINED_MESSAGE, _is_affirmative
+from app.core.langgraph.runtime import draft_store as drafts
+from app.core.langgraph.runtime.facade import DECLINED_MESSAGE, _is_affirmative
 from app.core.langgraph.supervisor import WRITE_TOOLS, SupervisorState, build_supervisor_with
 from app.core.langgraph.supervisor import tools as supervisor_tools
 from app.core.langgraph.supervisor.middleware import OFF_TOPIC_ANSWER
@@ -172,7 +172,7 @@ def test_every_minted_draft_carries_macros():
 
     Nothing may reach the draft store without having been scored, so ``mint``
     is asserted to be unreachable without macros — and both of its callers to
-    obtain them from :func:`app.core.langgraph.scoring.score`.
+    obtain them from :func:`app.core.langgraph.verification.scoring.score`.
     """
     signature = inspect.signature(drafts.mint)
     for required in ("macros", "verdict", "issues"):
@@ -190,7 +190,7 @@ def test_the_verifier_still_has_nowhere_to_put_a_transcript():
     subgraph gone the guarantee is in the signatures: neither :func:`score` nor
     the checks it calls take an argument a transcript could arrive in.
     """
-    from app.core.langgraph import scoring
+    from app.core.langgraph.verification import scoring
 
     verifiers = (
         scoring.score,
@@ -298,7 +298,9 @@ async def test_save_reads_the_plan_from_the_store_not_from_the_model(monkeypatch
         written.append(kwargs)
         return {"version_id": "v-1", "label": "v1", "created_at": "2026-08-10T00:00:00"}
 
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.insert_version", fake_insert)
+    monkeypatch.setattr(
+        "app.core.langgraph.supervisor.tools.persistence.insert_version", fake_insert
+    )
 
     draft = _draft()
     result = await call(supervisor_tools.save_plan, _state(), _config(), draft_id=draft.draft_id)
@@ -317,7 +319,7 @@ async def test_a_failing_draft_is_refused_at_save_time(monkeypatch):
     async def fail(**_kwargs):
         raise AssertionError("a failing draft was written to plan_versions")
 
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.insert_version", fail)
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.persistence.insert_version", fail)
 
     draft = _draft(
         verdict="fail",
@@ -357,7 +359,9 @@ async def test_a_saved_draft_cannot_be_saved_twice(monkeypatch):
     async def fake_insert(**_kwargs):
         return {"version_id": "v-1", "label": "v1", "created_at": "2026-08-10T00:00:00"}
 
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.insert_version", fake_insert)
+    monkeypatch.setattr(
+        "app.core.langgraph.supervisor.tools.persistence.insert_version", fake_insert
+    )
 
     draft = _draft()
     await call(supervisor_tools.save_plan, _state(), _config(), draft_id=draft.draft_id)
@@ -373,7 +377,7 @@ async def test_an_anonymous_session_keeps_the_plan_without_a_row(monkeypatch):
     async def fail(**_kwargs):
         raise AssertionError("a version was written for an anonymous session")
 
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.insert_version", fail)
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.persistence.insert_version", fail)
 
     draft = _draft()
     result = await call(
