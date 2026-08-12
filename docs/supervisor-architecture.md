@@ -602,7 +602,7 @@ app/core/langgraph/
 AGENTS: dict[str, Callable[[], CompiledStateGraph]] = {
     "planning": build_planning_agent,
     "review":   build_review_agent,
-    "qa":       build_qa_agent,
+    "qa":       qa_agent,
 }
 ```
 
