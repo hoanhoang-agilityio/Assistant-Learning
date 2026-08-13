@@ -393,7 +393,7 @@ core/langgraph/
 │                     #   knows about the checkpointer pool or a chat turn
 ├── prompts/          # shared .md prompts: classify, extract_profile, session title/summary
 ├── supervisor/
-│   ├── agent.py      # build_supervisor() — create_agent + middleware + the confirm gate
+│   ├── agent.py      # build_supervisor_with() — create_agent + middleware + the confirm gate
 │   ├── middleware.py # topic_gate · load_context · extract_profile · dynamic_prompt
 │   ├── tools.py      # planning_agent · review_agent · qa_agent · list/restore · save_plan
 │   ├── state.py      # SupervisorState — eight fields, all of which outlive the turn

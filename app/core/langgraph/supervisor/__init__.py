@@ -15,7 +15,6 @@ _EXPORT_MODULES = {
     "OFF_TOPIC_ANSWER": "app.core.langgraph.supervisor.middleware",
     "SupervisorState": "app.core.langgraph.supervisor.state",
     "WRITE_TOOLS": "app.core.langgraph.supervisor.tools",
-    "build_supervisor": "app.core.langgraph.supervisor.agent",
     "build_supervisor_with": "app.core.langgraph.supervisor.agent",
     "interrupt_question": "app.core.langgraph.supervisor.agent",
 }
@@ -37,7 +36,6 @@ __all__ = [
     "OFF_TOPIC_ANSWER",
     "WRITE_TOOLS",
     "SupervisorState",
-    "build_supervisor",
     "build_supervisor_with",
     "interrupt_question",
 ]

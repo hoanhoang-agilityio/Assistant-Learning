@@ -569,7 +569,7 @@ app/core/langgraph/
   graph.py              the facade the API calls; owns the checkpointer pool
   prompts/              shared .md: session title/summary
   supervisor/
-    agent.py            build_supervisor() — create_agent + middleware + HITL
+    agent.py            build_supervisor_with() — create_agent + middleware + HITL
     middleware.py       topic_gate, load_context, extract_profile, supervisor_prompt
     tools.py            planning_agent, review_agent, qa_agent,
                         list_versions, restore_version, save_plan

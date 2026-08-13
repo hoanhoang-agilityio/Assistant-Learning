@@ -1,23 +1,4 @@
-"""The supervisor: the model that decides what happens on a turn.
-
-Replaces four root nodes — ``classify``, ``intent_branch``, ``verdict_gate`` and
-``compose_answer`` — and, with them, the idea that the order of steps is a
-property of the graph. It is now a decision the model re-makes after every tool
-result, which is what buys the three things a router cannot do: handle a turn
-with two intents, recover from its own bad first guess, and ask a follow-up
-without ending the turn (``docs/supervisor-architecture.md`` §4, §13).
-
-What that costs is paid back in the two places a guarantee can still live. Steps
-that must run every turn are middleware, which compiles to real nodes the model
-cannot skip. Steps that are conditions on being allowed to proceed are
-preconditions inside tool bodies, returning a refusal the model can read but not
-route around.
-
-The confirm gate is ``HumanInTheLoopMiddleware``, and it interrupts on a **tool
-name** rather than on a model's judgment about whether this change is
-significant. That distinction is the whole gate: the old ``confirm`` node could
-not be reasoned past, and neither can this one.
-"""
+"""The supervisor: the model that decides what happens on a turn."""
 
 import json
 from typing import Any
@@ -41,17 +22,8 @@ from app.core.langgraph.supervisor.tools import tools
 
 AGENT_NAME = "supervisor"
 
-# Model calls one turn may cost. A turn with two intents legitimately runs three
-# or four hops — plan, then answer the question about it, then write the reply —
-# and this is the ceiling under all of them. It replaces `recursion_limit`, which
-# fails the turn with a stack trace; `end` stops cleanly with whatever has been
-# written.
 _MAX_MODEL_CALLS = 8
 
-# Approve or reject only. `edit` would let the confirm gate hand back changed
-# arguments — a different `draft_id` — which is exactly the substitution the
-# draft store exists to prevent. `respond` would answer on the tool's behalf,
-# which for a save means telling the model a plan was stored when none was.
 _SAVE_DECISIONS = ["approve", "reject"]
 
 
@@ -63,13 +35,6 @@ def _save_description(tool_call: ToolCall, state: SupervisorState, runtime: Runt
     assembled from what the model typed would be a question about a different
     plan than the one about to be stored.
 
-    Args:
-        tool_call: The pending ``save_plan`` call.
-        state: Current supervisor state. Unused — the draft carries everything.
-        runtime: Agent runtime. Unused.
-
-    Returns:
-        The question to put to the user.
     """
     draft = draft_store.read(str(tool_call["args"].get("draft_id", "")))
     if draft is None:
@@ -90,28 +55,19 @@ def _save_description(tool_call: ToolCall, state: SupervisorState, runtime: Runt
     return "\n\n".join(parts)
 
 
-def build_supervisor() -> CompiledStateGraph:
-    """Build the supervisor, uncompiled — the caller attaches the checkpointer.
-
-    The checkpointer is not attached here because it is a resource the facade
-    owns and opens lazily, and because a second one anywhere in the tree writes a
-    competing history.
-
-    Returns:
-        The compiled supervisor, named so its spans are identifiable in Langfuse.
-    """
-    return build_supervisor_with(checkpointer=None)
-
-
 def build_supervisor_with(checkpointer: Any) -> CompiledStateGraph:
     """Build the supervisor against a specific checkpointer.
 
+    The checkpointer is passed in because it is a resource the facade owns and
+    opens lazily, and because a second one anywhere in the tree writes a
+    competing history. Pass ``None`` when persistence is not needed.
+
     Args:
-        checkpointer: The checkpointer to persist the whole tree with, or
-            ``None`` for an unpersisted conversation.
+        checkpointer: The LangGraph checkpointer, or ``None`` to compile without
+            one (diagrams, tests that do not resume).
 
     Returns:
-        The compiled supervisor.
+        The compiled supervisor, named so its spans are identifiable in Langfuse.
     """
     middleware: list[AgentMiddleware] = [
         *spine,
@@ -142,12 +98,6 @@ def interrupt_question(value: object) -> str:
 
     The middleware's payload is structured so a UI can show the diff properly,
     but the chat surface must show the question — not the JSON around it.
-
-    Args:
-        value: Whatever the middleware passed to ``interrupt()``.
-
-    Returns:
-        Text to send to the user.
     """
     if isinstance(value, str):
         return value
@@ -170,7 +120,6 @@ def interrupt_question(value: object) -> str:
 
 __all__ = [
     "AGENT_NAME",
-    "build_supervisor",
     "build_supervisor_with",
     "interrupt_question",
 ]
