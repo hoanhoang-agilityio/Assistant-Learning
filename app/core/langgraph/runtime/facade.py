@@ -16,8 +16,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 from psycopg_pool import AsyncConnectionPool
 
-from app.core.configs.config import Environment, settings
-from app.core.langgraph.agents.registry import build_all
+from app.core.configs.config import settings
 from app.core.langgraph.runtime.checkpointer import CheckpointerResources
 from app.core.langgraph.runtime.messages import message_text, to_chat_messages
 from app.core.langgraph.supervisor import build_supervisor_with, interrupt_question
@@ -94,27 +93,15 @@ class LangGraphRuntime:
         return await self._checkpointer_resources.get_connection_pool()
 
     async def create_graph(self) -> CompiledStateGraph | None:
-        """Build and cache the compiled supervisor.
-
-        Runs once per process. The subagents are built here too, not per
-        request: under a supervisor the same agent may be invoked several times
-        in one turn, and compiling a graph on each is a real cost.
-
-        Returns:
-            The compiled supervisor, or ``None`` when the checkpointer pool
-            could not be opened in production.
-        """
+        """Build and cache the compiled supervisor."""
         if self._graph is not None:
             return self._graph
         try:
-            build_all()
             checkpointer = await self._checkpointer_resources.get_checkpointer()
             self._graph = build_supervisor_with(checkpointer)
             return self._graph
         except Exception as error:
             logger.exception("graph_creation_failed", error=str(error))
-            if settings.ENVIRONMENT == Environment.PRODUCTION:
-                return None
             raise
 
     async def _get_graph(self) -> CompiledStateGraph:

@@ -24,12 +24,4 @@ def get_agent(name: str) -> CompiledStateGraph:
     return _built[name]
 
 
-def build_all() -> dict[str, CompiledStateGraph]:
-    """Build every registered agent.
-
-    Called once at startup so the first user turn does not pay for compilation.
-    """
-    return {name: get_agent(name) for name in AGENTS}
-
-
-__all__ = ["AGENTS", "build_all", "get_agent"]
+__all__ = ["AGENTS", "get_agent"]

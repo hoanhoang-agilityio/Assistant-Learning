@@ -139,9 +139,6 @@ async def load_context(state: SupervisorState, runtime: Runtime) -> dict[str, An
     config = get_config()
     user_id = get_user_id(config)
     if user_id is None:
-        # Anonymous session: nothing stored, and nothing to store. The profile
-        # preconditions still run, so the user is asked for what this turn needs.
-        logger.info("context_anonymous_session")
         return {"profile": {}, "episodic_context": ""}
 
     session_id = get_session_id(config)
@@ -161,13 +158,6 @@ async def load_context(state: SupervisorState, runtime: Runtime) -> dict[str, An
         update["macros"] = latest.macros
         update["current_version_id"] = latest.id
 
-    logger.info(
-        "context_loaded",
-        user_id=user_id,
-        fields=len(stored),
-        plan_rehydrated="plan" in update,
-        episodes=bool(episodes),
-    )
     return update
 
 
