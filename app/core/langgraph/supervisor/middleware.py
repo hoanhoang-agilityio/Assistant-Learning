@@ -49,6 +49,10 @@ _EXTRACTOR_MODEL = "gpt-5-mini"
 # the whole history on every extraction.
 _EXTRACTION_TURNS = 8
 
+# The only roles either transcript-reading prompt may see. See `_conversation`
+# for why tool results are not among them.
+_PROMPT_ROLES = frozenset({"user", "assistant"})
+
 # The whole reply to an off-topic message. Deliberately a constant and not a
 # model call: the one thing this branch must never do is engage with the message
 # it is declining, and a model handed that message will find a way to help with
@@ -259,19 +263,35 @@ def supervisor_prompt(request: ModelRequest) -> SystemMessage:
 
 
 def _conversation(state: SupervisorState, turns: int) -> str:
-    """Render recent turns as ``role: content`` lines.
+    """Render recent conversational turns as ``role: content`` lines.
+
+    Feeds the two prompts that read the transcript — the topic gate and the
+    extractor — and both ask a question about what the *user* said.
+
+    Tool results are excluded, and that is a boundary rather than a tidy-up.
+    ``search_knowledge`` returns passages from the knowledge base, and a prompt
+    that reads them hands whoever can write to that base a say in how another
+    user's message is classified, or in what gets extracted into their profile
+    and saved. Neither prompt needs them: nothing in a retrieved passage is
+    something the user stated.
+
+    Filtered *before* it is sliced, so ``turns`` counts turns of conversation
+    rather than rows of state — a turn that made three tool calls would otherwise
+    push the message being classified out of the window.
 
     Args:
         state: Current supervisor state.
-        turns: How many trailing messages to include.
+        turns: How many trailing turns to include.
 
     Returns:
         The conversation as text.
     """
-    return "\n".join(
-        f"{message['role']}: {message['content']}"
-        for message in dump_messages((state.get("messages") or [])[-turns:])
-    )
+    dumped = [
+        message
+        for message in dump_messages(state.get("messages") or [])
+        if message["role"] in _PROMPT_ROLES and message["content"]
+    ]
+    return "\n".join(f"{message['role']}: {message['content']}" for message in dumped[-turns:])
 
 
 def _has_new_user_input(state: SupervisorState) -> bool:
