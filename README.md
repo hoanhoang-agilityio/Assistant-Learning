@@ -253,15 +253,16 @@ from Postgres (`GET /auth/sessions`) and opening one loads its history from the 
 checkpointer (`GET /chatbot/messages`), so a conversation started on another machine — or
 before a restart — is still there. Rename, clear and delete act on the open conversation.
 
-Chat is one turn per request against `POST /chatbot/chat`. Plan builds, changes, reviews and
-reverts all answer through the same endpoint, including the confirm gate: when the agent
-shows a plan and asks whether to keep it, replying `yes` resumes the interrupted run and
-saves the plan you were shown — not one rebuilt from the transcript. Anything that is not a
-recognised yes is treated as no, and leaves the stored plan exactly as it was.
+Chat is one turn per request against `POST /chatbot/chat/stream`. Tokens appear in the
+chat window as the supervisor writes them. Plan builds, changes, reviews and reverts all
+answer through the same endpoint, including the confirm gate: when the agent shows a plan
+and asks whether to keep it, the question is the last chunk of that stream (the interrupt
+fires after the model tokens, if any, have ended). Replying `yes` resumes the interrupted
+run and saves the plan you were shown — not one rebuilt from the transcript. Anything that
+is not a recognised yes is treated as no, and leaves the stored plan exactly as it was.
 
-`POST /chatbot/chat/stream` exists but the UI does not use it: a turn that stops at the
-confirm gate has no streamed answer to show, because the question is produced by the
-interrupt after the stream has ended.
+`POST /chatbot/chat` is the non-streaming counterpart of the same turn: it waits for the
+graph to finish and returns the completed messages in one body.
 
 Tokens live in Streamlit's per-session state and nowhere else — not in the URL, not on disk —
 so a full browser reload signs you out. Nothing is lost: the conversations are in the
