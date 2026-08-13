@@ -13,9 +13,8 @@ decides the topic gate is unnecessary does not get a say.
 
 Hook order is not cosmetic. ``before_agent`` hooks run before any
 ``before_model`` hook, and within a phase they run in the order the middleware
-list declares. The topic gate must come first: today an off-topic turn writes
-nothing to the profile because the extractor returns early on that intent, and
-after the conversion that property comes from ordering alone.
+list declares. The topic gate must come first, so an off-topic turn ends before
+the extractor ever sees the message.
 """
 
 import asyncio
@@ -65,13 +64,13 @@ OFF_TOPIC_ANSWER = (
 async def topic_gate(state: SupervisorState, runtime: Runtime) -> dict[str, Any] | None:
     """Refuse an out-of-scope message before the supervisor ever sees it.
 
-    Reads ``messages``. Writes the ``NEW_TURN`` reset and ``intent_hint``, or
-    ends the turn with the refusal.
+    Reads ``messages``. Writes the ``NEW_TURN`` reset, or ends the turn with
+    the refusal.
 
-    ``classify`` does not die in the conversion — it moves in here, and its
-    output is used for two things instead of one: the topic decision, and the
-    hint. That is what keeps the gate from costing an extra round-trip, which is
-    the standing objection to a separate guardrail node.
+    ``classify`` does not die in the conversion — it moves in here, reduced to
+    a single binary question: is this message in scope? That keeps the gate from
+    costing an extra round-trip, which is the standing objection to a separate
+    guardrail node.
 
     ``before_agent`` rather than ``before_model``: the topic of a turn does not
     change between iterations of the loop, so classifying on every model call
@@ -105,8 +104,7 @@ async def topic_gate(state: SupervisorState, runtime: Runtime) -> dict[str, Any]
             "jump_to": "end",
         }
 
-    logger.info("routing_intent_hint", intent=decision.intent)
-    return {**NEW_TURN, "intent_hint": decision.intent}
+    return dict(NEW_TURN)
 
 
 @before_agent(state_schema=SupervisorState)
@@ -256,7 +254,6 @@ def supervisor_prompt(request: ModelRequest) -> SystemMessage:
             episodic_context=state.get("episodic_context") or "",
             missing_fields=state.get("missing_fields") or [],
             goal_conflict=state.get("goal_conflict"),
-            intent_hint=state.get("intent_hint"),
         )
     )
 
@@ -301,8 +298,7 @@ def _has_new_user_input(state: SupervisorState) -> bool:
 
 
 # Order is load-bearing. The topic gate runs first so an off-topic turn never
-# reaches the extractor — today that property comes from the extractor returning
-# early on the intent, and after the conversion it comes from ordering alone.
+# reaches the extractor.
 middleware = [topic_gate, load_context, extract_profile, supervisor_prompt]
 
 

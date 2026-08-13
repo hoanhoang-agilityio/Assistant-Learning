@@ -97,5 +97,3 @@ did I do before"; never to state what their plan holds now — that comes from t
 section above, and only from there.
 
 {episodic_context}
-
-{hint_block}

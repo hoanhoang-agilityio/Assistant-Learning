@@ -10,10 +10,7 @@ doubled (``{{`` / ``}}``).
 
 from pathlib import Path
 
-from app.core.langgraph.supervisor.prompts import (
-    load_classify_prompt,
-    load_extract_profile_prompt,
-)
+from app.core.langgraph.supervisor.prompts import load_extract_profile_prompt
 
 _PROMPTS_DIR = Path(__file__).parent
 
@@ -26,6 +23,5 @@ SESSION_SUMMARY_PROMPT = (_PROMPTS_DIR / "session_summary.md").read_text(encodin
 __all__ = [
     "SESSION_SUMMARY_PROMPT",
     "SESSION_TITLE_PROMPT",
-    "load_classify_prompt",
     "load_extract_profile_prompt",
 ]

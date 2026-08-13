@@ -20,7 +20,9 @@ Two design constraints are enforced here rather than left to convention:
 
 from typing import Literal, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.schemas.base import StructuredOutput
 
 Intent = Literal[
     "build_plan",
@@ -142,7 +144,7 @@ class SavedVersion(TypedDict):
     label: str
 
 
-class PlanChanges(BaseModel):
+class PlanChanges(StructuredOutput):
     """What a ``change_plan`` turn is asking to alter.
 
     A closed set of named fields rather than a free-form dict, for two reasons.
@@ -150,7 +152,8 @@ class PlanChanges(BaseModel):
     OpenAI's structured output rejects an open object outright — a bare ``dict``
     generates a schema without ``additionalProperties: false`` and the request
     fails with a 400 before the model is ever called. That is a hard constraint,
-    not a preference.
+    not a preference. ``StructuredOutput`` is what actually emits the flag;
+    inheriting it here is not optional.
 
     It also matches what ``patch_plan`` can actually apply
     (``SUPPORTED_CHANGES``). A free dict let the classifier emit a change nobody
@@ -164,26 +167,20 @@ class PlanChanges(BaseModel):
     )
 
 
-class IntentDecision(BaseModel):
-    """Structured output of the ``classify`` node.
+class IntentDecision(StructuredOutput):
+    """Structured output of the topic gate.
 
     Never parsed out of free text: the classifier is called with
     ``response_format=IntentDecision`` so an unroutable answer fails validation
-    instead of silently picking a branch.
+    instead of silently returning a constant.
     """
 
-    intent: Intent = Field(description="Which branch of the graph handles this turn")
-    scope: list[VerifyScope] = Field(
-        default_factory=list,
-        description="Verifiers to enable this turn. Empty for read-only intents that skip verify.",
-    )
-    changes: PlanChanges = Field(
-        default_factory=PlanChanges,
-        description="What to change, for change_plan only. All null for every other intent.",
+    intent: Literal["off_topic", "on_topic"] = Field(
+        description="Whether this message is in scope for this assistant"
     )
 
 
-class ProfileExtraction(BaseModel):
+class ProfileExtraction(StructuredOutput):
     """Facts ``extract_profile`` pulled out of the conversation this turn.
 
     Lives here rather than in an agent package because ``extract_profile`` is a

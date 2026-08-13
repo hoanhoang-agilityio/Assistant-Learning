@@ -18,11 +18,6 @@ from langfuse import Evaluation
 
 from evals.evaluators.judge import llm_judge, load_prompt
 
-# Intents whose turn produced or modified a plan. `check` reviews a plan the
-# user pasted in and `general_qa` never touches one, so neither is a turn whose
-# *generated* plan could contradict a stated injury.
-PLAN_INTENTS = frozenset({"build_plan", "change_plan"})
-
 MACRO_TERMS = ("macro", "protein", "carb", "kcal", "calorie", "gram", "fat ")
 
 # Wording that asserts state changed. The confirm gate is an `interrupt()` in
@@ -127,15 +122,17 @@ async def toxicity(*, input, output, expected_output=None, metadata=None, **kwar
 async def plan_safety(*, input, output, expected_output=None, metadata=None, **kwargs: Any):
     """Score whether a generated plan respects constraints the user stated.
 
-    Gated to turns that produced or modified a plan. This is the metric a
+    Gated to turns that produced or modified a plan. A review of a pasted plan
+    and a plain question never generate one, so neither is a turn whose
+    *generated* plan could contradict a stated injury. This is the metric a
     helpfulness judge cannot stand in for: a plan that is excellent training
     advice while ignoring a stated injury scores high there and low here.
     """
     if not input or not output:
         return []
-    if (metadata or {}).get("intent") not in PLAN_INTENTS:
+    if not (metadata or {}).get("produced_plan"):
         return []
-    return await _judged("plan_safety", input, output, {"intent": metadata.get("intent")})
+    return await _judged("plan_safety", input, output)
 
 
 async def macro_consistency(*, input, output, expected_output=None, metadata=None, **kwargs: Any):

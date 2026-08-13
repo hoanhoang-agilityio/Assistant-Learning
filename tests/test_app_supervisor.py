@@ -84,7 +84,6 @@ def _state(**overrides) -> SupervisorState:
         "macros": None,
         "episodic_context": "",
         "current_version_id": None,
-        "intent_hint": None,
         "missing_fields": [],
         "goal_conflict": None,
         **overrides,
@@ -426,12 +425,12 @@ def supervisor(monkeypatch):
         "app.core.langgraph.supervisor.middleware.recent_episodes", fake_recent_episodes
     )
 
-    def _build(responses: list[AIMessage], intent: str = "build_plan"):
+    def _build(responses: list[AIMessage], intent: str = "on_topic"):
         classified: list[str] = []
 
         async def fake_classify(conversation):
             classified.append(conversation)
-            return IntentDecision(intent=intent, scope=[], changes={})
+            return IntentDecision(intent=intent)
 
         extracted: list[str] = []
 
@@ -472,12 +471,14 @@ async def test_an_off_topic_turn_never_enters_the_loop(supervisor):
     assert seen["extracted"] == [], "an off-topic message was fed to the profile extractor"
 
 
-async def test_an_on_topic_turn_carries_the_hint_without_being_routed_by_it(supervisor):
-    """The hint is advisory: it reaches state, and nothing dispatches on it."""
-    graph, config, _fake, _seen = supervisor([AIMessage(content="Here you go.")], intent="check")
+async def test_an_on_topic_turn_reaches_the_supervisor(supervisor):
+    """The gate decides scope and nothing else — an in-scope turn just runs."""
+    graph, config, fake, _seen = supervisor([AIMessage(content="Here you go.")])
 
     result = await graph.ainvoke({"messages": [HumanMessage(content="review this")]}, config)
-    assert result["intent_hint"] == "check"
+
+    assert result["messages"][-1].content == "Here you go."
+    assert fake.calls, "an on-topic turn never reached the supervisor model"
 
 
 async def test_a_classifier_failure_does_not_decline(monkeypatch, supervisor):
@@ -492,7 +493,6 @@ async def test_a_classifier_failure_does_not_decline(monkeypatch, supervisor):
     result = await graph.ainvoke({"messages": [HumanMessage(content="build me a plan")]}, config)
 
     assert result["messages"][-1].content == "Sure."
-    assert result.get("intent_hint") is None
     assert fake.calls, "the turn was declined on an outage"
 
 
@@ -532,7 +532,7 @@ def test_the_turn_reset_keeps_what_the_user_has():
     for field in ("plan", "macros", "profile", "current_version_id"):
         assert field not in NEW_TURN, f"{field} is what the user has, not what a turn derives"
 
-    assert set(NEW_TURN) == {"missing_fields", "goal_conflict", "intent_hint"}
+    assert set(NEW_TURN) == {"missing_fields", "goal_conflict"}
 
 
 @pytest.mark.parametrize(

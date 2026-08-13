@@ -78,7 +78,6 @@ def _state(**overrides) -> dict:
         "macros": {"kcal": 2100, "tdee": 2400, "goal": "fat_loss"},
         "episodic_context": "",
         "current_version_id": "v3-id",
-        "intent_hint": "revert",
         "missing_fields": [],
         "goal_conflict": None,
         **overrides,

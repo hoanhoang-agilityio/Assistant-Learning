@@ -99,7 +99,7 @@ def turn(monkeypatch):
     def _build(
         responses: list[AIMessage],
         stored_profile: dict | None = None,
-        intent: str = "build_plan",
+        intent: str = "on_topic",
         saved_plan: dict | None = None,
     ):
         async def fake_get_profile(_user_id):
@@ -113,7 +113,7 @@ def turn(monkeypatch):
             return SimpleNamespace(id="v-0", plan=saved_plan, macros=MACROS)
 
         async def fake_classify(_conversation):
-            return IntentDecision(intent=intent, scope=[], changes={})
+            return IntentDecision(intent=intent)
 
         class _FakeLLM:
             async def call(self, _messages, *_a, **_kw):
