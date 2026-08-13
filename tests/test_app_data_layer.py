@@ -357,6 +357,30 @@ def test_preferences_are_capped_and_drop_the_oldest():
     assert "item 0" not in items, "the cap dropped the newest instead of the oldest"
 
 
+def test_a_single_preference_is_bounded_too_not_just_their_number():
+    """Twelve items of unlimited length is an unlimited column.
+
+    And this column is rendered into the supervisor's system prompt on every
+    turn, so its size is a per-turn cost, not just a row in the database.
+    """
+    from app.services.profile import _MAX_PREFERENCE_CHARS, merge_preferences
+
+    merged = merge_preferences("", "avoids " + "overhead pressing " * 100)
+
+    assert len(merged) <= _MAX_PREFERENCE_CHARS
+    assert merged.startswith("avoids overhead pressing")
+
+
+def test_two_preferences_alike_past_the_bound_count_as_the_one_item_they_render_as():
+    """Dedupe reads the truncated item, because that is what gets stored."""
+    from app.services.profile import _MAX_PREFERENCE_CHARS, merge_preferences
+
+    stem = "x" * _MAX_PREFERENCE_CHARS
+    merged = merge_preferences(f"{stem}aaa", f"{stem}bbb")
+
+    assert merged == stem
+
+
 def test_several_preferences_stated_at_once_are_kept_apart():
     """One turn can state two things, and they must not fuse into one item."""
     from app.services.profile import merge_preferences

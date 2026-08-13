@@ -3,6 +3,7 @@
 from app.core.logging import logger
 from app.schemas.graph import GoalConflict, ProfileExtraction
 from app.services.rubrics import contraindications
+from app.utils.sanitization import sanitize_prompt_text
 
 SEXES = ("male", "female")
 ACTIVITY_LEVELS = ("sedentary", "light", "moderate", "active", "very_active")
@@ -22,11 +23,25 @@ EQUIPMENT_TOKENS = frozenset(
     }
 )
 _MIN_LEVEL, _MAX_LEVEL = 1, 5
-_MAX_UNMAPPED_INJURY = 200
+
+# The two fields with no controlled vocabulary to check against, and the bound
+# each gets instead. Every other field here is an enum, a number or a token list,
+# so a payload cannot survive the checks below; these two are free text by
+# design, and a bound plus `sanitize_prompt_text` is what stands in for a
+# vocabulary. `preferences` is the wider of the two because one turn may state
+# several — the per-item bound lives in `merge_preferences`, which is where the
+# accumulated column is assembled.
+_FREE_TEXT_CAPS = {"preferences": 500, "unmapped_injury": 200}
 
 
 def clean_extraction(extraction: ProfileExtraction) -> dict:
-    """Drop nulls and values outside the controlled vocabularies."""
+    """Drop nulls and values outside the controlled vocabularies.
+
+    Free text is flattened rather than dropped: it has no vocabulary to fail, and
+    what makes it dangerous is shape, not content. See ``sanitize_prompt_text``
+    for why that matters — these two fields are persisted and then rendered into
+    the supervisor's system prompt.
+    """
     raw = extraction.model_dump(exclude_none=True)
     raw.pop("implied_goal", None)
     clean: dict = {}
@@ -43,8 +58,15 @@ def clean_extraction(extraction: ProfileExtraction) -> dict:
             kept = [item for item in value if item in EQUIPMENT_TOKENS]
             if kept:
                 clean[key] = sorted(set(kept))
-        elif key == "unmapped_injury":
-            clean[key] = str(value)[:_MAX_UNMAPPED_INJURY]
+        elif key in _FREE_TEXT_CAPS:
+            # Dropped rather than stored empty when nothing survives: `""` is a
+            # value `upsert_profile` would write, and it would blank whatever an
+            # earlier turn recorded.
+            text = sanitize_prompt_text(value, _FREE_TEXT_CAPS[key])
+            if text:
+                clean[key] = text
+            else:
+                _drop(key, value)
         elif key == "injuries":
             clean[key] = [item for item in value if item in contraindications()["injuries"]]
         else:
