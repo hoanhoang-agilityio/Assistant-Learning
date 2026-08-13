@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.base import StructuredOutput
+
 # Control characters are stripped rather than rejected: they carry no meaning in
 # chat text and a paste from a terminal or PDF routinely contains them.
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -49,7 +51,7 @@ class StreamResponse(BaseModel):
     done: bool = Field(default=False, description="True on the final frame, including errors")
 
 
-class SessionTitle(BaseModel):
+class SessionTitle(StructuredOutput):
     """Structured output schema for auto-generated session titles.
 
     The bound and the validator are the guardrail around a model asked for a
@@ -74,7 +76,7 @@ class SessionTitle(BaseModel):
         return v
 
 
-class SessionSummary(BaseModel):
+class SessionSummary(StructuredOutput):
     """Structured output schema for an episodic session summary.
 
     ``max_length`` is the real guardrail, not formatting. This text is carried
