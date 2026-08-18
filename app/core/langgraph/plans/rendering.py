@@ -36,11 +36,31 @@ def render_plan(plan: dict[str, Any] | None, goal: str | None = None) -> str:
     ]
     catalog = load_catalog()
     for index, day in enumerate(plan["days"], start=1):
-        lines.append(f"Day {index} — {day['name']}:")
+        lines.append(f"{_day_heading(index, day['name'])}:")
         for exercise in day["exercises"]:
             lines.append(f"  - {exercise['name']}: {render_prescription(exercise, catalog)}")
         lines.append("")
     return "\n".join(lines).rstrip()
+
+
+def _day_heading(index: int, name: str) -> str:
+    """Number a day, unless its name already carries the number.
+
+    Built plans take their day names from the template — "Upper A", "Full Body" —
+    and need the count in front. A pasted plan takes them from the user, who
+    usually wrote "Day 1 — Upper" themselves, and prefixing that produced
+    "Day 1 — Day 1 — Upper" in the review.
+
+    Args:
+        index: The day's position in the plan, from 1.
+        name: The day's name as the plan carries it.
+
+    Returns:
+        The heading, without its trailing colon.
+    """
+    if name.strip().lower().startswith("day "):
+        return name.strip()
+    return f"Day {index} — {name}"
 
 
 def render_issues(issues: list[Issue]) -> str:
