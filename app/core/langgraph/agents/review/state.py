@@ -12,12 +12,16 @@ than by two separate state fields (``docs/supervisor-architecture.md`` §6.2).
 
 from langchain.agents.middleware import AgentState
 
+from app.schemas.graph import PastedDay
+
 
 class ReviewState(AgentState):
     """Working state of the review agent."""
 
     catalog: dict
     profile: dict
+
+    submitted: list[PastedDay]
 
     # The plan as it was understood, kept so the caller can report *what* was
     # assessed. Not a handle, and nothing accepts it as one.

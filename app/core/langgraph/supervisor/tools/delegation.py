@@ -7,6 +7,7 @@ from langgraph.types import Command
 
 from app.core.langgraph.agents.qa import EXHAUSTED_ANSWER, FAILURE_ANSWER
 from app.core.langgraph.agents.registry import get_agent
+from app.core.langgraph.agents.review.transcribe import transcribe
 from app.core.langgraph.plans.rendering import render_plan_context
 from app.core.langgraph.runtime import draft_store
 from app.core.langgraph.runtime.messages import message_text
@@ -100,11 +101,29 @@ async def review_agent(pasted: str, runtime: ToolRuntime) -> Command:
     refusal = _profile_precondition(profile, "check", state)
     if refusal is not None:
         return _refuse(runtime.tool_call_id, refusal, missing=refusal.get("fields"))
+
+    # Read before the agent is built, not by it. Transcription is mandatory and
+    # an agent's tool call is optional, and the gap between those two is where
+    # a review written from nothing used to come from.
+    submitted = await transcribe(pasted)
+    if not submitted:
+        return _refuse(
+            runtime.tool_call_id,
+            ToolRefusal(
+                status="refused",
+                reason=(
+                    "No plan could be read from that message. Ask them to paste it with each "
+                    "day, the exercises under it, and sets and reps for each."
+                ),
+            ),
+        )
+
     result = await get_agent("review").ainvoke(
         {
             "messages": [HumanMessage(content=pasted)],
             "catalog": load_catalog(),
             "profile": profile,
+            "submitted": submitted,
             "submitted_plan": None,
             "unresolved": [],
             "incomplete": [],
@@ -113,14 +132,24 @@ async def review_agent(pasted: str, runtime: ToolRuntime) -> Command:
         runtime.config,
     )
     report = message_text(result["messages"][-1]) if result.get("messages") else ""
-    return _result(
-        runtime.tool_call_id,
-        {
-            "status": "review",
-            "scored": bool(result.get("scored")),
-            "report": report or "The plan could not be assessed.",
-        },
-    )
+    scored = bool(result.get("scored"))
+    payload = {
+        "status": "review",
+        "scored": scored,
+        "report": report or "The plan could not be assessed.",
+    }
+    if not scored:
+        # In band, because a `false` in a JSON field is easy to skim past and the
+        # failure it permits — assessing the plan from the model's own knowledge,
+        # with no rubric, no macros and no injury check behind it — reads exactly
+        # like a real review to the user.
+        logger.info("review_agent_returned_unscored")
+        payload["note"] = (
+            "No rubric ran, so there is no assessment. Relay what the report asks for. Do "
+            "not assess the plan yourself: any verdict, volume judgement, macro number or "
+            "exercise substitution you write here would have nothing behind it."
+        )
+    return _result(runtime.tool_call_id, payload)
 
 
 @tool

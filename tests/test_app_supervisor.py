@@ -35,7 +35,7 @@ from app.core.langgraph.supervisor import WRITE_TOOLS, SupervisorState, build_su
 from app.core.langgraph.supervisor import tools as supervisor_tools
 from app.core.langgraph.supervisor.middleware import OFF_TOPIC_ANSWER
 from app.core.langgraph.supervisor.state import NEW_TURN
-from app.schemas.graph import IntentDecision
+from app.schemas.graph import IntentDecision, PastedDay, PastedExercise
 from tests.conftest import FakeChatModel, reset_agents, stub_model, tool_call
 from tests.support import call, message, updates
 
@@ -260,7 +260,31 @@ async def test_a_contradicted_goal_refuses_rather_than_picking_one():
     assert "fat loss" in body["reason"]
 
 
-async def test_a_review_is_not_blocked_by_programme_fields():
+@pytest.fixture
+def transcribed(monkeypatch):
+    """Stand in for the transcription call the review tool makes before delegating.
+
+    Returns the list the stub will produce, so a test can empty it to say "the
+    message held no plan".
+    """
+    days = [
+        PastedDay(
+            day=1,
+            name="Pasted day",
+            exercises=[PastedExercise(raw_name="Back Squat", sets=3, reps_min=5, reps_max=5)],
+        )
+    ]
+
+    async def fake_transcribe(pasted: str):
+        return days
+
+    monkeypatch.setattr(
+        "app.core.langgraph.supervisor.tools.delegation.transcribe", fake_transcribe
+    )
+    return days
+
+
+async def test_a_review_is_not_blocked_by_programme_fields(transcribed):
     """Scoring a pasted plan needs body data, not the shape of a programme."""
     body_only = {
         key: PROFILE[key]
@@ -270,6 +294,91 @@ async def test_a_review_is_not_blocked_by_programme_fields():
         supervisor_tools.review_agent, _state(profile=body_only), _config(), pasted="squats 3x5"
     )
     assert json.loads(message(result).content)["status"] != "missing_fields"
+
+
+async def test_a_message_with_no_plan_in_it_is_refused_before_any_agent_runs(monkeypatch):
+    """Nothing to read means nothing to review, and the user is the one to ask.
+
+    Worth its own test because the same words used to mean something else. This
+    refusal used to be the answer to a *transcription* that came back empty —
+    the model's own reading, handed back to the user as though their text were
+    at fault. Reading now happens in one deterministic call before the agent
+    exists, so an empty result really is "there was no plan in that message".
+    """
+
+    async def nothing(pasted: str):
+        return []
+
+    def _no_agent(_name):
+        raise AssertionError("an agent was invoked with nothing to assess")
+
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.delegation.transcribe", nothing)
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.delegation.get_agent", _no_agent)
+    result = await call(
+        supervisor_tools.review_agent, _state(profile=PROFILE), _config(), pasted="thanks!"
+    )
+    body = json.loads(message(result).content)
+
+    assert body["status"] == "refused"
+    assert "No plan could be read" in body["reason"]
+
+
+async def test_the_transcription_reaches_the_agent_as_state_not_as_a_tool_call(
+    monkeypatch, transcribed
+):
+    """What the agent is handed is already read, so it has nothing to get wrong.
+
+    The failure this closes: transcription was a tool argument the agent wrote
+    itself, and a wrong guess at the shape arrived as an empty plan that the
+    tool reported — and the supervisor relayed — as the user's fault.
+    """
+    seen: dict = {}
+
+    class _Agent:
+        async def ainvoke(self, state, config):
+            seen.update(state)
+            return {"messages": [AIMessage(content="Assessed.")], "scored": True}
+
+    monkeypatch.setattr(
+        "app.core.langgraph.supervisor.tools.delegation.get_agent", lambda _name: _Agent()
+    )
+    await call(
+        supervisor_tools.review_agent, _state(profile=PROFILE), _config(), pasted="squats 3x5"
+    )
+
+    assert seen["submitted"] == transcribed
+    assert seen["scored"] is False, "the agent must not start out believing it scored"
+
+
+@pytest.mark.parametrize("scored", [True, False])
+async def test_an_unscored_review_tells_the_supervisor_not_to_assess_it_itself(
+    monkeypatch, transcribed, scored
+):
+    """A recorded failure: the gap where no rubric ran got filled from memory.
+
+    When ``score_plan`` could not run, the supervisor wrote the review itself —
+    verdict, volume judgement and exercise substitutions, none of it behind a
+    rubric, a macro calculation or the injury check. It read exactly like a real
+    assessment. ``scored: false`` alone was too easy to skim past.
+    """
+
+    class _Agent:
+        async def ainvoke(self, state, config):
+            return {"messages": [AIMessage(content="Which plan did you mean?")], "scored": scored}
+
+    monkeypatch.setattr(
+        "app.core.langgraph.supervisor.tools.delegation.get_agent", lambda _name: _Agent()
+    )
+    result = await call(
+        supervisor_tools.review_agent, _state(profile=PROFILE), _config(), pasted="squats 3x5"
+    )
+    body = json.loads(message(result).content)
+
+    assert body["scored"] is scored
+    if scored:
+        assert "note" not in body
+    else:
+        assert "Do not assess the plan yourself" in body["note"]
 
 
 async def test_changing_a_plan_that_does_not_exist_is_refused():
