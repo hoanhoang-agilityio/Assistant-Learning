@@ -22,8 +22,8 @@ import pytest
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 
-from app.core.langgraph import drafts
-from app.core.langgraph.graph import LangGraphAgent
+from app.core.langgraph.runtime import draft_store as drafts
+from app.core.langgraph.runtime.facade import LangGraphAgent
 from app.core.langgraph.supervisor import build_supervisor_with
 from app.schemas.chat import Message
 from app.schemas.graph import IntentDecision, ProfileExtraction
@@ -91,13 +91,15 @@ def turn(monkeypatch):
     monkeypatch.setattr(
         "app.core.langgraph.supervisor.middleware.recent_episodes", fake_recent_episodes
     )
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.insert_version", fake_insert_version)
-    monkeypatch.setattr("app.core.langgraph.rendering.load_catalog", lambda *a, **k: {})
+    monkeypatch.setattr(
+        "app.core.langgraph.supervisor.tools.persistence.insert_version", fake_insert_version
+    )
+    monkeypatch.setattr("app.core.langgraph.plans.rendering.load_catalog", lambda *a, **k: {})
 
     def _build(
         responses: list[AIMessage],
         stored_profile: dict | None = None,
-        intent: str = "build_plan",
+        intent: str = "on_topic",
         saved_plan: dict | None = None,
     ):
         async def fake_get_profile(_user_id):
@@ -111,7 +113,7 @@ def turn(monkeypatch):
             return SimpleNamespace(id="v-0", plan=saved_plan, macros=MACROS)
 
         async def fake_classify(_conversation):
-            return IntentDecision(intent=intent, scope=[], changes={})
+            return IntentDecision(intent=intent)
 
         class _FakeLLM:
             async def call(self, _messages, *_a, **_kw):
@@ -399,7 +401,7 @@ def test_only_the_supervisors_own_tokens_reach_the_chat_window():
     nested below ``tools``, and its tokens would otherwise appear as though the
     assistant were thinking out loud about slot ids.
     """
-    from app.core.langgraph.graph import _is_supervisor_answer
+    from app.core.langgraph.runtime.facade import _is_supervisor_answer
 
     assert _is_supervisor_answer({"langgraph_node": "model", "langgraph_checkpoint_ns": "model:1"})
     assert not _is_supervisor_answer(

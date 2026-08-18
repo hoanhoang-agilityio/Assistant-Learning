@@ -2,16 +2,16 @@
 
 The transcript shown here is the one the API returned, not a client-side
 reconstruction: history comes from ``GET /chatbot/messages`` (the LangGraph
-checkpointer) and each reply comes from ``POST /chatbot/chat``. Anything the UI
-invented locally would drift from what the agent sees on the next turn, and the
-confirm gate — which resumes from a checkpoint — would be answering about a plan
-the user was never shown.
+checkpointer) and each reply comes from ``POST /chatbot/chat/stream``. Anything
+the UI invented locally would drift from what the agent sees on the next turn,
+and the confirm gate — which resumes from a checkpoint — would be answering
+about a plan the user was never shown.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import httpx
@@ -21,6 +21,7 @@ from app.ui import api_client, state
 from app.ui.wording import ERROR_COPY, THINKING_LABEL
 
 _AVATARS = {"user": "🙂", "assistant": "🏋️"}
+_FALLBACK_REPLY = "I didn't manage to put a reply together. Try rephrasing that?"
 
 
 def run_guarded_backend_action(
@@ -139,11 +140,10 @@ def _token_for(session_id: str) -> str:
 
 
 def thinking_html(label: str = THINKING_LABEL) -> str:
-    """Build the pulsing "Thinking…" row shown while a turn is in flight.
+    """Build the pulsing "Thinking…" row shown until the first token arrives.
 
-    The API answers a turn in one response rather than emitting per-node
-    progress, so this is a single honest indicator rather than the step-by-step
-    timeline the old run-based UI could draw.
+    Subagent work (planning, review) emits no chat tokens, so this is a single
+    honest indicator rather than a step-by-step timeline.
 
     Args:
         label: The text beside the dot.
@@ -203,11 +203,11 @@ def load_conversation(client: httpx.Client, session_id: str) -> None:
 
 
 def send_turn(client: httpx.Client, session_id: str, text: str) -> None:
-    """Send one message and append whatever the agent replies.
+    """Send one message and stream the agent's reply into the chat window.
 
     The reply may be an answer, a request for the profile fields still missing,
-    or the confirm gate's question — all of which arrive as ordinary assistant
-    messages, so this function does not need to know which branch ran.
+    or the confirm gate's question — all of which arrive as text chunks, so this
+    function does not need to know which branch ran.
 
     The user's own message is appended by the caller, which renders it before
     calling in so it is on screen for the length of the turn.
@@ -219,36 +219,99 @@ def send_turn(client: httpx.Client, session_id: str, text: str) -> None:
     """
     thinking = st.empty()
     thinking.markdown(thinking_html(), unsafe_allow_html=True)
+    chunks: list[str] = []
+    try:
+        reply = _consume_stream(client, session_id, text, thinking, chunks)
+    except httpx.TimeoutException:
+        _finish_failed_turn(chunks, ERROR_COPY["chat_timeout"])
+        return
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError) as exc:
+        _finish_failed_turn(chunks, f"⚠️ {ERROR_COPY['chat_failed']}: {_detail(exc)}")
+        return
+    finally:
+        thinking.empty()
+    if not reply:
+        reply = _FALLBACK_REPLY
+        with st.chat_message("assistant", avatar=_AVATARS["assistant"]):
+            st.markdown(reply)
+    st.session_state.messages.append({"role": "assistant", "content": reply})
+    _refresh_conversation_names(client)
 
-    def do_send() -> list[dict[str, Any]]:
-        try:
-            return with_session_retry(
-                client,
-                lambda token: api_client.send_message(client, token, text),
-                session_id=session_id,
-            )
-        finally:
-            thinking.empty()
 
-    def on_success(replies: list[dict[str, Any]]) -> None:
-        if not replies:
-            # The graph produced no answer at all. Say so rather than leaving the
-            # user staring at their own message with nothing after it.
-            replies = [
-                {
-                    "role": "assistant",
-                    "content": "I didn't manage to put a reply together. Try rephrasing that?",
-                }
-            ]
-        st.session_state.messages.extend(replies)
-        _refresh_conversation_names(client)
+def _open_chat_stream(
+    client: httpx.Client, session_id: str, text: str
+) -> tuple[str | None, Iterator[str]]:
+    """Start a streamed turn, reminting the session token once on 401.
 
-    run_guarded_backend_action(
-        do_send,
-        on_success=on_success,
-        timeout_message=ERROR_COPY["chat_timeout"],
-        error_prefix=ERROR_COPY["chat_failed"],
-    )
+    The retry only happens if the first request failed before any chunk: a 401
+    means the graph never started. Retrying after tokens have arrived would
+    run the turn twice.
+
+    Args:
+        client: An open API client.
+        session_id: The conversation the token must be scoped to.
+        text: The user's message.
+
+    Returns:
+        The first text chunk and the rest of the stream. ``None`` and an
+        exhausted iterator when the server closed without sending any content.
+    """
+
+    def call(token: str) -> tuple[str | None, Iterator[str]]:
+        stream = api_client.send_message_stream(client, token, text)
+        return next(stream, None), stream
+
+    return with_session_retry(client, call, session_id=session_id)
+
+
+def _consume_stream(
+    client: httpx.Client,
+    session_id: str,
+    text: str,
+    thinking: Any,
+    chunks: list[str],
+) -> str:
+    """Read one streamed turn into the chat window.
+
+    Args:
+        client: An open API client.
+        session_id: The conversation to send into.
+        text: The user's message.
+        thinking: The placeholder showing ``Thinking…`` until the first chunk.
+        chunks: Filled as tokens arrive, so a mid-stream failure can keep them.
+
+    Returns:
+        The concatenated reply, empty when the server sent no text.
+    """
+    first, rest = _open_chat_stream(client, session_id, text)
+    if first is None:
+        return ""
+    thinking.empty()
+    chunks.append(first)
+
+    def tokens() -> Iterator[str]:
+        yield first
+        for chunk in rest:
+            chunks.append(chunk)
+            yield chunk
+
+    with st.chat_message("assistant", avatar=_AVATARS["assistant"]):
+        return str(st.write_stream(tokens()) or "")
+
+
+def _finish_failed_turn(chunks: list[str], error_text: str) -> None:
+    """Keep any partial answer, then show the error as its own message.
+
+    Args:
+        chunks: Text already received when the stream failed. Empty when the
+            failure happened before the first token.
+        error_text: What to tell the user about the failure.
+    """
+    if chunks:
+        st.session_state.messages.append({"role": "assistant", "content": "".join(chunks)})
+    st.session_state.messages.append({"role": "assistant", "content": error_text})
+    with st.chat_message("assistant", avatar=_AVATARS["assistant"]):
+        st.markdown(error_text)
 
 
 def _refresh_conversation_names(client: httpx.Client) -> None:

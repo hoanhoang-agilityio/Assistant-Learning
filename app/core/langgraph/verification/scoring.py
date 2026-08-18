@@ -22,7 +22,9 @@ They are not, which is why none of this is a tool.
 
 from typing import Any
 
-from app.core.langgraph.checks import check_injury, check_macro, check_volume
+from app.core.langgraph.verification.injury import check_injury
+from app.core.langgraph.verification.macro import check_macro
+from app.core.langgraph.verification.volume import check_volume
 from app.core.logging import logger
 from app.schemas.graph import Issue, Verdict, VerifyScope
 from app.services.catalog import load_catalog

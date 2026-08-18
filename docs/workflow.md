@@ -29,7 +29,7 @@ model chooses to call.
 
 **1.3. The verifier is blind to how the plan was built.** It receives
 `(plan, profile, macros, catalog, rubric)` — never `messages`. Enforced by
-signature: `score(plan, profile, scope)` in `app/core/langgraph/scoring.py` has
+signature: `score(plan, profile, scope)` in `app/core/langgraph/verification/scoring.py` has
 no argument a transcript could arrive in.
 
 ---
@@ -220,9 +220,21 @@ for a "small" change.
 
 ## 5. Reviewing a plan the user pasted
 
+Reading the pasted text into structure is a `response_format=PastedPlan` call
+that runs **before** the agent is invoked (`agents/review/transcribe.py`), not a
+tool the agent reaches for. Transcription is mandatory, and a mandatory step
+offered as a tool is one the model can decline — it did, and answered from its
+own knowledge instead: no rubric, no macros, no injury check, and an answer that
+read like a real assessment.
+
+So `score_plan` takes **no arguments**. What was read arrives through
+`ReviewState.submitted`, which leaves the model no argument to get wrong and no
+way to skip the reading. The same move as `save_plan` having no `plan`
+parameter.
+
 Inside `review_agent`: `lookup_exercise` and `score_plan`
-(`agents/review/tools.py`). The model transcribes the lines; it never decides
-what an exercise *is*.
+(`agents/review/tools.py`). The model decides what to report; it never decides
+what an exercise *is*, and no longer decides what the user wrote.
 
 `resolve_exercise` (`services/exercise_resolver.py`) is tiered, and every tier
 reports a confidence:
@@ -231,13 +243,34 @@ reports a confidence:
 |---|---|---|
 | 1 | exact match on the normalised name or the id | `1.0` |
 | 2 | every meaningful query token appears in exactly one name | `0.8` |
-| 3 | character similarity, must clear the bar alone | the score itself |
+| 3 | exactly one candidate once *style* qualifiers are discounted | `0.8` |
+| 4 | several candidates that all four assessed fields agree on | `0.75` |
+| 5 | character similarity, must clear the bar alone | the score itself |
 
-Below `CONFIDENCE_THRESHOLD = 0.85` it returns `exercise_id: None` plus the
-closest candidates. **That is correct behaviour, not a failure.** Mapping "leg
-press" onto "leg extension" does not produce a slightly-wrong review; it produces
-a confident review of a plan the user is not doing, clearing a movement they
-never perform and missing the one they do.
+Failing every tier it returns `exercise_id: None` plus the closest candidates.
+**That is correct behaviour, not a failure.** Mapping "leg press" onto "leg
+extension" does not produce a slightly-wrong review; it produces a confident
+review of a plan the user is not doing, clearing a movement they never perform
+and missing the one they do. `CONFIDENCE_THRESHOLD = 0.85` gates tier 5 only;
+the tiers above it resolve on structure, and several sit below that number.
+
+Tiers 3 and 4 exist because the catalog carries no canonical row per movement —
+there is no "Bench Press", only four qualified variants — so the plainest names
+a user can write matched several rows, none uniquely, and were reported as
+unidentified. Neither tier guesses. Tier 3 discounts tokens that say *how* an
+exercise is done (grip, tempo, machine) and keeps content words, so "Leg Press"
+matches "Leg Press (Neutral Grip)" and not "Leg Press Calf Raise"; it needs a
+query of two meaningful tokens, so a bare "press" stays a question. Tier 4
+resolves several candidates only after proving they agree on `movement_pattern`,
+`contribution`, `joint_actions` and `loaded_positions` — everything the checks
+read — so the pick cannot change the review. Equipment and skill level are
+excluded from that comparison deliberately: they gate what may be *planned* for
+someone, not how a plan they already follow is assessed.
+
+What tier 4 stands down on comes back in `equivalent`, and `score_plan` turns it
+into an `info` finding (`ingest.variant_assumed`). The user is going to see
+"Barbell Bench Press" where they wrote "Bench Press"; the note is what keeps
+that from looking like a misreading.
 
 Tiers 2 and 3 run in process over ~100 catalog rows. `pg_trgm` and pgvector are
 the right answer at scale; neither extension is installed here, and the contract
@@ -257,8 +290,8 @@ field.
 
 ## 6. The three checks
 
-Pure functions in `app/core/langgraph/checks/`, called by
-`run_checks` in `app/core/langgraph/scoring.py` — no graph, no model, no I/O.
+Pure functions in `app/core/langgraph/verification/`, called by
+`run_checks` in `app/core/langgraph/verification/scoring.py` — no graph, no model, no I/O.
 Rubrics are seeded from `data/rubric_seed.json` into the `rubrics` table and
 carry a `rubric_version` (currently `2026.2`) so an old verdict stays
 reproducible.

@@ -11,6 +11,6 @@ the final flush of scores. What lives here is only what is specific to this
 project — the mappers that read the supervisor's output, and the evaluators.
 
 A regression an eval catches is a quality regression. Anything that must fail
-hard belongs in the rubric checks (``app/core/langgraph/checks/``) or in
+hard belongs in the rubric checks (``app/core/langgraph/verification/``) or in
 ``tests/``.
 """

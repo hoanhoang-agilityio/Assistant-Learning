@@ -20,7 +20,9 @@ Two design constraints are enforced here rather than left to convention:
 
 from typing import Literal, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.schemas.base import StructuredOutput
 
 Intent = Literal[
     "build_plan",
@@ -115,6 +117,73 @@ class ReviewEnvelope(TypedDict):
     verdict: Verdict
 
 
+class PastedExercise(StructuredOutput):
+    """One exercise line, read off the plan a user pasted in.
+
+    ``raw_name`` rather than ``name``, and the difference is not cosmetic: a
+    field called ``name`` invites the model to write the name it thinks was
+    meant, which is the guess :mod:`app.services.exercise_resolver` exists to
+    refuse. The resolver decides what a written name refers to; this field
+    carries what was written.
+
+    The prescription is nullable, and every field is emitted as required (see
+    ``StructuredOutput``), so a line the user gave no sets for arrives as an
+    explicit ``null``. A non-nullable ``sets: int`` would force a number to be
+    invented, and an invented set count is real volume in a real assessment.
+
+    ``reps_min``/``reps_max`` rather than a list, because a list admits lengths
+    the readers do not: rendering and the volume check both index ``reps[1]``,
+    so ``[8]`` for "4x8" raised three modules away from the transcription that
+    produced it. Two fields cannot be the wrong length.
+    """
+
+    raw_name: str = Field(
+        description="The exercise name exactly as the user wrote it. Never corrected or expanded."
+    )
+    sets: int | None = Field(
+        default=None, description="Working sets. null when the user did not state a number."
+    )
+    reps_min: int | None = Field(
+        default=None, description="Low end of the rep range. For a fixed '4x8', both ends are 8."
+    )
+    reps_max: int | None = Field(
+        default=None, description="High end of the rep range. null when the user gave no reps."
+    )
+    rir_min: int | None = Field(default=None, description="Low end of reps in reserve, if stated.")
+    rir_max: int | None = Field(default=None, description="High end of reps in reserve, if stated.")
+
+
+class PastedDay(StructuredOutput):
+    """One training day of a pasted plan, with every line written under it."""
+
+    day: int = Field(description="Position in the week, from 1.")
+    name: str = Field(
+        description="The day's label as the user wrote it, e.g. 'Day 1 — Upper' or 'Push'."
+    )
+    exercises: list[PastedExercise] = Field(
+        description="Every exercise line written under this day, in order."
+    )
+
+
+class PastedPlan(StructuredOutput):
+    """A plan a user pasted in, transcribed but not yet understood.
+
+    Named for what it is. It is **not** a ``plan``: nothing here has been
+    resolved against the catalog, checked against a rubric or given a
+    ``draft_id``, and calling it ``TrainingPlan`` would put a type that looks
+    like the real thing next to a system whose central guarantee is that a plan
+    someone asked about cannot become the plan they follow. ``ReviewState`` has
+    no ``plan`` field and ``ReviewEnvelope`` no ``draft_id`` for the same
+    reason; a hospitable name here would undo both.
+
+    Produced by a dedicated structured-output call rather than by a tool the
+    model may or may not reach for — reading the user's text is not one of the
+    decisions the agent is allowed to make.
+    """
+
+    days: list[PastedDay] = Field(description="One entry per training day, in order.")
+
+
 class MissingFields(TypedDict):
     """Refusal returned by a tool whose profile precondition is unmet.
 
@@ -142,7 +211,7 @@ class SavedVersion(TypedDict):
     label: str
 
 
-class PlanChanges(BaseModel):
+class PlanChanges(StructuredOutput):
     """What a ``change_plan`` turn is asking to alter.
 
     A closed set of named fields rather than a free-form dict, for two reasons.
@@ -150,7 +219,8 @@ class PlanChanges(BaseModel):
     OpenAI's structured output rejects an open object outright — a bare ``dict``
     generates a schema without ``additionalProperties: false`` and the request
     fails with a 400 before the model is ever called. That is a hard constraint,
-    not a preference.
+    not a preference. ``StructuredOutput`` is what actually emits the flag;
+    inheriting it here is not optional.
 
     It also matches what ``patch_plan`` can actually apply
     (``SUPPORTED_CHANGES``). A free dict let the classifier emit a change nobody
@@ -164,26 +234,20 @@ class PlanChanges(BaseModel):
     )
 
 
-class IntentDecision(BaseModel):
-    """Structured output of the ``classify`` node.
+class IntentDecision(StructuredOutput):
+    """Structured output of the topic gate.
 
     Never parsed out of free text: the classifier is called with
     ``response_format=IntentDecision`` so an unroutable answer fails validation
-    instead of silently picking a branch.
+    instead of silently returning a constant.
     """
 
-    intent: Intent = Field(description="Which branch of the graph handles this turn")
-    scope: list[VerifyScope] = Field(
-        default_factory=list,
-        description="Verifiers to enable this turn. Empty for read-only intents that skip verify.",
-    )
-    changes: PlanChanges = Field(
-        default_factory=PlanChanges,
-        description="What to change, for change_plan only. All null for every other intent.",
+    intent: Literal["off_topic", "on_topic"] = Field(
+        description="Whether this message is in scope for this assistant"
     )
 
 
-class ProfileExtraction(BaseModel):
+class ProfileExtraction(StructuredOutput):
     """Facts ``extract_profile`` pulled out of the conversation this turn.
 
     Lives here rather than in an agent package because ``extract_profile`` is a

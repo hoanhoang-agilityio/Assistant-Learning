@@ -166,7 +166,7 @@ and `EPISODIC_MEMORY_ENABLED=false` turns the layer off entirely.
 
 ## Procedural memory is static, on purpose
 
-Prompts (`app/core/prompts/*.md`), rubrics and templates are how the assistant
+Prompts (`app/core/langgraph/prompts/*.md` and per-agent `prompts/`), rubrics and templates are how the assistant
 does things, and nothing at runtime rewrites them. Rubrics and templates are
 served from Postgres but authored in git (`data/rubric_seed.json`,
 `data/template_seed.json`, written only by `scripts/seed_config.py`).

@@ -1,6 +1,6 @@
 """State of the supervisor.
 
-Eight fields, down from twenty in the old ``RootState``. Everything that
+Seven fields, down from twenty in the old ``RootState``. Everything that
 vanished — ``draft_plan``, ``computed_macros``, ``submitted_plan``, ``issues``,
 ``verdict``, ``repair_count``, ``pending_commit``, ``scope``, ``changes``,
 ``revert_target`` — was derived *within* a turn, and derived state now lives in
@@ -15,7 +15,7 @@ from typing import Any
 
 from langchain.agents.middleware import AgentState
 
-from app.schemas.graph import GoalConflict, Intent
+from app.schemas.graph import GoalConflict
 
 
 class SupervisorState(AgentState):
@@ -36,12 +36,6 @@ class SupervisorState(AgentState):
     # a pile.
     current_version_id: str | None
 
-    # The topic gate's classification, passed on so the supervisor does not
-    # re-reason from scratch. Advisory, and it must stay that way: the
-    # supervisor may legitimately disagree after reading a tool result, and a
-    # hint that routed would be the router this architecture replaced.
-    intent_hint: Intent | None
-
     missing_fields: list[str]
     goal_conflict: GoalConflict | None
 
@@ -53,17 +47,23 @@ class SupervisorState(AgentState):
 # nine derived fields, because the checkpointer kept a build's findings and draft
 # alive into the change request that followed. Derived state now lives in the
 # draft store keyed by a handle, so there is nothing left to clear but the two
-# questions a turn asks and the hint it routed on.
+# questions a turn asks.
+#
+# Short is not the same as unnecessary. `missing_fields` is written by a tool
+# refusal and by nothing else — `_refuse` omits the key entirely when nothing is
+# missing, so this reset is the only thing that ever clears it. Without it the
+# turn *after* the user supplies a field is still told to ask for it.
 #
 # What is deliberately absent is as important. `plan`, `macros`, `profile` and
 # `current_version_id` are what the user has; they are meant to survive, and
 # clearing them here would delete the plan every turn.
 NEW_TURN: dict[str, Any] = {
     "missing_fields": [],
-    # Derived from this turn's wording, so it must not outlive it. Left set, the
-    # turn after the user resolves the conflict would be asked about it again.
+    # Derived from this turn's wording, so it must not outlive it. `extract_profile`
+    # overwrites it every turn it runs, which makes this redundant on the happy
+    # path and load-bearing on the one that matters: the extractor returns early
+    # when it fails, and a stale conflict re-asks a question already resolved.
     "goal_conflict": None,
-    "intent_hint": None,
 }
 
 

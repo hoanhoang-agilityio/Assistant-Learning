@@ -22,9 +22,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.core.langgraph import drafts
+from app.core.langgraph.plans.versioning import describe_verification_reason, render_versions
+from app.core.langgraph.runtime import draft_store as drafts
 from app.core.langgraph.supervisor import tools as supervisor_tools
-from app.core.langgraph.versioning import describe_verification_reason, render_versions
 from tests.support import call, message, updates
 
 PROFILE = {
@@ -78,7 +78,6 @@ def _state(**overrides) -> dict:
         "macros": {"kcal": 2100, "tdee": 2400, "goal": "fat_loss"},
         "episodic_context": "",
         "current_version_id": "v3-id",
-        "intent_hint": "revert",
         "missing_fields": [],
         "goal_conflict": None,
         **overrides,
@@ -118,13 +117,13 @@ def _stored_versions(monkeypatch):
     async def fake_get(version_id):
         return stored.get(version_id)
 
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.version_index", fake_index)
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.get_version", fake_get)
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.versions.version_index", fake_index)
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.versions.get_version", fake_get)
     monkeypatch.setattr(
-        "app.core.langgraph.supervisor.tools.profile_hash", lambda _profile: "current-hash"
+        "app.core.langgraph.supervisor.tools.versions.profile_hash", lambda _profile: "current-hash"
     )
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.rubric_version", lambda: "v1")
-    monkeypatch.setattr("app.core.langgraph.rendering.load_catalog", lambda *a, **k: {})
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.versions.rubric_version", lambda: "v1")
+    monkeypatch.setattr("app.core.langgraph.plans.rendering.load_catalog", lambda *a, **k: {})
     return stored
 
 
@@ -137,7 +136,7 @@ def scored(monkeypatch):
         seen.append({"plan": plan, "profile": profile})
         return {"kcal": 2050, "tdee": 2350, "goal": profile["goal"]}, [], "pass"
 
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.score", fake_score)
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.versions.score", fake_score)
     return seen
 
 
@@ -163,7 +162,7 @@ async def test_one_version_is_no_history_at_all(monkeypatch):
     async def only_one(_user_id):
         return INDEX[:1]
 
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.version_index", only_one)
+    monkeypatch.setattr("app.core.langgraph.supervisor.tools.versions.version_index", only_one)
 
     result = await call(supervisor_tools.list_versions, _state(), _config())
     assert json.loads(message(result).content)["status"] == "no_history"
@@ -243,7 +242,9 @@ async def test_a_restore_is_an_append_and_records_where_it_came_from(scored, mon
         written.append(kwargs)
         return {"version_id": "v4-id", "label": "v4", "created_at": "2026-08-10T00:00:00"}
 
-    monkeypatch.setattr("app.core.langgraph.supervisor.tools.insert_version", fake_insert)
+    monkeypatch.setattr(
+        "app.core.langgraph.supervisor.tools.persistence.insert_version", fake_insert
+    )
 
     restored = await call(supervisor_tools.restore_version, _state(), _config(), version_id="v1-id")
     draft_id = json.loads(message(restored).content)["draft_id"]

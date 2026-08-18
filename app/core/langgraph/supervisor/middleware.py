@@ -13,9 +13,8 @@ decides the topic gate is unnecessary does not get a say.
 
 Hook order is not cosmetic. ``before_agent`` hooks run before any
 ``before_model`` hook, and within a phase they run in the order the middleware
-list declares. The topic gate must come first: today an off-topic turn writes
-nothing to the profile because the extractor returns early on that intent, and
-after the conversion that property comes from ordering alone.
+list declares. The topic gate must come first, so an off-topic turn ends before
+the extractor ever sees the message.
 """
 
 import asyncio
@@ -26,13 +25,18 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.config import get_config
 from langgraph.runtime import Runtime
 
-from app.core.langgraph.profile.extraction import clean_extraction, goal_conflict
-from app.core.langgraph.rendering import render_plan_context, render_semantic_context
-from app.core.langgraph.routing.classify import CONTEXT_TURNS, llm_classify
+from app.core.langgraph.plans.rendering import render_plan_context
+from app.core.langgraph.runtime.context import get_session_id, get_user_id
+from app.core.langgraph.runtime.messages import dump_messages
+from app.core.langgraph.supervisor.classification import CONTEXT_TURNS, llm_classify
+from app.core.langgraph.supervisor.profile_extraction import clean_extraction, goal_conflict
+from app.core.langgraph.supervisor.prompt_context import render_semantic_context
+from app.core.langgraph.supervisor.prompts import (
+    load_extract_profile_prompt,
+    load_supervisor_prompt,
+)
 from app.core.langgraph.supervisor.state import NEW_TURN, SupervisorState
-from app.core.langgraph.utils import dump_messages
 from app.core.logging import logger
-from app.core.prompts import load_extract_profile_prompt, load_supervisor_prompt
 from app.schemas.graph import ProfileExtraction
 from app.services import profile as profile_service
 from app.services.episodes import recent_episodes
@@ -44,6 +48,10 @@ _EXTRACTOR_MODEL = "gpt-5-mini"
 # Enough to catch an answer to the previous turn's question without paying for
 # the whole history on every extraction.
 _EXTRACTION_TURNS = 8
+
+# The only roles either transcript-reading prompt may see. See `_conversation`
+# for why tool results are not among them.
+_PROMPT_ROLES = frozenset({"user", "assistant"})
 
 # The whole reply to an off-topic message. Deliberately a constant and not a
 # model call: the one thing this branch must never do is engage with the message
@@ -60,13 +68,13 @@ OFF_TOPIC_ANSWER = (
 async def topic_gate(state: SupervisorState, runtime: Runtime) -> dict[str, Any] | None:
     """Refuse an out-of-scope message before the supervisor ever sees it.
 
-    Reads ``messages``. Writes the ``NEW_TURN`` reset and ``intent_hint``, or
-    ends the turn with the refusal.
+    Reads ``messages``. Writes the ``NEW_TURN`` reset, or ends the turn with
+    the refusal.
 
-    ``classify`` does not die in the conversion — it moves in here, and its
-    output is used for two things instead of one: the topic decision, and the
-    hint. That is what keeps the gate from costing an extra round-trip, which is
-    the standing objection to a separate guardrail node.
+    ``classify`` does not die in the conversion — it moves in here, reduced to
+    a single binary question: is this message in scope? That keeps the gate from
+    costing an extra round-trip, which is the standing objection to a separate
+    guardrail node.
 
     ``before_agent`` rather than ``before_model``: the topic of a turn does not
     change between iterations of the loop, so classifying on every model call
@@ -100,8 +108,7 @@ async def topic_gate(state: SupervisorState, runtime: Runtime) -> dict[str, Any]
             "jump_to": "end",
         }
 
-    logger.info("routing_intent_hint", intent=decision.intent)
-    return {**NEW_TURN, "intent_hint": decision.intent}
+    return dict(NEW_TURN)
 
 
 @before_agent(state_schema=SupervisorState)
@@ -131,14 +138,12 @@ async def load_context(state: SupervisorState, runtime: Runtime) -> dict[str, An
     Returns:
         The loaded context.
     """
-    user_id = _user_id()
+    config = get_config()
+    user_id = get_user_id(config)
     if user_id is None:
-        # Anonymous session: nothing stored, and nothing to store. The profile
-        # preconditions still run, so the user is asked for what this turn needs.
-        logger.info("context_anonymous_session")
         return {"profile": {}, "episodic_context": ""}
 
-    session_id = _session_id()
+    session_id = get_session_id(config)
     stored, latest, episodes = await asyncio.gather(
         profile_service.get_profile(user_id),
         latest_version(user_id),
@@ -155,13 +160,6 @@ async def load_context(state: SupervisorState, runtime: Runtime) -> dict[str, An
         update["macros"] = latest.macros
         update["current_version_id"] = latest.id
 
-    logger.info(
-        "context_loaded",
-        user_id=user_id,
-        fields=len(stored),
-        plan_rehydrated="plan" in update,
-        episodes=bool(episodes),
-    )
     return update
 
 
@@ -222,7 +220,7 @@ async def extract_profile(state: SupervisorState, runtime: Runtime) -> dict[str,
     # `merged`, not `updates`, so re-stating a preference the profile already
     # holds is not counted as a change.
     changed = any(stored.get(key) != merged[key] for key in updates)
-    user_id = _user_id()
+    user_id = get_user_id(get_config())
     if changed and user_id is not None:
         await profile_service.upsert_profile(user_id, updates)
 
@@ -260,25 +258,40 @@ def supervisor_prompt(request: ModelRequest) -> SystemMessage:
             episodic_context=state.get("episodic_context") or "",
             missing_fields=state.get("missing_fields") or [],
             goal_conflict=state.get("goal_conflict"),
-            intent_hint=state.get("intent_hint"),
         )
     )
 
 
 def _conversation(state: SupervisorState, turns: int) -> str:
-    """Render recent turns as ``role: content`` lines.
+    """Render recent conversational turns as ``role: content`` lines.
+
+    Feeds the two prompts that read the transcript — the topic gate and the
+    extractor — and both ask a question about what the *user* said.
+
+    Tool results are excluded, and that is a boundary rather than a tidy-up.
+    ``search_knowledge`` returns passages from the knowledge base, and a prompt
+    that reads them hands whoever can write to that base a say in how another
+    user's message is classified, or in what gets extracted into their profile
+    and saved. Neither prompt needs them: nothing in a retrieved passage is
+    something the user stated.
+
+    Filtered *before* it is sliced, so ``turns`` counts turns of conversation
+    rather than rows of state — a turn that made three tool calls would otherwise
+    push the message being classified out of the window.
 
     Args:
         state: Current supervisor state.
-        turns: How many trailing messages to include.
+        turns: How many trailing turns to include.
 
     Returns:
         The conversation as text.
     """
-    return "\n".join(
-        f"{message['role']}: {message['content']}"
-        for message in dump_messages((state.get("messages") or [])[-turns:])
-    )
+    dumped = [
+        message
+        for message in dump_messages(state.get("messages") or [])
+        if message["role"] in _PROMPT_ROLES and message["content"]
+    ]
+    return "\n".join(f"{message['role']}: {message['content']}" for message in dumped[-turns:])
 
 
 def _has_new_user_input(state: SupervisorState) -> bool:
@@ -304,31 +317,8 @@ def _has_new_user_input(state: SupervisorState) -> bool:
     return False
 
 
-def _user_id() -> int | None:
-    """Read the session owner from the runnable config.
-
-    Middleware hooks are handed a ``Runtime``, not a ``RunnableConfig``, so the
-    ids the facade put in ``metadata`` are read from the ambient config instead.
-
-    Returns:
-        The user id, or ``None`` for an anonymous session.
-    """
-    user_id = (get_config().get("metadata") or {}).get("user_id")
-    return int(user_id) if user_id else None
-
-
-def _session_id() -> str:
-    """Read the session id the checkpointer is keyed on.
-
-    Returns:
-        The thread id, or an empty string when there is none.
-    """
-    return (get_config().get("configurable") or {}).get("thread_id", "")
-
-
 # Order is load-bearing. The topic gate runs first so an off-topic turn never
-# reaches the extractor — today that property comes from the extractor returning
-# early on the intent, and after the conversion it comes from ordering alone.
+# reaches the extractor.
 middleware = [topic_gate, load_context, extract_profile, supervisor_prompt]
 
 

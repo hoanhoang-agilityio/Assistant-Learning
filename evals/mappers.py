@@ -188,6 +188,27 @@ def _passages(output: Any) -> list[dict]:
     return [p for p in output if isinstance(p, dict)] if isinstance(output, list) else []
 
 
+def _produced_plan(messages: list[Any]) -> bool:
+    """Decide whether this turn built or changed a plan.
+
+    Read off the transcript rather than off a classifier's guess about what the
+    user wanted: a turn that was *asked* for a plan but stopped to ask for a
+    missing field has no plan to judge the safety of.
+
+    Args:
+        messages: Serialized messages as Langfuse stored them.
+
+    Returns:
+        ``True`` when a planning tool returned in this turn.
+    """
+    return any(
+        isinstance(message, dict)
+        and message.get("type") == "tool"
+        and message.get("name") == "planning_agent"
+        for message in messages
+    )
+
+
 def _hops(messages: list[Any]) -> int:
     """Count the tool round-trips one turn took.
 
@@ -276,7 +297,7 @@ def trace_mapper(*, item: Any, **kwargs: Any) -> EvaluatorInputs:
         expected_output=None,
         metadata={
             "trace_id": item.id,
-            "intent": output.get("intent_hint"),
+            "produced_plan": _produced_plan(messages),
             "hops": _hops(messages),
         },
     )

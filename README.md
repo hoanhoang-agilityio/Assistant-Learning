@@ -65,7 +65,7 @@ uv run ruff check app tests scripts evals
 The suite needs no secrets and makes no network calls: every agent holds a chat model
 directly — `create_agent` needs one — so `tests/conftest.py` patches `LLMRegistry.get_llm`
 with a scripted `FakeChatModel`. All four agents resolve their model through
-`app.core.langgraph.models`, which is why that is one patch rather than one per package;
+`app.core.langgraph.runtime.models`, which is why that is one patch rather than one per package;
 an agent added later is stubbed by the same call instead of reaching the network until
 someone notices.
 
@@ -253,15 +253,16 @@ from Postgres (`GET /auth/sessions`) and opening one loads its history from the 
 checkpointer (`GET /chatbot/messages`), so a conversation started on another machine — or
 before a restart — is still there. Rename, clear and delete act on the open conversation.
 
-Chat is one turn per request against `POST /chatbot/chat`. Plan builds, changes, reviews and
-reverts all answer through the same endpoint, including the confirm gate: when the agent
-shows a plan and asks whether to keep it, replying `yes` resumes the interrupted run and
-saves the plan you were shown — not one rebuilt from the transcript. Anything that is not a
-recognised yes is treated as no, and leaves the stored plan exactly as it was.
+Chat is one turn per request against `POST /chatbot/chat/stream`. Tokens appear in the
+chat window as the supervisor writes them. Plan builds, changes, reviews and reverts all
+answer through the same endpoint, including the confirm gate: when the agent shows a plan
+and asks whether to keep it, the question is the last chunk of that stream (the interrupt
+fires after the model tokens, if any, have ended). Replying `yes` resumes the interrupted
+run and saves the plan you were shown — not one rebuilt from the transcript. Anything that
+is not a recognised yes is treated as no, and leaves the stored plan exactly as it was.
 
-`POST /chatbot/chat/stream` exists but the UI does not use it: a turn that stops at the
-confirm gate has no streamed answer to show, because the question is produced by the
-interrupt after the stream has ended.
+`POST /chatbot/chat` is the non-streaming counterpart of the same turn: it waits for the
+graph to finish and returns the completed messages in one body.
 
 Tokens live in Streamlit's per-session state and nowhere else — not in the URL, not on disk —
 so a full browser reload signs you out. Nothing is lost: the conversations are in the
@@ -360,8 +361,7 @@ app/
 ├── core/
 │   ├── configs/       # pydantic-settings; resolves the env file from the project root
 │   ├── langgraph/     # the agent system — see below
-│   ├── prompts/       # .md prompt files, read once at import
-│   ├── observability.py # one Langfuse handler, attached at the root config
+│   ├── observability/ # Langfuse handler package, attached at the root config
 │   ├── logging.py     # structlog + per-request context binding
 │   ├── limiter.py     # slowapi; Valkey-backed when VALKEY_HOST is set
 │   └── middleware.py
@@ -391,11 +391,13 @@ validation constants but never a service, a model or the graph.
 core/langgraph/
 ├── graph.py          # the facade the API calls — four methods, and the only thing that
 │                     #   knows about the checkpointer pool or a chat turn
+├── prompts/          # shared .md prompts: classify, extract_profile, session title/summary
 ├── supervisor/
-│   ├── agent.py      # build_supervisor() — create_agent + middleware + the confirm gate
+│   ├── agent.py      # build_supervisor_with() — create_agent + middleware + the confirm gate
 │   ├── middleware.py # topic_gate · load_context · extract_profile · dynamic_prompt
 │   ├── tools.py      # planning_agent · review_agent · qa_agent · list/restore · save_plan
-│   └── state.py      # SupervisorState — eight fields, all of which outlive the turn
+│   ├── state.py      # SupervisorState — eight fields, all of which outlive the turn
+│   └── prompts/      # supervisor.md — system prompt owned by the supervisor
 ├── agents/
 │   ├── __init__.py   # the registry: one line per agent, built once and cached
 │   ├── planning/     # build and change, as one agent with mode="build"|"change"

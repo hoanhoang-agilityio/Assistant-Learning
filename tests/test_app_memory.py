@@ -488,7 +488,7 @@ async def test_the_summary_prompt_forbids_numbers():
     doc records what happens when a free-text memory carries a number the plan
     disagrees with: the model states the memory's number.
     """
-    from app.core.prompts import SESSION_SUMMARY_PROMPT
+    from app.core.langgraph.prompts import SESSION_SUMMARY_PROMPT
 
     assert "Never state a number" in SESSION_SUMMARY_PROMPT
 
@@ -541,7 +541,6 @@ def test_the_qa_agent_reads_memory_from_state():
     """The one agent that personalises must receive memory, not fetch it."""
     from app.core.langgraph.agents.qa import QAState
 
-    assert "semantic_context" in QAState.__annotations__
     assert "episodic_context" in QAState.__annotations__
 
 
@@ -560,7 +559,7 @@ def test_the_answer_is_told_where_a_number_may_come_from():
     section it points at is rendered above it, so a prompt edit that drops either
     fails rather than passing quietly.
     """
-    from app.core.prompts import load_supervisor_prompt
+    from app.core.langgraph.supervisor.prompts import load_supervisor_prompt
 
     prompt = load_supervisor_prompt(
         semantic_context="- Body weight (kg): 75",
@@ -592,7 +591,7 @@ def test_reasoning_model_content_blocks_are_read_as_text():
     """
     from langchain_core.messages import AIMessage
 
-    from app.core.langgraph.utils import message_text
+    from app.core.langgraph.runtime.messages import message_text
 
     blocks = AIMessage(
         content=[
@@ -617,7 +616,7 @@ def test_no_node_reads_content_directly():
     offenders = [
         f"{path.relative_to(root)}:{n}"
         for path in root.rglob("*.py")
-        if path.name != "utils.py"
+        if path.name != "messages.py"
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
         if "isinstance(" in line and ".content, str)" in line
     ]

@@ -11,12 +11,12 @@ from __future__ import annotations
 
 _PASTED_PLAN_REVIEW = (
     "Can you review this plan for me?\n\n"
-    "Day 1 — Upper: Bench Press 4x6-8, Barbell Row 4x8-10, "
-    "Overhead Press 3x8-12, Lat Pulldown 3x8-12\n"
-    "Day 2 — Lower: Back Squat 4x5-8, Romanian Deadlift 3x6-10, "
-    "Leg Press 3x10-12, Standing Calf Raise 2x12-15\n"
-    "Day 3 — Upper: Incline Dumbbell Press 4x8-10, Pull-Up 4x6-10, "
-    "Seated Cable Row 3x8-12, Cable Lateral Raise 2x12-15"
+    "Day 1 — Upper: Barbell Bench Press 4x6-8, Seated Cable Row 4x8-10, "
+    "Overhead Press 3x8-12, Lat Pulldown (Machine) 3x8-12\n"
+    "Day 2 — Lower: Back Squat 4x5-8, Dumbbell Romanian Deadlift 3x6-10, "
+    "Leg Press (Neutral Grip) 3x10-12, Standing Calf Raise (Machine) 2x12-15\n"
+    "Day 3 — Upper: Incline Bench Press (Wide Grip) 4x8-10, Pull Up 4x6-10, "
+    "Single Arm Dumbbell Row 3x8-12, Dumbbell Lateral Raise 2x12-15"
 )
 
 # (icon, chip label, the message actually sent)
@@ -45,6 +45,7 @@ SUGGESTIONS: list[tuple[str, str, str]] = [
         "and what does the evidence say about meal timing?",
     ),
 ]
+
 
 def welcome_title(username: str | None = None) -> str:
     """Build the empty-state greeting.

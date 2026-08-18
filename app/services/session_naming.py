@@ -23,8 +23,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from sqlmodel import Session as DBSession
 from sqlmodel import col, update
 
+from app.core.langgraph.prompts import SESSION_TITLE_PROMPT
 from app.core.logging import logger
-from app.core.prompts import SESSION_TITLE_PROMPT
 from app.models.session import Session as ChatSession
 from app.schemas.chat import SessionTitle
 from app.services.database import database_service
