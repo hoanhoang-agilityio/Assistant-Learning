@@ -7,7 +7,6 @@ from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
 from app.core.configs.config import (
-    Environment,
     settings,
 )
 
@@ -52,9 +51,6 @@ class LLMRegistry:
                 model="gpt-5",
                 api_key=_API_KEY,
                 model_kwargs=_TOKEN_LIMIT,
-                top_p=0.95 if settings.ENVIRONMENT == Environment.PRODUCTION else 0.8,
-                presence_penalty=0.1 if settings.ENVIRONMENT == Environment.PRODUCTION else 0.0,
-                frequency_penalty=0.1 if settings.ENVIRONMENT == Environment.PRODUCTION else 0.0,
             ),
         },
     ]
