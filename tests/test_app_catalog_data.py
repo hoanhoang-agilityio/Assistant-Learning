@@ -14,6 +14,7 @@ Each test states the failure it prevents, not just the invariant it checks.
 """
 
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -27,8 +28,10 @@ from app.services.catalog import (
     forbidden_joint_actions,
     forbidden_loaded_positions,
 )
+from app.services.exercise_resolver import resolve_exercise
 from app.services.movement_taxonomy import MOVEMENT_ATTRIBUTES
 from app.services.templates import iter_slots
+from app.ui.wording import _PASTED_PLAN_REVIEW
 from tests.seed import CONTRAINDICATIONS, TEMPLATES, VOLUME_LANDMARKS
 
 _CATALOG_FILE = Path(__file__).resolve().parent.parent / "data" / "exercise_seed.json"
@@ -353,8 +356,6 @@ def test_a_capped_pattern_is_not_also_banned_outright():
     The rubric caps lunges at 4 sets/week for patellofemoral pain, which only
     means something if lunges can be selected at all.
     """
-    from app.services.movement_taxonomy import MOVEMENT_ATTRIBUTES
-
     for injury, entry in CONTRAINDICATIONS["injuries"].items():
         banned = set(entry["avoid_joint_actions"])
         for limit in entry.get("limit", []):
@@ -428,3 +429,33 @@ def test_a_realistic_plan_does_not_drown_in_unassessed_warnings(catalog, full_gy
         f"{len(unassessed)} muscles reported as unassessed: "
         f"{sorted(i['location'] for i in unassessed)}"
     )
+
+
+def test_the_review_suggestion_resolves_line_for_line():
+    """The empty-state chip has to reach a real assessment, not a shrug.
+
+    A recorded failure: the suggestion offered a plan written in plain names —
+    "Bench Press", "Lat Pulldown", "Leg Press" — and five of its twelve lines
+    were dropped, because the catalog has no canonical row for those movements
+    and ``resolve_exercise`` correctly refuses a name that fits several. The
+    first thing a new user clicks demonstrated the gap rather than the feature.
+
+    This asserts the workaround holds: every line names a catalog row exactly.
+    It is also what will fail, usefully, once generic names resolve on their own
+    and the suggestion can go back to how a user actually writes.
+    """
+    lines = [line for line in _PASTED_PLAN_REVIEW.splitlines() if line.startswith("Day ")]
+    assert len(lines) == 3, "the suggestion no longer looks like a three-day plan"
+
+    written = [
+        re.sub(r"\s+\d+x[\d-]+$", "", part.strip())
+        for line in lines
+        for part in line.split(":", 1)[1].split(",")
+    ]
+    assert len(written) == 12
+
+    catalog = {row["id"]: row for row in json.loads(_CATALOG_FILE.read_text(encoding="utf-8"))}
+    unresolved = [
+        name for name in written if resolve_exercise(name, catalog)["exercise_id"] is None
+    ]
+    assert unresolved == [], f"the review chip cannot assess: {unresolved}"
