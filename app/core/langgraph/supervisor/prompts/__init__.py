@@ -9,6 +9,8 @@ from app.services.profile import FIELD_LABELS, GOAL_LABELS
 _PROMPTS_DIR = Path(__file__).parent
 
 _SUPERVISOR_PROMPT_TEMPLATE = (_PROMPTS_DIR / "supervisor.md").read_text(encoding="utf-8")
+_TOPIC_GATE_PROMPT_TEMPLATE = (_PROMPTS_DIR / "topic_gate.md").read_text(encoding="utf-8")
+_EXTRACT_PROFILE_TEMPLATE = (_PROMPTS_DIR / "extract_profile.md").read_text(encoding="utf-8")
 
 _NO_MEMORY_BODY = "Nothing recorded yet."
 # Deliberately says "none available" rather than "this user has none": a
@@ -23,17 +25,14 @@ def load_supervisor_prompt(
     episodic_context: str = "",
     missing_fields: list[str] | None = None,
     goal_conflict: dict[str, str] | None = None,
-    intent_hint: str | None = None,
 ) -> str:
     """Render the supervisor's system prompt.
 
-    Three blocks are conditional, and each of them replaces a node the old root
-    graph had. ``missing_block`` is ``ask_missing``; ``conflict_block`` is
-    ``ask_goal``; ``hint_block`` is what ``classify`` used to route with. They
-    are rendered as facts and questions rather than as instructions to call a
-    particular tool, because the supervisor may legitimately disagree with the
-    hint after reading a tool result — that recovery is one of the reasons the
-    router was replaced.
+    Two blocks are conditional, and each of them replaces a node the old root
+    graph had: ``missing_block`` is ``ask_missing`` and ``conflict_block`` is
+    ``ask_goal``. They are rendered as facts and questions rather than as
+    instructions to call a particular tool, because the supervisor decides its
+    own route from what it reads.
 
     Args:
         semantic_context: Standing facts about the user, rendered from their
@@ -43,7 +42,6 @@ def load_supervisor_prompt(
         missing_fields: Profile fields a tool refused for want of. Named here so
             the question covers all of them in one message.
         goal_conflict: A goal this turn implies against the stored one.
-        intent_hint: The topic gate's classification. Advisory.
 
     Returns:
         The formatted supervisor prompt.
@@ -56,8 +54,17 @@ def load_supervisor_prompt(
         episodic_context=episodic_context or _NO_EPISODES_BODY,
         missing_block=_missing_block(missing_fields or []),
         conflict_block=_conflict_block(goal_conflict),
-        hint_block=_hint_block(intent_hint),
     )
+
+
+def load_topic_gate_prompt(conversation: str) -> str:
+    """Render the topic-gate prompt."""
+    return _TOPIC_GATE_PROMPT_TEMPLATE.format(conversation=conversation)
+
+
+def load_extract_profile_prompt(conversation: str) -> str:
+    """Render the profile-extraction prompt."""
+    return _EXTRACT_PROFILE_TEMPLATE.format(conversation=conversation)
 
 
 def _missing_block(fields: list[str]) -> str:
@@ -111,23 +118,4 @@ def _conflict_block(conflict: dict[str, str] | None) -> str:
     )
 
 
-def _hint_block(intent: str | None) -> str:
-    """Render the topic gate's classification as advice, not as an instruction.
-
-    Args:
-        intent: What the classifier thought this turn was.
-
-    Returns:
-        The block, or an empty string when there is no hint.
-    """
-    if not intent:
-        return ""
-
-    return (
-        f"# A hint\n\nA classifier read this turn as `{intent}`. It saw the conversation and "
-        "nothing else, so treat it as a starting point rather than an instruction — if a tool "
-        "result tells you otherwise, believe the tool result."
-    )
-
-
-__all__ = ["load_supervisor_prompt"]
+__all__ = ["load_extract_profile_prompt", "load_supervisor_prompt", "load_topic_gate_prompt"]

@@ -13,7 +13,9 @@ result on failure would render as the assistant silently saying nothing.
 
 from __future__ import annotations
 
+import json
 import os
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -263,10 +265,8 @@ def send_message(client: httpx.Client, session_token: str, text: str) -> list[di
     from its checkpointer, keyed by the session the token is scoped to, so
     replaying stored turns here would duplicate them.
 
-    ``/chatbot/chat`` is used rather than ``/chatbot/chat/stream`` because a
-    turn that stops at the confirm gate has no streamed answer to show: the
-    question is produced by the interrupt, after the stream has ended. The
-    non-streaming endpoint returns it as an ordinary message.
+    The Streamlit UI uses ``send_message_stream`` instead; this waits for the
+    whole turn and is kept for callers that want the completed messages list.
 
     Args:
         client: An open API client.
@@ -290,6 +290,60 @@ def send_message(client: httpx.Client, session_token: str, text: str) -> list[di
         )
     )
     return body["messages"]
+
+
+def send_message_stream(client: httpx.Client, session_token: str, text: str) -> Iterator[str]:
+    """Send one turn and yield the agent's reply as text chunks.
+
+    Same payload as ``send_message``: only the new user message. Chunks are the
+    supervisor's tokens; if the run parks on the confirm gate, the interrupt
+    question is the last chunk, after those tokens (if any) have ended.
+
+    Args:
+        client: An open API client.
+        session_token: A token scoped to the conversation.
+        text: The user's message.
+
+    Yields:
+        Incremental text fragments. Concatenating them reconstructs the reply.
+
+    Raises:
+        httpx.HTTPStatusError: 401 when the session token expired, 4xx/5xx
+            before the stream starts. Once frames have been sent, the server
+            ends with a ``done`` frame rather than an HTTP error.
+        json.JSONDecodeError: When an SSE frame is not valid JSON.
+    """
+    with client.stream(
+        "POST",
+        "/chatbot/chat/stream",
+        json={"messages": [{"role": "user", "content": text}]},
+        headers=_bearer(session_token),
+        timeout=CHAT_TIMEOUT,
+    ) as response:
+        if response.is_error:
+            response.read()
+        response.raise_for_status()
+        yield from _iter_sse_text(response)
+
+
+def _iter_sse_text(response: httpx.Response) -> Iterator[str]:
+    """Yield ``content`` fields from an SSE body until a ``done`` frame.
+
+    Args:
+        response: An open streaming response whose body is SSE frames.
+
+    Yields:
+        Non-empty ``content`` values, in order.
+    """
+    for line in response.iter_lines():
+        if not line.startswith("data:"):
+            continue
+        payload = json.loads(line[5:].strip())
+        content = payload.get("content") or ""
+        if content:
+            yield content
+        if payload.get("done"):
+            return
 
 
 def get_messages(client: httpx.Client, session_token: str) -> list[dict[str, Any]]:
@@ -343,4 +397,5 @@ __all__ = [
     "register",
     "rename_session",
     "send_message",
+    "send_message_stream",
 ]

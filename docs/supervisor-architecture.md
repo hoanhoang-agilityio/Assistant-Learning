@@ -11,9 +11,9 @@ each. Read the two together — that one is the *domain*, this one is the
 *orchestration* and what the change to it cost.
 
 Where the code lives, section by section: the draft store in
-`app/core/langgraph/drafts/`, the supervisor in `app/core/langgraph/supervisor/`,
+`app/core/langgraph/runtime/draft_store.py`, the supervisor in `app/core/langgraph/supervisor/`,
 the agents in `app/core/langgraph/agents/`, and the one function that bundles
-macros with verification in `app/core/langgraph/scoring.py`.
+macros with verification in `app/core/langgraph/verification/scoring.py`.
 
 ---
 
@@ -28,6 +28,7 @@ decides the order they run in**.
 |---|---|---|
 | Order of steps | Edges in a graph | A model, re-deciding after each result |
 | Routing | `classify` → `INTENT_TARGETS` lookup | The supervisor's own tool choice |
+| Topic gate | One of six intents, five of them routing | One binary in-scope answer |
 | Mandatory steps | Guaranteed by topology | Guaranteed by tool bodies and middleware |
 | `patch_plan` | A root node | Absorbed into `planning_agent` |
 | `resolve_version` | A root node with its own LLM call | Absorbed into the supervisor |
@@ -152,22 +153,16 @@ class SupervisorState(AgentState):    # messages comes from AgentState
     macros: dict | None
     episodic_context: str
     current_version_id: str | None    # parent_id for the next snapshot
-    intent_hint: Intent | None        # from the topic gate, advisory only
     missing_fields: list[str]
     goal_conflict: GoalConflict | None
 ```
 
-Eight fields, down from twenty in `RootState`. Everything that vanished —
+Seven fields, down from twenty in `RootState`. Everything that vanished —
 `draft_plan`, `computed_macros`, `submitted_plan`, `issues`, `verdict`,
 `repair_count`, `pending_commit`, `scope`, `changes`, `revert_target` — was
 derived within a turn, and derived state now lives in the draft store instead
 (§9). What is left is exactly the set that must survive the turn boundary, which
 is also why the `NEW_TURN` reset gets simpler rather than harder.
-
-`intent_hint` is advisory and must stay that way. It is the topic gate's
-classification, passed on so the supervisor does not re-reason from scratch; it
-is not a routing instruction, because the supervisor may legitimately disagree
-after reading a tool result.
 
 ### 4.2. Tools
 
@@ -199,7 +194,7 @@ be left to run them.
 
 | Hook | Replaces | Runs |
 |---|---|---|
-| `before_agent`: `topic_gate` | `classify`, `decline`, `NEW_TURN` | Once per turn |
+| `before_agent`: `topic_gate` | `decline`, `NEW_TURN` | Once per turn |
 | `before_agent`: `load_context` | `load_context` | Once per turn |
 | `before_model`: `extract_profile` | `extract_profile` | Every model call |
 | `dynamic_prompt`: `supervisor_prompt` | `render_semantic_context`, `ask_missing`, `ask_goal` | Every model call |
@@ -239,21 +234,22 @@ async def topic_gate(state: SupervisorState, runtime: Runtime) -> dict | None:
     except Exception as e:
         # A classifier that just failed has made no decision. Turning a bad
         # minute for the model into a refusal aimed at the user is the worse
-        # of the two errors, so the turn proceeds with no hint.
+        # of the two errors, so the turn proceeds.
         logger.exception("routing_classify_failed_hint_unset", error=str(e))
         return dict(NEW_TURN)
 
     if decision.intent == "off_topic":
         return {**NEW_TURN, "messages": [AIMessage(content=OFF_TOPIC_ANSWER)], "jump_to": "end"}
 
-    return {**NEW_TURN, "intent_hint": decision.intent}
+    return dict(NEW_TURN)
 ```
 
-`classify` does not die in the conversion — it moves into this hook, and its
-output is used for two things instead of one: the topic decision, and
-`intent_hint`. That is what keeps the gate from costing an extra round-trip,
-which is the objection `workflow.md` §8.1 raises against a standalone guardrail
-and which still stands.
+`classify` does not die in the conversion — it moves into this hook, reduced to
+the one question the graph still needs answered before a turn runs. Everything
+it used to decide about *which branch* handles a turn is now the supervisor's
+own tool choice, so the gate costs one small call and no round-trip, which is
+the objection `workflow.md` §8.1 raises against a standalone guardrail and which
+still stands.
 
 It must be ordered **before** the `extract_profile` hook. An off-topic turn
 writes nothing to the profile, and that property now comes from ordering alone —
@@ -571,20 +567,20 @@ it is not.
 ```
 app/core/langgraph/
   graph.py              the facade the API calls; owns the checkpointer pool
-  prompts/              shared .md: classify, extract_profile, session title/summary
+  prompts/              shared .md: session title/summary
   supervisor/
-    agent.py            build_supervisor() — create_agent + middleware + HITL
+    agent.py            build_supervisor_with() — create_agent + middleware + HITL
     middleware.py       topic_gate, load_context, extract_profile, supervisor_prompt
     tools.py            planning_agent, review_agent, qa_agent,
                         list_versions, restore_version, save_plan
     state.py            SupervisorState, NEW_TURN
-    prompts/            supervisor.md
+    prompts/            supervisor.md · topic_gate.md · extract_profile.md
   agents/
     __init__.py         AGENTS registry
     planning/           agent.py · tools.py · patch.py · state.py · prompts/
     review/             agent.py · tools.py · state.py · prompts/
     qa/                 agent.py · tools.py · state.py · prompts/
-  routing/classify.py   the classifier the topic gate calls
+    classification.py   the in-scope check the topic gate calls
   profile/extraction.py extraction cleanup and goal-conflict detection
   checks/               macro.py · volume.py · injury.py — pure functions
   scoring.py            score() — macros and the checks, together

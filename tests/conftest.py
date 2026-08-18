@@ -6,7 +6,7 @@ same way.
 
 Every agent now holds a chat model directly — ``create_agent`` needs one — so
 replacing ``llm_service`` no longer keeps the suite off the network. All four
-resolve it through ``app.core.langgraph.models``, which is why :func:`stub_model`
+resolve it through ``app.core.langgraph.runtime.models``, which is why :func:`stub_model`
 below is one patch rather than one per package: an agent added later is stubbed
 by the same call, instead of reaching the network until someone notices.
 """
@@ -83,7 +83,7 @@ class FakeChatModel(BaseChatModel):
 def stub_model(monkeypatch, model: FakeChatModel | None = None) -> FakeChatModel:
     """Point every agent at a fake model, and their fallbacks at nothing.
 
-    Patches the registry rather than ``app.core.langgraph.models``, and that is
+    Patches the registry rather than ``app.core.langgraph.runtime.models``, and that is
     not incidental. Four modules do ``from ...models import default_model``,
     which binds the function into their own namespace at import time — patching
     the definition would leave every one of them calling the real thing and

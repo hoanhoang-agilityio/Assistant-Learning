@@ -10,10 +10,9 @@ doubled (``{{`` / ``}}``).
 
 from pathlib import Path
 
-_PROMPTS_DIR = Path(__file__).parent
+from app.core.langgraph.supervisor.prompts import load_extract_profile_prompt
 
-_CLASSIFY_PROMPT_TEMPLATE = (_PROMPTS_DIR / "classify.md").read_text(encoding="utf-8")
-_EXTRACT_PROFILE_TEMPLATE = (_PROMPTS_DIR / "extract_profile.md").read_text(encoding="utf-8")
+_PROMPTS_DIR = Path(__file__).parent
 
 # Used verbatim, not formatted: the message being summarised or titled is sent
 # as a separate HumanMessage rather than interpolated, so neither has a
@@ -21,34 +20,8 @@ _EXTRACT_PROFILE_TEMPLATE = (_PROMPTS_DIR / "extract_profile.md").read_text(enco
 SESSION_TITLE_PROMPT = (_PROMPTS_DIR / "session_title.md").read_text(encoding="utf-8")
 SESSION_SUMMARY_PROMPT = (_PROMPTS_DIR / "session_summary.md").read_text(encoding="utf-8")
 
-
-def load_classify_prompt(conversation: str) -> str:
-    """Render the intent-classifier prompt.
-
-    Args:
-        conversation: Recent turns, formatted one ``role: content`` per line.
-
-    Returns:
-        The formatted classifier prompt.
-    """
-    return _CLASSIFY_PROMPT_TEMPLATE.format(conversation=conversation)
-
-
-def load_extract_profile_prompt(conversation: str) -> str:
-    """Render the profile-extraction prompt.
-
-    Args:
-        conversation: Recent turns, formatted one ``role: content`` per line.
-
-    Returns:
-        The formatted extraction prompt.
-    """
-    return _EXTRACT_PROFILE_TEMPLATE.format(conversation=conversation)
-
-
 __all__ = [
     "SESSION_SUMMARY_PROMPT",
     "SESSION_TITLE_PROMPT",
-    "load_classify_prompt",
     "load_extract_profile_prompt",
 ]

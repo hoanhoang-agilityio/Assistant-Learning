@@ -107,6 +107,11 @@ _EMPTY_IS_AN_ANSWER = frozenset({"injuries"})
 # seams the storage swaps behind (`docs/memory-refactor-plan.md`).
 _PREFERENCE_SEPARATOR = "; "
 _MAX_PREFERENCES = 12
+# Item *count* alone does not bound this column: twelve items of unlimited
+# length is an unlimited column, and it is rendered into the supervisor's prompt
+# on every turn. A preference is a clause — "avoids overhead pressing" — so this
+# is generous for anything genuinely stated and short of anything else.
+_MAX_PREFERENCE_CHARS = 120
 
 _PERSISTED_FIELDS = (
     "weight_kg",
@@ -176,12 +181,16 @@ def merge_preferences(stored: str | None, stated: str | None) -> str:
 
     Returns:
         The merged list as one string, oldest first, at most
-        ``_MAX_PREFERENCES`` items.
+        ``_MAX_PREFERENCES`` items of ``_MAX_PREFERENCE_CHARS`` each.
     """
     merged: list[str] = []
     seen: set[str] = set()
 
     for item in _split_preferences(stored) + _split_preferences(stated):
+        # Truncated before the dedupe key is taken, so two items that differ
+        # only past the bound are stored — and counted — as the one item they
+        # will be rendered as.
+        item = item[:_MAX_PREFERENCE_CHARS].rstrip()
         key = " ".join(item.lower().split())
         if key in seen:
             continue

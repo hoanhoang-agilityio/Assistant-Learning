@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.v1.auth import get_current_session
 from app.core.configs.config import settings
-from app.core.langgraph.graph import LangGraphAgent
+from app.core.langgraph.runtime.facade import LangGraphRuntime
 from app.core.limiter import limiter
 from app.models.session import Session
 from app.schemas.chat import ChatRequest, ChatResponse, StreamResponse
@@ -24,7 +24,7 @@ from app.services.episodes import summarize_current_session, summarize_stale_ses
 from app.services.session_naming import name_session
 
 router = APIRouter()
-agent = LangGraphAgent()
+agent = LangGraphRuntime()
 
 
 @router.post("/chat", response_model=ChatResponse)

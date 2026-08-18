@@ -1,5 +1,7 @@
 """The general-QA agent, declared rather than assembled."""
 
+from pathlib import Path
+
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
@@ -11,14 +13,15 @@ from langchain.agents.middleware import (
 from langchain_core.messages import SystemMessage
 from langgraph.graph.state import CompiledStateGraph
 
-from app.core.langgraph.agents.qa.prompts import load_qa_agent_prompt
 from app.core.langgraph.agents.qa.state import QAState
 from app.core.langgraph.agents.qa.tools import estimate_macros, search_knowledge
-from app.core.langgraph.models import default_model, resilience_middleware
+from app.core.langgraph.runtime.models import default_model, resilience_middleware
 
 AGENT_NAME = "qa"
 
 tools = [search_knowledge, estimate_macros]
+
+_QA_AGENT_TEMPLATE = (Path(__file__).parent / "prompts" / "qa_agent.md").read_text(encoding="utf-8")
 
 _MAX_SEARCHES = 4
 
@@ -28,6 +31,14 @@ EXHAUSTED_ANSWER = (
     "I looked that up a few times without landing on a clear answer. Try asking "
     "it a different way and I'll have another go."
 )
+
+
+def load_qa_agent_prompt(plan_context: str, episodic_context: str = "") -> str:
+    """Render the general-knowledge answering prompt."""
+    return _QA_AGENT_TEMPLATE.format(
+        plan_context=plan_context or "The user has no saved plan.",
+        episodic_context=episodic_context or "No earlier conversations with this user.",
+    )
 
 
 @dynamic_prompt

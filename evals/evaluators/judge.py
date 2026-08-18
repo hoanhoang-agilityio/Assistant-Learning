@@ -3,10 +3,11 @@
 from pathlib import Path
 
 from openai import AsyncOpenAI
-from pydantic import BaseModel, Field
+from pydantic import Field
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.configs.config import settings
+from app.schemas.base import StructuredOutput
 from app.services.llm.service import RETRYABLE_ERRORS
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
@@ -22,7 +23,7 @@ _client = AsyncOpenAI(
 )
 
 
-class ScoreSchema(BaseModel):
+class ScoreSchema(StructuredOutput):
     """One judge verdict, forced as the reply's ``response_format``."""
 
     score: float = Field(description="provide a score between 0 and 1")

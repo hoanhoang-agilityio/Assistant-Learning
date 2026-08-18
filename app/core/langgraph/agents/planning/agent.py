@@ -12,6 +12,10 @@ lives in tool bodies as plain Python; work that must run every call lives in
 middleware.
 """
 
+import json
+from pathlib import Path
+from typing import Any
+
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
@@ -23,13 +27,27 @@ from langchain.agents.middleware import (
 from langchain_core.messages import SystemMessage
 from langgraph.graph.state import CompiledStateGraph
 
-from app.core.langgraph.agents.planning.prompts import load_planning_agent_prompt
 from app.core.langgraph.agents.planning.state import PlanningState
 from app.core.langgraph.agents.planning.tools import tools
-from app.core.langgraph.models import default_model, resilience_middleware
-from app.core.langgraph.rendering import render_semantic_context
+from app.core.langgraph.runtime.models import default_model, resilience_middleware
+from app.core.langgraph.supervisor.prompt_context import render_semantic_context
 
 AGENT_NAME = "planning"
+_PLANNING_AGENT_TEMPLATE = (Path(__file__).parent / "prompts" / "planning_agent.md").read_text(
+    encoding="utf-8"
+)
+_NO_PREFERENCES = "The user has not stated any exercise preferences."
+_BUILD_GUIDANCE = (
+    "There is no existing plan. Every slot is yours to fill, and variety across "
+    "the week is worth more here than anywhere else."
+)
+_CHANGE_GUIDANCE = (
+    "The user already has a plan and asked for a change. The slots below already "
+    "carry the change: each one shows `current_exercise_id`, the exercise the "
+    "plan uses today. Keep those unless a verification finding names them. "
+    "Committing with no choices at all keeps every current exercise, which is "
+    "usually the right first move.\n\nWhat they asked to change: {changes}"
+)
 
 # Commits one plan may cost. The repair loop is the agent's loop now, so the cap
 # that used to be `_MAX_REPAIRS` on the root graph moves here — and it is not
@@ -49,6 +67,23 @@ _MAX_CANDIDATE_LOOKUPS = 12
 # only work if the model eventually writes a message; without this one, a model
 # that never does would loop until `recursion_limit` blew the turn up.
 _MAX_MODEL_CALLS = _MAX_COMMITS + _MAX_CANDIDATE_LOOKUPS + 2
+
+
+def load_planning_agent_prompt(
+    mode: str, profile: str, preferences: str = "", changes: dict[str, Any] | None = None
+) -> str:
+    """Render the planning agent's system prompt."""
+    guidance = (
+        _CHANGE_GUIDANCE.format(changes=json.dumps(changes or {}, ensure_ascii=False))
+        if mode == "change"
+        else _BUILD_GUIDANCE
+    )
+    return _PLANNING_AGENT_TEMPLATE.format(
+        mode=mode,
+        mode_guidance=guidance,
+        profile=profile or "Nothing recorded about this user yet.",
+        preferences=preferences or _NO_PREFERENCES,
+    )
 
 
 @dynamic_prompt
@@ -108,4 +143,4 @@ def build_planning_agent() -> CompiledStateGraph:
     )
 
 
-__all__ = ["AGENT_NAME", "build_planning_agent"]
+__all__ = ["AGENT_NAME", "build_planning_agent", "load_planning_agent_prompt"]

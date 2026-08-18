@@ -4,6 +4,10 @@ Scope note: these helpers are for values that get echoed back to a client or
 rendered downstream. They are deliberately **not** applied to passwords (which
 would change what gets hashed) or to bearer tokens (which would corrupt the
 signature check).
+
+``sanitize_prompt_text`` is the one helper here whose downstream is a *prompt*
+rather than a browser, so it does not HTML-escape: `&amp;` in a system message
+is noise a model has to read past.
 """
 
 import html
@@ -12,6 +16,12 @@ from typing import Any
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 _SCRIPT_RE = re.compile(r"&lt;script.*?&gt;.*?&lt;/script&gt;", re.DOTALL | re.IGNORECASE)
+
+# What a line of free text would need to open a section of its own once it is
+# interpolated into a prompt: markdown structure, fences, and pseudo-tags. They
+# are removed rather than escaped, because a model reads an escaped `#` as a
+# heading anyway, and nothing that consumes these fields needs them.
+_PROMPT_MARKUP_RE = re.compile(r"[`#*_>\[\]{}<>|]")
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -23,6 +33,33 @@ def sanitize_string(value: str) -> str:
     value = html.escape(value)
     value = _SCRIPT_RE.sub("", value)
     return value.replace("\0", "")
+
+
+def sanitize_prompt_text(value: object, max_chars: int) -> str:
+    """Flatten text bound for a prompt into one bounded, marker-free line.
+
+    Model-written free text that is stored and then interpolated into a later
+    prompt is the one place a value can become an instruction: the supervisor
+    renders the user's profile into its **system** message, so a stored
+    preference containing a newline and a `#` opens a heading of its own there,
+    on every turn from then on.
+
+    Applied at both ends of those fields on purpose — where the extractor's
+    output is cleaned, and again where it is rendered. The second call is what
+    covers rows written before the first one existed, and callers other than the
+    extractor.
+
+    Args:
+        value: The text to flatten. Coerced to ``str``.
+        max_chars: Hard bound on the result, in characters.
+
+    Returns:
+        The text as a single line with no markup, at most ``max_chars`` long.
+        Empty when nothing survives — callers should treat that as "not stated"
+        rather than storing it.
+    """
+    stripped = _PROMPT_MARKUP_RE.sub("", str(value).replace("\0", ""))
+    return " ".join(stripped.split())[:max_chars].rstrip()
 
 
 def sanitize_email(email: str) -> str:

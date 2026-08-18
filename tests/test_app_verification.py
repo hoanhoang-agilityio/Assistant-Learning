@@ -17,9 +17,8 @@ import inspect
 
 import pytest
 
-from app.core.langgraph import scoring
-from app.core.langgraph.checks import check_injury, check_macro, check_volume
-from app.core.langgraph.scoring import run_checks, score, sort_issues
+from app.core.langgraph.verification import check_injury, check_macro, check_volume, scoring
+from app.core.langgraph.verification.scoring import run_checks, score, sort_issues
 from tests.seed import CONTRAINDICATIONS, MACRO_RULES, RUBRIC_VERSION, VOLUME_LANDMARKS
 
 CATALOG = {

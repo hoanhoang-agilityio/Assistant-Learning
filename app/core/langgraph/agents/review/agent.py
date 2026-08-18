@@ -1,5 +1,7 @@
 """The review agent, declared rather than assembled."""
 
+from pathlib import Path
+
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
@@ -8,18 +10,26 @@ from langchain.agents.middleware import (
 )
 from langgraph.graph.state import CompiledStateGraph
 
-from app.core.langgraph.agents.review.prompts import load_review_agent_prompt
 from app.core.langgraph.agents.review.state import ReviewState
 from app.core.langgraph.agents.review.tools import tools
-from app.core.langgraph.models import default_model, resilience_middleware
+from app.core.langgraph.runtime.models import default_model, resilience_middleware
 
 AGENT_NAME = "review"
+
+_REVIEW_AGENT_TEMPLATE = (Path(__file__).parent / "prompts" / "review_agent.md").read_text(
+    encoding="utf-8"
+)
 
 _MAX_LOOKUPS = 6
 
 _MAX_SCORES = 2
 
 _MAX_MODEL_CALLS = _MAX_LOOKUPS + _MAX_SCORES + 2
+
+
+def load_review_agent_prompt() -> str:
+    """Render the review agent's system prompt."""
+    return _REVIEW_AGENT_TEMPLATE
 
 
 def review_agent() -> CompiledStateGraph:
@@ -48,4 +58,4 @@ def review_agent() -> CompiledStateGraph:
     )
 
 
-__all__ = ["AGENT_NAME", "review_agent"]
+__all__ = ["AGENT_NAME", "load_review_agent_prompt", "review_agent"]

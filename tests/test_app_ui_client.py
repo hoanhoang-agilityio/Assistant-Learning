@@ -26,7 +26,7 @@ import httpx
 import pytest
 
 from app.ui import api_client
-from app.ui.components.chat import run_guarded_backend_action, with_session_retry
+from app.ui.components.chat import run_guarded_backend_action, send_turn, with_session_retry
 from app.ui.wording import conversation_title
 
 
@@ -146,6 +146,52 @@ def test_send_message_posts_only_the_new_turn() -> None:
     assert json.loads(requests[0].content) == {
         "messages": [{"role": "user", "content": "build me a plan"}]
     }
+
+
+def _sse(*frames: dict[str, Any]) -> httpx.Response:
+    """Build a ``text/event-stream`` response from ``StreamResponse``-shaped frames."""
+    body = "".join(f"data: {json.dumps(frame)}\n\n" for frame in frames).encode()
+    return httpx.Response(200, content=body, headers={"content-type": "text/event-stream"})
+
+
+def test_send_message_stream_yields_content_until_done() -> None:
+    """Empty frames are skipped; concatenating the rest reconstructs the reply."""
+    requests: list[httpx.Request] = []
+    client = _recording_client(
+        lambda _: _sse(
+            {"content": "Hello ", "done": False},
+            {"content": "", "done": False},
+            {"content": "there", "done": False},
+            {"content": "", "done": True},
+        ),
+        requests,
+    )
+
+    chunks = list(api_client.send_message_stream(client, "session-token", "hi"))
+
+    assert chunks == ["Hello ", "there"]
+    assert requests[0].url.path == "/api/v1/chatbot/chat/stream"
+    assert requests[0].headers["authorization"] == "Bearer session-token"
+    assert json.loads(requests[0].content) == {"messages": [{"role": "user", "content": "hi"}]}
+
+
+def test_send_message_stream_yields_the_cut_short_notice() -> None:
+    """A stream that fails after it has started ends with a done frame, not HTTP 500."""
+    client = _recording_client(
+        lambda _: _sse({"content": "\n\n[the response was cut short]", "done": True})
+    )
+
+    assert list(api_client.send_message_stream(client, "session-token", "hi")) == [
+        "\n\n[the response was cut short]"
+    ]
+
+
+def test_send_message_stream_raises_before_any_chunk() -> None:
+    """Auth and 5xx fail at the status line, before SSE parsing begins."""
+    client = _recording_client(lambda _: httpx.Response(500, json={"detail": "boom"}))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        list(api_client.send_message_stream(client, "session-token", "hi"))
 
 
 def test_failed_call_raises_rather_than_returning_empty() -> None:
@@ -385,6 +431,135 @@ def test_reruns_on_failure_when_requested(mock_st: MagicMock, session_state: Mag
     )
 
     mock_st.rerun.assert_called_once()
+
+
+# ----------------------------------------------------------------------
+# Streaming a turn into the chat window
+# ----------------------------------------------------------------------
+
+
+def _wire_stream_ui(mock_st: MagicMock, *, token: str = "session-token") -> None:
+    """Give ``send_turn`` a session token, a transcript, and a concatenating writer."""
+    mock_st.session_state.messages = []
+    mock_st.session_state.conversations = [{"session_id": "s-1", "token": token}]
+    mock_st.write_stream.side_effect = lambda tokens: "".join(tokens)
+
+
+@patch("app.ui.components.chat.state")
+@patch("app.ui.components.chat.st")
+def test_send_turn_concatenates_streamed_chunks(mock_st: MagicMock, mock_state: MagicMock) -> None:
+    """Live chunks become one assistant message once the stream ends."""
+    _wire_stream_ui(mock_st)
+    client = _recording_client(
+        lambda _: _sse(
+            {"content": "Hello ", "done": False},
+            {"content": "there.", "done": False},
+            {"content": "", "done": True},
+        )
+    )
+
+    send_turn(client, "s-1", "hi")
+
+    assert mock_st.session_state.messages == [{"role": "assistant", "content": "Hello there."}]
+    mock_state.sync_conversations.assert_called_once()
+
+
+@patch("app.ui.components.chat.state")
+@patch("app.ui.components.chat.st")
+def test_send_turn_shows_a_fallback_when_the_stream_is_empty(
+    mock_st: MagicMock, mock_state: MagicMock
+) -> None:
+    """A done frame with no text must not leave the user staring at their own message."""
+    _wire_stream_ui(mock_st)
+    client = _recording_client(lambda _: _sse({"content": "", "done": True}))
+
+    send_turn(client, "s-1", "hi")
+
+    assert mock_st.session_state.messages == [
+        {
+            "role": "assistant",
+            "content": "I didn't manage to put a reply together. Try rephrasing that?",
+        }
+    ]
+    mock_state.sync_conversations.assert_called_once()
+
+
+@patch("app.ui.components.chat.state")
+@patch("app.ui.components.chat.st")
+def test_send_turn_remints_the_token_before_the_graph_starts(
+    mock_st: MagicMock, mock_state: MagicMock
+) -> None:
+    """A 401 on the first byte is safe to retry; the graph has not run yet."""
+    _wire_stream_ui(mock_st, token="stale")
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.headers["authorization"] == "Bearer stale":
+            return httpx.Response(401, json={"detail": "expired"})
+        return _sse({"content": "ok", "done": True})
+
+    def sync(_client: Any) -> None:
+        mock_st.session_state.conversations = [{"session_id": "s-1", "token": "fresh"}]
+
+    mock_state.sync_conversations.side_effect = sync
+    client = _recording_client(handler, requests)
+
+    send_turn(client, "s-1", "hi")
+
+    assert [request.headers["authorization"] for request in requests] == [
+        "Bearer stale",
+        "Bearer fresh",
+    ]
+    assert mock_st.session_state.messages == [{"role": "assistant", "content": "ok"}]
+
+
+@patch("app.ui.components.chat.api_client.send_message_stream")
+@patch("app.ui.components.chat.state")
+@patch("app.ui.components.chat.st")
+def test_send_turn_keeps_partial_text_when_the_stream_drops(
+    mock_st: MagicMock, mock_state: MagicMock, mock_stream: MagicMock
+) -> None:
+    """A disconnect after tokens have arrived must not throw the partial answer away."""
+    _wire_stream_ui(mock_st)
+
+    def dropping_stream(_client: Any, _token: str, _text: str) -> Any:
+        yield "Partial answer"
+        raise httpx.ConnectError("connection lost")
+
+    mock_stream.side_effect = dropping_stream
+
+    send_turn(MagicMock(), "s-1", "hi")
+
+    messages = mock_st.session_state.messages
+    assert messages[0] == {"role": "assistant", "content": "Partial answer"}
+    assert messages[1]["role"] == "assistant"
+    assert "Couldn't get an answer" in messages[1]["content"]
+    mock_state.sync_conversations.assert_not_called()
+
+
+@patch("app.ui.components.chat.state")
+@patch("app.ui.components.chat.st")
+def test_send_turn_timeout_before_the_first_token_is_an_error_message(
+    mock_st: MagicMock, mock_state: MagicMock
+) -> None:
+    """Nothing has been shown yet, so the timeout copy is the whole reply."""
+    _wire_stream_ui(mock_st)
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.TimeoutException("timed out")
+
+    send_turn(_recording_client(handler), "s-1", "hi")
+
+    assert mock_st.session_state.messages == [
+        {
+            "role": "assistant",
+            "content": (
+                "⏳ That turn is taking longer than usual. The work is still running on the "
+                "server — reopen this conversation in a moment to see the answer."
+            ),
+        }
+    ]
+    mock_state.sync_conversations.assert_not_called()
 
 
 # ----------------------------------------------------------------------

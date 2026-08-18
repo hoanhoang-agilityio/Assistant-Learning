@@ -127,13 +127,7 @@ def mint(
         parent_id=parent_id,
     )
     _drafts[draft.draft_id] = draft
-    logger.info(
-        "draft_minted",
-        draft_id=draft.draft_id,
-        verdict=verdict,
-        issues=len(issues),
-        days=len(plan.get("days") or []),
-    )
+
     return draft
 
 

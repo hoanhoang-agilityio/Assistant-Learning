@@ -19,6 +19,7 @@ that was correct before the change.
 
 from typing import Any
 
+from app.core.langgraph.agents.planning.issues import make_planning_issue as _issue
 from app.core.logging import logger
 from app.schemas.graph import Issue
 from app.services.catalog import (
@@ -240,28 +241,6 @@ def _is_allowed(
     return not (
         set(meta["joint_actions"]) & forbidden_actions
         or set(meta["loaded_positions"]) & forbidden_positions
-    )
-
-
-def _issue(severity: str, location: str, message: str, rubric_ref: str) -> Issue:
-    """Build an issue raised while patching.
-
-    Args:
-        severity: ``"info"``, ``"warn"`` or ``"block"``.
-        location: Where the problem is.
-        message: User-facing explanation.
-        rubric_ref: Dotted reference for traceability.
-
-    Returns:
-        The issue.
-    """
-    return Issue(
-        source="volume",
-        severity=severity,
-        location=location,
-        message=message,
-        suggestion=None,
-        rubric_ref=rubric_ref,
     )
 
 

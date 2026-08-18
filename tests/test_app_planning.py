@@ -19,7 +19,6 @@ from pathlib import Path
 
 import pytest
 
-from app.core.langgraph import drafts
 from app.core.langgraph.agents.planning.state import PlanningState
 from app.core.langgraph.agents.planning.tools import (
     _apply_choices,
@@ -31,7 +30,8 @@ from app.core.langgraph.agents.planning.tools import (
     get_exercise_candidates,
     get_template_slots,
 )
-from app.core.langgraph.rendering import render_prescription
+from app.core.langgraph.plans.rendering import render_prescription
+from app.core.langgraph.runtime import draft_store as drafts
 from app.services.templates import iter_slots
 from tests.seed import TEMPLATES
 from tests.support import call, message, updates
@@ -56,9 +56,12 @@ def _catalog_from_the_seed_file(monkeypatch, catalog):
     """Point every catalog read at the seed file rather than at Postgres."""
     monkeypatch.setattr("app.services.catalog.load_catalog", lambda *a, **k: catalog)
     monkeypatch.setattr(
-        "app.core.langgraph.agents.planning.tools.load_catalog", lambda *a, **k: catalog
+        "app.core.langgraph.agents.planning.tools.commit.load_catalog", lambda *a, **k: catalog
     )
-    monkeypatch.setattr("app.core.langgraph.rendering.load_catalog", lambda *a, **k: catalog)
+    monkeypatch.setattr(
+        "app.core.langgraph.agents.planning.tools.slots.load_catalog", lambda *a, **k: catalog
+    )
+    monkeypatch.setattr("app.core.langgraph.plans.rendering.load_catalog", lambda *a, **k: catalog)
 
 
 def _profile(catalog: dict, **overrides) -> dict:
@@ -374,11 +377,13 @@ def scored(monkeypatch):
             "pass",
         )
 
-    monkeypatch.setattr("app.core.langgraph.agents.planning.tools.score", fake_score)
+    monkeypatch.setattr("app.core.langgraph.agents.planning.tools.commit.score", fake_score)
     monkeypatch.setattr(
-        "app.core.langgraph.agents.planning.tools.profile_hash", lambda _profile: "hash"
+        "app.core.langgraph.agents.planning.tools.commit.profile_hash", lambda _profile: "hash"
     )
-    monkeypatch.setattr("app.core.langgraph.agents.planning.tools.rubric_version", lambda: "v1")
+    monkeypatch.setattr(
+        "app.core.langgraph.agents.planning.tools.commit.rubric_version", lambda: "v1"
+    )
     return seen
 
 
