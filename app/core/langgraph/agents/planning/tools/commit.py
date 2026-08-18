@@ -62,14 +62,7 @@ async def commit_draft(runtime: ToolRuntime, choices: list[dict] | None = None) 
             else None
         ),
     )
-    logger.info(
-        "planning_draft_committed",
-        draft_id=draft.draft_id,
-        mode=state.get("mode"),
-        verdict=verdict,
-        choices=len(choices or []),
-        rejected=rejected,
-    )
+
     return Command(
         update={
             "draft_id": draft.draft_id,
