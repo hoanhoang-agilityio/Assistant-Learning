@@ -1,6 +1,6 @@
 """Intent classification for the first post-guard routing step."""
-
 from functools import lru_cache
+from typing import Any
 
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
@@ -11,6 +11,7 @@ from src.core.logging import logger
 from src.schemas import Intent
 
 DEFAULT_INTENT: Intent = "qa"
+_TOKEN_LIMIT: dict[str, Any] = {"max_completion_tokens": 32}
 
 
 class IntentDecision(BaseModel):
@@ -24,11 +25,8 @@ def _build_classifier() -> ChatOpenAI:
     """Build the shared classifier model from application settings."""
     return ChatOpenAI(
         api_key=settings.OPENAI_API_KEY,
-        base_url=settings.OPENAI_BASE_URL,
         model=settings.DEFAULT_LLM_MODEL,
-        max_tokens=32,
-        timeout=settings.LLM_TOTAL_TIMEOUT,
-        max_retries=settings.MAX_LLM_CALL_RETRIES,
+        max_completion_tokens=128,
     )
 
 
