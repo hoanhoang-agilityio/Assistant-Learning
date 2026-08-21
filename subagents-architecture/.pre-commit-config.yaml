@@ -3,11 +3,12 @@ repos:
     hooks:
       - id: precheck
         name: precheck
-        entry: scripts/precheck.sh
+        entry: subagents-architecture/scripts/precheck.sh
         language: script
         types: [python]
+        files: ^subagents-architecture/
       - id: commit-prefix
         name: commit prefix
-        entry: scripts/validate_commit_prefix.sh
+        entry: subagents-architecture/scripts/validate_commit_prefix.sh
         language: script
         stages: [commit-msg]
