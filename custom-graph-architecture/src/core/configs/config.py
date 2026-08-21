@@ -22,6 +22,19 @@ class Environment(StrEnum):
     PRODUCTION = "production"
 
 
+class GuardScanner(StrEnum):
+    """Input scanners the ``llm_guard`` node may run."""
+
+    INVISIBLE_TEXT = "invisible_text"
+    BAN_SUBSTRINGS = "ban_substrings"
+    REGEX = "regex"
+    SECRETS = "secrets"
+    TOKEN_LIMIT = "token_limit"
+    PROMPT_INJECTION = "prompt_injection"
+    TOXICITY = "toxicity"
+    BAN_TOPICS = "ban_topics"
+
+
 class PersistenceBackend(StrEnum):
     """Which storage backs the graph's checkpointer and long-term store.
 
@@ -147,6 +160,29 @@ class Settings(BaseSettings):
     MAX_LLM_CALL_RETRIES: int = 3
     LLM_TOTAL_TIMEOUT: int = 60
 
+    # --- Input guard (spec §1 `llm_guard`, §9 "Guard failure → Block request") --------
+    GUARD_ENABLED: bool = True
+    GUARD_SCANNERS: Annotated[list[GuardScanner], NoDecode] = Field(
+        default_factory=lambda: list(GuardScanner)
+    )
+    # Stop at the first rejection. The scanners are ordered cheapest-first, so this is
+    # also what keeps a banned substring from costing two model inferences.
+    GUARD_FAIL_FAST: bool = True
+    GUARD_USE_ONNX: bool = False
+    GUARD_MAX_INPUT_TOKENS: int = 2048
+    # No default wordlist or pattern set: both are deployment policy, and a scanner with
+    # nothing to match on is skipped rather than constructed empty.
+    GUARD_BANNED_SUBSTRINGS: Annotated[list[str], NoDecode] = Field(
+        default_factory=list
+    )
+    GUARD_BANNED_PATTERNS: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    GUARD_BANNED_TOPICS: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["violence", "self-harm", "weapons", "illegal drugs"]
+    )
+    GUARD_PROMPT_INJECTION_THRESHOLD: float = 0.92
+    GUARD_TOXICITY_THRESHOLD: float = 0.5
+    GUARD_BANNED_TOPICS_THRESHOLD: float = 0.6
+
     # --- Graph retry limits (spec §9: every limit is a counter in GraphState) ---------
     COACH_MAX_RETRIES: int = 3
     HITL_MAX_RETRIES: int = 3
@@ -184,7 +220,15 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
 
-    @field_validator("ALLOWED_ORIGINS", "RATE_LIMIT_DEFAULT", mode="before")
+    @field_validator(
+        "ALLOWED_ORIGINS",
+        "RATE_LIMIT_DEFAULT",
+        "GUARD_SCANNERS",
+        "GUARD_BANNED_SUBSTRINGS",
+        "GUARD_BANNED_PATTERNS",
+        "GUARD_BANNED_TOPICS",
+        mode="before",
+    )
     @classmethod
     def parse_list_fields(cls, value: Any) -> Any:
         """Parse comma-separated env strings into ``list[str]``."""

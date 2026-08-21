@@ -21,12 +21,16 @@ from src.core.limiter import limiter
 from src.core.logging import logger
 from src.core.observability import langfuse_init, langfuse_shutdown
 from src.services.database import close_engine
+from src.services.guard import warm_guard
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Start and stop shared application resources."""
     langfuse_init()
+
+    await warm_guard()
+
     logger.info(
         "application_startup",
         project=settings.PROJECT_NAME,

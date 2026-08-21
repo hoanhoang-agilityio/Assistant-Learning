@@ -23,7 +23,7 @@ src/
     logging.py limiter.py    structlog, rate limiting
     langgraph/
       graph.py               root graph + the public façade the API calls
-      nodes/                 node implementations, one module per branch
+      nodes/                 node implementations, one module per node
       agents/                coach and QA agents
       tools/                 tools the agents' LLM nodes may call
       verification/          deterministic gate + RAGAS gate
@@ -33,7 +33,7 @@ src/
         namespaces.py        long-term memory namespace scheme
   models/                    SQLModel ORM (Alembic owns migrations)
   schemas/                   graph state, API and domain models
-  services/                  database, LLM, profile, knowledge
+  services/                  database, LLM, guard, profile, knowledge
 tests/
 docker/postgres/init/       pgvector extension, run on first container start
 ```
@@ -68,6 +68,10 @@ uv run uvicorn src.main:app --reload
 ```
 
 `GET /api/v1/health` should return `{"status": "ok", ...}`.
+
+The input guard's `prompt_injection`, `toxicity` and `ban_topics`
+Set `GUARD_ENABLED=false`, or trim `GUARD_SCANNERS` to the
+pure-Python checks, to skip it.
 
 Compose runs the database only — the application itself runs on the host, via uv. `APP_ENV`
 selects which env file both sides read, defaulting to `development`:

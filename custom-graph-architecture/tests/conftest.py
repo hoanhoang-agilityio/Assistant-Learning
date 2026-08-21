@@ -6,6 +6,12 @@ import pytest
 from src.core.configs.config import settings
 
 
+@pytest.fixture(autouse=True)
+def guard_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the guard's models out of the suite by default."""
+    monkeypatch.setattr(settings, "GUARD_ENABLED", False)
+
+
 @pytest.fixture(scope="session")
 def require_postgres() -> None:
     """Skip the test when the configured Postgres is unreachable.
