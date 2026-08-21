@@ -57,13 +57,41 @@ Start Postgres with pgvector:
 docker compose up -d db
 ```
 
-Run the API:
+Apply migrations, then run the API:
+
+```bash
+uv run alembic upgrade head
+```
 
 ```bash
 uv run uvicorn src.main:app --reload
 ```
 
 `GET /api/v1/health` should return `{"status": "ok", ...}`.
+
+## Running everything in Docker
+
+```bash
+docker compose up --build
+```
+
+Brings up Postgres and the API together. The app container applies migrations on start
+(`RUN_MIGRATIONS=true` in `docker/app.env`) and serves on the same port 8000.
+
+Two env files are layered onto the app container: `.env.<APP_ENV>` for the real settings, then
+`docker/app.env` for the few values that differ between the host and the compose network —
+`POSTGRES_HOST`/`POSTGRES_PORT` point at `localhost:5433` from your machine but `db:5432` from
+inside. Later files win, so neither has to be edited to run the other way.
+
+`APP_ENV` selects the env file for both services, defaulting to `development`:
+
+```bash
+APP_ENV=staging docker compose up -d
+```
+
+The image is large — roughly 2 GB — because `llm-guard` (the `llm_guard` node, spec §1) pulls
+torch and transformers, and `ragas` (the `ragas_verification` node, spec §5) pulls pandas and
+pyarrow. Both are request-path dependencies in this design, so neither can move to an extra.
 
 ## Checks
 
