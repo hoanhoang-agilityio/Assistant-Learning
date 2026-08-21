@@ -125,7 +125,9 @@ class Settings(BaseSettings):
     )
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
-    ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["*"])
+    ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["*"]
+    )
 
     # --- Observability ---------------------------------------------------------------
     LANGFUSE_TRACING_ENABLED: bool = True
@@ -174,7 +176,7 @@ class Settings(BaseSettings):
         default_factory=lambda: ["200 per day", "50 per hour"]
     )
     RATE_LIMIT_ENDPOINTS: dict[str, list[str]] = Field(
-        default_factory=lambda: _DEFAULT_RATE_LIMIT_ENDPOINTS.copy()
+        default_factory=_DEFAULT_RATE_LIMIT_ENDPOINTS.copy
     )
 
     # --- Logging ---------------------------------------------------------------------
@@ -202,7 +204,9 @@ class Settings(BaseSettings):
         """
         if self.DATABASE_URL:
             if self.DATABASE_URL.startswith("postgresql://"):
-                return self.DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+                return self.DATABASE_URL.replace(
+                    "postgresql://", "postgresql+psycopg://", 1
+                )
             return self.DATABASE_URL
         return (
             f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
@@ -220,7 +224,9 @@ class Settings(BaseSettings):
         Returns:
             str: The psycopg connection DSN.
         """
-        return self.sqlalchemy_database_uri.replace("postgresql+psycopg://", "postgresql://", 1)
+        return self.sqlalchemy_database_uri.replace(
+            "postgresql+psycopg://", "postgresql://", 1
+        )
 
     @model_validator(mode="after")
     def apply_environment_settings(self) -> "Settings":

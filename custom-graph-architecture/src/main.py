@@ -19,17 +19,14 @@ from src.core.configs.config import settings
 from src.core.langgraph.runtime import graph_runtime
 from src.core.limiter import limiter
 from src.core.logging import logger
+from src.core.observability import langfuse_init, langfuse_shutdown
 from src.services.database import close_engine
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Start and stop shared application resources.
-
-    Nothing here connects to Postgres: the checkpointer pool and the graph are created on
-    first use so the app still boots — and still answers ``/health`` — while the database
-    is briefly unavailable.
-    """
+    """Start and stop shared application resources."""
+    langfuse_init()
     logger.info(
         "application_startup",
         project=settings.PROJECT_NAME,
@@ -37,6 +34,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         environment=settings.ENVIRONMENT.value,
     )
     yield
+    langfuse_shutdown()
     await graph_runtime.close()
     await close_engine()
     logger.info("application_shutdown")

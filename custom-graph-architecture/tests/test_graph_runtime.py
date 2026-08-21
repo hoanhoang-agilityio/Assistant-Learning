@@ -43,7 +43,27 @@ def _build(saver: BaseCheckpointSaver) -> Any:
     return builder.compile(checkpointer=saver, name="runtime_test")
 
 
-@pytest.fixture(params=list(RUNTIMES))
+# Backends that need something running outside the test process.
+_NEEDS_SERVICE = {PersistenceBackend.POSTGRES}
+
+
+def _backend_params() -> list[pytest.param]:
+    """One fixture param per registered backend, marked if it needs a real service.
+
+    Marks belong on the param rather than inside the fixture: ``-m`` filtering happens at
+    collection, so a marker added at fixture time is never seen.
+    """
+    return [
+        pytest.param(
+            backend,
+            id=backend.value,
+            marks=[pytest.mark.integration] if backend in _NEEDS_SERVICE else [],
+        )
+        for backend in RUNTIMES
+    ]
+
+
+@pytest.fixture(params=_backend_params())
 async def runtime(request: pytest.FixtureRequest):
     """Provide each registered backend in turn, closing it afterwards.
 
@@ -51,7 +71,7 @@ async def runtime(request: pytest.FixtureRequest):
     runs without ``docker compose up db``.
     """
     backend: PersistenceBackend = request.param
-    if backend is PersistenceBackend.POSTGRES:
+    if backend in _NEEDS_SERVICE:
         request.getfixturevalue("require_postgres")
 
     runtime = build_runtime(backend)
@@ -84,7 +104,10 @@ def test_default_backend_is_durable() -> None:
     Asserts the declared default rather than the resolved value, so the test still means
     something when a run overrides ``PERSISTENCE_BACKEND`` in the environment.
     """
-    assert Settings.model_fields["PERSISTENCE_BACKEND"].default is PersistenceBackend.POSTGRES
+    assert (
+        Settings.model_fields["PERSISTENCE_BACKEND"].default
+        is PersistenceBackend.POSTGRES
+    )
 
 
 # --- Behaviour, on every backend -------------------------------------------------------
@@ -107,8 +130,12 @@ async def test_state_survives_interrupt_and_resumes(runtime: GraphRuntime) -> No
     saver = await runtime.checkpointer()
     config = {"configurable": {"thread_id": THREAD_ID}}
 
-    suspended = await _build(saver).ainvoke({"question": "training days per week?"}, config)
-    assert suspended["__interrupt__"][0].value == {"question": "training days per week?"}
+    suspended = await _build(saver).ainvoke(
+        {"question": "training days per week?"}, config
+    )
+    assert suspended["__interrupt__"][0].value == {
+        "question": "training days per week?"
+    }
     assert (await _build(saver).aget_state(config)).next == ("ask",)
 
     resumed = await _build(saver).ainvoke(Command(resume="4"), config)
@@ -157,7 +184,10 @@ async def postgres_runtime(require_postgres: None):
     await runtime.close()
 
 
-async def test_checkpointer_and_store_share_one_pool(postgres_runtime: PostgresRuntime) -> None:
+@pytest.mark.integration
+async def test_checkpointer_and_store_share_one_pool(
+    postgres_runtime: PostgresRuntime,
+) -> None:
     """Both Postgres backends borrow from the same connection pool."""
     checkpointer = await postgres_runtime.checkpointer()
     store = await postgres_runtime.store()
@@ -165,6 +195,7 @@ async def test_checkpointer_and_store_share_one_pool(postgres_runtime: PostgresR
     assert checkpointer.conn is store.conn
 
 
+@pytest.mark.integration
 async def test_setup_creates_checkpointer_and_store_tables(
     postgres_runtime: PostgresRuntime,
 ) -> None:
@@ -173,19 +204,26 @@ async def test_setup_creates_checkpointer_and_store_tables(
     await postgres_runtime.store()
 
     async with checkpointer.conn.connection() as conn:
-        cursor = await conn.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+        cursor = await conn.execute(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+        )
         tables = {row["tablename"] for row in await cursor.fetchall()}
 
     assert {"checkpoints", "checkpoint_blobs", "checkpoint_writes"} <= tables
     assert "store" in tables
 
 
-async def test_pgvector_extension_is_installed(postgres_runtime: PostgresRuntime) -> None:
+@pytest.mark.integration
+async def test_pgvector_extension_is_installed(
+    postgres_runtime: PostgresRuntime,
+) -> None:
     """The knowledge base and any future vector index need the extension present."""
     checkpointer = await postgres_runtime.checkpointer()
 
     async with checkpointer.conn.connection() as conn:
-        cursor = await conn.execute("SELECT extname FROM pg_extension WHERE extname = 'vector'")
+        cursor = await conn.execute(
+            "SELECT extname FROM pg_extension WHERE extname = 'vector'"
+        )
         row = await cursor.fetchone()
 
     assert row is not None, "pgvector missing — run `uv run alembic upgrade head`"

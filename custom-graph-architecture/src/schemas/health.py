@@ -9,4 +9,6 @@ class HealthResponse(BaseModel):
     status: str = Field(description="Literal 'ok' when the process is serving")
     service: str = Field(description="Configured project name")
     version: str = Field(description="Application version")
-    environment: str = Field(description="Active environment: development, staging or production")
+    environment: str = Field(
+        description="Active environment: development, staging or production"
+    )

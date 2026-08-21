@@ -46,7 +46,9 @@ def test_state_declares_every_field_in_the_spec() -> None:
 
 def test_only_the_inputs_are_required() -> None:
     """Everything a later node writes is optional, so early reads cannot KeyError."""
-    assert GraphState.__required_keys__ == frozenset({"messages", "user_query", "user_id"})
+    assert GraphState.__required_keys__ == frozenset(
+        {"messages", "user_query", "user_id"}
+    )
 
 
 def test_initial_state_populates_every_key() -> None:
@@ -90,9 +92,14 @@ async def test_messages_accumulate_across_nodes() -> None:
     builder.add_node("reply", reply, destinations=(END,))
     builder.add_edge(START, "reply")
 
-    result = await builder.compile(name="state_test").ainvoke(initial_state("hi", "user-1"))
+    result = await builder.compile(name="state_test").ainvoke(
+        initial_state("hi", "user-1")
+    )
 
-    assert [type(message) for message in result["messages"]] == [HumanMessage, AIMessage]
+    assert [type(message) for message in result["messages"]] == [
+        HumanMessage,
+        AIMessage,
+    ]
 
 
 async def test_state_round_trips_through_a_checkpointer() -> None:
@@ -140,13 +147,17 @@ async def test_a_branch_update_leaves_other_branches_untouched() -> None:
     """Each field is written by one branch; a coaching write must not disturb QA fields."""
 
     async def coach(state: GraphState) -> Command:
-        return Command(update={"coach_retry_count": state["coach_retry_count"] + 1}, goto=END)
+        return Command(
+            update={"coach_retry_count": state["coach_retry_count"] + 1}, goto=END
+        )
 
     builder = StateGraph(GraphState)
     builder.add_node("coach", coach, destinations=(END,))
     builder.add_edge(START, "coach")
 
-    result = await builder.compile(name="branch_test").ainvoke(initial_state("plan", "user-1"))
+    result = await builder.compile(name="branch_test").ainvoke(
+        initial_state("plan", "user-1")
+    )
 
     assert result["coach_retry_count"] == 1
     assert result["qa_retry_count"] == 0

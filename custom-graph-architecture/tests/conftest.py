@@ -10,8 +10,9 @@ from src.core.configs.config import settings
 def require_postgres() -> None:
     """Skip the test when the configured Postgres is unreachable.
 
-    Keeps the unit suite runnable without ``docker compose up db`` while still failing
-    loudly in CI, where the database is expected to be there.
+    Keeps the suite runnable without ``docker compose up db``. The ``integration`` marker
+    is applied separately, at collection time — a marker added from inside a fixture is
+    too late for ``-m`` to see it.
     """
     try:
         with psycopg.connect(settings.psycopg_database_uri, connect_timeout=3) as conn:

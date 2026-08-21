@@ -13,8 +13,8 @@ Status values: `Todo` · `In progress` · `Done`
 | 21/08 | Setup PostgreSQL instance + `AsyncPostgresSaver` checkpointer config | 1 | 1 | Done |
 | 21/08 | Enable pgvector extension & base `PostgresStore` setup | 0.5 | 0.5 | Done |
 | 21/08 | Define `GraphState` schema (input, guard, context, coaching, HITL, QA, output) | 0.5 | 0.5 | Done |
-| 21/08 | Setup Docker + Docker Compose (app, Postgres, pgvector) | 0.5 | | Todo |
-| 21/08 | Base Langfuse project/tracing wiring | 0.5 | | Todo |
+| 21/08 | Setup Docker + Docker Compose (app, Postgres, pgvector) | 0.5 | 1 | Done |
+| 21/08 | Base Langfuse project/tracing wiring | 0.5 | 1 | Done |
 
 ## Milestone 2 — Guard & intent classification (4h)
 

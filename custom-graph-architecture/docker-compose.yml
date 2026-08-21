@@ -10,8 +10,7 @@ services:
     env_file:
       - .env.${APP_ENV:-development}
     ports:
-      # 5433 on the host to avoid colliding with a local Postgres; inside the compose
-      # network the app still connects to db:5432.
+      # 5433 on the host to avoid colliding with a local Postgres.
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -23,34 +22,6 @@ services:
       timeout: 5s
       retries: 5
     restart: always
-    networks:
-      - coaching
-
-  app:
-    build:
-      context: .
-      args:
-        APP_ENV: ${APP_ENV:-development}
-    container_name: coaching-app
-    # Later files win, so docker/app.env corrects the handful of values that differ
-    # between the host and the compose network. See that file for which and why.
-    env_file:
-      - .env.${APP_ENV:-development}
-      - docker/app.env
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./logs:/app/logs
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: on-failure
-    networks:
-      - coaching
-
-networks:
-  coaching:
-    driver: bridge
 
 volumes:
   pgdata:
