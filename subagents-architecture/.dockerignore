@@ -1,0 +1,25 @@
+# Keep the build context small and free of anything secret or machine-local.
+.git
+.venv
+.claude
+.cursor
+.agents
+.gitnexus
+.pytest_cache
+.ruff_cache
+__pycache__
+**/__pycache__
+*.pyc
+
+# Secrets: the image must never bake in credentials. Configuration is supplied
+# at runtime via environment variables (see .env.example for the full list).
+.env
+.env.*
+!.env.example
+
+# Runtime artifacts and local-only files
+var/
+docs/
+KNOWN_ISSUES.md
+tests/
+dist/

@@ -1,0 +1,14 @@
+repos:
+  - repo: local
+    hooks:
+      - id: precheck
+        name: precheck
+        entry: subagents-architecture/scripts/precheck.sh
+        language: script
+        types: [python]
+        files: ^subagents-architecture/
+      - id: commit-prefix
+        name: commit prefix
+        entry: subagents-architecture/scripts/validate_commit_prefix.sh
+        language: script
+        stages: [commit-msg]

@@ -1,0 +1,28 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	model(model)
+	tools(tools)
+	ToolCallLimitMiddleware\5bcommit_draft\5d\2eafter_model(ToolCallLimitMiddleware[commit_draft].after_model)
+	ToolCallLimitMiddleware\5bget_exercise_candidates\5d\2eafter_model(ToolCallLimitMiddleware[get_exercise_candidates].after_model)
+	ModelCallLimitMiddleware\2ebefore_model(ModelCallLimitMiddleware.before_model)
+	ModelCallLimitMiddleware\2eafter_model(ModelCallLimitMiddleware.after_model)
+	__end__([<p>__end__</p>]):::last
+	ModelCallLimitMiddleware\2eafter_model --> ToolCallLimitMiddleware\5bget_exercise_candidates\5d\2eafter_model;
+	ModelCallLimitMiddleware\2ebefore_model -.-> __end__;
+	ModelCallLimitMiddleware\2ebefore_model -.-> model;
+	ToolCallLimitMiddleware\5bcommit_draft\5d\2eafter_model -.-> ModelCallLimitMiddleware\2ebefore_model;
+	ToolCallLimitMiddleware\5bcommit_draft\5d\2eafter_model -.-> __end__;
+	ToolCallLimitMiddleware\5bcommit_draft\5d\2eafter_model -.-> tools;
+	ToolCallLimitMiddleware\5bget_exercise_candidates\5d\2eafter_model -.-> ToolCallLimitMiddleware\5bcommit_draft\5d\2eafter_model;
+	ToolCallLimitMiddleware\5bget_exercise_candidates\5d\2eafter_model -.-> __end__;
+	__start__ --> ModelCallLimitMiddleware\2ebefore_model;
+	model --> ModelCallLimitMiddleware\2eafter_model;
+	tools -.-> ModelCallLimitMiddleware\2ebefore_model;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
