@@ -22,14 +22,14 @@ Status values: `Todo` · `In progress` · `Done`
 |---|---|---|---|---|
 | 21/08 | Implement `llm_guard` node (integrate llm-guard input scanning) | 1 | 1.5 | Done |
 | 21/08 | Implement `blocked` node (return block message, stop immediately) | 0.5 | 0.5 | Done |
-| 21/08 | Implement `classify_intent` node (coaching / qa / off_topic) | 0.5 | | Todo |
-| 21/08 | Implement `off_topic_response` node | 0.5 | | Todo |
-| 21/08 | Wire routing edges: `llm_guard` → `classify_intent` → 3 branches | 0.5 | 0.25 | In progress |
-| 21/08 | Unit tests: guard scanning + intent classification accuracy | 1 | 0.5 | In progress |
+| 21/08 | Implement `classify_intent` node (coaching / qa / off_topic) | 0.5 | 0.5 | Done |
+| 21/08 | Implement `off_topic` node | 0.5 | 0.5 | Done |
+| 21/08 | Wire routing edges: `llm_guard` → `classify_intent` → 3 branches | 0.5 | 0.75 | Done |
+| 21/08 | Unit tests: guard scanning + intent classification accuracy | 1 | 1 | In progress |
 
-The guard half of the routing row is wired (`llm_guard` → `blocked` / pass); the passing
-branch is one entry in `GUARD_ROUTES` and re-points to `classify_intent` when that node
-lands. Guard scanning tests are done; intent-classification accuracy tests are not.
+Guard and intent routing are now wired (`llm_guard` → `blocked` / `classify_intent` →
+`coaching` / `qa` / `off_topic`). Guard scanning tests and intent routing tests are
+done; live classifier accuracy checks are still open.
 
 ## Milestone 3 — Context loading branch (5h)
 

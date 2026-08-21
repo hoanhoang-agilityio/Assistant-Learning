@@ -16,7 +16,7 @@ Engineering conventions for `src/` come from the `langgraph-agent-arch` skill
 | `llm_guard` | Scan input |
 | `blocked` | Return message for user and stop immediately |
 | `classify_intent` | Classify user into three main intents: `coaching`, `qa`, `off_topic` |
-| `off_topic_response` | Return reject message for off topic |
+| `off_topic` | Return reject message for off topic |
 | `load_context` | Load profile and plan of user |
 | `determine_context` | Identify missing fields required to create a plan |
 | `request_missing_info` | Ask user to provide missing fields |
@@ -41,7 +41,7 @@ Engineering conventions for `src/` come from the `langgraph-agent-arch` skill
 | `llm_guard` | pass | `classify_intent` |
 | `classify_intent` | qa | `qa_agent` |
 | `classify_intent` | coaching | `load_context` |
-| `classify_intent` | off_topic | `off_topic_response` |
+| `classify_intent` | off_topic | `off_topic` |
 | `load_context` | context complete | `write_todo` |
 | `load_context` | missing fields | `determine_context` |
 | `determine_context` | missing fields exist | `request_missing_info` |
