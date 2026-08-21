@@ -7,10 +7,10 @@ that consumes the runtime changes, because callers only ever see the ABCs in ``b
 
 from collections.abc import Callable
 
-from app.core.configs.config import PersistenceBackend
-from app.core.langgraph.runtime.backends.memory import InMemoryRuntime
-from app.core.langgraph.runtime.backends.postgres import PostgresRuntime
-from app.core.langgraph.runtime.base import GraphRuntime
+from src.core.configs.config import PersistenceBackend
+from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
+from src.core.langgraph.runtime.backends.postgres import PostgresRuntime
+from src.core.langgraph.runtime.base import GraphRuntime
 
 RUNTIMES: dict[PersistenceBackend, Callable[[], GraphRuntime]] = {
     PersistenceBackend.POSTGRES: PostgresRuntime,

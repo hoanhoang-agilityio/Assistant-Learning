@@ -1,7 +1,7 @@
 # State design
 
 Literal `GraphState` schema from the implementation-detail spec (PDF pp. 4–5). The runtime
-definition lives in `app/schemas/graph.py`; this file is the spec it must match.
+definition lives in `src/schemas/graph.py`; this file is the spec it must match.
 
 ```python
 class GraphState(AgentState):

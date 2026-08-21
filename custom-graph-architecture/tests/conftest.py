@@ -3,7 +3,7 @@
 import psycopg
 import pytest
 
-from app.core.configs.config import settings
+from src.core.configs.config import settings
 
 
 @pytest.fixture(scope="session")

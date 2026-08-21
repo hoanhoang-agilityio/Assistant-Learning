@@ -4,7 +4,7 @@ One psycopg pool, two consumers: ``AsyncPostgresSaver`` and ``AsyncPostgresStore
 same connection type and the same connection settings, so opening a second pool would only
 double the connection count.
 
-The SQLAlchemy engine in ``app/services/database.py`` stays separate — it is the ORM's, and
+The SQLAlchemy engine in ``src/services/database.py`` stays separate — it is the ORM's, and
 these two need ``autocommit=True``, no prepared-statement caching, and ``dict_row``.
 """
 
@@ -15,9 +15,9 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from app.core.configs.config import settings
-from app.core.langgraph.runtime.base import GraphRuntime
-from app.core.logging import logger
+from src.core.configs.config import settings
+from src.core.langgraph.runtime.base import GraphRuntime
+from src.core.logging import logger
 
 _CONNECTION_KWARGS = {
     "autocommit": True,

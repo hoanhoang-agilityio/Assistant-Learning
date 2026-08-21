@@ -14,12 +14,12 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api.v1.api import api_router
-from app.core.configs.config import settings
-from app.core.langgraph.runtime import graph_runtime
-from app.core.limiter import limiter
-from app.core.logging import logger
-from app.services.database import close_engine
+from src.api.v1.api import api_router
+from src.core.configs.config import settings
+from src.core.langgraph.runtime import graph_runtime
+from src.core.limiter import limiter
+from src.core.logging import logger
+from src.services.database import close_engine
 
 
 @asynccontextmanager

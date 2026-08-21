@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.core.langgraph.runtime.namespaces import MemoryScope, namespace_for
+from src.core.langgraph.runtime.namespaces import MemoryScope, namespace_for
 
 
 def test_namespace_is_scoped_by_user_then_kind() -> None:

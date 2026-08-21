@@ -1,7 +1,7 @@
 """SQLAlchemy async engine and session factory for the application's own tables.
 
 This is one of the two Postgres pools in the project, and it is deliberately not shared
-with the other: the LangGraph checkpointer (``app/core/langgraph/runtime/checkpointer.py``)
+with the other: the LangGraph checkpointer (``src/core/langgraph/runtime/checkpointer.py``)
 opens a raw ``psycopg_pool.AsyncConnectionPool`` because it needs autocommit and dict rows,
 neither of which the ORM wants.
 """
@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.core.configs.config import settings
+from src.core.configs.config import settings
 
 engine: AsyncEngine = create_async_engine(
     settings.sqlalchemy_database_uri,

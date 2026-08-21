@@ -1,7 +1,7 @@
 # Pydantic data models and specification
 
 Transcribed from the implementation-detail spec (PDF pp. 16–26). Implemented in Milestone 4
-(`app/schemas/domain/`).
+(`src/schemas/domain/`).
 
 ## Enumerations
 

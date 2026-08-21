@@ -7,7 +7,7 @@ drops ``checkpoints`` deletes every suspended conversation, including every grap
 
 import pytest
 
-from app.models.table_ownership import EXCLUDE_TABLES, include_object
+from src.models.table_ownership import EXCLUDE_TABLES, include_object
 
 
 @pytest.mark.parametrize(

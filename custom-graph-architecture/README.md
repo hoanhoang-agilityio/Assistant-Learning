@@ -15,7 +15,7 @@ the skill says *how*.
 ## Layout
 
 ```
-app/
+src/
   main.py                    FastAPI entrypoint + lifespan
   api/v1/                    thin routes — log, delegate, map errors
   core/
@@ -60,7 +60,7 @@ docker compose up -d db
 Run the API:
 
 ```bash
-uv run uvicorn app.main:app --reload
+uv run uvicorn src.main:app --reload
 ```
 
 `GET /api/v1/health` should return `{"status": "ok", ...}`.

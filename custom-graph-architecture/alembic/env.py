@@ -1,7 +1,7 @@
 """Alembic environment.
 
 Alembic owns the application's own tables and nothing else — see
-``app/models/table_ownership.py`` for why the exclude filter is load-bearing.
+``src/models/table_ownership.py`` for why the exclude filter is load-bearing.
 """
 
 import asyncio
@@ -13,9 +13,9 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlmodel import SQLModel
 
-import app.models  # noqa: F401  — imported for its side effect: registers models on the metadata
-from app.core.configs.config import settings
-from app.models.table_ownership import include_object
+import src.models  # noqa: F401  — imported for its side effect: registers models on the metadata
+from src.core.configs.config import settings
+from src.models.table_ownership import include_object
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.sqlalchemy_database_uri)

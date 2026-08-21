@@ -15,12 +15,12 @@ from langgraph.store.base import BaseStore
 from langgraph.types import Command, interrupt
 from typing_extensions import TypedDict
 
-from app.core.configs.config import PersistenceBackend, Settings
-from app.core.langgraph.runtime import graph_runtime, namespace_for
-from app.core.langgraph.runtime.backends import RUNTIMES, build_runtime
-from app.core.langgraph.runtime.backends.postgres import PostgresRuntime
-from app.core.langgraph.runtime.base import GraphRuntime
-from app.core.langgraph.runtime.namespaces import MemoryScope
+from src.core.configs.config import PersistenceBackend, Settings
+from src.core.langgraph.runtime import graph_runtime, namespace_for
+from src.core.langgraph.runtime.backends import RUNTIMES, build_runtime
+from src.core.langgraph.runtime.backends.postgres import PostgresRuntime
+from src.core.langgraph.runtime.base import GraphRuntime
+from src.core.langgraph.runtime.namespaces import MemoryScope
 
 THREAD_ID = "test-runtime-thread"
 

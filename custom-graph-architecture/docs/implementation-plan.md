@@ -4,7 +4,7 @@ Source of truth for this project. Transcribed from
 [`generative-ai-training-plan.pdf`](generative-ai-training-plan.pdf) (Agility IO, Aug 18 2026).
 Task breakdown and progress live in [`estimation.md`](estimation.md).
 
-Engineering conventions for `app/` come from the `langgraph-agent-arch` skill
+Engineering conventions for `src/` come from the `langgraph-agent-arch` skill
 (`.claude/skills/langgraph-agent-arch/`). This document says *what* to build; the skill says *how*.
 
 ---

@@ -8,7 +8,7 @@ production backend, and why ``Settings`` defaults to Postgres.
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 
-from app.core.langgraph.runtime.base import GraphRuntime
+from src.core.langgraph.runtime.base import GraphRuntime
 
 
 class InMemoryRuntime(GraphRuntime):

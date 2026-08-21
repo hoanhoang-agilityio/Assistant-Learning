@@ -2,8 +2,8 @@
 
 from fastapi.testclient import TestClient
 
-from app.core.configs.config import settings
-from app.main import app
+from src.core.configs.config import settings
+from src.main import app
 
 
 def test_health_endpoint_reports_service_metadata() -> None:
