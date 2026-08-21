@@ -14,7 +14,7 @@ from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 
 from src.core.configs.config import settings
-from src.core.logging import logger
+from src.utils.logging import logger
 
 _callback_handler: CallbackHandler | None = None
 # The configured client is kept so shutdown can flush *it*. Constructing a bare

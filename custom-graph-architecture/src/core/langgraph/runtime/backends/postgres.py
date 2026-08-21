@@ -17,7 +17,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from src.core.configs.config import settings
 from src.core.langgraph.runtime.base import GraphRuntime
-from src.core.logging import logger
+from src.utils.logging import logger
 
 _CONNECTION_KWARGS = {
     "autocommit": True,

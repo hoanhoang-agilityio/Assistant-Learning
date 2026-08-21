@@ -20,8 +20,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, 
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.core.configs.config import settings
-from src.core.limiter import limiter
-from src.core.logging import bind_context, logger
+from src.middlewares import limiter
 from src.models.session import Session
 from src.models.user import User
 from src.schemas.auth import (
@@ -40,6 +39,7 @@ from src.utils.auth import (
     generate_refresh_token,
     hash_refresh_token,
 )
+from src.utils.logging import bind_context, logger
 from src.utils.sanitization import sanitize_email, sanitize_string
 
 router = APIRouter()

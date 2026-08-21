@@ -11,11 +11,11 @@ from datetime import UTC, datetime
 from fastapi import HTTPException
 from sqlmodel import col, select
 
-from src.core.logging import logger
 from src.models.session import Session as ChatSession
 from src.models.token import RefreshToken, RevokedToken
 from src.models.user import User
 from src.services.database import session_factory
+from src.utils.logging import logger
 
 
 class AuthService:

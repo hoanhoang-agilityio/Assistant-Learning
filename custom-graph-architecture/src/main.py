@@ -17,12 +17,11 @@ from slowapi.middleware import SlowAPIMiddleware
 from src.api.v1.api import api_router
 from src.core.configs.config import settings
 from src.core.langgraph.runtime import graph_runtime
-from src.core.limiter import limiter
-from src.core.logging import logger
-from src.core.middleware import LoggingContextMiddleware
 from src.core.observability import langfuse_init, langfuse_shutdown
+from src.middlewares import LoggingContextMiddleware, limiter
 from src.services.database import close_engine
 from src.services.guard import warm_guard
+from src.utils.logging import logger
 
 
 @asynccontextmanager

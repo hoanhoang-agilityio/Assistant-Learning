@@ -22,8 +22,8 @@ from typing import Any
 from jose import JWTError, jwt
 
 from src.core.configs.config import settings
-from src.core.logging import logger
 from src.schemas.auth import Token
+from src.utils.logging import logger
 
 _JTI_BYTES = 16
 _REFRESH_TOKEN_BYTES = 48

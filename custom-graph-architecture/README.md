@@ -17,11 +17,11 @@ the skill says *how*.
 ```
 src/
   main.py                    FastAPI entrypoint + lifespan
+  middlewares/               rate limiting, request log context
   api/v1/                    thin routes — log, delegate, map errors
     auth.py                  register/login/refresh/logout + session scoping
   core/
     configs/config.py        the only module that reads the environment
-    logging.py limiter.py    structlog, rate limiting
     langgraph/
       graph.py               root graph + the public façade the API calls
       nodes/                 node implementations, one module per node
@@ -35,7 +35,7 @@ src/
   models/                    SQLModel ORM (Alembic owns migrations)
   schemas/                   graph state, API and domain models
   services/                  database, auth, LLM, guard, profile, knowledge
-  utils/                     JWT helpers, input sanitization
+  utils/                     JWT helpers, input sanitization, structlog
 tests/
 docker/postgres/init/       pgvector extension, run on first container start
 ```

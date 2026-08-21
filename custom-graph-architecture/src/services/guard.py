@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from src.core.configs.config import GuardScanner, settings
-from src.core.logging import logger
+from src.utils.logging import logger
 
 if TYPE_CHECKING:
     from llm_guard.input_scanners.base import Scanner

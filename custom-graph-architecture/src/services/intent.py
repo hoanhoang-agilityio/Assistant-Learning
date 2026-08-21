@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 
 from src.core.configs.config import settings
 from src.core.langgraph.prompts import build_intent_classifier_messages
-from src.core.logging import logger
 from src.schemas import Intent
+from src.utils.logging import logger
 
 DEFAULT_INTENT: Intent = "qa"
 _TOKEN_LIMIT: dict[str, Any] = {"max_completion_tokens": 32}

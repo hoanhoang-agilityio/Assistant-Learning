@@ -1,1 +1,1 @@
-"""Cross-cutting application core: configuration, logging, graph and observability."""
+"""Application core: configuration, graph and observability."""

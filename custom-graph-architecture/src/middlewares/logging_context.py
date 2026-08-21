@@ -9,7 +9,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from src.core.configs.config import settings
-from src.core.logging import bind_context, clear_context
+from src.utils.logging import bind_context, clear_context
 
 
 class LoggingContextMiddleware(BaseHTTPMiddleware):
