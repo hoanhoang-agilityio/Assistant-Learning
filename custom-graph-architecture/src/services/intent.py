@@ -1,4 +1,5 @@
 """Intent classification for the first post-guard routing step."""
+
 from functools import lru_cache
 from typing import Any
 
@@ -35,7 +36,9 @@ async def classify_user_intent(user_query: str) -> Intent:
 
     try:
         classifier = _build_classifier().with_structured_output(IntentDecision)
-        decision = await classifier.ainvoke(build_intent_classifier_messages(user_query))
+        decision = await classifier.ainvoke(
+            build_intent_classifier_messages(user_query)
+        )
     except Exception as error:
         logger.exception(
             "intent_classification_failed",

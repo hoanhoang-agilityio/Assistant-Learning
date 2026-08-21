@@ -12,8 +12,7 @@ from src.core.langgraph.nodes import (
 )
 from src.schemas import GraphState
 
-GUARD_ROUTES: dict[str, str] = {
-    "blocked": "blocked", "pass": "classify_intent"}
+GUARD_ROUTES: dict[str, str] = {"blocked": "blocked", "pass": "classify_intent"}
 
 INTENT_ROUTES: dict[str, str] = {
     "coaching": END,
@@ -33,8 +32,7 @@ def build_graph() -> StateGraph:
 
     builder.add_edge(START, "llm_guard")
     builder.add_conditional_edges("llm_guard", route_after_guard, GUARD_ROUTES)
-    builder.add_conditional_edges(
-        "classify_intent", route_after_intent, INTENT_ROUTES)
+    builder.add_conditional_edges("classify_intent", route_after_intent, INTENT_ROUTES)
     builder.add_edge("blocked", END)
     builder.add_edge("off_topic", END)
 

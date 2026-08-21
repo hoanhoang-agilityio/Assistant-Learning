@@ -10,6 +10,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any
 
+from dotenv import load_dotenv
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
@@ -100,6 +101,15 @@ def load_env_file() -> str | None:
 
 ENV_FILE = load_env_file()
 
+# Also push the resolved file into ``os.environ``, which pydantic-settings does not do.
+# Two things below read the process environment directly and would otherwise never see a
+# value that lives only in the env file: the per-endpoint ``RATE_LIMIT_*`` overrides, and
+# the "was this set explicitly?" check that stops an environment preset from overwriting
+# it. ``load_dotenv`` never overrides a variable that is already set, so a real
+# environment variable still wins over the file.
+if ENV_FILE:
+    load_dotenv(ENV_FILE, override=False)
+
 
 def _parse_csv_list(value: Any) -> Any:
     """Normalize a CSV string or list value for pydantic field validators."""
@@ -110,11 +120,20 @@ def _parse_csv_list(value: Any) -> Any:
     return [item.strip().strip("\"'") for item in value.split(",") if item.strip()]
 
 
+# Shorter than this and an HS256 key has less entropy than the digest it keys.
+_MIN_JWT_SECRET_LENGTH = 32
+
 _DEFAULT_RATE_LIMIT_ENDPOINTS: dict[str, list[str]] = {
     "chat": ["30 per minute"],
     "chat_stream": ["20 per minute"],
     "messages": ["50 per minute"],
     "resume": ["30 per minute"],
+    # Auth endpoints are keyed on client IP, which is the only identity that
+    # exists before a login succeeds — so these are what stand between the
+    # service and credential stuffing.
+    "register": ["10 per hour"],
+    "login": ["20 per minute"],
+    "refresh": ["30 per hour"],
 }
 
 
@@ -195,6 +214,19 @@ class Settings(BaseSettings):
     KNOWLEDGE_MIN_SCORE: float = 0.3
     RAGAS_FAITHFULNESS_THRESHOLD: float = 0.9
 
+    # --- Authentication --------------------------------------------------------------
+    # No default for the signing key: a fallback would let the service boot in
+    # production signing tokens anyone who has read the source can forge.
+    # Checked by ``validate_auth_secrets`` at startup, not here, so importing
+    # settings from Alembic or a test collection pass does not need a secret.
+    JWT_SECRET_KEY: str = ""
+    JWT_ALGORITHM: str = "HS256"
+    # Access tokens are short-lived because revoking one costs a denylist row and
+    # a read per request; the long-lived revocable credential is the refresh
+    # token below.
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+
     # --- Persistence -----------------------------------------------------------------
     PERSISTENCE_BACKEND: PersistenceBackend = PersistenceBackend.POSTGRES
 
@@ -272,9 +304,32 @@ class Settings(BaseSettings):
             "postgresql+psycopg://", "postgresql://", 1
         )
 
+    def validate_auth_secrets(self) -> None:
+        """Reject a signing key that is missing or too short to be meaningful.
+
+        Called from the application lifespan rather than from a model validator, so
+        that importing settings — in Alembic, tooling, or a test collection pass —
+        does not require a production secret to be present.
+
+        Raises:
+            RuntimeError: If ``JWT_SECRET_KEY`` is unset or under 32 characters.
+        """
+        if not self.JWT_SECRET_KEY or len(self.JWT_SECRET_KEY) < _MIN_JWT_SECRET_LENGTH:
+            raise RuntimeError(
+                f"JWT_SECRET_KEY must be set and at least {_MIN_JWT_SECRET_LENGTH} "
+                "characters. Generate one with: openssl rand -hex 32"
+            )
+
     @model_validator(mode="after")
     def apply_environment_settings(self) -> "Settings":
-        """Apply environment-specific presets on top of the loaded values."""
+        """Apply per-endpoint rate limits and environment presets over loaded values."""
+        endpoints = dict(self.RATE_LIMIT_ENDPOINTS)
+        for endpoint in _DEFAULT_RATE_LIMIT_ENDPOINTS:
+            override = os.getenv(f"RATE_LIMIT_{endpoint.upper()}")
+            if override:
+                endpoints[endpoint] = _parse_csv_list(override)
+        object.__setattr__(self, "RATE_LIMIT_ENDPOINTS", endpoints)
+
         presets: dict[Environment, dict[str, Any]] = {
             Environment.DEVELOPMENT: {"DEBUG": True, "LOG_FORMAT": "console"},
             Environment.STAGING: {"DEBUG": False, "LOG_LEVEL": "INFO"},

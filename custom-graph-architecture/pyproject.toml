@@ -6,6 +6,11 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.14.0",
+    # Auth. python-jose is the JWT implementation (not PyJWT) and bcrypt is used
+    # directly rather than through passlib, whose bcrypt backend is unmaintained.
+    # python-multipart is what lets the form-encoded login and refresh bodies parse.
+    "bcrypt>=4.2,<5.0",
+    "email-validator>=2.2,<3.0",
     "fastapi>=0.115.0",
     "langchain-core>=0.3.0",
     "langchain-openai>=0.2.0",
@@ -19,6 +24,8 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.6.0",
     "python-dotenv>=1.2.2",
+    "python-jose[cryptography]>=3.3,<4.0",
+    "python-multipart>=0.0.20",
     "ragas>=0.4.3",
     "slowapi>=0.1.9",
     # The [asyncio] extra pulls in greenlet, which SQLAlchemy's async engine needs.

@@ -2,10 +2,16 @@
 
 Exposes a single configured ``logger``. Event names are ``lowercase_with_underscores``
 and variables are passed as keyword arguments so they stay filterable — never f-strings.
+
+``bind_context`` writes into structlog's contextvar store, so a ``user_id`` bound inside
+an auth dependency appears on every later log line for that request without being threaded
+through call signatures. ``clear_context`` must run at the end of each request, or the
+values leak into the next one served by the same worker.
 """
 
 import logging
 import sys
+from typing import Any
 
 import structlog
 
@@ -46,6 +52,18 @@ def configure_logging() -> None:
     )
 
 
+def bind_context(**kwargs: Any) -> None:
+    """Attach key/value pairs to every subsequent log line in this request."""
+    structlog.contextvars.bind_contextvars(**kwargs)
+
+
+def clear_context() -> None:
+    """Drop all bound context. Call at the end of every request."""
+    structlog.contextvars.clear_contextvars()
+
+
 configure_logging()
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(settings.PROJECT_NAME)
+
+__all__ = ["bind_context", "clear_context", "configure_logging", "logger"]

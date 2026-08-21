@@ -19,6 +19,7 @@ from src.core.configs.config import settings
 from src.core.langgraph.runtime import graph_runtime
 from src.core.limiter import limiter
 from src.core.logging import logger
+from src.core.middleware import LoggingContextMiddleware
 from src.core.observability import langfuse_init, langfuse_shutdown
 from src.services.database import close_engine
 from src.services.guard import warm_guard
@@ -27,6 +28,10 @@ from src.services.guard import warm_guard
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Start and stop shared application resources."""
+    # Before anything can serve a request: a missing signing key must stop the process
+    # here rather than at the first login, which would sign tokens with an empty secret.
+    settings.validate_auth_secrets()
+
     langfuse_init()
 
     await warm_guard()
@@ -56,6 +61,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(LoggingContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
