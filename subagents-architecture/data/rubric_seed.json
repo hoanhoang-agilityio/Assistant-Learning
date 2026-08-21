@@ -1,0 +1,194 @@
+{
+  "macro_rules": {
+    "rubric_version": "2026.2",
+    "protein_g_per_kg": {
+      "min": 1.6,
+      "target": 2.0,
+      "max": 2.5
+    },
+    "fat_g_per_kg": {
+      "min": 0.6
+    },
+    "deficit": {
+      "max_pct_bw_per_week": 1.0,
+      "max_pct_tdee": 25
+    },
+    "floor_kcal": {
+      "male": 1500,
+      "female": 1200
+    }
+  },
+  "volume_landmarks": {
+    "rubric_version": "2026.2",
+    "_note": "Weekly hard-set landmarks per muscle. MEV = minimum effective volume, MAV = adaptive range, MRV = maximum recoverable volume. A group with no entry here produces an `info` issue saying it was not assessed, rather than passing silently. Add a group only with a `source`, in a reviewed PR — these numbers decide what passes.",
+    "_sources": {
+      "renaissance_periodization": "Israetel et al., Renaissance Periodization training-volume landmark series. Population averages for trained lifters; individual MRV varies widely with age, sleep, stress and training age.",
+      "derived_from_agonist": "No published landmark for this group. Set relative to the compound movements that train it, deliberately wide so the check flags only clear outliers rather than asserting precision it does not have."
+    },
+    "muscles": {
+      "quads": {
+        "mev": 8,
+        "mav": [
+          12,
+          18
+        ],
+        "mrv": 22,
+        "source": "renaissance_periodization"
+      },
+      "chest": {
+        "mev": 8,
+        "mav": [
+          12,
+          20
+        ],
+        "mrv": 22,
+        "source": "renaissance_periodization"
+      },
+      "side_delts": {
+        "mev": 8,
+        "mav": [
+          16,
+          22
+        ],
+        "mrv": 26,
+        "source": "renaissance_periodization"
+      },
+      "front_delts": {
+        "mev": 0,
+        "mav": [
+          6,
+          12
+        ],
+        "mrv": 16,
+        "source": "renaissance_periodization"
+      },
+      "rear_delts": {
+        "mev": 6,
+        "mav": [
+          10,
+          20
+        ],
+        "mrv": 26,
+        "source": "renaissance_periodization"
+      },
+      "lats": {
+        "mev": 10,
+        "mav": [
+          14,
+          20
+        ],
+        "mrv": 25,
+        "source": "renaissance_periodization"
+      },
+      "triceps": {
+        "mev": 6,
+        "mav": [
+          10,
+          14
+        ],
+        "mrv": 18,
+        "source": "renaissance_periodization"
+      },
+      "biceps": {
+        "mev": 8,
+        "mav": [
+          14,
+          20
+        ],
+        "mrv": 26,
+        "source": "renaissance_periodization"
+      },
+      "hamstrings": {
+        "mev": 4,
+        "mav": [
+          10,
+          16
+        ],
+        "mrv": 20,
+        "source": "renaissance_periodization"
+      },
+      "glutes": {
+        "mev": 0,
+        "mav": [
+          4,
+          12
+        ],
+        "mrv": 16,
+        "source": "renaissance_periodization"
+      },
+      "calves": {
+        "mev": 8,
+        "mav": [
+          12,
+          16
+        ],
+        "mrv": 20,
+        "source": "renaissance_periodization"
+      },
+      "abs": {
+        "mev": 0,
+        "mav": [
+          16,
+          20
+        ],
+        "mrv": 25,
+        "source": "renaissance_periodization"
+      },
+      "obliques": {
+        "mev": 0,
+        "mav": [
+          6,
+          16
+        ],
+        "mrv": 20,
+        "source": "derived_from_agonist"
+      },
+      "forearms": {
+        "mev": 0,
+        "mav": [
+          4,
+          12
+        ],
+        "mrv": 20,
+        "source": "derived_from_agonist"
+      }
+    },
+    "frequency": {
+      "min_per_week": 2,
+      "max_per_week": 3
+    },
+    "session": {
+      "max_sets": 25,
+      "max_hard_sets_per_muscle": 10
+    }
+  },
+  "contraindications": {
+    "rubric_version": "2026.2",
+    "injuries": {
+      "knee_pain_patellofemoral": {
+        "severity": "block",
+        "avoid_joint_actions": [
+          "knee_flexion_deep"
+        ],
+        "avoid_loaded_positions": [
+          "knee_end_range"
+        ],
+        "limit": [
+          {
+            "pattern": "lunge",
+            "max_sets_week": 4
+          }
+        ]
+      },
+      "shoulder_impingement": {
+        "severity": "block",
+        "avoid_joint_actions": [
+          "shoulder_abduction_overhead"
+        ],
+        "avoid_loaded_positions": [
+          "shoulder_end_range_external"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,1281 @@
+[
+  {
+    "template_id": "chest_back_legs_upper_lower_5day",
+    "name": "Chest / Back / Legs / Upper / Lower, 5 days",
+    "days_per_week": 5,
+    "goal": [
+      "fat_loss",
+      "muscle_gain",
+      "recomp"
+    ],
+    "level": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "popularity": 75,
+    "days": [
+      {
+        "name": "Chest",
+        "slots": [
+          {
+            "slot_id": "cbl5_horiz_push",
+            "pattern": "horizontal_push",
+            "sets": 4,
+            "reps": [
+              6,
+              8
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_chest_iso",
+            "pattern": "horizontal_adduction",
+            "sets": 3,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_vert_push",
+            "pattern": "vertical_push",
+            "sets": 3,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "cbl5_ch_lateral",
+            "pattern": "abduction",
+            "sets": 3,
+            "reps": [
+              12,
+              20
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_triceps",
+            "pattern": "elbow_extension",
+            "sets": 3,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Back",
+        "slots": [
+          {
+            "slot_id": "cbl5_vert_pull",
+            "pattern": "vertical_pull",
+            "sets": 4,
+            "reps": [
+              6,
+              10
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_horiz_pull",
+            "pattern": "horizontal_pull",
+            "sets": 4,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_rear_delt",
+            "pattern": "rear_delt_pull",
+            "sets": 3,
+            "reps": [
+              12,
+              20
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_biceps",
+            "pattern": "elbow_flexion",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Legs",
+        "slots": [
+          {
+            "slot_id": "cbl5_squat",
+            "pattern": "squat",
+            "sets": 4,
+            "reps": [
+              5,
+              8
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_hinge",
+            "pattern": "hinge",
+            "sets": 3,
+            "reps": [
+              6,
+              10
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "cbl5_knee_iso",
+            "pattern": "knee_extension",
+            "sets": 3,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_knee_flexion",
+            "pattern": "knee_flexion",
+            "sets": 3,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_calf",
+            "pattern": "calf_raise",
+            "sets": 4,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Upper",
+        "slots": [
+          {
+            "slot_id": "cbl5_up_horiz_pull",
+            "pattern": "horizontal_pull",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "cbl5_up_horiz_push",
+            "pattern": "horizontal_push",
+            "sets": 3,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "cbl5_up_vert_pull",
+            "pattern": "vertical_pull",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "cbl5_up_lateral",
+            "pattern": "abduction",
+            "sets": 4,
+            "reps": [
+              12,
+              20
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_up_biceps",
+            "pattern": "elbow_flexion",
+            "sets": 3,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Lower",
+        "slots": [
+          {
+            "slot_id": "cbl5_lo_lunge",
+            "pattern": "lunge",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "cbl5_lo_hip_iso",
+            "pattern": "hip_thrust",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "cbl5_lo_knee_iso",
+            "pattern": "knee_extension",
+            "sets": 3,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_lo_knee_flexion",
+            "pattern": "knee_flexion",
+            "sets": 3,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_lo_calf",
+            "pattern": "calf_raise",
+            "sets": 4,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "cbl5_lo_core",
+            "pattern": "anti_extension",
+            "sets": 3,
+            "reps": [
+              12,
+              20
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "template_id": "full_body_3day",
+    "name": "Full body, 3 days",
+    "days_per_week": 3,
+    "goal": [
+      "fat_loss",
+      "muscle_gain",
+      "recomp",
+      "general_health"
+    ],
+    "level": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "popularity": 85,
+    "days": [
+      {
+        "name": "Full body A",
+        "slots": [
+          {
+            "slot_id": "fa_squat",
+            "pattern": "squat",
+            "sets": 4,
+            "reps": [
+              6,
+              8
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "fa_horiz_push",
+            "pattern": "horizontal_push",
+            "sets": 4,
+            "reps": [
+              6,
+              10
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "fa_horiz_pull",
+            "pattern": "horizontal_pull",
+            "sets": 4,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "fa_lateral",
+            "pattern": "abduction",
+            "sets": 3,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Full body B",
+        "slots": [
+          {
+            "slot_id": "fb_hinge",
+            "pattern": "hinge",
+            "sets": 4,
+            "reps": [
+              5,
+              8
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "fb_vert_pull",
+            "pattern": "vertical_pull",
+            "sets": 4,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "fb_vert_push",
+            "pattern": "vertical_push",
+            "sets": 3,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "fb_arms",
+            "pattern": "elbow_flexion",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Full body C",
+        "slots": [
+          {
+            "slot_id": "fc_lunge",
+            "pattern": "lunge",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "fc_horiz_push",
+            "pattern": "horizontal_push",
+            "sets": 3,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "fc_horiz_pull",
+            "pattern": "horizontal_pull",
+            "sets": 4,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "fc_knee_iso",
+            "pattern": "knee_extension",
+            "sets": 3,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "template_id": "push_pull_legs_3day",
+    "name": "Push / Pull / Legs, 3 days",
+    "days_per_week": 3,
+    "goal": [
+      "fat_loss",
+      "muscle_gain",
+      "recomp"
+    ],
+    "level": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "popularity": 80,
+    "days": [
+      {
+        "name": "Push",
+        "slots": [
+          {
+            "slot_id": "ppl3_horiz_push",
+            "pattern": "horizontal_push",
+            "sets": 4,
+            "reps": [
+              6,
+              8
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ppl3_vert_push",
+            "pattern": "vertical_push",
+            "sets": 3,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "ppl3_chest_iso",
+            "pattern": "horizontal_adduction",
+            "sets": 4,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ppl3_lateral",
+            "pattern": "abduction",
+            "sets": 4,
+            "reps": [
+              12,
+              20
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ppl3_triceps",
+            "pattern": "elbow_extension",
+            "sets": 3,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Pull",
+        "slots": [
+          {
+            "slot_id": "ppl3_vert_pull",
+            "pattern": "vertical_pull",
+            "sets": 4,
+            "reps": [
+              6,
+              10
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ppl3_horiz_pull",
+            "pattern": "horizontal_pull",
+            "sets": 4,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ppl3_vert_pull_b",
+            "pattern": "vertical_pull",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "ppl3_rear_delt",
+            "pattern": "rear_delt_pull",
+            "sets": 3,
+            "reps": [
+              12,
+              20
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ppl3_biceps",
+            "pattern": "elbow_flexion",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Legs",
+        "slots": [
+          {
+            "slot_id": "ppl3_squat",
+            "pattern": "squat",
+            "sets": 4,
+            "reps": [
+              5,
+              8
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ppl3_hinge",
+            "pattern": "hinge",
+            "sets": 3,
+            "reps": [
+              6,
+              10
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "ppl3_knee_iso",
+            "pattern": "knee_extension",
+            "sets": 4,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ppl3_knee_flexion",
+            "pattern": "knee_flexion",
+            "sets": 3,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ppl3_calf",
+            "pattern": "calf_raise",
+            "sets": 4,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "template_id": "upper_lower_2day",
+    "name": "Upper / Lower, 2 days",
+    "days_per_week": 2,
+    "goal": [
+      "fat_loss",
+      "muscle_gain",
+      "recomp",
+      "general_health"
+    ],
+    "level": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "popularity": 70,
+    "days": [
+      {
+        "name": "Upper",
+        "slots": [
+          {
+            "slot_id": "ul2_horiz_push",
+            "pattern": "horizontal_push",
+            "sets": 4,
+            "reps": [
+              6,
+              10
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ul2_horiz_pull",
+            "pattern": "horizontal_pull",
+            "sets": 4,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ul2_vert_pull",
+            "pattern": "vertical_pull",
+            "sets": 3,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ul2_vert_push",
+            "pattern": "vertical_push",
+            "sets": 3,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "ul2_lateral",
+            "pattern": "abduction",
+            "sets": 3,
+            "reps": [
+              12,
+              20
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ul2_arms",
+            "pattern": "elbow_flexion",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Lower",
+        "slots": [
+          {
+            "slot_id": "ul2_squat",
+            "pattern": "squat",
+            "sets": 4,
+            "reps": [
+              6,
+              8
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ul2_hinge",
+            "pattern": "hinge",
+            "sets": 4,
+            "reps": [
+              6,
+              10
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ul2_knee_iso",
+            "pattern": "knee_extension",
+            "sets": 3,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ul2_knee_flexion",
+            "pattern": "knee_flexion",
+            "sets": 3,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ul2_calf",
+            "pattern": "calf_raise",
+            "sets": 3,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ul2_core",
+            "pattern": "anti_extension",
+            "sets": 3,
+            "reps": [
+              12,
+              20
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "template_id": "upper_lower_4day",
+    "name": "Upper / Lower, 4 days",
+    "days_per_week": 4,
+    "goal": [
+      "fat_loss",
+      "muscle_gain",
+      "recomp"
+    ],
+    "level": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "popularity": 90,
+    "days": [
+      {
+        "name": "Upper A",
+        "slots": [
+          {
+            "slot_id": "ua_horiz_push",
+            "pattern": "horizontal_push",
+            "sets": 4,
+            "reps": [
+              6,
+              8
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ua_horiz_pull",
+            "pattern": "horizontal_pull",
+            "sets": 4,
+            "reps": [
+              8,
+              10
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ua_vert_push",
+            "pattern": "vertical_push",
+            "sets": 3,
+            "reps": [
+              8,
+              10
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "ua_vert_pull",
+            "pattern": "vertical_pull",
+            "sets": 3,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "ua_lateral",
+            "pattern": "abduction",
+            "sets": 3,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Lower A",
+        "slots": [
+          {
+            "slot_id": "la_squat",
+            "pattern": "squat",
+            "sets": 4,
+            "reps": [
+              5,
+              8
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "la_hinge",
+            "pattern": "hinge",
+            "sets": 3,
+            "reps": [
+              6,
+              10
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "la_knee_iso",
+            "pattern": "knee_extension",
+            "sets": 3,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "la_hip_iso",
+            "pattern": "hip_thrust",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "la_knee_flexion",
+            "pattern": "knee_flexion",
+            "sets": 3,
+            "reps": [
+              10,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Upper B",
+        "slots": [
+          {
+            "slot_id": "ub_vert_pull",
+            "pattern": "vertical_pull",
+            "sets": 4,
+            "reps": [
+              6,
+              10
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ub_horiz_push",
+            "pattern": "horizontal_push",
+            "sets": 4,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "ub_horiz_pull",
+            "pattern": "horizontal_pull",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "ub_lateral",
+            "pattern": "abduction",
+            "sets": 3,
+            "reps": [
+              12,
+              20
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "ub_arms",
+            "pattern": "elbow_flexion",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Lower B",
+        "slots": [
+          {
+            "slot_id": "lb_hinge",
+            "pattern": "hinge",
+            "sets": 4,
+            "reps": [
+              5,
+              8
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "lb_squat",
+            "pattern": "squat",
+            "sets": 3,
+            "reps": [
+              8,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "lb_knee_iso",
+            "pattern": "knee_extension",
+            "sets": 3,
+            "reps": [
+              12,
+              15
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          },
+          {
+            "slot_id": "lb_lunge",
+            "pattern": "lunge",
+            "sets": 3,
+            "reps": [
+              10,
+              12
+            ],
+            "rir": [
+              2,
+              3
+            ]
+          },
+          {
+            "slot_id": "lb_core",
+            "pattern": "anti_extension",
+            "sets": 3,
+            "reps": [
+              12,
+              20
+            ],
+            "rir": [
+              1,
+              2
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

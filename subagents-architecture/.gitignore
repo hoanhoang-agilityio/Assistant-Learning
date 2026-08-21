@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.agents
+skills-lock.json
+
+# Environment
+.env
+.env.local
+.env.development
+.cursor
+.claude
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Project artifacts (VFS runtime output)
+var/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# uv
+.python-version
+.gitnexus
+
+# Local working tracker for open defects (intentionally untracked)
+KNOWN_ISSUES.md
