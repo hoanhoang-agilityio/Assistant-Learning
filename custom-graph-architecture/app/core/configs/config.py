@@ -22,6 +22,19 @@ class Environment(StrEnum):
     PRODUCTION = "production"
 
 
+class PersistenceBackend(StrEnum):
+    """Which storage backs the graph's checkpointer and long-term store.
+
+    Attributes:
+        POSTGRES: Durable. The only backend that survives a restart, so the only one an
+            ``interrupt()`` gate can be trusted to resume from.
+        MEMORY: In-process. Tests and database-free local runs.
+    """
+
+    POSTGRES = "postgres"
+    MEMORY = "memory"
+
+
 def get_environment() -> Environment:
     """Get the current environment from ``APP_ENV``.
 
@@ -144,7 +157,9 @@ class Settings(BaseSettings):
     KNOWLEDGE_MIN_SCORE: float = 0.3
     RAGAS_FAITHFULNESS_THRESHOLD: float = 0.9
 
-    # --- Postgres --------------------------------------------------------------------
+    # --- Persistence -----------------------------------------------------------------
+    PERSISTENCE_BACKEND: PersistenceBackend = PersistenceBackend.POSTGRES
+
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "coaching_db"
@@ -153,8 +168,6 @@ class Settings(BaseSettings):
     POSTGRES_POOL_SIZE: int = 20
     POSTGRES_MAX_OVERFLOW: int = 10
     DATABASE_URL: str = ""
-
-    LONG_TERM_STORE_INDEX_DIMS: int = 1536
 
     # --- Rate limiting ---------------------------------------------------------------
     RATE_LIMIT_DEFAULT: Annotated[list[str], NoDecode] = Field(

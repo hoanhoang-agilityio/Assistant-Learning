@@ -27,7 +27,10 @@ app/
       agents/                coach and QA agents
       tools/                 tools the agents' LLM nodes may call
       verification/          deterministic gate + RAGAS gate
-      runtime/               checkpointer and long-term store
+      runtime/
+        base.py              GraphRuntime — the persistence seam (LangGraph ABCs)
+        backends/            postgres.py, memory.py + the backend registry
+        namespaces.py        long-term memory namespace scheme
   models/                    SQLModel ORM (Alembic owns migrations)
   schemas/                   graph state, API and domain models
   services/                  database, LLM, profile, knowledge
