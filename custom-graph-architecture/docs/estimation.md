@@ -10,7 +10,7 @@ Status values: `Todo` · `In progress` · `Done`
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
 | 21/08 | Init LangGraph project structure (repo layout, package/dependency setup) | 1 | 1 | Done |
-| 21/08 | Setup PostgreSQL instance + `AsyncPostgresSaver` checkpointer config | 1 | | Todo |
+| 21/08 | Setup PostgreSQL instance + `AsyncPostgresSaver` checkpointer config | 1 | 1 | Done |
 | 21/08 | Enable pgvector extension & base `PostgresStore` setup | 0.5 | | Todo |
 | 21/08 | Define `GraphState` schema (input, guard, context, coaching, HITL, QA, output) | 0.5 | | Todo |
 | 21/08 | Setup Docker + Docker Compose (app, Postgres, pgvector) | 0.5 | | Todo |

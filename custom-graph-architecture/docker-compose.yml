@@ -1,0 +1,27 @@
+services:
+  db:
+    # pgvector image rather than plain postgres: the knowledge base (spec §8) and the
+    # long-term store both need the vector type.
+    image: pgvector/pgvector:pg16
+    container_name: coaching-db
+    # One source for the POSTGRES_* values: the same file the app reads. Duplicating them
+    # into an `environment:` block is what lets the database and the app drift apart.
+    # Copy .env.example to .env.development before the first `docker compose up`.
+    env_file:
+      - .env.development
+    ports:
+      # 5433 on the host to avoid colliding with a local Postgres; inside the compose
+      # network the app still connects to db:5432.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # $$ escapes compose substitution so the check reads the container's own env.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

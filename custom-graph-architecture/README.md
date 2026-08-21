@@ -41,7 +41,8 @@ docker/
 uv sync
 ```
 
-Copy the env template and fill in your keys:
+Copy the env template and fill in your keys. Compose reads this same file, so it must exist
+before the first `docker compose up`:
 
 ```bash
 cp .env.example .env.development

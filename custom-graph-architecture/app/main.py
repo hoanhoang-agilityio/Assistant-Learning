@@ -16,13 +16,20 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.v1.api import api_router
 from app.core.configs.config import settings
+from app.core.langgraph.runtime.checkpointer import checkpointer_resource
 from app.core.limiter import limiter
 from app.core.logging import logger
+from app.services.database import close_engine
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Start and stop shared application resources."""
+    """Start and stop shared application resources.
+
+    Nothing here connects to Postgres: the checkpointer pool and the graph are created on
+    first use so the app still boots — and still answers ``/health`` — while the database
+    is briefly unavailable.
+    """
     logger.info(
         "application_startup",
         project=settings.PROJECT_NAME,
@@ -30,6 +37,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         environment=settings.ENVIRONMENT.value,
     )
     yield
+    await checkpointer_resource.close()
+    await close_engine()
     logger.info("application_shutdown")
 
 

@@ -154,13 +154,6 @@ class Settings(BaseSettings):
     POSTGRES_MAX_OVERFLOW: int = 10
     DATABASE_URL: str = ""
 
-    CHECKPOINT_TABLES: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: [
-            "checkpoint_blobs",
-            "checkpoint_writes",
-            "checkpoints",
-        ]
-    )
     LONG_TERM_STORE_INDEX_DIMS: int = 1536
 
     # --- Rate limiting ---------------------------------------------------------------
@@ -176,7 +169,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
 
-    @field_validator("ALLOWED_ORIGINS", "CHECKPOINT_TABLES", "RATE_LIMIT_DEFAULT", mode="before")
+    @field_validator("ALLOWED_ORIGINS", "RATE_LIMIT_DEFAULT", mode="before")
     @classmethod
     def parse_list_fields(cls, value: Any) -> Any:
         """Parse comma-separated env strings into ``list[str]``."""
