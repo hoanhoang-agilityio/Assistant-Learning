@@ -1,180 +1,143 @@
-from pathlib import Path
+"""Shared pytest configuration.
+
+The suite covers the ``app/`` package. Fixtures live in the test module that
+uses them; what is here is the one boundary several modules have to stub the
+same way.
+
+Every agent now holds a chat model directly — ``create_agent`` needs one — so
+replacing ``llm_service`` no longer keeps the suite off the network. All four
+resolve it through ``app.core.langgraph.runtime.models``, which is why :func:`stub_model`
+below is one patch rather than one per package: an agent added later is stubbed
+by the same call, instead of reaching the network until someone notices.
+"""
+
+from collections.abc import Callable
 from typing import Any
 
-import pytest
-from langgraph.checkpoint.memory import MemorySaver
-
-from core.adapters.mcp.fitness_client import FitnessMCPClient, configure_fitness_client
-from core.adapters.mcp.mock_fitness import build_fake_fitness_client
-from core.adapters.mcp.mock_tavily import build_mock_tavily_client
-from core.adapters.mcp.tavily_client import TavilyMCPClient, configure_tavily_client
-from core.adapters.observability.langfuse import reset_langfuse_client
-from core.capabilities.fitness.planner import configure_fitness_planner
-from core.capabilities.research.query_cache import reset_tavily_search_cache
-from core.capabilities.research.research_agent import configure_research_agent
-from core.config.settings import get_settings
-from core.orchestration.agents.intent_judge import configure_user_intent_judge
-from core.orchestration.agents.supervisor_router_judge import configure_supervisor_routing_judge
-from core.orchestration.agents.topic_scope_judge import configure_topic_scope_judge
-from core.orchestration.graph.run import create_initial_state
-from core.orchestration.state import OrchestrationState
-from core.shared.profile.extraction import configure_profile_extractor
-from tests.helpers.classification import (
-    default_topic_scope_judge,
-    default_user_intent_judge,
-)
-from tests.helpers.fitness import default_structured_workout
-from tests.helpers.research import research_agent_override
-from tests.helpers.routing import default_supervisor_routing_judge
+from langchain_core.callbacks import AsyncCallbackManagerForLLMRun, CallbackManagerForLLMRun
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 
 
-@pytest.fixture(autouse=True)
-def reset_fitness_client() -> None:
-    configure_fitness_client(None)
-    yield
-    configure_fitness_client(None)
+class FakeChatModel(BaseChatModel):
+    """A chat model that answers from a script instead of the network.
+
+    ``bind_tools`` returns ``self``: the agent binds its tools at build time, so
+    a fake that raised there would fail before any test ran. What the model does
+    with them is decided by ``responses``.
+    """
+
+    responses: list[AIMessage] = [AIMessage(content="an answer")]
+    on_call: Callable[[], None] | None = None
+    calls: list[list[BaseMessage]] = []
+
+    @property
+    def _llm_type(self) -> str:
+        """Identify the model in traces and error messages."""
+        return "fake-chat-model"
+
+    def bind_tools(self, tools: Any, **kwargs: Any) -> "FakeChatModel":
+        """Accept tools and change nothing."""
+        return self
+
+    def _next(self, messages: list[BaseMessage]) -> ChatResult:
+        """Record the call and return the next scripted response.
+
+        The last response repeats once the script runs out, so a test that only
+        cares about the first turn does not have to pad it.
+
+        Args:
+            messages: What the agent sent this call.
+
+        Returns:
+            The scripted result for this call.
+        """
+        self.calls.append(list(messages))
+        if self.on_call is not None:
+            self.on_call()
+        index = min(len(self.calls) - 1, len(self.responses) - 1)
+        return ChatResult(generations=[ChatGeneration(message=self.responses[index])])
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: CallbackManagerForLLMRun | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Answer synchronously."""
+        return self._next(messages)
+
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Answer asynchronously — the path the agent actually takes."""
+        return self._next(messages)
 
 
-@pytest.fixture
-def fitness_client() -> FitnessMCPClient:
-    """Fresh in-memory fake Fitness MCP client -- request by name to seed guideline
-    documents or template state before calling production code (mirrors
-    mock_tavily_client's not-autouse, returns-the-client shape)."""
-    client = build_fake_fitness_client()
-    configure_fitness_client(client)
-    return client
+def stub_model(monkeypatch, model: FakeChatModel | None = None) -> FakeChatModel:
+    """Point every agent at a fake model, and their fallbacks at nothing.
 
+    Patches the registry rather than ``app.core.langgraph.runtime.models``, and that is
+    not incidental. Four modules do ``from ...models import default_model``,
+    which binds the function into their own namespace at import time — patching
+    the definition would leave every one of them calling the real thing and
+    reaching the network. ``LLMRegistry`` is the seam underneath all of them.
 
-@pytest.fixture
-def workspace_root(tmp_path: Path) -> Path:
-    return tmp_path / "workspace"
+    Must run before the agent is built: ``create_agent`` resolves its model once,
+    at build time. Anything already built and cached in
+    ``app.core.langgraph.agents`` will not pick this up — call
+    :func:`reset_agents` first.
 
+    Args:
+        monkeypatch: The pytest fixture doing the patching.
+        model: The fake to install. A default one is built when omitted.
 
-@pytest.fixture
-def complete_profile() -> dict[str, Any]:
-    return {
-        "age": 30,
-        "sex": "male",
-        "height_cm": 175,
-        "current_weight_kg": 85.0,
-        "target_weight_kg": 75.0,
-        "activity_level": "gym_3x_week",
-        "goal": "fat_loss",
-    }
+    Returns:
+        The installed fake, so a test can read ``calls`` off it.
+    """
+    from app.core.configs.config import settings
+    from app.services.llm.registry import LLMRegistry
 
-
-@pytest.fixture(autouse=True)
-def reset_profile_extractor() -> None:
-    configure_profile_extractor(None)
-    yield
-    configure_profile_extractor(None)
-
-
-@pytest.fixture(autouse=True)
-def reset_topic_scope_judge() -> None:
-    configure_topic_scope_judge(default_topic_scope_judge)
-    yield
-    configure_topic_scope_judge(None)
-
-
-@pytest.fixture(autouse=True)
-def reset_user_intent_judge() -> None:
-    configure_user_intent_judge(default_user_intent_judge)
-    yield
-    configure_user_intent_judge(None)
-
-
-@pytest.fixture(autouse=True)
-def reset_supervisor_routing_judge() -> None:
-    configure_supervisor_routing_judge(default_supervisor_routing_judge)
-    yield
-    configure_supervisor_routing_judge(None)
-
-
-@pytest.fixture(autouse=True)
-def reset_fitness_planner() -> None:
-    configure_fitness_planner(
-        lambda **kwargs: default_structured_workout(
-            profile=kwargs.get("profile"),
-            constraints=kwargs.get("constraints"),
-        )
+    fake = model or FakeChatModel()
+    monkeypatch.setattr(LLMRegistry, "get_llm", staticmethod(lambda *_a, **_kw: fake))
+    # One name means `fallback_models()` finds nothing to fall back to, so a
+    # scripted failure surfaces instead of being retried against a second fake.
+    monkeypatch.setattr(
+        LLMRegistry, "get_all_llm_names", staticmethod(lambda: [settings.DEFAULT_LLM_MODEL])
     )
-    yield
-    configure_fitness_planner(None)
+    return fake
 
 
-@pytest.fixture(autouse=True)
-def reset_research_agent() -> None:
-    configure_research_agent(research_agent_override)
-    yield
-    configure_research_agent(None)
+def reset_agents() -> None:
+    """Drop the compiled-agent cache so the next build sees a stubbed model.
+
+    The registry caches by design — under a supervisor the same agent may be
+    invoked several times in one turn — which makes it a fixture that leaks
+    between tests unless it is cleared.
+    """
+    from app.core.langgraph import agents
+
+    agents._built.clear()
 
 
-@pytest.fixture(autouse=True)
-def reset_tavily_client() -> None:
-    configure_tavily_client(None)
-    yield
-    configure_tavily_client(None)
+def tool_call(name: str, args: dict[str, Any], call_id: str = "call_1") -> AIMessage:
+    """Build an assistant message that calls one tool.
 
+    Args:
+        name: Tool to call.
+        args: Arguments to call it with.
+        call_id: Id the resulting ``ToolMessage`` answers.
 
-@pytest.fixture(autouse=True)
-def reset_tavily_search_cache_fixture() -> None:
-    reset_tavily_search_cache()
-    yield
-    reset_tavily_search_cache()
-
-
-@pytest.fixture
-def mock_tavily_client() -> TavilyMCPClient:
-    client = build_mock_tavily_client()
-    configure_tavily_client(client)
-    return client
-
-
-@pytest.fixture
-def orchestration_state(
-    workspace_root: Path,
-    complete_profile: dict[str, Any],
-) -> OrchestrationState:
-    return create_initial_state(
-        run_id="e2e-run",
-        thread_id="e2e-thread",
-        query="I want a 4-day training plan to lose weight with strength training.",
-        user_profile=complete_profile,
-        constraints={"days_per_week": 4, "equipment": "gym"},
-        workspace_root=workspace_root,
+    Returns:
+        The message to script into :class:`FakeChatModel`.
+    """
+    return AIMessage(
+        content="",
+        tool_calls=[{"name": name, "args": args, "id": call_id, "type": "tool_call"}],
     )
-
-
-@pytest.fixture(autouse=True)
-def disable_langfuse_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "")
-    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "")
-    monkeypatch.delenv("LANGFUSE_TRACING_ENABLED", raising=False)
-    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
-    # settings.verification_use_real_ragas defaults to True in production, but
-    # run_golden_case() reads it unconditionally -- without this, any test
-    # touching golden cases (e.g. test_golden_cases_meet_faithfulness_threshold)
-    # silently makes real, billed OpenAI calls via the real Ragas SDK instead of
-    # the free heuristic. Tests that specifically want the real SDK path
-    # (test_real_ragas_sanity_check_on_clean_golden_cases) already monkeypatch
-    # this back to True themselves.
-    monkeypatch.setenv("VERIFICATION_USE_REAL_RAGAS", "false")
-    # Same reasoning, for the Phase 3 production gate: this repo's local .env
-    # sets VERIFICATION_PRODUCTION_USE_REAL_RAGAS=true (2026-07-30), so without
-    # this override every test that runs verification/executor.py (e2e,
-    # integration) would silently make real Ragas calls too. Tests exercising
-    # the real path explicitly (tests/test_verification_faithfulness_dispatch.py)
-    # inject their own AIRateLimiter and monkeypatch the scorer -- they don't
-    # depend on this setting being True.
-    monkeypatch.setenv("VERIFICATION_PRODUCTION_USE_REAL_RAGAS", "false")
-    get_settings.cache_clear()
-    reset_langfuse_client()
-    yield
-    get_settings.cache_clear()
-    reset_langfuse_client()
-
-
-@pytest.fixture
-def memory_checkpointer():
-    return MemorySaver()

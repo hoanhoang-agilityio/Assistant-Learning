@@ -1,68 +1,51 @@
-# Production image for the PT AI Core API.
-#
-# Two stages so the build toolchain and the lockfile resolution never reach the
-# runtime layer. The runtime stage carries the virtualenv and the installed
-# package only.
-#
-# Deliberately installs *without* the `eval` extra: ragas/datasets/pandas/pyarrow
-# are ~180 MB and are only needed by the benchmarks (see pyproject.toml). Enabling
-# VERIFICATION_USE_REAL_RAGAS or VERIFICATION_PRODUCTION_USE_REAL_RAGAS in a
-# container built this way will fail on import -- build with
-# `--build-arg EXTRAS="--extra eval"` if you need those paths.
+FROM python:3.13.2-slim
 
-# ---------------------------------------------------------------- build stage
-FROM python:3.12-slim AS builder
-
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
-ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy \
-    UV_PYTHON_DOWNLOADS=never
-
+# Set working directory
 WORKDIR /app
 
-ARG EXTRAS=""
+# Set non-sensitive environment variables
+ARG APP_ENV=production
 
-# Resolve dependencies before copying source, so editing application code does
-# not invalidate the (slow) dependency layer.
-COPY pyproject.toml uv.lock README.md ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev ${EXTRAS}
-
-COPY src/ ./src/
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev ${EXTRAS}
-
-# -------------------------------------------------------------- runtime stage
-FROM python:3.12-slim AS runtime
-
-# curl is needed by HEALTHCHECK below; nothing else is added.
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 10001 appuser
-
-WORKDIR /app
-
-COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
-COPY --from=builder --chown=appuser:appuser /app/src /app/src
-
-ENV PATH="/app/.venv/bin:$PATH" \
+ENV APP_ENV=${APP_ENV} \
+    PYTHONFAULTHANDLER=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    # Runtime artifacts go to a writable volume, never into the source tree --
-    # this is what lets /app/src stay read-only.
-    WORKSPACE_ROOT=/var/lib/pt-ai/workspace \
-    LOG_FORMAT=json \
-    LOG_LEVEL=INFO
+    PYTHONHASHSEED=random \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100
 
-RUN mkdir -p /var/lib/pt-ai/workspace && chown -R appuser:appuser /var/lib/pt-ai
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    && pip install --upgrade pip \
+    && pip install uv \
+    && rm -rf /var/lib/apt/lists/*
 
+# Install locked dependencies first (cached unless pyproject.toml / uv.lock change)
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project
+
+# Copy the application and install the project itself against the locked deps
+COPY . .
+RUN uv sync --frozen
+
+# Make entrypoint script executable - do this before changing user
+RUN chmod +x /app/scripts/docker-entrypoint.sh
+
+# Create a non-root user
+RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
-VOLUME ["/var/lib/pt-ai/workspace"]
+
+# Create log directory
+RUN mkdir -p /app/logs
+
+# Default port
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-    CMD curl -fsS http://localhost:8000/health || exit 1
+# Log the environment we're using
+RUN echo "Using ${APP_ENV} environment"
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Command to run the application
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
+CMD ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -17,11 +17,11 @@ build/
 htmlcov/
 .agents
 skills-lock.json
-docs
 
 # Environment
 .env
 .env.local
+.env.development
 .cursor
 .claude
 
@@ -34,8 +34,6 @@ docs
 
 # Project artifacts (VFS runtime output)
 var/
-# legacy location, kept ignored so pre-existing local runs stay untracked
-src/workspace/
 
 # Streamlit
 .streamlit/secrets.toml

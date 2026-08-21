@@ -1,66 +1,104 @@
 # PT AI Core Deep Researcher
 
-Supervisor-orchestrated LangGraph system for **training plans** and **macro coaching**. Phase 1 includes planning, Tavily MCP research, fitness synthesis, verification, HITL approval, persistence, LangFuse tracing, and a faithfulness benchmark.
+LangGraph system for **training plans** and **macro coaching**: a supervisor agent that
+plans, changes, reviews and answers, with knowledge-base retrieval, rubric verification, a
+human confirm gate, persistence, JWT auth and LangFuse tracing, behind a FastAPI service
+with a Streamlit front end.
+
+The order of steps is a decision the supervisor re-makes after every tool result, not a
+property of a graph — so the guarantees that matter live where a model cannot skip them:
+in middleware, in tool bodies, and in a draft store that hands out handles instead of plan
+JSON.
+
+| Document | What it covers |
+|---|---|
+| [docs/supervisor-architecture.md](docs/supervisor-architecture.md) | What runs, why it is a supervisor rather than a router, and what that costs |
+| [docs/workflow.md](docs/workflow.md) | The domain rules: plan shapes, the profile gate, the three rubric checks, confirm and revert |
+| [docs/memory.md](docs/memory.md) | The four memory layers, who writes each, and where they must not mix |
+| [docs/authentication.md](docs/authentication.md) | Token scopes, the privilege boundary, and the auth checklist |
+| [docs/diagrams/](docs/diagrams/) | Generated Mermaid topologies, one per compiled graph |
+
+---
 
 ## Requirements
 
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) (recommended)
-- PostgreSQL with pgvector (optional for the checkpointer — in-memory checkpointer used
-  by default in API tests/dev; required for the Fitness MCP Server unless
-  `MOCK_FITNESS_KB=true`)
-- Tavily API key for live research
-- OpenAI API key (also used to embed the Fitness Knowledge Store's guideline documents)
+- PostgreSQL with pgvector
+- OpenAI API key (also used to embed the knowledge base)
 - LangFuse (optional — local Docker at `http://localhost:3000`)
 
 ## Setup
 
 ```bash
 cp .env.example .env
-# Fill in TAVILY_API_KEY, OPENAI_API_KEY, and optional LANGFUSE_* / LLM keys
+# Fill in OPENAI_API_KEY, JWT_SECRET_KEY, and optional LANGFUSE_* keys
 
 uv sync --extra dev
 ```
 
-Start Postgres (pgvector-enabled image; optional for the checkpointer, required for the
-Fitness Knowledge Store unless `MOCK_FITNESS_KB=true`):
+Start Postgres (pgvector-enabled image):
 
 ```bash
-docker compose up -d postgres
+docker compose up -d db
 ```
 
 > Without a reachable Postgres the test suite does not fail — it **hangs** on connection
 > pool timeouts. If `uv run pytest` appears stuck, check the container first.
 
-One-time schema setup for the Fitness Knowledge Store (idempotent, safe to re-run):
-
-```bash
-uv run python scripts/bootstrap_fitness_db.py
-uv run python scripts/ingest_knowledge.py   # embeds the guideline corpus — see below
-```
+Then apply migrations and seed — see [Run the API](#run-the-api).
 
 ### Optional extras
 
 | Extra | Install | What it adds |
 |---|---|---|
-| `dev` | `uv sync --extra dev` | pytest, ruff, pre-commit |
-| `eval` | `uv sync --extra eval` | the Ragas SDK — **not** a runtime dependency |
-
-`ragas` is deliberately outside the runtime dependencies: it pulls in ~340 MB of transitive
-packages and nothing imports it at module scope. Install the `eval` extra when running the
-faithfulness benchmark, or when enabling `VERIFICATION_USE_REAL_RAGAS` /
-`VERIFICATION_PRODUCTION_USE_REAL_RAGAS` — those flags reach the real SDK and raise
-`ModuleNotFoundError` without it.
+| `dev` | `uv sync --extra dev` | pytest, pytest-asyncio, ruff, pre-commit |
+| `evals` | `uv sync --extra evals` | ragas, for the retrieval metrics in `evals/` |
 
 ## Run tests
 
 ```bash
 uv run pytest
-uv run ruff check src tests scripts
+uv run ruff check app tests scripts evals
 ```
 
-Tests that need live credentials skip themselves when `OPENAI_API_KEY` is unset, so the
-suite is green without secrets.
+The suite needs no secrets and makes no network calls: every agent holds a chat model
+directly — `create_agent` needs one — so `tests/conftest.py` patches `LLMRegistry.get_llm`
+with a scripted `FakeChatModel`. All four agents resolve their model through
+`app.core.langgraph.runtime.models`, which is why that is one patch rather than one per package;
+an agent added later is stubbed by the same call instead of reaching the network until
+someone notices.
+
+The auth suite runs against a throwaway SQLite file and **must run in its own process**:
+
+```bash
+uv run pytest tests/test_auth_flow.py -v
+```
+
+In a whole-suite run it errors out on purpose. Another module has already imported `app.*`
+by then, so `AUTH_DATABASE_URL` arrives too late and `engine` is still bound to the real
+Postgres — carrying on would drop that database's tables. The refusal names the fix.
+
+Two of those tests are the privilege boundary between the token scopes —
+`test_session_token_cannot_create_session` and
+`test_user_token_cannot_reach_session_endpoint`. A failure there is a security regression,
+not a flaky test.
+
+### What the suite guards in the graph
+
+The old root graph proved three properties by reading edges. There are no edges left to
+read, so those proofs were replaced by two kinds of test, and the first is worth more than
+the second:
+
+- **Static** (`tests/test_app_supervisor.py`): no subagent's tool set contains a write
+  tool, `save_plan` has no `plan` parameter, no plan-producing tool accepts a `profile`,
+  only `commit_draft` and `restore_version` can mint a draft handle, every minted draft
+  carries macros, and no function in the scoring path has a parameter a transcript could
+  arrive in. All six run without a model.
+- **Behavioural** (`tests/test_app_turn.py`): the confirm gate end to end — a plan is shown
+  and not saved, "yes" saves the plan that was shown, anything else leaves it alone.
+  Slower and weaker than an edge, and the honest price of the architecture
+  ([§11.2](docs/supervisor-architecture.md)).
 
 ## Precheck (before commit)
 
@@ -81,263 +119,313 @@ uv run pre-commit run precheck --all-files
 
 ## Run the API
 
-```bash
-uv run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Endpoints:
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check |
-| `POST` | `/runs` | Create and start a run |
-| `GET` | `/runs` | List runs for a user |
-| `GET` | `/runs/{run_id}` | Get run status |
-| `POST` | `/runs/{run_id}/resume` | Resume HITL (approve / reject / clarify) |
-| `POST` | `/runs/{run_id}/continue` | Continue a run with a follow-up message |
-| `GET` | `/runs/{run_id}/events` | Server-sent events stream of run progress |
-| `GET` | `/users/{user_id}/runs` | Run history for a user |
-
-Example:
+This is the entrypoint the Dockerfile uses.
 
 ```bash
-curl -X POST http://localhost:8000/runs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "I want a 4-day training plan to lose weight.",
-    "user_profile": {
-      "age": 30, "sex": "male", "height_cm": 175,
-      "current_weight_kg": 85, "target_weight_kg": 75,
-      "activity_level": "gym_3x_week", "goal": "fat_loss"
-    },
-    "constraints": {"days_per_week": 4, "equipment": "gym"}
-  }'
+docker compose up -d db          # Postgres on host port 5433
+uv sync --extra dev
+uv run alembic upgrade head      # every app/ table
+uv run python scripts/seed_catalog.py     # exercise catalog (~100 rows)
+uv run python scripts/seed_config.py      # template library + rubrics
+uv run python scripts/seed_knowledge.py   # knowledge base (needs OPENAI_API_KEY)
+uv run uvicorn app.main:app --reload
 ```
 
-## Embedding data for RAG
-
-The Fitness Knowledge Store is the curated corpus the agent prefers over live web
-research. Getting data into it is one command, but what that command does is worth
-knowing before you add your own documents.
-
-### The pipeline
-
-```text
-corpus.jsonl → JSONLLoader → Validator → SimpleChunker → OpenAI embeddings → Postgres (pgvector)
-```
+The seed files are validated separately from being loaded, and the validators run
+**before** the seeder — the faults they catch are the silent kind (two templates sharing a
+`slot_id`, rubrics disagreeing on `rubric_version`, a slot naming a movement pattern the
+taxonomy does not define):
 
 ```bash
-uv run python scripts/bootstrap_fitness_db.py   # creates tables + the vector/FTS indexes
-uv run python scripts/ingest_knowledge.py       # embeds and upserts every record
-# -> Ingested 9 sources, 9 documents, 9 chunks.
+uv run python scripts/check_config_seed.py
+uv run python scripts/check_exercise_seed.py
 ```
 
-Both are **idempotent** (`ON CONFLICT DO UPDATE` throughout) — re-run them after editing the
-corpus and existing rows are replaced, not duplicated. Ingestion writes straight to Postgres,
-bypassing MCP: it is an admin/seeding operation, not something an agent does at runtime.
+Swagger UI: **http://localhost:8000/docs**
 
-Requires `OPENAI_API_KEY` — every chunk is embedded for real.
+### Seeding the knowledge base
 
-### The corpus
+`search_knowledge` reads the `knowledge_chunks` table, and until that table is populated
+the tool returns `[]` on every query — the QA agent then answers from the model's own
+knowledge and says the base had nothing, which is honest but not the intended state.
 
-`src/core/shared/knowledge/data/corpus.jsonl` — one JSON object per line:
-
-```json
-{
-  "id": "hypertrophy-volume-guideline",
-  "title": "Hypertrophy Weekly Set Volume",
-  "content": "Most muscle groups respond well to roughly 10-20 hard sets per week ...",
-  "category": "hypertrophy",
-  "tags": ["volume", "sets", "hypertrophy"],
-  "goal_applicability": ["muscle_gain", "recomposition", "general_fitness"],
-  "equipment_applicability": ["gym", "home", "bodyweight"],
-  "source_type": "guideline",
-  "source_url": "local-kb://hypertrophy-volume-guideline",
-  "published_year": null,
-  "reviewed_at": null,
-  "trust_score": 0.95
-}
-```
-
-To add your own data, append records and re-run `ingest_knowledge.py`. Three fields do more
-work than they look like they do:
-
-- **`category`** is a retrieval **filter**, not a label. The query rewriter infers a category
-  from the user's question and it is applied as a hard SQL constraint, so a document whose
-  category does not match is excluded outright. Keep the vocabulary small and consistent.
-  (If a filtered search returns nothing, retrieval now retries once without the inferred
-  category — otherwise a mismatch would silently return zero results.)
-- **`goal_applicability` / `equipment_applicability`** are filtered against the caller's
-  profile. Leave them broad unless a document genuinely only applies to one setup.
-- **`trust_score`** feeds `has_sufficient_coverage`, which decides whether the agent can skip
-  external web research. Documents below the caller's `min_trust_score` (default `0.85`)
-  will not satisfy coverage on their own.
-
-### Tuning
-
-| Setting | Default | Notes |
-|---|---|---|
-| `FITNESS_KB_EMBEDDING_MODEL` | `text-embedding-3-small` | **Coupled to the schema** — see below |
-| `FITNESS_KB_CHUNK_MAX_CHARS` | `2000` | Chunk size |
-| `FITNESS_KB_CHUNK_OVERLAP` | `200` | Overlap between chunks |
-| `FITNESS_KB_MIN_SIMILARITY` | `0.4` | Cosine floor for dense retrieval |
-| `FITNESS_KB_QUERY_REWRITE_ENABLED` | `true` | LLM query understanding before retrieval |
-| `FITNESS_KB_RERANK_ENABLED` | `true` | LLM relevance rerank after fusion |
-
-> **Changing the embedding model is not a config-only change.** The chunks table declares
-> `embedding vector(1536)`, matching `text-embedding-3-small`. A model with different
-> dimensions requires editing that DDL in `core/adapters/db/bootstrap.py`, dropping the
-> table, and re-ingesting — the mismatch will otherwise fail at insert time.
-
-### Verifying it worked
+The source of truth is `data/knowledge/*.docx`. Each `Heading 2` section becomes one
+passage (long sections are split, with the heading repeated on every part), embedded with
+`text-embedding-3-small` and stored as a pgvector column.
 
 ```bash
-uv run python -c "
-from core.config.settings import get_settings
-from core.shared.knowledge.embeddings import get_embedding_provider
-from core.adapters.db.guideline_repository import GuidelineRepository
-from core.shared.knowledge.retrieval_service import build_retrieval_service
-s = get_settings(); repo = GuidelineRepository(s.checkpointer_dsn)
-svc = build_retrieval_service(repo, get_embedding_provider(s), s)
-for h in svc.search(kind='guideline', query='how many sets per week for hypertrophy',
-                    goal='muscle_gain', equipment='gym', limit=3,
-                    min_similarity=s.fitness_kb_min_similarity):
-    print(f'{h.document_id:38} sim={h.similarity:.3f} trust={h.trust_score}')
-repo.close()"
+uv run python scripts/seed_knowledge.py --dry-run   # chunk plan, no API calls, no writes
+uv run python scripts/seed_knowledge.py             # embed and upsert
+# -> knowledge base: 88 passages — 88 inserted, 0 updated, 0 unchanged, 0 deleted
 ```
 
-Retrieval is hybrid: pgvector cosine **and** Postgres full-text search, fused with reciprocal
-rank fusion, then reranked. So a document can surface on keyword match even when its
-embedding similarity is mediocre.
+Idempotent and frugal: only passages whose text changed are re-embedded, and a section
+deleted from a document is deleted from the table. Add a document by dropping a `.docx`
+into `data/knowledge/` and re-running — no code change.
 
-## Run the Fitness MCP Server
+The knowledge base is one of four things this application calls memory. What each layer
+holds, who writes it, and where they must not be mixed is in
+[docs/memory.md](docs/memory.md).
 
-In a separate terminal, before starting the API (or the API degrades gracefully --
-Tavily-only research, no template caching -- until this comes up):
+Settings come from `.env.development` (selected by `APP_ENV`, default `development`). Two
+things stop the app from starting, both deliberately:
 
-```bash
-uv run python -m core.adapters.mcp.fitness_server
+- `JWT_SECRET_KEY` shorter than 32 characters → `RuntimeError` at startup.
+  Generate one with `openssl rand -hex 32`.
+- `ALLOWED_ORIGINS` containing `*` → `RuntimeError` at import. A wildcard origin combined
+  with `allow_credentials=True` is rejected by browsers and is a real credential-leak path
+  if someone later "fixes" it by reflecting the request origin.
+
+To skip Postgres entirely while poking at Swagger, uncomment in `.env.development`:
+
+```
+AUTH_DATABASE_URL=sqlite:///./auth_dev.db
 ```
 
-Sole owner of guideline documents and workout templates, backed by Postgres + pgvector.
-The main API connects to it once at startup via `langchain-mcp-adapters`. Set
-`MOCK_FITNESS_KB=true` to skip this process entirely and use an in-memory dev double.
+### Authentication
+
+Two JWT scopes plus one opaque refresh credential. They are **not** interchangeable.
+
+| Credential | `typ` | `sub` | Grants | Lifetime |
+|---|---|---|---|---|
+| User token | `user` | user id | create/list/rename/delete sessions, logout | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` (60) |
+| Session token | `session` | session id | one session only — what conversation endpoints depend on | same |
+| Refresh token | — | — | mint a new user token; single-use, rotates on every call | `REFRESH_TOKEN_EXPIRE_DAYS` (30) |
+
+| Method | Path | Guard |
+|--------|------|-------|
+| `POST` | `/api/v1/auth/register` | public, 10/hour |
+| `POST` | `/api/v1/auth/login` | public, 20/min |
+| `POST` | `/api/v1/auth/refresh` | public, 30/hour — needs a valid refresh token |
+| `POST` | `/api/v1/auth/logout` | user token |
+| `POST` | `/api/v1/auth/session` | user token |
+| `GET` | `/api/v1/auth/sessions` | user token |
+| `PATCH` | `/api/v1/auth/session/{session_id}/name` | session token |
+| `DELETE` | `/api/v1/auth/session/{session_id}` | session token |
+| `GET` | `/`, `/health`, `/api/v1/health` | public |
+
+The conversation surface is four routes, all session-scoped:
+
+| Method | Path | Guard |
+|--------|------|-------|
+| `POST` | `/api/v1/chatbot/chat` | session token, 30/min |
+| `POST` | `/api/v1/chatbot/chat/stream` | session token, 20/min |
+| `GET` | `/api/v1/chatbot/messages` | session token, 50/min |
+| `DELETE` | `/api/v1/chatbot/messages` | session token, 50/min |
+
+Guarding a new route is one dependency. Take the id from the returned object, **never** from
+the path or body — a route that reads a user id straight from the URL is an authorization
+hole, not a shortcut:
+
+```python
+from app.api.v1.auth import get_current_session, get_current_user
+
+@router.post("/chat")                       # conversation scope
+async def chat(session: Session = Depends(get_current_session)): ...
+
+@router.get("/me/profile")                  # account scope
+async def profile(user: User = Depends(get_current_user)): ...
+```
+
+Testing in Swagger: the **Authorize** button holds one token at a time, so you have to swap
+between the user token and the session token. Register → authorize with the user token →
+`POST /auth/session` → re-authorize with the session token. With the session token active,
+`POST /auth/session` must return **401** — that response is the privilege boundary working.
+
+Design notes and the remaining trade-offs (blocking DB calls in async handlers, the denylist
+read per request, `purge_expired_tokens` having no scheduler) are in the module docstrings of
+`app/api/v1/auth.py` and `app/utils/auth.py`.
 
 ## Run the Streamlit UI
 
-In a second terminal (API must be running):
+In a second terminal (`app.main:app` must be running):
 
 ```bash
 export API_BASE_URL=http://localhost:8000
-uv run streamlit run src/ui/app.py --server.port 8501
+uv run streamlit run app/ui/main.py --server.port 8501
 ```
 
-The UI lets you submit a query, poll run status, approve/reject at HITL, and view the final plan.
+`API_BASE_URL` is the API origin only — the client appends `/api/v1` itself.
+
+Sign in or create an account on first load; every endpoint behind the UI requires a bearer
+token, so there is no anonymous mode. Once in, the sidebar lists your conversations straight
+from Postgres (`GET /auth/sessions`) and opening one loads its history from the LangGraph
+checkpointer (`GET /chatbot/messages`), so a conversation started on another machine — or
+before a restart — is still there. Rename, clear and delete act on the open conversation.
+
+Chat is one turn per request against `POST /chatbot/chat/stream`. Tokens appear in the
+chat window as the supervisor writes them. Plan builds, changes, reviews and reverts all
+answer through the same endpoint, including the confirm gate: when the agent shows a plan
+and asks whether to keep it, the question is the last chunk of that stream (the interrupt
+fires after the model tokens, if any, have ended). Replying `yes` resumes the interrupted
+run and saves the plan you were shown — not one rebuilt from the transcript. Anything that
+is not a recognised yes is treated as no, and leaves the stored plan exactly as it was.
+
+`POST /chatbot/chat` is the non-streaming counterpart of the same turn: it waits for the
+graph to finish and returns the completed messages in one body.
+
+Tokens live in Streamlit's per-session state and nowhere else — not in the URL, not on disk —
+so a full browser reload signs you out. Nothing is lost: the conversations are in the
+database and reappear on the next sign-in.
+
+## Export graph diagrams
+
+Regenerate Mermaid diagrams for the supervisor and every agent into `docs/diagrams/`.
+Compiles without a checkpointer, so Postgres is not required.
+
+```bash
+uv run python scripts/export_graph_diagrams.py                     # every graph
+uv run python scripts/export_graph_diagrams.py --graph supervisor  # just one
+uv run python scripts/export_graph_diagrams.py --format png        # also render PNG
+```
+
+These pictures now show less than they used to, and that is the architecture rather than a
+regression. An agent's internal graph is fixed — a `model` node, a `tools` node, and one
+node per middleware hook — so the diagram tells you which hooks are wired and nothing about
+what the model will choose to call. No graph left in the registry has arbitrary nodes and
+edges: `verification` did, and it is now plain functions called from tool bodies.
+
+Only `.mmd` is written by default, and only it is committed. PNG is opt-in because
+rendering posts the markup to the public mermaid.ink service, which rejects the identifiers
+`create_agent` generates for a middleware named `ToolCallLimitMiddleware[commit_draft]` —
+and half a set of PNGs is worse than none. Pass `--draw-method pyppeteer` to render locally
+when a picture is actually wanted.
+
+## Offline evaluation
+
+`evals/` scores turns that **already happened**. It reads finished traces from Langfuse,
+judges them, and writes the scores back. Nothing here gates a request: `evals` imports
+from `app`, and `app` never imports from `evals`, so an eval cannot change a turn's
+outcome even by accident.
+
+```bash
+uv sync --extra evals
+uv run python -m evals.run --scope traces --max-items 50        # domain judges
+uv run python -m evals.run --scope observations --max-items 25  # ragas over search_knowledge
+```
+
+Two scopes because they see different data. `traces` runs the domain judges over a whole
+turn — helpfulness, relevancy, conciseness, hallucination, toxicity, plus four this
+application's own rules imply: `plan_safety`, `macro_consistency`, `confirm_discipline`
+and `verdict_grounding`. `observations` runs Ragas faithfulness and context precision over
+a single `search_knowledge` retrieval and the passages it returned; it is capped lower
+because those metrics are multi-call by construction.
+
+Needs `LANGFUSE_*` keys and `EVALUATION_API_KEY` (falls back to `OPENAI_API_KEY`). There
+is no report file — `BatchEvaluationResult` carries the per-evaluator stats, and Langfuse
+itself is the dashboard.
+
+A regression an eval catches is a **quality** regression. Anything that must fail hard
+belongs in the rubric checks or in `tests/`.
 
 ## Run in Docker
 
 ```bash
 docker build -t pt-ai-core .
 docker run -p 8000:8000 \
-  -e DATABASE_URL="postgresql://pt_ai:pt_ai_dev@host.docker.internal:5433/pt_ai_core" \
-  -e OPENAI_API_KEY=... -e TAVILY_API_KEY=... \
-  -v pt-ai-workspace:/var/lib/pt-ai/workspace \
+  -e POSTGRES_HOST=host.docker.internal -e POSTGRES_PORT=5433 \
+  -e OPENAI_API_KEY=... -e JWT_SECRET_KEY=... \
   pt-ai-core
 ```
 
-Multi-stage build, runs as a non-root user, healthchecked on `/health`, and writes run
-artifacts to a volume rather than into the source tree. Built **without** the `eval` extra;
-pass `--build-arg EXTRAS="--extra eval"` if you need the real-Ragas paths.
+Runs as a non-root user and is healthchecked on `/health`.
 
 ## Configuration
 
 All settings come from environment variables (see `.env.example` for the full list).
 
+`app/` loads exactly one env file, picked by first match: `.env.<APP_ENV>.local` →
+`.env.<APP_ENV>` → `.env.local` → `.env`. Docker Compose separately reads only `.env` for
+`${VAR}` interpolation inside `docker-compose.yml` — it cannot read `.env.development`,
+which is why both files exist.
+
 | Variable | Default | Notes |
 |---|---|---|
-| `DATABASE_URL` | — | **Takes precedence over every `POSTGRES_*` variable.** Setting `POSTGRES_HOST`/`POSTGRES_PORT` has no effect while this is set. |
-| `WORKSPACE_ROOT` | `./var/workspace` | Run artifacts. Relative paths resolve against the project root. Never point this inside `src/`. |
+| `APP_ENV` | `development` | Picks the env file, and tags every Langfuse trace with the environment. |
+| `JWT_SECRET_KEY` | — | **Required.** Under 32 characters and the app refuses to start. `openssl rand -hex 32`. |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `60` | Access tokens are short-lived because revoking them costs a denylist read. |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Lifetime of the rotating refresh credential. |
+| `AUTH_DATABASE_URL` | — | Overrides the `POSTGRES_*` parts for the auth tables. Set to `sqlite:///./auth_dev.db` to run without a database container. |
+| `ALLOWED_ORIGINS` | `*` | Must be set to explicit origins — the app refuses to start on a wildcard while credentials are allowed. |
+| `KNOWLEDGE_MIN_SCORE` | `0.3` | Floor for `search_knowledge`. Vector search always returns a full `top_k`, so without a threshold an out-of-scope question gets the least-related passages — and the model cites them. Returning `[]` is the correct answer. |
+| `SESSION_NAMING_ENABLED` | `true` | Names a conversation from its first message, in the background. |
 | `LOG_LEVEL` | `INFO` | Applied at API startup. |
-| `LOG_FORMAT` | `json` | `json` for machine-parseable production logs, `text` for readable local output. Records carry `run_id`/`thread_id` correlation ids. |
-| `MOCK_RESEARCH` | `false` | Skip live Tavily calls. |
-| `MOCK_FITNESS_KB` | `false` | Skip the Fitness MCP Server. |
-
-## Faithfulness benchmark
-
-```bash
-uv sync --extra eval          # required: the benchmark can use the real Ragas SDK
-uv run python scripts/ragas_benchmark.py
-```
-
-Reports are written to `var/workspace/benchmarks/`.
-
-For evaluation workflow details (golden dataset, integration tests, optional Ragas SDK smoke test), see `src/docs/ragas-evaluation.md`.
-
-LangFuse Runs → Traces → Threads (Sessions) mapping: `src/docs/langfuse-trace-checklist.md`.
-
-## OWASP system-prompt benchmark
-
-Two suites mapped to [OWASP LLM Top 10 2025](https://owasp.org/www-project-top-10-for-large-language-model-applications/):
-
-1. **scope** — decision-oriented probes (`topic_scope_judge` / `intent_judge`)
-2. **robustness** — property-based probes against production prompts (planner, edit, research, rewriter, router)
-
-```bash
-# Inventory (no LLM)
-uv run python scripts/owasp_prompt_benchmark.py --suite scope
-uv run python scripts/owasp_prompt_benchmark.py --suite robustness
-uv run pytest tests/test_owasp_prompt_benchmark.py tests/test_owasp_prompt_robustness.py -v
-
-# Live (costs tokens)
-uv run python scripts/owasp_prompt_benchmark.py --suite scope --live
-uv run python scripts/owasp_prompt_benchmark.py --suite robustness --live --target fitness_planner
-```
-
-Fixtures:
-- `tests/fixtures/owasp_system_prompt_benchmark.json`
-- `tests/fixtures/owasp_system_prompt_robustness.json`
-
-Report + fix plan: `docs/reports/owasp_system_prompt_benchmark_live_report_and_fix_plan_2026-07-29.md`.
+| `LOG_FORMAT` | `json` | `json` for machine-parseable production logs, `text` for readable local output. |
 
 ## Project layout
 
 ```text
-src/
-├── api/            # FastAPI app — routes, DI wiring, schemas
-├── ui/             # Streamlit client (HTTP-only; imports nothing from core)
+app/
+├── main.py            # ASGI entrypoint (app.main:app) — what the Dockerfile runs
+├── api/v1/            # routers: auth.py (+ the two auth dependencies), chatbot.py
 ├── core/
-│   ├── capabilities/    # the business capabilities the supervisor routes between
-│   │                    #   fitness  planning  research  user  verification
-│   ├── orchestration/   # LangGraph wiring and run execution
-│   │                    #   graph  agents  routing  hitl  persist  state.py
-│   ├── shared/          # cross-capability kernels, owned by no single capability
-│   │                    #   profile  grounding  knowledge  planning  execution_context
-│   ├── adapters/        # everything wrapping an external system
-│   │                    #   llm  mcp  db  observability  rate_limit  vfs
-│   ├── config/          # Settings
-│   └── evaluation/      # Ragas + OWASP benchmarks, shadow eval
-└── docs/           # Implementation specs and checklists
-tests/
-scripts/
-var/workspace/      # runtime artifacts (gitignored, never inside src/)
+│   ├── configs/       # pydantic-settings; resolves the env file from the project root
+│   ├── langgraph/     # the agent system — see below
+│   ├── observability/ # Langfuse handler package, attached at the root config
+│   ├── logging.py     # structlog + per-request context binding
+│   ├── limiter.py     # slowapi; Valkey-backed when VALKEY_HOST is set
+│   └── middleware.py
+├── models/            # SQLModel tables: user, session, tokens, exercises, templates,
+│                      #   rubrics, user_profile, plan_versions, knowledge_chunks
+├── schemas/           # pydantic request/response models + the types agents exchange
+├── services/          # persistence and pure domain logic: catalog, templates, rubrics,
+│                      #   nutrition, profile, versions, knowledge, episodes, llm/
+├── utils/             # token creation/verification, input sanitization
+└── ui/                # Streamlit client — HTTP-only, talks to /api/v1 and nothing else
+alembic/               # migrations for the app/ schema only
+data/                  # seed files: exercises, templates, rubrics, knowledge/*.docx
+scripts/               # seeding, seed validation, diagram export
+evals/                 # offline scoring of finished Langfuse traces — imports app/,
+                       #   and app/ never imports it
+tests/                 # pytest; test_auth_flow.py runs in its own process
 ```
 
-What the grouping does and does not tell you:
+Layer rule: `api → services → models`. `utils/` and `core/` are leaves that everything may
+import and that import nothing from the layers above them. `ui/` sits outside that rule
+entirely: it is a client of the HTTP surface, so it may import `app.utils` for shared
+validation constants but never a service, a model or the graph.
 
-- **A module belongs in `shared/` when more than one capability reads it.** `profile`,
-  `knowledge` and the `ExecutionPlan` kernel are there because their consumers were counted,
-  not because of how they looked. Anything a single capability owns lives inside that
-  capability.
-- **`adapters/` marks the modules that talk to something outside this process** — LLM
-  providers, MCP transports, Postgres, Langfuse, the filesystem.
-- **It is not yet a dependency rule.** `capabilities/` currently imports `adapters/`
-  directly in ~28 places (mostly `vfs` and `llm`) and `shared/` in ~14. Making external
-  systems arrive only as injected collaborators is a separate, unfinished piece of work —
-  the grouping makes those imports visible, it does not prevent them.
+### Inside `core/langgraph/`
 
-## CI
+```text
+core/langgraph/
+├── graph.py          # the facade the API calls — four methods, and the only thing that
+│                     #   knows about the checkpointer pool or a chat turn
+├── prompts/          # shared .md prompts: classify, extract_profile, session title/summary
+├── supervisor/
+│   ├── agent.py      # build_supervisor_with() — create_agent + middleware + the confirm gate
+│   ├── middleware.py # topic_gate · load_context · extract_profile · dynamic_prompt
+│   ├── tools.py      # planning_agent · review_agent · qa_agent · list/restore · save_plan
+│   ├── state.py      # SupervisorState — eight fields, all of which outlive the turn
+│   └── prompts/      # supervisor.md — system prompt owned by the supervisor
+├── agents/
+│   ├── __init__.py   # the registry: one line per agent, built once and cached
+│   ├── planning/     # build and change, as one agent with mode="build"|"change"
+│   ├── review/       # assessing a plan the user pasted in; mints no handle, so saves none
+│   └── qa/           # knowledge questions; read-only, and the only holder of estimate_macros
+├── routing/          # the classifier the topic gate calls; its intent is advisory
+├── profile/          # extraction cleanup and goal-conflict detection
+├── checks/           # macro · volume · injury — one pure function per rubric, no graph
+├── drafts/store.py   # verified plans held by handle between producing and saving
+├── scoring.py        # macros and the three checks, in one call — score()
+├── rendering.py      # every string a model is allowed to see about a plan
+├── diff.py           # what a save is about to change, for the confirm question
+├── versioning.py     # rendering the version index; what a restore re-checked
+└── models.py         # which model an agent runs on, and its retry/fallback middleware
+```
 
-`.gitlab-ci.yml` runs four jobs: `lint` (ruff), `test` (pytest against a pgvector service),
-`build` (wheel, asserting it ships `core`/`api`/`ui`), and `runtime-deps` — which installs
-without the dev and eval extras and imports the app, catching "works in dev, cannot start in
-production" dependency gaps.
+Three rules the layout enforces, each of which replaced a graph edge:
+
+1. **Only `commit_draft` and `restore_version` mint a handle**, and `save_plan` accepts
+   nothing but one. Plan JSON never passes through the supervisor's context, so no model
+   can retype a set count on its way to being stored.
+2. **The profile gate is a precondition inside every plan-producing tool**, never a tool of
+   its own. Given `check_profile()` as an option, a model eventually decides the profile
+   looks complete and proceeds with a missing activity level.
+3. **The verifier has nowhere to put a transcript.** `score(plan, profile, scope)` is a
+   plain function with no argument a message list could arrive in, so the verifier cannot
+   see how the plan was built even by accident.
+
+Adding an agent is a new package plus one line in `agents/__init__.py`. If it also requires
+editing the supervisor, a schema and a route, the seam is in the wrong place.
+
