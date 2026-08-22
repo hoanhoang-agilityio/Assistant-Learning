@@ -89,3 +89,25 @@ async def test_the_node_survives_a_state_with_no_missing_fields_key() -> None:
     actual_update = await request_missing_info(state)
 
     assert actual_update["final_message"] == build_missing_info_request([])
+
+
+@pytest.mark.parametrize(("asked_before", "expected"), [(0, 1), (1, 2), (2, 3)])
+async def test_each_question_spends_one_attempt(
+    asked_before: int, expected: int
+) -> None:
+    """The limit counts questions put to the user, not replies received."""
+    state = _state(["age"]) | {"user_info_retry_count": asked_before}
+
+    actual_update = await request_missing_info(state)
+
+    assert actual_update["user_info_retry_count"] == expected
+
+
+async def test_a_state_with_no_counter_starts_it_at_one() -> None:
+    """A run checkpointed before the counter existed still records this question."""
+    state = _state(["age"])
+    del state["user_info_retry_count"]
+
+    actual_update = await request_missing_info(state)
+
+    assert actual_update["user_info_retry_count"] == 1

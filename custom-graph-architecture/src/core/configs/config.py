@@ -203,6 +203,7 @@ class Settings(BaseSettings):
     GUARD_BANNED_TOPICS_THRESHOLD: float = 0.6
 
     # --- Graph retry limits (spec §9: every limit is a counter in GraphState) ---------
+    USER_INFO_MAX_RETRIES: int = 3
     COACH_MAX_RETRIES: int = 3
     HITL_MAX_RETRIES: int = 3
     QA_MAX_RETRIES: int = 3

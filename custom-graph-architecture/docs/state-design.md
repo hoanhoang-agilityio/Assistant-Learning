@@ -26,6 +26,7 @@ class GraphState(AgentState):
     plan: Optional[dict]
     context_complete: bool
     missing_fields: list[str]
+    user_info_retry_count: int
 
     # =========================
     # Coaching

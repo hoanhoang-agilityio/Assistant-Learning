@@ -175,6 +175,7 @@ async def test_node_writes_profile_plan_and_completeness(
         "plan": PLAN,
         "context_complete": True,
         "missing_fields": [],
+        "user_info_retry_count": 0,
     }
 
 
@@ -205,6 +206,7 @@ async def test_node_reads_the_store_through_the_service(store) -> None:
         "plan": PLAN,
         "context_complete": True,
         "missing_fields": [],
+        "user_info_retry_count": 0,
     }
 
 
@@ -222,6 +224,38 @@ async def test_a_completed_profile_clears_an_earlier_request(
     actual_update = await load_context(state)
 
     assert actual_update["missing_fields"] == []
+
+
+async def test_a_completed_profile_clears_the_collection_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A count left over from this round would exhaust the next one on its first ask."""
+
+    async def loaded(_: str) -> UserContext:
+        return UserContext(profile=COMPLETE_PROFILE, plan=None)
+
+    monkeypatch.setattr(context_node, "load_user_context", loaded)
+    state = initial_state("build me a plan", USER_ID) | {"user_info_retry_count": 3}
+
+    actual_update = await load_context(state)
+
+    assert actual_update["user_info_retry_count"] == 0
+
+
+async def test_an_incomplete_profile_keeps_the_collection_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The loop passes through here every round, so its count must survive the trip."""
+
+    async def loaded(_: str) -> UserContext:
+        return UserContext(profile={"age": 34}, plan=None)
+
+    monkeypatch.setattr(context_node, "load_user_context", loaded)
+    state = initial_state("build me a plan", USER_ID) | {"user_info_retry_count": 2}
+
+    actual_update = await load_context(state)
+
+    assert actual_update["user_info_retry_count"] == 2
 
 
 @pytest.mark.parametrize(

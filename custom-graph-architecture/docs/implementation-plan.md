@@ -22,6 +22,7 @@ Engineering conventions for `src/` come from the `langgraph-agent-arch` skill
 | `request_missing_info` | Ask user to provide missing fields |
 | `wait_for_user` | `interrupt()` — pause graph and wait for user to provide data |
 | `save_user_data` | Save user info after the reply arrives |
+| `user_info_exhausted` | Stop and tell the user no plan can be built without their details |
 | `write_todo` | Write a todo list for the coach agent |
 | `coach_agent` | Agent that creates the plan |
 | `deterministic_verification` | Check schema / macro / volume / safety by fixed rule, no LLM |
@@ -44,7 +45,8 @@ Engineering conventions for `src/` come from the `langgraph-agent-arch` skill
 | `classify_intent` | off_topic | `off_topic` |
 | `load_context` | context complete | `write_todo` |
 | `load_context` | missing fields | `determine_context` |
-| `determine_context` | missing fields exist | `request_missing_info` |
+| `determine_context` | missing fields exist & retry < 3 | `request_missing_info` |
+| `determine_context` | retry >= 3 | `user_info_exhausted` |
 | `save_user_data` | data updated | `load_context` |
 | `write_todo` | — | `coach_agent` |
 | `coach_agent` | success | `deterministic_verification` |
@@ -61,7 +63,9 @@ Engineering conventions for `src/` come from the `langgraph-agent-arch` skill
 | `ragas_verification` | < 0.9 & retry >= 3 | `qa_fallback` |
 
 `request_missing_info → wait_for_user → save_user_data` is the interrupt loop; `save_user_data`
-persists to the database **before** routing back to `load_context`.
+persists to the database **before** routing back to `load_context`. The loop is bounded by
+`user_info_retry_count`: after `USER_INFO_MAX_RETRIES` questions the profile is still incomplete,
+the run stops at `user_info_exhausted` rather than asking forever.
 
 ### Coaching flow
 
@@ -221,6 +225,7 @@ Online: RAGAS faithfulness >= 0.9 is required before returning the QA answer.
 | HITL rejection with feedback | Revise plan |
 | HITL rejection without feedback | Stop workflow |
 | HITL retry exhausted | Stop workflow and notify user |
+| User info retry exhausted | Stop workflow and tell the user no plan was built |
 | No relevant RAG context | Return untrusted/insufficient-context response |
 
 All retry limits are controlled by the corresponding retry counter in `GraphState`.

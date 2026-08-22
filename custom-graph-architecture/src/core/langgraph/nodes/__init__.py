@@ -3,9 +3,11 @@
 from src.core.langgraph.nodes.blocked import blocked
 from src.core.langgraph.nodes.context import (
     ContextRoute,
+    MissingInfoRoute,
     determine_context,
     load_context,
     route_after_context,
+    route_after_determine_context,
 )
 from src.core.langgraph.nodes.guard import GuardRoute, llm_guard, route_after_guard
 from src.core.langgraph.nodes.intent import (
@@ -22,14 +24,27 @@ from src.core.langgraph.nodes.request_missing_info import (
     build_missing_info_request,
     request_missing_info,
 )
+from src.core.langgraph.nodes.user_info_exhausted import (
+    build_exhausted_message,
+    user_info_exhausted,
+)
+from src.core.langgraph.nodes.wait_for_user import (
+    MISSING_INFO_INTERRUPT,
+    MissingInfoInterrupt,
+    wait_for_user,
+)
 
 __all__ = [
     "FIELD_PROMPTS",
+    "MISSING_INFO_INTERRUPT",
     "OFF_TOPIC_MESSAGE",
     "ContextRoute",
     "GuardRoute",
     "IntentRoute",
+    "MissingInfoInterrupt",
+    "MissingInfoRoute",
     "blocked",
+    "build_exhausted_message",
     "build_missing_info_request",
     "classify_intent",
     "determine_context",
@@ -38,6 +53,9 @@ __all__ = [
     "off_topic",
     "request_missing_info",
     "route_after_context",
+    "route_after_determine_context",
     "route_after_guard",
     "route_after_intent",
+    "user_info_exhausted",
+    "wait_for_user",
 ]

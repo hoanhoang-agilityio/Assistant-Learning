@@ -7,13 +7,9 @@ from langchain_core.messages import AIMessage, AnyMessage
 from src.schemas import GraphState
 from src.services.profile import REQUIRED_PROFILE_FIELDS
 
-REQUEST_INTRO = (
-    "To create a plan that works for you, I just need a few details first:"
-)
+REQUEST_INTRO = "To create a plan that works for you, I just need a few details first:"
 
-REQUEST_OUTRO = (
-    "You can send everything in one message — whatever is easiest for you!"
-)
+REQUEST_OUTRO = "You can send everything in one message — whatever is easiest for you!"
 
 FIELD_PROMPTS: dict[str, str] = {
     "age": "your age",
@@ -37,14 +33,14 @@ class MissingInfoRequestUpdate(TypedDict):
 
     final_message: str
     messages: list[AnyMessage]
+    user_info_retry_count: int
 
 
 def build_missing_info_request(missing_fields: list[str]) -> str:
     """Compose the question that asks for the named profile fields."""
 
     fields = missing_fields or list(REQUIRED_PROFILE_FIELDS)
-    bullets = "\n".join(
-        f"- {FIELD_PROMPTS.get(name, name)}" for name in fields)
+    bullets = "\n".join(f"- {FIELD_PROMPTS.get(name, name)}" for name in fields)
 
     return f"{REQUEST_INTRO}\n{bullets}\n\n{REQUEST_OUTRO}"
 
@@ -54,4 +50,10 @@ async def request_missing_info(state: GraphState) -> MissingInfoRequestUpdate:
 
     request = build_missing_info_request(state.get("missing_fields", []))
 
-    return {"final_message": request, "messages": [AIMessage(content=request)]}
+    # Counted here rather than on the way back in, so the limit counts questions actually
+    # put to the user — a reply that never arrives still spends an attempt.
+    return {
+        "final_message": request,
+        "messages": [AIMessage(content=request)],
+        "user_info_retry_count": state.get("user_info_retry_count", 0) + 1,
+    }

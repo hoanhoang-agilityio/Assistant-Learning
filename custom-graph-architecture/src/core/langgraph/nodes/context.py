@@ -2,10 +2,12 @@
 
 from typing import Literal, TypedDict
 
+from src.core.configs.config import settings
 from src.schemas import GraphState
 from src.services.profile import load_user_context, missing_profile_fields
 
 ContextRoute = Literal["complete", "incomplete"]
+MissingInfoRoute = Literal["ask", "exhausted"]
 
 
 class ContextUpdate(TypedDict):
@@ -15,6 +17,7 @@ class ContextUpdate(TypedDict):
     plan: dict | None
     context_complete: bool
     missing_fields: list[str]
+    user_info_retry_count: int
 
 
 class MissingFieldsUpdate(TypedDict):
@@ -28,14 +31,25 @@ async def load_context(state: GraphState) -> ContextUpdate:
 
     user_id = state["user_id"]
     context = await load_user_context(user_id)
+    retry_count = state.get("user_info_retry_count", 0)
 
+    if not context.is_complete:
+        return {
+            "profile": context.profile,
+            "plan": context.plan,
+            "context_complete": False,
+            "missing_fields": [],
+            "user_info_retry_count": retry_count,
+        }
+
+    # The collection loop is over, so its list and its counter are cleared: left behind,
+    # they would travel into the planning branch and exhaust the next round instantly.
     return {
         "profile": context.profile,
         "plan": context.plan,
-        "context_complete": context.is_complete,
-        # Cleared rather than left alone: a list from an earlier pass through the
-        # interrupt loop must not travel into the planning branch as if still unanswered.
+        "context_complete": True,
         "missing_fields": [],
+        "user_info_retry_count": 0,
     }
 
 
@@ -53,3 +67,11 @@ def route_after_context(state: GraphState) -> ContextRoute:
     if state.get("context_complete"):
         return "complete"
     return "incomplete"
+
+
+def route_after_determine_context(state: GraphState) -> MissingInfoRoute:
+    """Ask for the missing data, or give up once the user has been asked enough times."""
+
+    if state.get("user_info_retry_count", 0) >= settings.USER_INFO_MAX_RETRIES:
+        return "exhausted"
+    return "ask"
