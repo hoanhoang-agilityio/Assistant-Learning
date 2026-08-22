@@ -1,7 +1,7 @@
 # Pydantic data models and specification
 
-Transcribed from the implementation-detail spec (PDF pp. 16–26). Implemented in Milestone 4
-(`src/schemas/domain/`).
+Transcribed from the implementation-detail spec (PDF pp. 16–26). Implemented in
+`src/schemas/domain/` — `enums.py`, `profile.py`, `exercise.py`, `template.py`, `plan.py`.
 
 ## Enumerations
 
@@ -214,3 +214,62 @@ Overall workout plan template defining structure for the coach agent to select a
 | `description` | `str` | General template description | No |
 | `training_days` | `list[WorkoutDayTemplate]` | Training days | Yes (min items 1) |
 | `notes` | `str` | Overall template notes | No |
+
+## The plan the coach agent returns
+
+Not in the PDF: the spec names the coach agent's output as "training plan — goal, calories,
+macro, training days, exercises" without a model. These are that model, in
+`src/schemas/domain/plan.py`.
+
+A prescription references a slot and a catalogue row **by id and nothing else**. Carrying the
+exercise name or its equipment as well would let the agent state one thing while
+`exercise_id` points at another, which is the hallucination the slot/exercise split exists to
+close. Anything a reader needs is resolved from the catalogue at render time.
+
+### `MacroTargets`
+
+| Field | Type | Description | Required |
+|---|---|---|---|
+| `protein_g` | `float` | Daily protein target in grams (>= 0) | Yes |
+| `carbs_g` | `float` | Daily carbohydrate target in grams (>= 0) | Yes |
+| `fat_g` | `float` | Daily fat target in grams (>= 0) | Yes |
+
+`MacroTargets.calories` returns what the three come to at 4/4/9 kcal per gram — the macro
+consistency check compares it against `TrainingPlan.daily_calories`.
+
+### `PlannedExercise`
+
+| Field | Type | Description | Required |
+|---|---|---|---|
+| `slot_id` | `str` | The template slot this exercise fills | Yes |
+| `exercise_id` | `str` | Id of an exercise the catalogue returned | Yes |
+| `sets` | `int` | Number of working sets (> 0) | Yes |
+| `reps` | `str` | Repetitions per set, e.g. `8-12` | Yes |
+| `rest_seconds` | `int` | Rest between sets (>= 0) | No |
+| `notes` | `str` | Coaching notes | No |
+
+### `PlanDay`
+
+| Field | Type | Description | Required |
+|---|---|---|---|
+| `day_number` | `int` | Day sequence number (>= 1) | Yes |
+| `name` | `str` | Day name | Yes |
+| `exercises` | `list[PlannedExercise]` | Prescriptions for the day | Yes (min items 1) |
+| `body_region` | `BodyRegion` | Primary region trained | No |
+| `notes` | `str` | Notes for the day | No |
+
+### `TrainingPlan`
+
+| Field | Type | Description | Required |
+|---|---|---|---|
+| `template_id` | `str` | Template the plan was built from | Yes |
+| `goal` | `FitnessGoal` | The goal this plan serves | Yes |
+| `daily_calories` | `int` | Daily calorie target (> 0) | Yes |
+| `macros` | `MacroTargets` | Daily macro targets | Yes |
+| `training_days` | `list[PlanDay]` | The training week, in order | Yes (min items 1) |
+| `summary` | `str` | Short description for the user | No |
+| `notes` | `str` | Overall notes | No |
+
+`template_id` plus `slot_id` are what make deterministic verification possible: the gate
+re-resolves the template by id and can then check that every slot was filled exactly once,
+and that each chosen exercise actually satisfies the slot it was chosen for.

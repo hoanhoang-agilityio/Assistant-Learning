@@ -176,6 +176,7 @@ class Settings(BaseSettings):
     DEFAULT_LLM_MODEL: str = "gpt-5-mini"
     DEFAULT_LLM_TEMPERATURE: float = 0.2
     MAX_TOKENS: int = 2000
+    COACH_MAX_TOKENS: int = 8000
     MAX_LLM_CALL_RETRIES: int = 3
     LLM_TOTAL_TIMEOUT: int = 60
 

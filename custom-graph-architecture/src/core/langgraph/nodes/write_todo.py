@@ -4,7 +4,6 @@ from typing import Literal, TypedDict
 
 from src.schemas import GraphState
 from src.services.todo import generate_todo
-from src.utils.logging import logger
 
 
 class TodoItem(TypedDict):
@@ -37,9 +36,7 @@ async def write_todo(state: GraphState) -> TodoUpdate:
     profile = state.get("profile")
     user_query = state["user_query"]
 
-    tasks = await generate_todo(
-        user_query=user_query, profile=profile, plan=plan
-    )
+    tasks = await generate_todo(user_query=user_query, profile=profile, plan=plan)
     todo = to_todo_items(tasks)
 
     return {"todo": list(todo)}

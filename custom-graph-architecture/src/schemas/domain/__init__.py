@@ -1,52 +1,43 @@
-"""Pydantic schemas: graph state, API request/response and domain models."""
+"""Domain models from the spec: the user, the catalogue, the templates and the plan."""
 
-from src.schemas.auth import (
-    SessionResponse,
-    Token,
-    TokenResponse,
-    UserCreate,
-    UserResponse,
-)
-from src.schemas.base import BaseResponse
-from src.schemas.domain import (
+from src.schemas.domain.enums import (
     ActivityLevel,
     BodyRegion,
     DifficultyLevel,
     EquipmentType,
+    FitnessGoal,
+    InjuryStatus,
+    MovementPattern,
+    MuscleGroup,
+    RestrictionAction,
+    Sex,
+)
+from src.schemas.domain.exercise import (
     Exercise,
     ExerciseContraindication,
     ExerciseMuscleTarget,
-    ExerciseSlot,
-    FitnessGoal,
-    Injury,
-    InjuryStatus,
-    MacroTargets,
-    MovementPattern,
-    MovementRestriction,
-    MuscleGroup,
     MusclePriority,
+)
+from src.schemas.domain.plan import (
+    MacroTargets,
     PlanDay,
     PlannedExercise,
-    RestrictionAction,
-    Sex,
     TrainingPlan,
+)
+from src.schemas.domain.profile import (
+    Injury,
+    MovementRestriction,
     UserEquipment,
     UserProfile,
+)
+from src.schemas.domain.template import (
+    ExerciseSlot,
     WorkoutDayTemplate,
     WorkoutTemplate,
 )
-from src.schemas.graph import (
-    GraphState,
-    HitlDecision,
-    Intent,
-    RetrievedChunk,
-    initial_state,
-)
-from src.schemas.health import HealthResponse
 
 __all__ = [
     "ActivityLevel",
-    "BaseResponse",
     "BodyRegion",
     "DifficultyLevel",
     "EquipmentType",
@@ -55,12 +46,8 @@ __all__ = [
     "ExerciseMuscleTarget",
     "ExerciseSlot",
     "FitnessGoal",
-    "GraphState",
-    "HealthResponse",
-    "HitlDecision",
     "Injury",
     "InjuryStatus",
-    "Intent",
     "MacroTargets",
     "MovementPattern",
     "MovementRestriction",
@@ -69,17 +56,10 @@ __all__ = [
     "PlanDay",
     "PlannedExercise",
     "RestrictionAction",
-    "RetrievedChunk",
-    "SessionResponse",
     "Sex",
-    "Token",
-    "TokenResponse",
     "TrainingPlan",
-    "UserCreate",
     "UserEquipment",
     "UserProfile",
-    "UserResponse",
     "WorkoutDayTemplate",
     "WorkoutTemplate",
-    "initial_state",
 ]

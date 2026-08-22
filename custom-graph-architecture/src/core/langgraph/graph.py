@@ -2,6 +2,7 @@
 
 from langgraph.graph import END, START, StateGraph
 
+from src.core.langgraph.agents import coach_agent
 from src.core.langgraph.nodes import (
     blocked,
     classify_intent,
@@ -55,6 +56,7 @@ def build_graph() -> StateGraph:
     builder.add_node("save_user_data", save_user_data)
     builder.add_node("user_info_exhausted", user_info_exhausted)
     builder.add_node("write_todo", write_todo)
+    builder.add_node("coach_agent", coach_agent)
 
     builder.add_edge(START, "llm_guard")
     builder.add_conditional_edges("llm_guard", route_after_guard, GUARD_ROUTES)
@@ -69,6 +71,7 @@ def build_graph() -> StateGraph:
     builder.add_edge("blocked", END)
     builder.add_edge("off_topic", END)
     builder.add_edge("user_info_exhausted", END)
-    builder.add_edge("write_todo", END)
+    builder.add_edge("write_todo", "coach_agent")
+    builder.add_edge("coach_agent", END)
 
     return builder

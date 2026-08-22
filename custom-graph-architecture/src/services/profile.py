@@ -3,7 +3,7 @@
 import asyncio
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Literal
+from typing import Any
 
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
@@ -16,24 +16,27 @@ from src.core.langgraph.runtime import (
     namespace_for,
     plan_namespace,
 )
+from src.schemas import ActivityLevel, FitnessGoal, Sex, UserProfile
+from src.schemas.domain.profile import (
+    MAX_AGE,
+    MAX_TRAINING_DAYS,
+    MIN_AGE,
+    MIN_TRAINING_DAYS,
+)
 from src.utils.logging import logger
 
 PROFILE_KEY = "profile"
 CURRENT_PLAN_KEY = "current"
 
-REQUIRED_PROFILE_FIELDS: tuple[str, ...] = (
-    "age",
-    "sex",
-    "height_cm",
-    "current_weight_kg",
-    "activity_level",
-    "goal",
-    "training_days_per_week",
+# Derived rather than restated: a field the coach agent cannot run without is exactly a
+# field on ``UserProfile`` with no default, and declaration order is the order to ask in.
+REQUIRED_PROFILE_FIELDS: tuple[str, ...] = tuple(
+    name for name, field in UserProfile.model_fields.items() if field.is_required()
 )
 
 PROFILE_BOUNDS: dict[str, tuple[float, float]] = {
-    "age": (13, 100),
-    "training_days_per_week": (1, 7),
+    "age": (MIN_AGE, MAX_AGE),
+    "training_days_per_week": (MIN_TRAINING_DAYS, MAX_TRAINING_DAYS),
 }
 POSITIVE_PROFILE_FIELDS: tuple[str, ...] = (
     "height_cm",
@@ -48,19 +51,14 @@ class ProfileExtraction(BaseModel):
     """Structured output for the profile extractor."""
 
     age: int | None = Field(default=None, description="Age in years.")
-    sex: Literal["MALE", "FEMALE"] | None = Field(default=None)
+    sex: Sex | None = Field(default=None)
     height_cm: float | None = Field(default=None, description="Height in centimetres.")
     current_weight_kg: float | None = Field(default=None, description="Weight in kg.")
     target_weight_kg: float | None = Field(
         default=None, description="Goal weight in kg."
     )
-    activity_level: (
-        Literal["SEDENTARY", "LIGHT", "MODERATE", "VERY_ACTIVE", "EXTRA_ACTIVE"] | None
-    ) = Field(default=None)
-    goal: (
-        Literal["FAT_LOSS", "MUSCLE_GAIN", "MAINTENANCE", "STRENGTH", "GENERAL_FITNESS"]
-        | None
-    ) = Field(default=None)
+    activity_level: ActivityLevel | None = Field(default=None)
+    goal: FitnessGoal | None = Field(default=None)
     training_days_per_week: int | None = Field(default=None)
 
 
@@ -149,7 +147,8 @@ def usable_profile_fields(extraction: ProfileExtraction) -> dict[str, Any]:
     """Keep the extracted fields that were stated and are within range."""
 
     usable: dict[str, Any] = {}
-    for name, value in extraction.model_dump().items():
+    # JSON mode so enum members reach the store as the plain strings they read back as.
+    for name, value in extraction.model_dump(mode="json").items():
         if value is None:
             continue
         if not _is_in_range(name, value):

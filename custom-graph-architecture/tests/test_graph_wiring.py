@@ -18,6 +18,7 @@ EXPECTED_NODES = {
     "save_user_data",
     "user_info_exhausted",
     "write_todo",
+    "coach_agent",
 }
 
 # (from, condition, to) — ``None`` where the edge is unconditional.
@@ -37,7 +38,8 @@ EXPECTED_EDGES = {
     ("blocked", None, END),
     ("off_topic", None, END),
     ("user_info_exhausted", None, END),
-    ("write_todo", None, END),
+    ("write_todo", None, "coach_agent"),
+    ("coach_agent", None, END),
 }
 
 
@@ -103,6 +105,11 @@ def test_a_complete_profile_goes_to_planning(edges) -> None:
     assert ("load_context", "complete", "write_todo") in edges
 
 
-def test_the_coach_agent_is_still_unbuilt(edges) -> None:
-    """A written todo ends the run until ``coach_agent`` exists in task 4.2."""
-    assert ("write_todo", None, END) in edges
+def test_the_todo_leads_into_the_coach_agent(edges) -> None:
+    """The todo exists to be worked; nothing else consumes it."""
+    assert ("write_todo", None, "coach_agent") in edges
+
+
+def test_the_verification_gate_is_still_unbuilt(edges) -> None:
+    """A generated plan ends the run until ``deterministic_verification`` lands."""
+    assert ("coach_agent", None, END) in edges

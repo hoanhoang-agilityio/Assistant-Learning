@@ -9,7 +9,16 @@ from xml.sax.saxutils import escape
 from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
 
-PROFILE_EXTRACTOR_SYSTEM = """
+from src.schemas import ActivityLevel, FitnessGoal, Sex
+
+
+def _values(enum: type[ActivityLevel | FitnessGoal | Sex]) -> str:
+    """List an enum's values for the prompt, so the two cannot drift apart."""
+    values = [member.value for member in enum]
+    return f"{', '.join(values[:-1])} or {values[-1]}" if len(values) > 1 else values[0]
+
+
+_PROFILE_EXTRACTOR_SYSTEM_TEMPLATE = """
 You are a data extractor for a fitness AI assistant.
 
 ## Task
@@ -17,12 +26,12 @@ Read the user's reply and extract only the profile facts they actually stated.
 
 ## Fields
 - age: age in years, 13 to 100
-- sex: MALE or FEMALE
+- sex: {sexes}
 - height_cm: height in centimetres
 - current_weight_kg: current body weight in kilograms
 - target_weight_kg: goal body weight in kilograms, only if stated separately
-- activity_level: SEDENTARY, LIGHT, MODERATE, VERY_ACTIVE or EXTRA_ACTIVE
-- goal: FAT_LOSS, MUSCLE_GAIN, MAINTENANCE, STRENGTH or GENERAL_FITNESS
+- activity_level: {activity_levels}
+- goal: {goals}
 - training_days_per_week: days per week they can train, 1 to 7
 
 ## Extraction Rules
@@ -42,6 +51,12 @@ Read the user's reply and extract only the profile facts they actually stated.
 ## Output
 Return the fields using the structured output schema, with null for anything unstated.
 """
+
+PROFILE_EXTRACTOR_SYSTEM = _PROFILE_EXTRACTOR_SYSTEM_TEMPLATE.format(
+    sexes=_values(Sex),
+    activity_levels=_values(ActivityLevel),
+    goals=_values(FitnessGoal),
+)
 
 PROFILE_EXTRACTOR_HUMAN = """
 <user_reply>
