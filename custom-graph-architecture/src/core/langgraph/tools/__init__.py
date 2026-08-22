@@ -2,6 +2,8 @@
 
 from langchain_core.tools import BaseTool
 
-COACH_TOOLS: list[BaseTool] = []
+from src.core.langgraph.tools.load_template import load_template
 
-__all__ = ["COACH_TOOLS"]
+COACH_TOOLS: list[BaseTool] = [load_template]
+
+__all__ = ["COACH_TOOLS", "load_template"]
