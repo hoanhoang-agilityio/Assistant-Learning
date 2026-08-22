@@ -3,6 +3,7 @@
 from src.core.langgraph.nodes.blocked import blocked
 from src.core.langgraph.nodes.context import (
     ContextRoute,
+    determine_context,
     load_context,
     route_after_context,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "IntentRoute",
     "blocked",
     "classify_intent",
+    "determine_context",
     "llm_guard",
     "load_context",
     "off_topic",

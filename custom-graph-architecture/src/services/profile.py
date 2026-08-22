@@ -9,7 +9,6 @@ from src.core.langgraph.runtime import (
     namespace_for,
     plan_namespace,
 )
-from src.utils.logging import logger
 
 PROFILE_KEY = "profile"
 CURRENT_PLAN_KEY = "current"

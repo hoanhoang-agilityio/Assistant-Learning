@@ -36,7 +36,7 @@ classifier accuracy checks are all passing.
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
 | 22/08 | Implement `load_context` node (load profile & plan) | 1 | 1 | Done |
-| 22/08 | Implement `determine_context` node (identify missing fields) | 1 | | Todo |
+| 22/08 | Implement `determine_context` node (identify missing fields) | 1 | 0.5 | Done |
 | 22/08 | Implement `request_missing_info` node | 0.5 | | Todo |
 | 22/08 | Implement `wait_for_user` node (`interrupt()` pause/resume) | 1 | | Todo |
 | 22/08 | Implement `save_user_data` node (persist reply to DB before reload) | 1 | | Todo |

@@ -174,6 +174,7 @@ async def test_node_writes_profile_plan_and_completeness(
         "profile": COMPLETE_PROFILE,
         "plan": PLAN,
         "context_complete": True,
+        "missing_fields": [],
     }
 
 
@@ -203,7 +204,24 @@ async def test_node_reads_the_store_through_the_service(store) -> None:
         "profile": COMPLETE_PROFILE,
         "plan": PLAN,
         "context_complete": True,
+        "missing_fields": [],
     }
+
+
+async def test_a_completed_profile_clears_an_earlier_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After the interrupt loop fills the gaps, the old ask list must not survive."""
+
+    async def loaded(_: str) -> UserContext:
+        return UserContext(profile=COMPLETE_PROFILE, plan=None)
+
+    monkeypatch.setattr(context_node, "load_user_context", loaded)
+    state = initial_state("build me a plan", USER_ID) | {"missing_fields": ["goal"]}
+
+    actual_update = await load_context(state)
+
+    assert actual_update["missing_fields"] == []
 
 
 @pytest.mark.parametrize(

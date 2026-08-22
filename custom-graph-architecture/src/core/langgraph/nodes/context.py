@@ -1,10 +1,9 @@
-"""The ``load_context`` node: fetch the user's stored profile and plan before planning."""
+"""The context nodes: ``load_context`` loads the user's data, ``determine_context`` diagnoses it."""
 
 from typing import Literal, TypedDict
 
 from src.schemas import GraphState
-from src.services.profile import load_user_context
-from src.utils.logging import logger
+from src.services.profile import load_user_context, missing_profile_fields
 
 ContextRoute = Literal["complete", "incomplete"]
 
@@ -15,6 +14,13 @@ class ContextUpdate(TypedDict):
     profile: dict | None
     plan: dict | None
     context_complete: bool
+    missing_fields: list[str]
+
+
+class MissingFieldsUpdate(TypedDict):
+    """The state ``determine_context`` writes."""
+
+    missing_fields: list[str]
 
 
 async def load_context(state: GraphState) -> ContextUpdate:
@@ -23,18 +29,22 @@ async def load_context(state: GraphState) -> ContextUpdate:
     user_id = state["user_id"]
     context = await load_user_context(user_id)
 
-    logger.info(
-        "context_loaded",
-        user_id=user_id,
-        has_profile=context.profile is not None,
-        has_plan=context.plan is not None,
-        missing_fields=context.missing_fields,
-    )
     return {
         "profile": context.profile,
         "plan": context.plan,
         "context_complete": context.is_complete,
+        # Cleared rather than left alone: a list from an earlier pass through the
+        # interrupt loop must not travel into the planning branch as if still unanswered.
+        "missing_fields": [],
     }
+
+
+async def determine_context(state: GraphState) -> MissingFieldsUpdate:
+    """Name the required profile fields still missing, for the request that follows."""
+
+    missing_fields = missing_profile_fields(state.get("profile"))
+
+    return {"missing_fields": missing_fields}
 
 
 def route_after_context(state: GraphState) -> ContextRoute:
