@@ -1,0 +1,2044 @@
+[
+  {
+    "id": "ab_wheel",
+    "name": "Ab Wheel",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "ABS"
+    ],
+    "movement_pattern": "ANTI_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "arnold_press_wide_grip",
+    "name": "Arnold Press (Wide Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "movement_pattern": "VERTICAL_PUSH",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "SIDE_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "back_extension_machine",
+    "name": "Back Extension (Machine)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "HINGE",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "GLUTES"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "back_squat",
+    "name": "Back Squat",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS"
+    ],
+    "movement_pattern": "SQUAT",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "GLUTES",
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "barbell_bench_press",
+    "name": "Barbell Bench Press",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_PUSH",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "FRONT_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "barbell_curl",
+    "name": "Barbell Curl",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "BICEPS"
+    ],
+    "movement_pattern": "ELBOW_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FOREARMS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "barbell_hip_thrust",
+    "name": "Barbell Hip Thrust",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "GLUTES"
+    ],
+    "movement_pattern": "HIP_THRUST",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "barbell_row_machine",
+    "name": "Barbell Row (Machine)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "HORIZONTAL_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "REAR_DELTS",
+      "BICEPS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "bird_dog_machine",
+    "name": "Bird Dog (Machine)",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "OBLIQUES"
+    ],
+    "movement_pattern": "ANTI_ROTATION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "ABS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "bulgarian_split_squat_machine",
+    "name": "Bulgarian Split Squat (Machine)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS",
+      "GLUTES"
+    ],
+    "movement_pattern": "LUNGE",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_crunch_tempo",
+    "name": "Cable Crunch (Tempo)",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "ABS"
+    ],
+    "movement_pattern": "TRUNK_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_curl_machine",
+    "name": "Cable Curl (Machine)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "BICEPS"
+    ],
+    "movement_pattern": "ELBOW_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FOREARMS"
+    ],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_fly_wide_grip",
+    "name": "Cable Fly (Wide Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_ADDUCTION",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_lateral_raise_wide_grip",
+    "name": "Cable Lateral Raise (Wide Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "SIDE_DELTS"
+    ],
+    "movement_pattern": "ABDUCTION",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_leg_extension",
+    "name": "Cable Leg Extension",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS"
+    ],
+    "movement_pattern": "KNEE_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_pallof_press",
+    "name": "Cable Pallof Press",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "OBLIQUES"
+    ],
+    "movement_pattern": "ANTI_ROTATION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "ABS"
+    ],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_pull_through",
+    "name": "Cable Pull Through",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "HINGE",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "GLUTES"
+    ],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_row",
+    "name": "Cable Row",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "HORIZONTAL_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "REAR_DELTS",
+      "BICEPS"
+    ],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_shoulder_press",
+    "name": "Cable Shoulder Press",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "movement_pattern": "VERTICAL_PUSH",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "SIDE_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_triceps_pushdown",
+    "name": "Cable Triceps Pushdown",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "TRICEPS"
+    ],
+    "movement_pattern": "ELBOW_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "cable_upright_row",
+    "name": "Cable Upright Row",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "SIDE_DELTS"
+    ],
+    "movement_pattern": "HIGH_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "REAR_DELTS"
+    ],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "chest_fly",
+    "name": "Chest Fly",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_ADDUCTION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "chin_up_wide_grip",
+    "name": "Chin Up (Wide Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "VERTICAL_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "BICEPS",
+      "REAR_DELTS"
+    ],
+    "equipment": [
+      "PULL_UP_BAR"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "close_grip_bench_neutral_grip",
+    "name": "Close Grip Bench (Neutral Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_PUSH",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FRONT_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "crunch_neutral_grip",
+    "name": "Crunch (Neutral Grip)",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "ABS"
+    ],
+    "movement_pattern": "TRUNK_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dead_bug_neutral_grip",
+    "name": "Dead Bug (Neutral Grip)",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "ABS"
+    ],
+    "movement_pattern": "ANTI_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "deadlift",
+    "name": "Deadlift",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "HINGE",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "GLUTES"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "decline_bench_press_neutral_grip",
+    "name": "Decline Bench Press (Neutral Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_PUSH",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "FRONT_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dip_bodyweight",
+    "name": "Dip (Bodyweight)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "TRICEPS"
+    ],
+    "movement_pattern": "DIP",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "CHEST",
+      "FRONT_DELTS"
+    ],
+    "equipment": [
+      "DIP_STATION"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dip_machine",
+    "name": "Dip (Machine)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "TRICEPS"
+    ],
+    "movement_pattern": "DIP",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "CHEST",
+      "FRONT_DELTS"
+    ],
+    "equipment": [
+      "DIP_STATION"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_bench_press_machine",
+    "name": "Dumbbell Bench Press (Machine)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_PUSH",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FRONT_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_calf_raise",
+    "name": "Dumbbell Calf Raise",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "CALVES"
+    ],
+    "movement_pattern": "CALF_RAISE",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_hammer_curl",
+    "name": "Dumbbell Hammer Curl",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "BICEPS"
+    ],
+    "movement_pattern": "ELBOW_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FOREARMS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_lateral_raise",
+    "name": "Dumbbell Lateral Raise",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "SIDE_DELTS"
+    ],
+    "movement_pattern": "ABDUCTION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_leg_curl",
+    "name": "Dumbbell Leg Curl",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "KNEE_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_pullover",
+    "name": "Dumbbell Pullover",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "VERTICAL_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "BICEPS",
+      "REAR_DELTS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_reverse_lunge",
+    "name": "Dumbbell Reverse Lunge",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS",
+      "GLUTES"
+    ],
+    "movement_pattern": "LUNGE",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_romanian_deadlift",
+    "name": "Dumbbell Romanian Deadlift",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "HINGE",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "GLUTES"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_row_single_arm",
+    "name": "Single Arm Dumbbell Row",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "HORIZONTAL_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "REAR_DELTS",
+      "BICEPS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_row_tempo",
+    "name": "Dumbbell Row (Tempo)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "HORIZONTAL_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "REAR_DELTS",
+      "BICEPS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_shoulder_press",
+    "name": "Dumbbell Shoulder Press",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "movement_pattern": "VERTICAL_PUSH",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "SIDE_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "dumbbell_upright_row",
+    "name": "Dumbbell Upright Row",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "SIDE_DELTS"
+    ],
+    "movement_pattern": "HIGH_PULL",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "REAR_DELTS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "face_pull_machine",
+    "name": "Face Pull (Machine)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "REAR_DELTS"
+    ],
+    "movement_pattern": "REAR_DELT_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "front_raise_machine",
+    "name": "Front Raise (Machine)",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "ABS"
+    ],
+    "movement_pattern": "FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "front_squat_wide_grip",
+    "name": "Front Squat (Wide Grip)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS"
+    ],
+    "movement_pattern": "SQUAT",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "GLUTES",
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "glute_bridge_bodyweight",
+    "name": "Glute Bridge (Bodyweight)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "GLUTES"
+    ],
+    "movement_pattern": "HIP_THRUST",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "BODYWEIGHT"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "goblet_squat_dumbbell",
+    "name": "Goblet Squat (Dumbbell)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS"
+    ],
+    "movement_pattern": "SQUAT",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "GLUTES",
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "bodyweight_squat",
+    "name": "Bodyweight Squat",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS"
+    ],
+    "movement_pattern": "SQUAT",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "GLUTES",
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "BODYWEIGHT"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "good_morning_barbell",
+    "name": "Good Morning (Barbell)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "HINGE",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "GLUTES"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "hack_squat_machine",
+    "name": "Hack Squat (Machine)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS"
+    ],
+    "movement_pattern": "SQUAT",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "GLUTES",
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "hammer_curl_wide_grip",
+    "name": "Hammer Curl (Wide Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "BICEPS"
+    ],
+    "movement_pattern": "ELBOW_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FOREARMS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "hanging_leg_raise",
+    "name": "Hanging Leg Raise",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "ABS"
+    ],
+    "movement_pattern": "HIP_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "QUADS"
+    ],
+    "equipment": [
+      "PULL_UP_BAR"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "hanging_leg_raise_machine",
+    "name": "Hanging Leg Raise (Machine)",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "ABS"
+    ],
+    "movement_pattern": "HIP_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "QUADS"
+    ],
+    "equipment": [
+      "PULL_UP_BAR"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "hip_thrust_wide_grip",
+    "name": "Hip Thrust (Wide Grip)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "GLUTES"
+    ],
+    "movement_pattern": "HIP_THRUST",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "incline_bench_press_wide_grip",
+    "name": "Incline Bench Press (Wide Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_PUSH",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "FRONT_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "incline_fly_machine",
+    "name": "Incline Fly (Machine)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_ADDUCTION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "inverted_row_bodyweight",
+    "name": "Inverted Row (Bodyweight)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "HORIZONTAL_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "REAR_DELTS",
+      "BICEPS"
+    ],
+    "equipment": [
+      "BODYWEIGHT"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "kettlebell_swing",
+    "name": "Kettlebell Swing",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "HINGE",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "GLUTES"
+    ],
+    "equipment": [
+      "KETTLEBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "landmine_press",
+    "name": "Landmine Press",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "movement_pattern": "VERTICAL_PUSH",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "SIDE_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "landmine_press_machine",
+    "name": "Landmine Press (Machine)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST",
+      "FRONT_DELTS"
+    ],
+    "movement_pattern": "ANGLED_PUSH",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "TRICEPS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "lat_pulldown_machine",
+    "name": "Lat Pulldown (Machine)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "VERTICAL_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "BICEPS",
+      "REAR_DELTS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "lat_pulldown_neutral_grip",
+    "name": "Lat Pulldown (Neutral Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "VERTICAL_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "BICEPS",
+      "REAR_DELTS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "lateral_raise_neutral_grip",
+    "name": "Lateral Raise (Neutral Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "SIDE_DELTS"
+    ],
+    "movement_pattern": "ABDUCTION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "leg_curl_neutral_grip",
+    "name": "Leg Curl (Neutral Grip)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "KNEE_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "leg_extension_machine",
+    "name": "Leg Extension (Machine)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS"
+    ],
+    "movement_pattern": "KNEE_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "leg_press_calf_raise",
+    "name": "Leg Press Calf Raise",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "CALVES"
+    ],
+    "movement_pattern": "CALF_RAISE",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "leg_press_neutral_grip",
+    "name": "Leg Press (Neutral Grip)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS"
+    ],
+    "movement_pattern": "SQUAT",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "GLUTES",
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "machine_assisted_dip",
+    "name": "Assisted Dip (Machine)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "TRICEPS"
+    ],
+    "movement_pattern": "DIP",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "CHEST",
+      "FRONT_DELTS"
+    ],
+    "equipment": [
+      "DIP_STATION"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "machine_hip_thrust",
+    "name": "Hip Thrust (Machine)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "GLUTES"
+    ],
+    "movement_pattern": "HIP_THRUST",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "machine_lateral_raise",
+    "name": "Lateral Raise (Machine)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "SIDE_DELTS"
+    ],
+    "movement_pattern": "ABDUCTION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "machine_press_tempo",
+    "name": "Machine Press (Tempo)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_PUSH",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FRONT_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "machine_shoulder_press",
+    "name": "Machine Shoulder Press",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "movement_pattern": "VERTICAL_PUSH",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "SIDE_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "nordic_curl_bodyweight",
+    "name": "Nordic Curl (Bodyweight)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "KNEE_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "BODYWEIGHT"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "overhead_extension",
+    "name": "Overhead Extension",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "TRICEPS"
+    ],
+    "movement_pattern": "ELBOW_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "overhead_press",
+    "name": "Overhead Press",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "movement_pattern": "VERTICAL_PUSH",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "SIDE_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "pallof_press_tempo",
+    "name": "Pallof Press (Tempo)",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "OBLIQUES"
+    ],
+    "movement_pattern": "ANTI_ROTATION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "ABS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "pec_deck_neutral_grip",
+    "name": "Pec Deck (Neutral Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_ADDUCTION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "plank",
+    "name": "Plank",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "ABS"
+    ],
+    "movement_pattern": "ANTI_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "BODYWEIGHT"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "plank_bodyweight",
+    "name": "Plank (Bodyweight)",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "ABS"
+    ],
+    "movement_pattern": "ANTI_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "BODYWEIGHT"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "preacher_curl_neutral_grip",
+    "name": "Preacher Curl (Neutral Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "BICEPS"
+    ],
+    "movement_pattern": "ELBOW_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FOREARMS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "pull_up",
+    "name": "Pull Up",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "VERTICAL_PULL",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "BICEPS",
+      "REAR_DELTS"
+    ],
+    "equipment": [
+      "PULL_UP_BAR"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "pull_up_bodyweight",
+    "name": "Pull Up (Bodyweight)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "VERTICAL_PULL",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "BICEPS",
+      "REAR_DELTS"
+    ],
+    "equipment": [
+      "PULL_UP_BAR"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "push_up_tempo",
+    "name": "Push Up (Tempo)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "CHEST"
+    ],
+    "movement_pattern": "HORIZONTAL_PUSH",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FRONT_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "BODYWEIGHT"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "rear_delt_fly_tempo",
+    "name": "Rear Delt Fly (Tempo)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "REAR_DELTS"
+    ],
+    "movement_pattern": "REAR_DELT_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "reverse_curl_tempo",
+    "name": "Reverse Curl (Tempo)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "BICEPS"
+    ],
+    "movement_pattern": "ELBOW_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "FOREARMS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "romanian_deadlift_tempo",
+    "name": "Romanian Deadlift (Tempo)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "HINGE",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "GLUTES"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "russian_twist_wide_grip",
+    "name": "Russian Twist (Wide Grip)",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "OBLIQUES"
+    ],
+    "movement_pattern": "ROTATION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "seal_row_neutral_grip",
+    "name": "Seal Row (Neutral Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "HORIZONTAL_PULL",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "REAR_DELTS",
+      "BICEPS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "seated_cable_row",
+    "name": "Seated Cable Row",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "HORIZONTAL_PULL",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "REAR_DELTS",
+      "BICEPS"
+    ],
+    "equipment": [
+      "CABLE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "seated_calf_raise_machine",
+    "name": "Seated Calf Raise (Machine)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "CALVES"
+    ],
+    "movement_pattern": "CALF_RAISE",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "seated_leg_curl_machine",
+    "name": "Seated Leg Curl (Machine)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "movement_pattern": "KNEE_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "side_plank_wide_grip",
+    "name": "Side Plank (Wide Grip)",
+    "body_region": "CORE",
+    "primary_muscles": [
+      "OBLIQUES"
+    ],
+    "movement_pattern": "ANTI_LATERAL_FLEXION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "BODYWEIGHT"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "sissy_squat_bodyweight",
+    "name": "Sissy Squat (Bodyweight)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS"
+    ],
+    "movement_pattern": "KNEE_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "BODYWEIGHT"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "skull_crusher_wide_grip",
+    "name": "Skull Crusher (Wide Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "TRICEPS"
+    ],
+    "movement_pattern": "ELBOW_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "smith_machine_overhead_press",
+    "name": "Smith Machine Overhead Press",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "FRONT_DELTS"
+    ],
+    "movement_pattern": "VERTICAL_PUSH",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "SIDE_DELTS",
+      "TRICEPS"
+    ],
+    "equipment": [
+      "SMITH_MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "standing_calf_raise_machine",
+    "name": "Standing Calf Raise (Machine)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "CALVES"
+    ],
+    "movement_pattern": "CALF_RAISE",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "step_up_dumbbell",
+    "name": "Step Up (Dumbbell)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS",
+      "GLUTES"
+    ],
+    "movement_pattern": "LUNGE",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "straight_arm_pulldown_tempo",
+    "name": "Straight Arm Pulldown (Tempo)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "SHOULDER_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "TRICEPS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "t_bar_row_wide_grip",
+    "name": "T Bar Row (Wide Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "LATS"
+    ],
+    "movement_pattern": "HORIZONTAL_PULL",
+    "difficulty": "INTERMEDIATE",
+    "secondary_muscles": [
+      "REAR_DELTS",
+      "BICEPS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "triceps_pushdown_tempo",
+    "name": "Triceps Pushdown (Tempo)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "TRICEPS"
+    ],
+    "movement_pattern": "ELBOW_EXTENSION",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "upright_row_neutral_grip",
+    "name": "Upright Row (Neutral Grip)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "SIDE_DELTS"
+    ],
+    "movement_pattern": "HIGH_PULL",
+    "difficulty": "ADVANCED",
+    "secondary_muscles": [
+      "REAR_DELTS"
+    ],
+    "equipment": [
+      "BARBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "walking_lunge_tempo",
+    "name": "Walking Lunge (Tempo)",
+    "body_region": "LOWER",
+    "primary_muscles": [
+      "QUADS",
+      "GLUTES"
+    ],
+    "movement_pattern": "LUNGE",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "HAMSTRINGS"
+    ],
+    "equipment": [
+      "MACHINE"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  },
+  {
+    "id": "y_raise_tempo",
+    "name": "Y Raise (Tempo)",
+    "body_region": "UPPER",
+    "primary_muscles": [
+      "REAR_DELTS"
+    ],
+    "movement_pattern": "SCAPULAR",
+    "difficulty": "BEGINNER",
+    "secondary_muscles": [
+      "LATS"
+    ],
+    "equipment": [
+      "DUMBBELL"
+    ],
+    "contraindications": [],
+    "description": null,
+    "instructions": [],
+    "notes": null
+  }
+]

@@ -7,14 +7,17 @@ migration.
 """
 
 from src.models.base import BaseModel
+from src.models.catalogue import Exercise, WorkoutTemplate
 from src.models.session import Session
 from src.models.token import RefreshToken, RevokedToken
 from src.models.user import User
 
 __all__ = [
     "BaseModel",
+    "Exercise",
     "RefreshToken",
     "RevokedToken",
     "Session",
     "User",
+    "WorkoutTemplate",
 ]

@@ -33,10 +33,13 @@ src/
         backends/            postgres.py, memory.py + the backend registry
         namespaces.py        long-term memory namespace scheme
   models/                    SQLModel ORM (Alembic owns migrations)
+    catalogue.py             exercises + workout templates the coach may choose from
   schemas/                   graph state, API and domain models
   services/                  database, auth, LLM, guard, profile, knowledge
   utils/                     JWT helpers, input sanitization, structlog
 tests/
+scripts/                    catalogue conversion + seeding
+data/                       exercises.json, templates.json
 docker/postgres/init/       pgvector extension, run on first container start
 ```
 
@@ -63,6 +66,13 @@ Apply migrations, then run the API:
 
 ```bash
 uv run alembic upgrade head
+```
+
+Load the training catalogue the coach agent selects from. Idempotent, so it is safe to
+re-run after editing `data/`:
+
+```bash
+uv run python scripts/seed_catalogue.py
 ```
 
 ```bash

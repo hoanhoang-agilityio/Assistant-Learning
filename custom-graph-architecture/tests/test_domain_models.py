@@ -251,6 +251,7 @@ def test_a_template_lists_every_slot_it_requires_to_be_filled() -> None:
     template = WorkoutTemplate(
         id="tpl-1",
         name="Upper/Lower",
+        goals=[FitnessGoal.MUSCLE_GAIN],
         training_days=[
             WorkoutDayTemplate(
                 day_number=1,
@@ -269,6 +270,7 @@ def test_a_template_lists_every_slot_it_requires_to_be_filled() -> None:
 
     assert template.slot_ids() == {"d1-s1", "d2-s1"}
     assert len(template.slots()) == 2
+    assert template.days_per_week == 2
 
 
 # --- Plan -------------------------------------------------------------------------------

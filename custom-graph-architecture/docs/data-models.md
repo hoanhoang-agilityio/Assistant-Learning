@@ -273,3 +273,26 @@ consistency check compares it against `TrainingPlan.daily_calories`.
 `template_id` plus `slot_id` are what make deterministic verification possible: the gate
 re-resolves the template by id and can then check that every slot was filled exactly once,
 and that each chosen exercise actually satisfies the slot it was chosen for.
+
+## Where the catalogue lives
+
+`Exercise` and `WorkoutTemplate` are stored in Postgres, in the Alembic-owned `exercise` and
+`workout_template` tables (`src/models/catalogue.py`). Exercises keep their filterable
+attributes as real columns because `load_exercise` queries on them; a template's days and
+slots are one JSONB document, because nothing queries a slot independently of the template
+it belongs to.
+
+The seed in `data/` was converted from the `subagents-architecture` project by
+`scripts/convert_catalogue_seed.py`, which holds every mapping decision. Three additions to
+the spec's enums were needed for the conversion to stay lossless:
+
+| Enum | Added | Why |
+|---|---|---|
+| `MovementPattern` | 18 single-joint and trunk patterns | The slot filter is only as precise as this enum. Collapsed into `ISOLATION`, a biceps slot and a calf slot become the same query, and `ABDUCTION` and `REAR_DELT_PULL` — separate slots in the 5-day template — become indistinguishable. |
+| `MuscleGroup` | `LATS`, `FRONT_DELTS`, `SIDE_DELTS`, `REAR_DELTS`, `OBLIQUES` | The catalogue distinguishes the deltoid heads; `SHOULDERS` alone cannot tell a rear-delt row from a lateral raise. |
+| `EquipmentType` | `PULL_UP_BAR`, `DIP_STATION` | Mapping them to `OTHER` would make the availability check ask a user whether they own "other". |
+
+`WorkoutTemplate` also gained `goals` and `popularity` — `load_template` selects on the
+user's goal, and the spec's template model had no goal field — and `ExerciseSlot` gained
+`sets`, `rep_range` and `rir_range`, which the seed templates prescribe and which give the
+training-volume check something to verify against.

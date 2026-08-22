@@ -7,7 +7,12 @@ queried with, so the catalogue can change without the template changing.
 
 from pydantic import BaseModel, Field
 
-from src.schemas.domain.enums import BodyRegion, MovementPattern, MuscleGroup
+from src.schemas.domain.enums import (
+    BodyRegion,
+    FitnessGoal,
+    MovementPattern,
+    MuscleGroup,
+)
 
 
 class ExerciseSlot(BaseModel):
@@ -32,6 +37,13 @@ class ExerciseSlot(BaseModel):
     )
     alternatives_allowed: bool = Field(
         default=True, description="Whether a substitute exercise may fill this slot."
+    )
+    sets: int | None = Field(default=None, gt=0, description="Working sets prescribed.")
+    rep_range: tuple[int, int] | None = Field(
+        default=None, description="Inclusive low and high rep target."
+    )
+    rir_range: tuple[int, int] | None = Field(
+        default=None, description="Inclusive low and high reps-in-reserve target."
     )
     notes: str | None = Field(default=None)
 
@@ -64,11 +76,22 @@ class WorkoutTemplate(BaseModel):
 
     id: str = Field(description="Unique template identifier.")
     name: str = Field(description="Template name.")
+    goals: list[FitnessGoal] = Field(
+        min_length=1, description="Goals this template is a reasonable choice for."
+    )
     training_days: list[WorkoutDayTemplate] = Field(
         min_length=1, description="Training days, in order."
     )
+    popularity: int = Field(
+        default=0, ge=0, description="Ranking hint when several templates fit."
+    )
     description: str | None = Field(default=None)
     notes: str | None = Field(default=None)
+
+    @property
+    def days_per_week(self) -> int:
+        """How many days a week this template trains."""
+        return len(self.training_days)
 
     def slots(self) -> list[ExerciseSlot]:
         """Every slot in the template, across all of its days."""
