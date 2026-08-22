@@ -17,6 +17,7 @@ from src.core.langgraph.nodes import (
     save_user_data,
     user_info_exhausted,
     wait_for_user,
+    write_todo,
 )
 from src.schemas import GraphState
 
@@ -29,7 +30,7 @@ INTENT_ROUTES: dict[str, str] = {
 }
 
 CONTEXT_ROUTES: dict[str, str] = {
-    "complete": END,
+    "complete": "write_todo",
     "incomplete": "determine_context",
 }
 
@@ -53,6 +54,7 @@ def build_graph() -> StateGraph:
     builder.add_node("wait_for_user", wait_for_user)
     builder.add_node("save_user_data", save_user_data)
     builder.add_node("user_info_exhausted", user_info_exhausted)
+    builder.add_node("write_todo", write_todo)
 
     builder.add_edge(START, "llm_guard")
     builder.add_conditional_edges("llm_guard", route_after_guard, GUARD_ROUTES)
@@ -67,5 +69,6 @@ def build_graph() -> StateGraph:
     builder.add_edge("blocked", END)
     builder.add_edge("off_topic", END)
     builder.add_edge("user_info_exhausted", END)
+    builder.add_edge("write_todo", END)
 
     return builder

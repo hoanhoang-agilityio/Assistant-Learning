@@ -17,6 +17,7 @@ EXPECTED_NODES = {
     "wait_for_user",
     "save_user_data",
     "user_info_exhausted",
+    "write_todo",
 }
 
 # (from, condition, to) — ``None`` where the edge is unconditional.
@@ -27,6 +28,7 @@ EXPECTED_EDGES = {
     ("classify_intent", "coaching", "load_context"),
     ("classify_intent", "off_topic", "off_topic"),
     ("load_context", "incomplete", "determine_context"),
+    ("load_context", "complete", "write_todo"),
     ("determine_context", "ask", "request_missing_info"),
     ("determine_context", "exhausted", "user_info_exhausted"),
     ("request_missing_info", None, "wait_for_user"),
@@ -35,6 +37,7 @@ EXPECTED_EDGES = {
     ("blocked", None, END),
     ("off_topic", None, END),
     ("user_info_exhausted", None, END),
+    ("write_todo", None, END),
 }
 
 
@@ -82,9 +85,7 @@ def test_the_context_branch_has_no_edges_beyond_the_spec(edges) -> None:
     }
     actual = {edge for edge in edges if edge[0] in context_nodes}
 
-    assert actual == {edge for edge in EXPECTED_EDGES if edge[0] in context_nodes} | {
-        ("load_context", "complete", END)
-    }
+    assert actual == {edge for edge in EXPECTED_EDGES if edge[0] in context_nodes}
 
 
 def test_the_collection_loop_returns_to_the_reload(edges) -> None:
@@ -97,6 +98,11 @@ def test_the_collection_loop_returns_to_the_reload(edges) -> None:
     ]
 
 
-def test_planning_is_still_unbuilt(edges) -> None:
-    """A complete profile ends the run until ``write_todo`` exists in Milestone 4."""
-    assert ("load_context", "complete", END) in edges
+def test_a_complete_profile_goes_to_planning(edges) -> None:
+    """The profile gate's whole purpose: a complete profile is what opens the coach branch."""
+    assert ("load_context", "complete", "write_todo") in edges
+
+
+def test_the_coach_agent_is_still_unbuilt(edges) -> None:
+    """A written todo ends the run until ``coach_agent`` exists in task 4.2."""
+    assert ("write_todo", None, END) in edges
