@@ -24,6 +24,10 @@ from src.core.langgraph.nodes.request_missing_info import (
     build_missing_info_request,
     request_missing_info,
 )
+from src.core.langgraph.nodes.save_user_data import (
+    latest_user_reply,
+    save_user_data,
+)
 from src.core.langgraph.nodes.user_info_exhausted import (
     build_exhausted_message,
     user_info_exhausted,
@@ -48,6 +52,7 @@ __all__ = [
     "build_missing_info_request",
     "classify_intent",
     "determine_context",
+    "latest_user_reply",
     "llm_guard",
     "load_context",
     "off_topic",
@@ -56,6 +61,7 @@ __all__ = [
     "route_after_determine_context",
     "route_after_guard",
     "route_after_intent",
+    "save_user_data",
     "user_info_exhausted",
     "wait_for_user",
 ]
