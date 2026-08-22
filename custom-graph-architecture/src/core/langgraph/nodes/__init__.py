@@ -17,18 +17,26 @@ from src.core.langgraph.nodes.off_topic import (
     OFF_TOPIC_MESSAGE,
     off_topic,
 )
+from src.core.langgraph.nodes.request_missing_info import (
+    FIELD_PROMPTS,
+    build_missing_info_request,
+    request_missing_info,
+)
 
 __all__ = [
+    "FIELD_PROMPTS",
     "OFF_TOPIC_MESSAGE",
     "ContextRoute",
     "GuardRoute",
     "IntentRoute",
     "blocked",
+    "build_missing_info_request",
     "classify_intent",
     "determine_context",
     "llm_guard",
     "load_context",
     "off_topic",
+    "request_missing_info",
     "route_after_context",
     "route_after_guard",
     "route_after_intent",
