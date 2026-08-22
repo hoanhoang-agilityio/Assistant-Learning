@@ -12,7 +12,7 @@ from langgraph.graph.state import CompiledStateGraph
 from src.core.configs.config import settings
 from src.core.langgraph.prompts import COACH_AGENT_SYSTEM, build_coach_context
 from src.core.langgraph.tools import COACH_TOOLS
-from src.schemas import GraphState, TrainingPlan
+from src.schemas import CoachContext, GraphState, TrainingPlan
 from src.utils.logging import logger
 
 COACH_AGENT_NAME = "coach_agent"
@@ -43,6 +43,7 @@ def build_coach_agent() -> CompiledStateGraph:
         tools=COACH_TOOLS,
         system_prompt=COACH_AGENT_SYSTEM,
         response_format=TrainingPlan,
+        context_schema=CoachContext,
         name=COACH_AGENT_NAME,
     )
 
@@ -74,7 +75,8 @@ async def coach_agent(state: GraphState) -> CoachUpdate:
 
     try:
         result = await build_coach_agent().ainvoke(
-            {"messages": build_coach_input(state)}
+            {"messages": build_coach_input(state)},
+            context=CoachContext(profile=state.get("profile")),
         )
     except Exception as error:
         logger.exception(

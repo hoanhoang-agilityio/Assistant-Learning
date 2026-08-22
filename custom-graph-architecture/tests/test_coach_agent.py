@@ -15,7 +15,7 @@ from src.core.langgraph.agents.coach import (
 )
 from src.core.langgraph.prompts.coach_agent import NO_PLAN
 from src.core.langgraph.tools import COACH_TOOLS
-from src.schemas import GraphState, TrainingPlan, initial_state
+from src.schemas import CoachContext, GraphState, TrainingPlan, initial_state
 from tests.test_load_context import COMPLETE_PROFILE, PLAN, USER_ID
 
 coach_module = sys.modules[coach_agent.__module__]
@@ -60,7 +60,11 @@ def _agent_returns(structured: object, text: str = "Here is your plan."):
     """Stand in for the compiled agent with a fixed result."""
 
     class _Agent:
-        async def ainvoke(self, _: dict) -> dict:
+        def __init__(self) -> None:
+            self.context: CoachContext | None = None
+
+        async def ainvoke(self, _: dict, context: CoachContext) -> dict:
+            self.context = context
             return {
                 "messages": [
                     HumanMessage(content="context"),
@@ -194,7 +198,7 @@ async def test_a_failed_agent_leaves_no_plan_rather_than_raising(
     """The deterministic gate owns the attempt limit; an exception would bypass it."""
 
     class _Exploding:
-        async def ainvoke(self, _: dict) -> dict:
+        async def ainvoke(self, _: dict, context: CoachContext) -> dict:
             raise RuntimeError("model unavailable")
 
     monkeypatch.setattr(coach_module, "build_coach_agent", _Exploding)
@@ -231,5 +235,17 @@ def test_the_agent_is_named_for_its_traces() -> None:
 
 
 def test_the_coach_tool_list_exists_for_its_tools_to_join() -> None:
-    """Tasks 4.3-4.5 add to this list; nothing else has to change to bind them."""
+    """Task 4.5 adds to this list; nothing else has to change to bind it."""
     assert isinstance(COACH_TOOLS, list)
+
+
+async def test_the_profile_reaches_the_tools_out_of_band(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`load_exercise` filters on injuries and equipment, which the model never passes."""
+    agent = _agent_returns(VALID_PLAN)()
+    monkeypatch.setattr(coach_module, "build_coach_agent", lambda: agent)
+
+    await coach_agent(_state())
+
+    assert agent.context == CoachContext(profile=COMPLETE_PROFILE)

@@ -1,0 +1,338 @@
+"""Tests for the ``load_exercise`` tool and the catalogue filtering behind it."""
+
+import json
+from pathlib import Path
+
+import pytest
+from langchain.tools import ToolRuntime
+
+from src.core.langgraph.tools import COACH_TOOLS, load_exercise
+from src.core.langgraph.tools.load_exercise import context_profile
+from src.schemas import (
+    BodyRegion,
+    CoachContext,
+    EquipmentType,
+    Exercise,
+    MovementPattern,
+    MuscleGroup,
+    UserProfile,
+)
+from src.services import catalogue
+from tests.test_load_context import COMPLETE_PROFILE
+
+DATA_DIR = Path("data")
+
+SHOULDER_INJURY: dict = {
+    "body_part": "shoulder",
+    "status": "ACTIVE",
+    "restrictions": [
+        {"movement_pattern": "VERTICAL_PUSH", "action": "PROHIBITED"},
+    ],
+}
+
+
+@pytest.fixture(scope="module")
+def exercises() -> list[Exercise]:
+    """The seeded catalogue, as the tool hands it to the agent."""
+    rows = json.loads((DATA_DIR / "exercises.json").read_text())
+    return [Exercise.model_validate(row) for row in rows]
+
+
+def _profile(**overrides) -> UserProfile:
+    """A complete profile, with whatever this test wants to constrain."""
+    return UserProfile.model_validate(COMPLETE_PROFILE | overrides)
+
+
+def _runtime(profile: dict | None) -> ToolRuntime:
+    """The runtime the agent builds around a tool call, carrying the coach's context."""
+    return ToolRuntime(
+        state=None,
+        config={},
+        stream_writer=None,
+        tool_call_id="call_1",
+        store=None,
+        context=CoachContext(profile=profile),
+    )
+
+
+@pytest.fixture
+def seeded(monkeypatch: pytest.MonkeyPatch, exercises):
+    """Serve the seed file in place of Postgres, narrowing as the query does."""
+
+    async def _fetch(
+        movement_patterns,
+        *,
+        body_region=None,
+        exclude_ids=None,
+    ) -> list[Exercise]:
+        return [
+            exercise
+            for exercise in exercises
+            if (not movement_patterns or exercise.movement_pattern in movement_patterns)
+            and (body_region is None or exercise.body_region is body_region)
+            and (not exclude_ids or exercise.id not in exclude_ids)
+        ]
+
+    monkeypatch.setattr(catalogue, "fetch_exercises", _fetch)
+
+
+# --- Filtering on the user's constraints ------------------------------------------------
+
+
+def test_an_injury_removes_the_movement_it_prohibits(exercises) -> None:
+    """A prescription the profile forbids is the failure the tool exists to prevent."""
+    profile = _profile(injuries=[SHOULDER_INJURY])
+
+    permitted = catalogue.allowed_exercises(exercises, profile)
+
+    assert any(
+        exercise.movement_pattern is MovementPattern.VERTICAL_PUSH
+        for exercise in exercises
+    )
+    assert not any(
+        exercise.movement_pattern is MovementPattern.VERTICAL_PUSH
+        for exercise in permitted
+    )
+
+
+def test_a_resolved_injury_restricts_nothing(exercises) -> None:
+    """`InjuryStatus.RESOLVED` is what a user says when they have recovered."""
+    profile = _profile(injuries=[SHOULDER_INJURY | {"status": "RESOLVED"}])
+
+    assert len(catalogue.allowed_exercises(exercises, profile)) == len(exercises)
+
+
+def test_equipment_the_user_does_not_own_is_removed(exercises) -> None:
+    """Prescribing a barbell to someone with dumbbells is a plan they cannot follow."""
+    profile = _profile(
+        available_equipment={"equipment": [EquipmentType.DUMBBELL]},
+    )
+
+    permitted = catalogue.allowed_exercises(exercises, profile)
+
+    assert permitted
+    assert not any(
+        EquipmentType.BARBELL in exercise.equipment for exercise in permitted
+    )
+
+
+def test_bodyweight_is_available_to_everyone(exercises) -> None:
+    """Nobody lists their own body as equipment, and dropping press-ups is absurd."""
+    profile = _profile(available_equipment={"equipment": [EquipmentType.DUMBBELL]})
+
+    permitted = catalogue.allowed_exercises(exercises, profile)
+
+    assert any(
+        exercise.equipment == [EquipmentType.BODYWEIGHT] for exercise in permitted
+    )
+
+
+def test_an_unrecorded_equipment_list_does_not_empty_the_catalogue(exercises) -> None:
+    """Equipment is not a required profile field, so nobody was ever asked for it."""
+    permitted = catalogue.allowed_exercises(exercises, _profile())
+
+    assert len(permitted) == len(exercises)
+
+
+def test_no_profile_filters_nothing(exercises) -> None:
+    """Unreachable past the context gate; the filter must not silently return zero rows."""
+    assert len(catalogue.allowed_exercises(exercises, None)) == len(exercises)
+
+
+# --- Ranking ------------------------------------------------------------------------------
+
+
+def test_the_slot_muscles_come_first(exercises) -> None:
+    """A chest slot filled by the triceps work that ranks alphabetically first is wrong."""
+    pushes = [
+        exercise
+        for exercise in exercises
+        if exercise.movement_pattern is MovementPattern.HORIZONTAL_PUSH
+    ]
+
+    best = catalogue.rank_exercises(pushes, [MuscleGroup.CHEST])[0]
+
+    assert MuscleGroup.CHEST in best.primary_muscles
+
+
+def test_muscles_rank_rather_than_filter(exercises) -> None:
+    """A slot whose muscles no row lists has to stay fillable, not return nothing."""
+    pushes = [
+        exercise
+        for exercise in exercises
+        if exercise.movement_pattern is MovementPattern.HORIZONTAL_PUSH
+    ]
+
+    ranked = catalogue.rank_exercises(pushes, [MuscleGroup.CALVES])
+
+    assert len(ranked) == len(pushes)
+
+
+def test_ranking_is_total_so_the_same_slot_gets_the_same_candidates(exercises) -> None:
+    """An unstable order makes a re-run of the same plan a different plan."""
+    first = [item.id for item in catalogue.rank_exercises(exercises, [])]
+    second = [item.id for item in catalogue.rank_exercises(exercises[::-1], [])]
+
+    assert first == second
+
+
+# --- Selection ----------------------------------------------------------------------------
+
+
+async def test_the_candidates_are_capped(seeded) -> None:
+    """A hundred rows of catalogue would crowd out the plan the agent is writing."""
+    found = await catalogue.find_exercises(None, [])
+
+    assert len(found) == catalogue.MAX_EXERCISE_CANDIDATES
+
+
+async def test_exercises_already_used_can_be_excluded(seeded) -> None:
+    """The same movement on every day of the week is a plan nobody wants."""
+    first = await catalogue.find_exercises(
+        None, [MovementPattern.HORIZONTAL_PUSH], limit=1
+    )
+    second = await catalogue.find_exercises(
+        None, [MovementPattern.HORIZONTAL_PUSH], exclude_ids=[first[0].id], limit=1
+    )
+
+    assert first[0].id != second[0].id
+
+
+async def test_an_unreachable_database_finds_nothing_rather_than_raising(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raising tool aborts the agent's turn; an empty one lets it carry on."""
+
+    async def _explode(movement_patterns, **kwargs) -> list[Exercise]:
+        raise RuntimeError("connection refused")
+
+    monkeypatch.setattr(catalogue, "fetch_exercises", _explode)
+
+    assert await catalogue.find_exercises(None, [MovementPattern.SQUAT]) == []
+
+
+# --- The tool -----------------------------------------------------------------------------
+
+
+async def test_the_tool_returns_candidates_the_agent_can_choose_between(seeded) -> None:
+    """The agent prescribes by id, so the id and the name have to be in the payload."""
+    result = await load_exercise.ainvoke(
+        {
+            "movement_patterns": [MovementPattern.SQUAT],
+            "runtime": _runtime(COMPLETE_PROFILE),
+        }
+    )
+
+    assert result
+    assert all({"id", "name"} <= set(candidate) for candidate in result)
+
+
+async def test_the_tool_leaves_out_what_the_agent_does_not_choose_on(seeded) -> None:
+    """Instructions for a hundred rows would cost more context than the plan itself."""
+    result = await load_exercise.ainvoke(
+        {
+            "movement_patterns": [MovementPattern.SQUAT],
+            "runtime": _runtime(COMPLETE_PROFILE),
+        }
+    )
+
+    assert set(result[0]) == catalogue.CANDIDATE_FIELDS
+    assert json.dumps(result)
+
+
+async def test_the_tool_filters_on_the_injury_the_model_never_passed(seeded) -> None:
+    """The whole point of the out-of-band profile: the filter is not the model's to skip."""
+    result = await load_exercise.ainvoke(
+        {
+            "movement_patterns": [MovementPattern.VERTICAL_PUSH],
+            "runtime": _runtime(COMPLETE_PROFILE | {"injuries": [SHOULDER_INJURY]}),
+        }
+    )
+
+    assert result == []
+
+
+async def test_the_tool_narrows_on_the_slot_it_was_given(seeded) -> None:
+    """`required_body_region` is a slot constraint the gate re-checks afterwards."""
+    result = await load_exercise.ainvoke(
+        {
+            "movement_patterns": [MovementPattern.SQUAT],
+            "body_region": BodyRegion.LOWER,
+            "runtime": _runtime(COMPLETE_PROFILE),
+        }
+    )
+
+    assert all(candidate["body_region"] == BodyRegion.LOWER for candidate in result)
+
+
+# --- The context the tool reads -------------------------------------------------------------
+
+
+def test_a_missing_context_reads_as_no_profile() -> None:
+    """Invoked without context, the tool must not crash the agent's turn."""
+    assert context_profile(_runtime(None)) is None
+
+
+def test_an_unusable_profile_reads_as_no_profile() -> None:
+    """A half-filled profile is unreachable past the gate, but is not worth raising over."""
+    assert context_profile(_runtime({"age": 34})) is None
+
+
+def test_a_stored_profile_is_read_back_as_the_domain_model() -> None:
+    """The filters are methods on `UserProfile`, not on the dict the store holds."""
+    assert context_profile(_runtime(COMPLETE_PROFILE)) == UserProfile.model_validate(
+        COMPLETE_PROFILE
+    )
+
+
+# --- Binding ------------------------------------------------------------------------------
+
+
+def test_the_tool_is_bound_to_the_coach_agent() -> None:
+    """Written but unbound, the agent would invent exercises instead of looking them up."""
+    assert load_exercise in COACH_TOOLS
+
+
+def test_the_profile_is_not_an_argument_the_model_can_get_wrong() -> None:
+    """A filter the model has to remember to pass is advisory, not a constraint."""
+    properties = set(load_exercise.tool_call_schema.model_json_schema()["properties"])
+
+    assert properties == {
+        "movement_patterns",
+        "target_muscles",
+        "body_region",
+        "exclude_ids",
+    }
+
+
+# --- Against the seeded table ---------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_the_pattern_and_region_narrowing_runs_in_the_database(
+    require_postgres: None,
+) -> None:
+    """Both are indexed columns, and the filter is the query rather than a list scan."""
+    found = await catalogue.fetch_exercises(
+        [MovementPattern.SQUAT, MovementPattern.HINGE], body_region=BodyRegion.LOWER
+    )
+
+    assert found
+    assert all(
+        exercise.movement_pattern in {MovementPattern.SQUAT, MovementPattern.HINGE}
+        and exercise.body_region is BodyRegion.LOWER
+        for exercise in found
+    )
+
+
+@pytest.mark.integration
+async def test_a_seeded_lookup_fills_a_real_slot(require_postgres: None) -> None:
+    """The 4-day template's first slot is a horizontal push for chest."""
+    found = await catalogue.find_exercises(
+        _profile(),
+        [MovementPattern.HORIZONTAL_PUSH],
+        target_muscles=[MuscleGroup.CHEST],
+    )
+
+    assert found
+    assert MuscleGroup.CHEST in found[0].primary_muscles

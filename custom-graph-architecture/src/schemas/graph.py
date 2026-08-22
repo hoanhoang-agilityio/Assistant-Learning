@@ -1,5 +1,6 @@
 """Graph state for the coaching and QA workflow."""
 
+from dataclasses import dataclass
 from typing import Literal, NotRequired, TypedDict
 
 from langgraph.prebuilt.chat_agent_executor import AgentState
@@ -8,14 +9,15 @@ Intent = Literal["coaching", "qa", "off_topic"]
 HitlDecision = Literal["approve", "reject"]
 
 
-class RetrievedChunk(TypedDict):
-    """One passage returned by knowledge retrieval.
+@dataclass(frozen=True, slots=True)
+class CoachContext:
+    """What the coach agent's tools read for themselves rather than being told. """
 
-    Attributes:
-        text: The passage itself.
-        source: Document the passage came from, for citation and for RAGAS scoring.
-        score: Cosine similarity against the query embedding.
-    """
+    profile: dict | None = None
+
+
+class RetrievedChunk(TypedDict):
+    """One passage returned by knowledge retrieval."""
 
     text: str
     source: str

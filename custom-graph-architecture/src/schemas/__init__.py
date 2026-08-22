@@ -36,6 +36,7 @@ from src.schemas.domain import (
     WorkoutTemplate,
 )
 from src.schemas.graph import (
+    CoachContext,
     GraphState,
     HitlDecision,
     Intent,
@@ -48,6 +49,7 @@ __all__ = [
     "ActivityLevel",
     "BaseResponse",
     "BodyRegion",
+    "CoachContext",
     "DifficultyLevel",
     "EquipmentType",
     "Exercise",
