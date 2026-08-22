@@ -3,26 +3,16 @@
 import sys
 
 import pytest
-from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
+import src.core.langgraph.nodes.intent as intent_node
 import src.services.profile as profile_service
 from src.core.configs.config import settings
-from src.core.langgraph.nodes.context import (
-    determine_context,
-    load_context,
-    route_after_context,
-    route_after_determine_context,
-)
-from src.core.langgraph.nodes.request_missing_info import request_missing_info
+from src.core.langgraph.graph import build_graph
 from src.core.langgraph.nodes.save_user_data import save_user_data
-from src.core.langgraph.nodes.user_info_exhausted import (
-    EXHAUSTED_INTRO,
-    user_info_exhausted,
-)
-from src.core.langgraph.nodes.wait_for_user import wait_for_user
+from src.core.langgraph.nodes.user_info_exhausted import EXHAUSTED_INTRO
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
-from src.schemas import GraphState, initial_state
+from src.schemas import initial_state
 from tests.test_load_context import COMPLETE_PROFILE, USER_ID
 
 save_node = sys.modules[save_user_data.__module__]
@@ -32,35 +22,16 @@ CONFIG = {"configurable": {"thread_id": "collection-loop"}}
 
 @pytest.fixture
 async def loop(monkeypatch: pytest.MonkeyPatch):
-    """The whole collection branch, on an in-process store and checkpointer."""
+    """The real graph, on an in-process store and checkpointer, routed to coaching."""
+
+    async def classify_as_coaching(_: str) -> str:
+        return "coaching"
+
     runtime = InMemoryRuntime()
     monkeypatch.setattr(profile_service, "graph_runtime", runtime)
+    monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_coaching)
 
-    builder = StateGraph(GraphState)
-    builder.add_node("load_context", load_context)
-    builder.add_node("determine_context", determine_context)
-    builder.add_node("request_missing_info", request_missing_info)
-    builder.add_node("wait_for_user", wait_for_user)
-    builder.add_node("save_user_data", save_user_data)
-    builder.add_node("user_info_exhausted", user_info_exhausted)
-
-    builder.add_edge(START, "load_context")
-    builder.add_conditional_edges(
-        "load_context",
-        route_after_context,
-        {"complete": END, "incomplete": "determine_context"},
-    )
-    builder.add_conditional_edges(
-        "determine_context",
-        route_after_determine_context,
-        {"ask": "request_missing_info", "exhausted": "user_info_exhausted"},
-    )
-    builder.add_edge("request_missing_info", "wait_for_user")
-    builder.add_edge("wait_for_user", "save_user_data")
-    builder.add_edge("save_user_data", "load_context")
-    builder.add_edge("user_info_exhausted", END)
-
-    yield builder.compile(
+    yield build_graph().compile(
         checkpointer=await runtime.checkpointer(), name="collection_loop_test"
     )
     await runtime.close()

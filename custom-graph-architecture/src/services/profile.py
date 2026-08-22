@@ -49,20 +49,16 @@ class ProfileExtraction(BaseModel):
 
     age: int | None = Field(default=None, description="Age in years.")
     sex: Literal["MALE", "FEMALE"] | None = Field(default=None)
-    height_cm: float | None = Field(
-        default=None, description="Height in centimetres.")
-    current_weight_kg: float | None = Field(
-        default=None, description="Weight in kg.")
+    height_cm: float | None = Field(default=None, description="Height in centimetres.")
+    current_weight_kg: float | None = Field(default=None, description="Weight in kg.")
     target_weight_kg: float | None = Field(
         default=None, description="Goal weight in kg."
     )
     activity_level: (
-        Literal["SEDENTARY", "LIGHT", "MODERATE",
-                "VERY_ACTIVE", "EXTRA_ACTIVE"] | None
+        Literal["SEDENTARY", "LIGHT", "MODERATE", "VERY_ACTIVE", "EXTRA_ACTIVE"] | None
     ) = Field(default=None)
     goal: (
-        Literal["FAT_LOSS", "MUSCLE_GAIN",
-                "MAINTENANCE", "STRENGTH", "GENERAL_FITNESS"]
+        Literal["FAT_LOSS", "MUSCLE_GAIN", "MAINTENANCE", "STRENGTH", "GENERAL_FITNESS"]
         | None
     ) = Field(default=None)
     training_days_per_week: int | None = Field(default=None)

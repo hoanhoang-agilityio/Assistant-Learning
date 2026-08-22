@@ -2,7 +2,9 @@
 
 import pytest
 from langchain_core.messages import AIMessage
+from langgraph.checkpoint.memory import InMemorySaver
 
+import src.core.langgraph.nodes.context as context_node
 import src.core.langgraph.nodes.intent as intent_node
 from src.core.langgraph.graph import build_graph
 from src.core.langgraph.nodes.intent import classify_intent, route_after_intent
@@ -11,6 +13,7 @@ from src.core.langgraph.prompts.intent_classifier import (
     build_intent_classifier_messages,
 )
 from src.schemas import initial_state
+from src.services.profile import REQUIRED_PROFILE_FIELDS, UserContext
 
 
 @pytest.mark.parametrize(("intent",), [("coaching",), ("qa",), ("off_topic",)])
@@ -77,22 +80,49 @@ async def test_graph_routes_off_topic_requests_to_the_constant_response(
     assert result["messages"][-1].content == OFF_TOPIC_MESSAGE
 
 
-@pytest.mark.parametrize(("intent",), [("coaching",), ("qa",)])
-async def test_graph_keeps_in_domain_requests_open_for_later_branches(
-    monkeypatch: pytest.MonkeyPatch, intent: str
+async def test_graph_keeps_qa_requests_open_for_later_branches(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Current milestone stops after routing, without fabricating a final answer."""
+    """The QA branch is not built yet, so routing stops without fabricating an answer."""
 
-    async def classify_in_domain(_: str) -> str:
-        return intent
+    async def classify_as_qa(_: str) -> str:
+        return "qa"
 
-    monkeypatch.setattr(intent_node, "classify_user_intent", classify_in_domain)
+    monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_qa)
 
     result = (
         await build_graph()
         .compile(name="intent_test")
-        .ainvoke(initial_state("help me", "user-1"))
+        .ainvoke(initial_state("how much protein?", "user-1"))
     )
 
-    assert result["intent"] == intent
+    assert result["intent"] == "qa"
     assert result["final_message"] is None
+
+
+async def test_graph_sends_coaching_requests_into_the_context_branch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Coaching cannot be answered before the user's profile has been loaded."""
+
+    async def classify_as_coaching(_: str) -> str:
+        return "coaching"
+
+    async def loaded(_: str) -> UserContext:
+        return UserContext(profile=None, plan=None)
+
+    monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_coaching)
+    monkeypatch.setattr(context_node, "load_user_context", loaded)
+
+    result = await (
+        build_graph()
+        .compile(checkpointer=InMemorySaver(), name="intent_test")
+        .ainvoke(
+            initial_state("build me a plan", "user-1"),
+            {"configurable": {"thread_id": "coaching-routing"}},
+        )
+    )
+
+    assert result["intent"] == "coaching"
+    assert result["context_complete"] is False
+    assert result["missing_fields"] == list(REQUIRED_PROFILE_FIELDS)
