@@ -1,10 +1,16 @@
 """Tests for the ``coach_agent`` node: what it is shown, and what it writes back."""
 
+import json
 import sys
+from typing import Any
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
+from langchain_core.outputs import ChatResult
+from pydantic import Field
 
+from src.core.configs.config import settings
 from src.core.langgraph.agents.coach import (
     COACH_AGENT_NAME,
     NO_PROFILE,
@@ -13,9 +19,16 @@ from src.core.langgraph.agents.coach import (
     build_coach_input,
     coach_agent,
 )
-from src.core.langgraph.prompts.coach_agent import NO_PLAN
-from src.core.langgraph.tools import COACH_TOOLS
-from src.schemas import CoachContext, GraphState, TrainingPlan, initial_state
+from src.core.langgraph.prompts.coach_agent import COACH_AGENT_SYSTEM, NO_PLAN
+from src.schemas import (
+    CoachContext,
+    GraphState,
+    TrainingPlan,
+    UserProfile,
+    initial_state,
+)
+from src.services.nutrition import calc_macros
+from tests.test_coach_tools import COACH_TOOL_NAMES
 from tests.test_load_context import COMPLETE_PROFILE, PLAN, USER_ID
 
 coach_module = sys.modules[coach_agent.__module__]
@@ -234,11 +247,6 @@ def test_the_agent_is_named_for_its_traces() -> None:
     assert COACH_AGENT_NAME == "coach_agent"
 
 
-def test_the_coach_tool_list_exists_for_its_tools_to_join() -> None:
-    """Task 4.5 adds to this list; nothing else has to change to bind it."""
-    assert isinstance(COACH_TOOLS, list)
-
-
 async def test_the_profile_reaches_the_tools_out_of_band(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -249,3 +257,155 @@ async def test_the_profile_reaches_the_tools_out_of_band(
     await coach_agent(_state())
 
     assert agent.context == CoachContext(profile=COMPLETE_PROFILE)
+
+
+# --- The compiled agent -------------------------------------------------------------------
+
+
+class _ScriptedModel(FakeMessagesListChatModel):
+    """A model that answers from a script, and records what it was bound and shown."""
+
+    bound: list[str] = Field(default_factory=list)
+    prompts: list[list[AnyMessage]] = Field(default_factory=list)
+
+    def bind_tools(self, tools: list[Any], **kwargs: Any) -> "_ScriptedModel":
+        self.bound = [getattr(tool, "name", type(tool).__name__) for tool in tools]
+        return self
+
+    def _generate(
+        self, messages: list[AnyMessage], *args: Any, **kwargs: Any
+    ) -> ChatResult:
+        self.prompts.append(messages)
+        return super()._generate(messages, *args, **kwargs)
+
+
+def _tool_call(name: str, **args: Any) -> AIMessage:
+    """The one thing a model does that a stubbed agent cannot: ask for a tool."""
+    return AIMessage(
+        content="", tool_calls=[{"name": name, "args": args, "id": f"call_{name}"}]
+    )
+
+
+# Held before any test patches the name away: the tests that stub the builder replace it
+# outright, and the cache still has to be cleared around them.
+_BUILDER = coach_module.build_coach_agent
+
+
+@pytest.fixture(autouse=True)
+def unbuilt() -> None:
+    """The builder is cached; no test may leave its model behind for the next one."""
+    _BUILDER.cache_clear()
+    yield
+    _BUILDER.cache_clear()
+
+
+@pytest.fixture
+def compiled(monkeypatch: pytest.MonkeyPatch):
+    """Build the real agent — its tools, schema and context — around a scripted model."""
+
+    def _build(*script: AIMessage):
+        model = _ScriptedModel(responses=list(script))
+        monkeypatch.setattr(coach_module, "ChatOpenAI", lambda **kwargs: model)
+        return coach_module.build_coach_agent(), model
+
+    return _build
+
+
+async def _run(agent, profile: dict | None = COMPLETE_PROFILE) -> dict:
+    """One turn of the compiled agent, invoked the way the node invokes it."""
+    return await agent.ainvoke(
+        {"messages": [HumanMessage(content="build me a 4 day plan")]},
+        context=CoachContext(profile=profile),
+    )
+
+
+async def test_the_model_is_offered_every_tool_the_coach_has(compiled) -> None:
+    """A tool written and registered but never bound is one the model cannot reach."""
+    agent, model = compiled(AIMessage(content="done"))
+
+    await _run(agent)
+
+    assert COACH_TOOL_NAMES <= set(model.bound)
+
+
+async def test_the_plan_schema_is_bound_as_the_shape_of_the_answer(compiled) -> None:
+    """Prose is not a plan: the gate reads fields, so the answer has to be structured."""
+    agent, model = compiled(AIMessage(content="done"))
+
+    await _run(agent)
+
+    assert TrainingPlan.__name__ in model.bound
+
+
+async def test_the_system_prompt_reaches_the_model(compiled) -> None:
+    """The rules and the security section are worth nothing unbound to the request."""
+    agent, model = compiled(AIMessage(content="done"))
+
+    await _run(agent)
+
+    assert COACH_AGENT_SYSTEM in str(model.prompts[0][0].content)
+
+
+async def test_a_tool_the_model_calls_computes_from_the_users_own_profile(
+    compiled,
+) -> None:
+    """The context reaches the tool through the runtime, or every target is invented."""
+    agent, _ = compiled(
+        _tool_call("calc_macro"),
+        AIMessage(content="done"),
+    )
+
+    result = await _run(agent)
+    answered = [
+        message for message in result["messages"] if isinstance(message, ToolMessage)
+    ]
+
+    assert json.loads(answered[0].content) == calc_macros(
+        UserProfile.model_validate(COMPLETE_PROFILE)
+    ).model_dump(mode="json")
+
+
+async def test_a_plan_the_model_returns_arrives_as_the_structured_response(
+    compiled,
+) -> None:
+    """`coach_agent` reads exactly this key; a plan anywhere else is a failed attempt."""
+    agent, _ = compiled(
+        _tool_call(TrainingPlan.__name__, **VALID_PLAN.model_dump(mode="json"))
+    )
+
+    result = await _run(agent)
+
+    assert result["structured_response"] == VALID_PLAN
+
+
+async def test_the_node_writes_the_plan_the_real_agent_produced(compiled) -> None:
+    """The stubbed-agent tests fix the node's contract; this one holds it to the wiring."""
+    compiled(_tool_call(TrainingPlan.__name__, **VALID_PLAN.model_dump(mode="json")))
+
+    actual_update = await coach_agent(_state())
+
+    assert actual_update["plan"] == VALID_PLAN.model_dump()
+
+
+def test_the_agent_is_built_once_rather_than_per_turn(compiled) -> None:
+    """Rebuilding per turn re-creates the model client on every retry the gate forces."""
+    agent, _ = compiled(AIMessage(content="done"))
+
+    assert coach_module.build_coach_agent() is agent
+
+
+def test_the_configured_model_and_token_ceiling_are_the_ones_built(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hardcoded model is a deployment setting nobody can turn."""
+    captured: dict = {}
+
+    def _record(**kwargs: Any) -> _ScriptedModel:
+        captured.update(kwargs)
+        return _ScriptedModel(responses=[AIMessage(content="done")])
+
+    monkeypatch.setattr(coach_module, "ChatOpenAI", _record)
+    coach_module.build_coach_agent()
+
+    assert captured["model"] == settings.DEFAULT_LLM_MODEL
+    assert captured["max_completion_tokens"] == settings.COACH_MAX_TOKENS

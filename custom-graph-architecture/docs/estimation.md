@@ -53,7 +53,7 @@ classifier accuracy checks are all passing.
 | 24/08 | Implement `calc_macro` tool (shared calorie/macro calculation) | 0.5 | 0.5 | Done |
 | 22/08 | Implement Pydantic schemas (`UserProfile`, `Injury`, `Exercise`, `WorkoutTemplate`, …) | 0.5 | 1 | Done |
 | 22/08 | Implement enums (`Sex`, `ActivityLevel`, `FitnessGoal`, `MovementPattern`, `EquipmentType`, …) | 0.5 | 0.5 | Done |
-| 24/08 | Unit tests for coach agent + tools | 0.5 | | Todo |
+| 24/08 | Unit tests for coach agent + tools | 0.5 | 0.5 | Done |
 
 ## Milestone 5 — Deterministic verification gate (7h)
 

@@ -1,0 +1,95 @@
+"""Tests for the coach agent's tool set: what the model is offered, and on what terms."""
+
+import json
+
+import pytest
+from langchain_core.tools import BaseTool
+
+from src.core.langgraph.tools import (
+    COACH_TOOLS,
+    calc_macro,
+    load_exercise,
+    load_template,
+)
+
+# Renaming a tool changes the agent's interface rather than its implementation: the names
+# reach the model, the todo writer is checked for never using them, and traces are read by
+# them. A rename should fail here and be a decision, not a silent edit.
+COACH_TOOL_NAMES = {"load_template", "load_exercise", "calc_macro"}
+
+# What the user told the collection loop. A tool that took any of these as an argument
+# would let the model supply them, and a supplied profile field is an invented one.
+PROFILE_ARGUMENTS = {
+    "profile",
+    "age",
+    "sex",
+    "height_cm",
+    "current_weight_kg",
+    "weight_kg",
+    "activity_level",
+    "injuries",
+    "equipment",
+    "available_equipment",
+}
+
+TOOL_IDS = [tool.name for tool in COACH_TOOLS]
+
+
+# --- The set ------------------------------------------------------------------------------
+
+
+def test_the_coach_has_the_three_tools_its_task_table_names() -> None:
+    """Template, exercises and macros: the spec's tool list for the coach agent."""
+    assert {tool.name for tool in COACH_TOOLS} == COACH_TOOL_NAMES
+
+
+def test_the_tools_are_registered_once_each() -> None:
+    """Two entries of one name bind twice and leave the model's choice ambiguous."""
+    assert len(COACH_TOOLS) == len(COACH_TOOL_NAMES)
+
+
+@pytest.mark.parametrize("tool", COACH_TOOLS, ids=TOOL_IDS)
+def test_every_entry_is_something_the_model_can_be_given(tool: BaseTool) -> None:
+    """A bare function in the list fails at bind time, which is a run that never starts."""
+    assert isinstance(tool, BaseTool)
+
+
+# --- What the model is told ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize("tool", COACH_TOOLS, ids=TOOL_IDS)
+def test_every_tool_says_what_it_is_for(tool: BaseTool) -> None:
+    """The description is the whole basis on which the model picks between them."""
+    assert tool.description.strip()
+
+
+@pytest.mark.parametrize("tool", COACH_TOOLS, ids=TOOL_IDS)
+def test_every_tools_arguments_reach_the_model_as_json_schema(tool: BaseTool) -> None:
+    """An argument schema that will not serialise is a tool the request cannot carry."""
+    assert json.dumps(tool.tool_call_schema.model_json_schema())
+
+
+@pytest.mark.parametrize("tool", COACH_TOOLS, ids=TOOL_IDS)
+def test_the_runtime_is_injected_rather_than_asked_for(tool: BaseTool) -> None:
+    """Offered as an argument, the model would have to invent a `ToolRuntime` to call at all."""
+    assert "runtime" not in tool.args
+
+
+@pytest.mark.parametrize("tool", COACH_TOOLS, ids=TOOL_IDS)
+def test_no_tool_lets_the_model_supply_the_users_own_data(tool: BaseTool) -> None:
+    """Body metrics and injuries are the inputs a hallucinated answer would differ by."""
+    assert not PROFILE_ARGUMENTS & set(tool.args)
+
+
+# --- Where each tool gets the user from ---------------------------------------------------
+
+
+def test_the_tools_that_depend_on_the_user_read_the_runtime() -> None:
+    """Exercise filtering and macro arithmetic are both wrong without the real profile."""
+    assert "runtime" in load_exercise.args_schema.model_fields
+    assert "runtime" in calc_macro.args_schema.model_fields
+
+
+def test_the_template_lookup_asks_for_nothing_it_does_not_use() -> None:
+    """A template is chosen by goal and by week alone; the profile would not narrow it."""
+    assert set(load_template.args) == {"goal", "days_per_week"}
