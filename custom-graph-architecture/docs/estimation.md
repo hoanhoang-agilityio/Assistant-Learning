@@ -78,7 +78,7 @@ classifier accuracy checks are all passing.
 | 25/08 | Implement `hitl_rejected_no_feedback` node (stop immediately) | 0.5 | 0.5 | Done |
 | 25/08 | Implement `hitl_exhausted` node (reject + retry >= 3) | 0.5 | 0.5 | Done |
 | 25/08 | Implement `hitl_retry_count` tracking | 0.5 | 0.5 | Done |
-| 25/08 | Integration test: full HITL approve/reject/exhausted loop | 0.5 | | Todo |
+| 25/08 | Integration test: full HITL approve/reject/exhausted loop | 0.5 | 0.5 | Done |
 
 ## Milestone 7 — QA agent & RAG pipeline (8h)
 
