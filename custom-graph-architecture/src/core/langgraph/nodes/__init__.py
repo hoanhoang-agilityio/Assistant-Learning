@@ -10,6 +10,11 @@ from src.core.langgraph.nodes.context import (
     route_after_determine_context,
 )
 from src.core.langgraph.nodes.guard import GuardRoute, llm_guard, route_after_guard
+from src.core.langgraph.nodes.hitl_review import (
+    HITL_REVIEW_INTERRUPT,
+    HitlReviewInterrupt,
+    hitl_review,
+)
 from src.core.langgraph.nodes.intent import (
     IntentRoute,
     classify_intent,
@@ -58,6 +63,7 @@ from src.core.langgraph.nodes.write_todo import (
 
 __all__ = [
     "FIELD_PROMPTS",
+    "HITL_REVIEW_INTERRUPT",
     "MISSING_INFO_INTERRUPT",
     "NOTIFY_FAIL_INTRO",
     "NOTIFY_FAIL_OUTRO",
@@ -65,6 +71,7 @@ __all__ = [
     "OFF_TOPIC_MESSAGE",
     "ContextRoute",
     "GuardRoute",
+    "HitlReviewInterrupt",
     "IntentRoute",
     "MissingInfoInterrupt",
     "MissingInfoRoute",
@@ -79,6 +86,7 @@ __all__ = [
     "deterministic_verification",
     "latest_user_reply",
     "failed_checks",
+    "hitl_review",
     "llm_guard",
     "load_context",
     "notify_fail",

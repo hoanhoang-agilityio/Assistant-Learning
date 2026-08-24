@@ -72,7 +72,7 @@ classifier accuracy checks are all passing.
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| 25/08 | Implement `hitl_review` node (`interrupt()` approve/reject) | 1 | | Todo |
+| 25/08 | Implement `hitl_review` node (`interrupt()` approve/reject) | 1 | 1 | Done |
 | 25/08 | Implement approve routing → end | 0.5 | | Todo |
 | 25/08 | Implement reject + feedback routing → `coach_agent` revision | 1.5 | | Todo |
 | 25/08 | Implement `hitl_rejected_no_feedback` node (stop immediately) | 0.5 | | Todo |
