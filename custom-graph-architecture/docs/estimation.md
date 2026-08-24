@@ -66,7 +66,7 @@ classifier accuracy checks are all passing.
 | 24/08 | Implement safety constraints check | 1 | 1 | Done |
 | 24/08 | Implement `coach_retry_count` logic & pass/fail routing | 1 | 1 | Done |
 | 24/08 | Implement `notify_fail` node (retry >= 3) | 0.5 | 0.5 | Done |
-| 25/08 | Unit tests for deterministic verification rules | 0.5 | | Todo |
+| 24/08 | Unit tests for deterministic verification rules | 0.5 | 0.5 | Done |
 
 ## Milestone 6 — HITL review gate (5h)
 
