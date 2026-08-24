@@ -8,6 +8,7 @@ from src.schemas.auth import (
     UserResponse,
 )
 from src.schemas.base import BaseResponse
+from src.schemas.chat import ChatRequest, ChatResponse, Message, StreamResponse
 from src.schemas.domain import (
     ActivityLevel,
     BodyRegion,
@@ -54,6 +55,8 @@ __all__ = [
     "ActivityLevel",
     "BaseResponse",
     "BodyRegion",
+    "ChatRequest",
+    "ChatResponse",
     "CheckName",
     "CoachContext",
     "DifficultyLevel",
@@ -70,6 +73,7 @@ __all__ = [
     "InjuryStatus",
     "Intent",
     "MacroTargets",
+    "Message",
     "MovementPattern",
     "MovementRestriction",
     "MuscleGroup",
@@ -82,6 +86,7 @@ __all__ = [
     "SessionResponse",
     "Severity",
     "Sex",
+    "StreamResponse",
     "Token",
     "TokenResponse",
     "TrainingPlan",

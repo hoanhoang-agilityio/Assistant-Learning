@@ -11,7 +11,7 @@ HitlDecision = Literal["approve", "reject"]
 
 @dataclass(frozen=True, slots=True)
 class CoachContext:
-    """What the coach agent's tools read for themselves rather than being told. """
+    """What the coach agent's tools read for themselves rather than being told."""
 
     profile: dict | None = None
 

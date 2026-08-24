@@ -74,13 +74,12 @@ def goal_calories(tdee: float, goal: FitnessGoal, sex: Sex) -> float:
 
 
 def split_macros(kcal: float, weight_kg: float, goal: FitnessGoal) -> MacroTargets:
-    """Split a calorie target three ways, protein and fat first. """
+    """Split a calorie target three ways, protein and fat first."""
 
     protein_g = round(PROTEIN_G_PER_KG[goal] * weight_kg)
     fat_g = round(FAT_G_PER_KG * weight_kg)
     remaining = (
-        kcal - MacroTargets(protein_g=protein_g, carbs_g=0,
-                            fat_g=fat_g).calories
+        kcal - MacroTargets(protein_g=protein_g, carbs_g=0, fat_g=fat_g).calories
     )
 
     return MacroTargets(
@@ -99,8 +98,7 @@ def calc_macros(
     bmr = basal_metabolic_rate(profile)
     tdee = maintenance_calories(bmr, profile.activity_level)
     macros = split_macros(
-        goal_calories(tdee, for_goal,
-                      profile.sex), profile.current_weight_kg, for_goal
+        goal_calories(tdee, for_goal, profile.sex), profile.current_weight_kg, for_goal
     )
 
     return NutritionTargets(

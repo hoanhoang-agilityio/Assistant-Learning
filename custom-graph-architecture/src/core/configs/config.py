@@ -172,7 +172,6 @@ class Settings(BaseSettings):
 
     # --- LLM -------------------------------------------------------------------------
     OPENAI_API_KEY: str = ""
-    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     DEFAULT_LLM_MODEL: str = "gpt-5-mini"
     DEFAULT_LLM_TEMPERATURE: float = 0.2
     MAX_TOKENS: int = 2000
@@ -195,9 +194,11 @@ class Settings(BaseSettings):
     GUARD_BANNED_SUBSTRINGS: Annotated[list[str], NoDecode] = Field(
         default_factory=list
     )
-    GUARD_BANNED_PATTERNS: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    GUARD_BANNED_PATTERNS: Annotated[list[str],
+                                     NoDecode] = Field(default_factory=list)
     GUARD_BANNED_TOPICS: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["violence", "self-harm", "weapons", "illegal drugs"]
+        default_factory=lambda: ["violence",
+                                 "self-harm", "weapons", "illegal drugs"]
     )
     GUARD_PROMPT_INJECTION_THRESHOLD: float = 0.92
     GUARD_TOXICITY_THRESHOLD: float = 0.5

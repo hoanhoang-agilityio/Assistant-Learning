@@ -39,8 +39,7 @@ async def fetch_templates(goal: FitnessGoal) -> list[WorkoutTemplate]:
     """Templates the goal is a reasonable choice for, or all of them when it has none."""
 
     async with session_factory() as session:
-        statement = select(TemplateRow).where(
-            TemplateRow.goals.contains([goal.value]))
+        statement = select(TemplateRow).where(TemplateRow.goals.contains([goal.value]))
         rows = (await session.execute(statement)).scalars().all()
         if not rows:
             rows = (await session.execute(select(TemplateRow))).scalars().all()
