@@ -1,9 +1,9 @@
 """Training volume and schedule.
 
-Whether the week is trainable: the plan trains the days a week the profile says the user
-can, day numbers run 1..n with no gaps or repeats, and the prescribed work stays inside
-sane bounds — sets per exercise, sets per day, weekly sets per muscle group, and reps that
-parse and fall in the slot's ``rep_range``.
+Whether the week is trainable. This rule reads the plan against the *profile*, where
+task 5.1 reads it against the template: the plan trains the days a week the user says they
+can, and the prescribed work stays inside sane bounds — sets per exercise, sets per day,
+weekly sets per muscle group, and reps that parse and fall in the slot's ``rep_range``.
 """
 
 from src.core.langgraph.verification.deterministic.context import PlanContext

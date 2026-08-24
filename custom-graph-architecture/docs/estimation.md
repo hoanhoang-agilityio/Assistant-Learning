@@ -59,7 +59,7 @@ classifier accuracy checks are all passing.
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| 24/08 | Implement schema completeness check | 1 | | Todo |
+| 24/08 | Implement schema completeness check | 1 | 1 | Done |
 | 24/08 | Implement macro consistency check | 1 | | Todo |
 | 24/08 | Implement training volume & schedule check | 1 | | Todo |
 | 24/08 | Implement exercise availability & user constraints check | 1 | | Todo |
