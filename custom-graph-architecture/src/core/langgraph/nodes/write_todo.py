@@ -29,6 +29,18 @@ def to_todo_items(tasks: list[str]) -> list[TodoItem]:
     ]
 
 
+def mark_in_progress(todo: list[dict] | None) -> list[TodoItem]:
+    """Mark every step underway once the coach agent starts working the list."""
+
+    return [TodoItem(**{**item, "status": "in_progress"}) for item in todo or []]
+
+
+def mark_done(todo: list[dict] | None) -> list[TodoItem]:
+    """Mark every step complete once the user approves the plan built from it."""
+
+    return [TodoItem(**{**item, "status": "done"}) for item in todo or []]
+
+
 async def write_todo(state: GraphState) -> TodoUpdate:
     """Generate a dynamic todo list for the current coaching request."""
 

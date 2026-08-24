@@ -39,7 +39,6 @@ def _build_writer() -> ChatOpenAI:
     return ChatOpenAI(
         api_key=settings.OPENAI_API_KEY,
         model=settings.DEFAULT_LLM_MODEL,
-        max_completion_tokens=_WRITER_TOKEN_LIMIT,
     )
 
 

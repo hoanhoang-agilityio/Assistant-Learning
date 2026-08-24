@@ -25,6 +25,7 @@ from src.core.langgraph.nodes.write_todo import write_todo
 from src.core.langgraph.runtime import MemoryScope, namespace_for
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import initial_state
+from src.services import plan_presentation
 from src.services.profile import PROFILE_KEY
 from tests.test_verification_completeness import CATALOGUE, TEMPLATE
 from tests.test_verification_gate import PROFILE, passing_plan
@@ -74,6 +75,7 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_coaching)
     monkeypatch.setattr(plan_context, "fetch_template", fetch_template)
     monkeypatch.setattr(plan_context, "fetch_exercises_by_id", fetch_exercises_by_id)
+    monkeypatch.setattr(plan_presentation, "fetch_exercises_by_id", fetch_exercises_by_id)
     monkeypatch.setattr(todo_node, "generate_todo", write_tasks)
 
     agent = _StubAgent()

@@ -17,7 +17,6 @@ EXPECTED_NODES = {
     "wait_for_user",
     "save_user_data",
     "user_info_exhausted",
-    "write_todo",
     "coach_agent",
     "deterministic_verification",
     "notify_fail",
@@ -34,7 +33,7 @@ EXPECTED_EDGES = {
     ("classify_intent", "coaching", "load_context"),
     ("classify_intent", "off_topic", "off_topic"),
     ("load_context", "incomplete", "determine_context"),
-    ("load_context", "complete", "write_todo"),
+    ("load_context", "complete", "coach_agent"),
     ("determine_context", "ask", "request_missing_info"),
     ("determine_context", "exhausted", "user_info_exhausted"),
     ("request_missing_info", None, "wait_for_user"),
@@ -43,7 +42,6 @@ EXPECTED_EDGES = {
     ("blocked", None, END),
     ("off_topic", None, END),
     ("user_info_exhausted", None, END),
-    ("write_todo", None, "coach_agent"),
     ("coach_agent", None, "deterministic_verification"),
     ("deterministic_verification", "pass", "hitl_review"),
     ("deterministic_verification", "retry", "coach_agent"),
@@ -132,12 +130,7 @@ def test_the_collection_loop_returns_to_the_reload(edges) -> None:
 
 def test_a_complete_profile_goes_to_planning(edges) -> None:
     """The profile gate's whole purpose: a complete profile is what opens the coach branch."""
-    assert ("load_context", "complete", "write_todo") in edges
-
-
-def test_the_todo_leads_into_the_coach_agent(edges) -> None:
-    """The todo exists to be worked; nothing else consumes it."""
-    assert ("write_todo", None, "coach_agent") in edges
+    assert ("load_context", "complete", "coach_agent") in edges
 
 
 def test_a_generated_plan_is_verified_before_anything_else(edges) -> None:

@@ -6,7 +6,9 @@ from langchain_core.messages import AnyMessage, HumanMessage
 from langgraph.types import interrupt
 
 from src.core.configs.config import settings
-from src.schemas import GraphState, HitlDecision
+from src.core.langgraph.nodes.write_todo import mark_done
+from src.schemas import GraphState, HitlDecision, TrainingPlan
+from src.services.plan_presentation import render_plan_markdown
 
 HitlReviewRoute = Literal["approve", "revise", "no_feedback", "exhausted"]
 
@@ -32,7 +34,17 @@ class HitlReviewUpdate(TypedDict):
     hitl_decision: HitlDecision
     hitl_feedback: str | None
     hitl_retry_count: int
+    todo: list[dict]
     messages: list[AnyMessage]
+
+
+async def _review_message(plan: dict | None) -> str:
+    """The review prompt, with the plan itself rendered ahead of it when there is one."""
+
+    if not plan:
+        return HITL_REVIEW_MESSAGE
+    markdown = await render_plan_markdown(TrainingPlan.model_validate(plan))
+    return f"{markdown}\n\n{HITL_REVIEW_MESSAGE}"
 
 
 def _parse_decision(reply: Any) -> tuple[HitlDecision, str | None]:
@@ -53,11 +65,12 @@ def _parse_decision(reply: Any) -> tuple[HitlDecision, str | None]:
 async def hitl_review(state: GraphState) -> HitlReviewUpdate:
     """Pause the graph and record the user's approve/reject decision on the plan."""
 
+    plan = state.get("plan")
     reply = interrupt(
         HitlReviewInterrupt(
             type=HITL_REVIEW_INTERRUPT,
-            plan=state.get("plan"),
-            message=HITL_REVIEW_MESSAGE,
+            plan=plan,
+            message=await _review_message(plan),
         )
     )
 
@@ -67,10 +80,15 @@ async def hitl_review(state: GraphState) -> HitlReviewUpdate:
     if decision == "reject" and feedback:
         retry_count += 1
 
+    todo = state.get("todo") or []
+    if decision == "approve":
+        todo = mark_done(todo)
+
     return {
         "hitl_decision": decision,
         "hitl_feedback": feedback,
         "hitl_retry_count": retry_count,
+        "todo": todo,
         "messages": [HumanMessage(content=feedback or decision)],
     }
 

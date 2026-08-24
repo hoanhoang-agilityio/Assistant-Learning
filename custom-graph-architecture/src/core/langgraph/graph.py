@@ -25,7 +25,6 @@ from src.core.langgraph.nodes import (
     save_user_data,
     user_info_exhausted,
     wait_for_user,
-    write_todo,
 )
 from src.schemas import GraphState
 
@@ -38,7 +37,7 @@ INTENT_ROUTES: dict[str, str] = {
 }
 
 CONTEXT_ROUTES: dict[str, str] = {
-    "complete": "write_todo",
+    "complete": "coach_agent",
     "incomplete": "determine_context",
 }
 
@@ -75,7 +74,6 @@ def build_graph() -> StateGraph:
     builder.add_node("wait_for_user", wait_for_user)
     builder.add_node("save_user_data", save_user_data)
     builder.add_node("user_info_exhausted", user_info_exhausted)
-    builder.add_node("write_todo", write_todo)
     builder.add_node("coach_agent", coach_agent)
     builder.add_node("deterministic_verification", deterministic_verification)
     builder.add_node("notify_fail", notify_fail)
@@ -97,7 +95,6 @@ def build_graph() -> StateGraph:
     builder.add_edge("off_topic", END)
     builder.add_edge("user_info_exhausted", END)
     builder.add_edge("notify_fail", END)
-    builder.add_edge("write_todo", "coach_agent")
     builder.add_edge("coach_agent", "deterministic_verification")
     builder.add_conditional_edges(
         "deterministic_verification", route_after_verification, VERIFICATION_ROUTES

@@ -12,7 +12,6 @@ from src.schemas import Intent
 from src.utils.logging import logger
 
 DEFAULT_INTENT: Intent = "qa"
-_TOKEN_LIMIT: dict[str, Any] = {"max_completion_tokens": 32}
 
 
 class IntentDecision(BaseModel):

@@ -67,6 +67,8 @@ from src.core.langgraph.nodes.wait_for_user import (
 )
 from src.core.langgraph.nodes.write_todo import (
     TodoItem,
+    mark_done,
+    mark_in_progress,
     to_todo_items,
     write_todo,
 )
@@ -104,6 +106,8 @@ __all__ = [
     "hitl_review",
     "llm_guard",
     "load_context",
+    "mark_done",
+    "mark_in_progress",
     "notify_fail",
     "off_topic",
     "request_missing_info",

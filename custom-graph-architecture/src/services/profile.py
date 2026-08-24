@@ -52,8 +52,10 @@ class ProfileExtraction(BaseModel):
 
     age: int | None = Field(default=None, description="Age in years.")
     sex: Sex | None = Field(default=None)
-    height_cm: float | None = Field(default=None, description="Height in centimetres.")
-    current_weight_kg: float | None = Field(default=None, description="Weight in kg.")
+    height_cm: float | None = Field(
+        default=None, description="Height in centimetres.")
+    current_weight_kg: float | None = Field(
+        default=None, description="Weight in kg.")
     target_weight_kg: float | None = Field(
         default=None, description="Goal weight in kg."
     )
@@ -128,7 +130,6 @@ def _build_extractor() -> ChatOpenAI:
     return ChatOpenAI(
         api_key=settings.OPENAI_API_KEY,
         model=settings.DEFAULT_LLM_MODEL,
-        max_completion_tokens=_EXTRACTOR_TOKEN_LIMIT,
     )
 
 

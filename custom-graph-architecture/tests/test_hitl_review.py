@@ -1,5 +1,6 @@
 """Tests for the ``hitl_review`` interrupt gate."""
 
+import sys
 from typing import Any
 
 import pytest
@@ -16,8 +17,22 @@ from src.core.langgraph.nodes.hitl_review import (
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import GraphState, initial_state
 from tests.test_load_context import USER_ID
+from tests.test_verification_completeness import complete_plan
 
-PLAN = {"goal": "fat_loss", "training_days_per_week": 4}
+hitl_review_module = sys.modules[hitl_review.__module__]
+
+PLAN = complete_plan().model_dump(mode="json")
+TODO_IN_PROGRESS = [{"id": 1, "task": "Set the calorie target.", "status": "in_progress"}]
+
+
+@pytest.fixture(autouse=True)
+def _stub_plan_markdown(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Render the plan is covered by ``plan_presentation``'s own tests; stub it out here."""
+
+    async def render_plan_markdown(plan: Any) -> str:
+        return "PLAN_MARKDOWN"
+
+    monkeypatch.setattr(hitl_review_module, "render_plan_markdown", render_plan_markdown)
 
 
 @pytest.fixture
@@ -42,7 +57,10 @@ def _config(thread_id: str) -> dict[str, Any]:
 
 def _start() -> GraphState:
     """A run that reached the gate with a plan already generated and verified."""
-    return initial_state("build me a plan", USER_ID) | {"plan": PLAN}
+    return initial_state("build me a plan", USER_ID) | {
+        "plan": PLAN,
+        "todo": TODO_IN_PROGRESS,
+    }
 
 
 async def test_the_run_suspends_instead_of_finishing(graph) -> None:
@@ -142,6 +160,29 @@ async def test_the_run_finishes_once_reviewed(graph) -> None:
     await graph.ainvoke(Command(resume="approve"), config)
 
     assert (await graph.aget_state(config)).next == ()
+
+
+# --- Todo status ------------------------------------------------------------------------
+
+
+async def test_an_approval_marks_the_todo_done(graph) -> None:
+    """The list is only finished once the user accepts what it produced."""
+    config = _config("todo-approve")
+    await graph.ainvoke(_start(), config)
+
+    resumed = await graph.ainvoke(Command(resume="approve"), config)
+
+    assert resumed["todo"] == [{**TODO_IN_PROGRESS[0], "status": "done"}]
+
+
+async def test_a_rejection_leaves_the_todo_in_progress(graph) -> None:
+    """A revision is still being worked, so the list is not done yet."""
+    config = _config("todo-reject")
+    await graph.ainvoke(_start(), config)
+
+    resumed = await graph.ainvoke(Command(resume="swap the bench press"), config)
+
+    assert resumed["todo"] == TODO_IN_PROGRESS
 
 
 # --- Retry counting -------------------------------------------------------------------
