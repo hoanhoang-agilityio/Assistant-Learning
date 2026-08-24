@@ -32,6 +32,16 @@ class MacroTargets(BaseModel):
         )
 
 
+class NutritionTargets(BaseModel):
+    """A profile's calorie and macro targets, as ``calc_macro`` hands them over."""
+
+    goal: FitnessGoal = Field(description="The goal these targets were computed for.")
+    bmr: int = Field(gt=0, description="Basal metabolic rate in kcal/day.")
+    tdee: int = Field(gt=0, description="Maintenance calories in kcal/day.")
+    daily_calories: int = Field(gt=0, description="Daily calorie target.")
+    macros: MacroTargets = Field(description="Daily macro targets.")
+
+
 class PlannedExercise(BaseModel):
     """One catalogue exercise, prescribed against the slot it was chosen to fill."""
 

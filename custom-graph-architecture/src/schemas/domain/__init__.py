@@ -20,6 +20,7 @@ from src.schemas.domain.exercise import (
 )
 from src.schemas.domain.plan import (
     MacroTargets,
+    NutritionTargets,
     PlanDay,
     PlannedExercise,
     TrainingPlan,
@@ -53,6 +54,7 @@ __all__ = [
     "MovementRestriction",
     "MuscleGroup",
     "MusclePriority",
+    "NutritionTargets",
     "PlanDay",
     "PlannedExercise",
     "RestrictionAction",

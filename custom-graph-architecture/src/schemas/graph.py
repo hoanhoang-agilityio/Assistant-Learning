@@ -64,19 +64,8 @@ class GraphState(AgentState):
 
 
 def initial_state(user_query: str, user_id: str) -> GraphState:
-    """Build the starting state for one run, with every key populated.
+    """Build the starting state for one run, with every key populated."""
 
-    Args:
-        user_query: The user's text for this turn.
-        user_id: Owner of the run.
-
-    Returns:
-        GraphState: A fully populated state ready to invoke the graph with.
-
-    Raises:
-        ValueError: If ``user_id`` is empty — it scopes long-term memory, and an empty one
-            would read and write another user's namespace.
-    """
     if not user_id:
         raise ValueError("user_id is required to start a run")
 

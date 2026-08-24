@@ -237,6 +237,21 @@ close. Anything a reader needs is resolved from the catalogue at render time.
 `MacroTargets.calories` returns what the three come to at 4/4/9 kcal per gram — the macro
 consistency check compares it against `TrainingPlan.daily_calories`.
 
+### `NutritionTargets`
+
+What `calc_macro` returns: the plan's calorie and macro fields plus the working behind them.
+
+| Field | Type | Description | Required |
+|---|---|---|---|
+| `goal` | `FitnessGoal` | The goal these targets were computed for | Yes |
+| `bmr` | `int` | Basal metabolic rate in kcal/day (> 0) | Yes |
+| `tdee` | `int` | Maintenance calories in kcal/day (> 0) | Yes |
+| `daily_calories` | `int` | Daily calorie target (> 0) | Yes |
+| `macros` | `MacroTargets` | Daily macro targets | Yes |
+
+`daily_calories` is what `macros` come to at 4/4/9 rather than the raw goal-adjusted figure,
+so a plan that copies both passes the macro consistency check as it stands.
+
 ### `PlannedExercise`
 
 | Field | Type | Description | Required |

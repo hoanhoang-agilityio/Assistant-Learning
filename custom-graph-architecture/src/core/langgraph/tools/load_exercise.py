@@ -3,29 +3,10 @@
 from typing import Any
 
 from langchain.tools import ToolRuntime, tool
-from pydantic import ValidationError
 
-from src.schemas import (
-    BodyRegion,
-    CoachContext,
-    MovementPattern,
-    MuscleGroup,
-    UserProfile,
-)
+from src.core.langgraph.tools.context import context_profile
+from src.schemas import BodyRegion, CoachContext, MovementPattern, MuscleGroup
 from src.services.catalogue import as_candidate, find_exercises
-
-
-def context_profile(runtime: ToolRuntime[CoachContext, Any]) -> UserProfile | None:
-    """The user's profile as the agent was invoked with it, or None when it is unusable."""
-
-    context = runtime.context
-    if not isinstance(context, CoachContext) or not context.profile:
-        return None
-
-    try:
-        return UserProfile.model_validate(context.profile)
-    except ValidationError:
-        return None
 
 
 @tool
