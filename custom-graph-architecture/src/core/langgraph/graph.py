@@ -10,6 +10,7 @@ from src.core.langgraph.nodes import (
     deterministic_verification,
     llm_guard,
     load_context,
+    notify_fail,
     off_topic,
     request_missing_info,
     route_after_context,
@@ -45,7 +46,7 @@ MISSING_INFO_ROUTES: dict[str, str] = {
 VERIFICATION_ROUTES: dict[str, str] = {
     "pass": END,
     "retry": "coach_agent",
-    "exhausted": END,
+    "exhausted": "notify_fail",
 }
 
 
@@ -66,6 +67,7 @@ def build_graph() -> StateGraph:
     builder.add_node("write_todo", write_todo)
     builder.add_node("coach_agent", coach_agent)
     builder.add_node("deterministic_verification", deterministic_verification)
+    builder.add_node("notify_fail", notify_fail)
 
     builder.add_edge(START, "llm_guard")
     builder.add_conditional_edges("llm_guard", route_after_guard, GUARD_ROUTES)
@@ -80,6 +82,7 @@ def build_graph() -> StateGraph:
     builder.add_edge("blocked", END)
     builder.add_edge("off_topic", END)
     builder.add_edge("user_info_exhausted", END)
+    builder.add_edge("notify_fail", END)
     builder.add_edge("write_todo", "coach_agent")
     builder.add_edge("coach_agent", "deterministic_verification")
     builder.add_conditional_edges(

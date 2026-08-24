@@ -15,6 +15,13 @@ from src.core.langgraph.nodes.intent import (
     classify_intent,
     route_after_intent,
 )
+from src.core.langgraph.nodes.notify_fail import (
+    NOTIFY_FAIL_INTRO,
+    NOTIFY_FAIL_OUTRO,
+    build_notify_fail_message,
+    failed_checks,
+    notify_fail,
+)
 from src.core.langgraph.nodes.off_topic import (
     OFF_TOPIC_MESSAGE,
     off_topic,
@@ -52,6 +59,8 @@ from src.core.langgraph.nodes.write_todo import (
 __all__ = [
     "FIELD_PROMPTS",
     "MISSING_INFO_INTERRUPT",
+    "NOTIFY_FAIL_INTRO",
+    "NOTIFY_FAIL_OUTRO",
     "NO_PLAN_MESSAGE",
     "OFF_TOPIC_MESSAGE",
     "ContextRoute",
@@ -64,12 +73,15 @@ __all__ = [
     "blocked",
     "build_exhausted_message",
     "build_missing_info_request",
+    "build_notify_fail_message",
     "classify_intent",
     "determine_context",
     "deterministic_verification",
     "latest_user_reply",
+    "failed_checks",
     "llm_guard",
     "load_context",
+    "notify_fail",
     "off_topic",
     "request_missing_info",
     "route_after_context",

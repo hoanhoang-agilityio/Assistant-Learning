@@ -20,6 +20,7 @@ EXPECTED_NODES = {
     "write_todo",
     "coach_agent",
     "deterministic_verification",
+    "notify_fail",
 }
 
 # (from, condition, to) — ``None`` where the edge is unconditional.
@@ -41,16 +42,17 @@ EXPECTED_EDGES = {
     ("user_info_exhausted", None, END),
     ("write_todo", None, "coach_agent"),
     ("coach_agent", None, "deterministic_verification"),
+    ("deterministic_verification", "pass", END),
     ("deterministic_verification", "retry", "coach_agent"),
+    ("deterministic_verification", "exhausted", "notify_fail"),
+    ("notify_fail", None, END),
 }
 
-# What ``route_after_verification`` may return, and where each answer goes. Read from the
-# builder rather than from the drawn graph: the drawing collapses the two routes that both
-# end the run today, and those are exactly the two the spec distinguishes.
+# What ``route_after_verification`` may return, and where each answer goes.
 EXPECTED_VERIFICATION_ROUTES = {
     "pass": END,
     "retry": "coach_agent",
-    "exhausted": END,
+    "exhausted": "notify_fail",
 }
 
 
@@ -95,7 +97,6 @@ def test_the_context_branch_has_no_edges_beyond_the_spec(edges) -> None:
         "blocked",
         "classify_intent",
         "off_topic",
-        "deterministic_verification",
     }
     actual = {edge for edge in edges if edge[0] in context_nodes}
 
@@ -130,6 +131,12 @@ def test_a_generated_plan_is_verified_before_anything_else(edges) -> None:
         for edge in edges
         if edge[0] == "coach_agent" and edge[2] != "deterministic_verification"
     ]
+
+
+def test_a_plan_that_never_verifies_ends_at_the_notification(edges) -> None:
+    """The run has to say it gave up; ending silently reads as a plan that never came."""
+    assert ("deterministic_verification", "exhausted", "notify_fail") in edges
+    assert ("notify_fail", None, END) in edges
 
 
 def test_the_gate_routes_exactly_the_three_ways_the_spec_names() -> None:

@@ -64,7 +64,7 @@ async def _verify(state: GraphState) -> VerificationResult:
 
     try:
         profile = UserProfile.model_validate(state.get("profile") or {})
-    except ValidationError as error:
+    except ValidationError:
         return _blocked(UNVERIFIABLE_PROFILE_MESSAGE, "profile")
 
     return await verify_plan(plan, profile)
