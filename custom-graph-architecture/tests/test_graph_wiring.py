@@ -21,6 +21,9 @@ EXPECTED_NODES = {
     "coach_agent",
     "deterministic_verification",
     "notify_fail",
+    "hitl_review",
+    "hitl_rejected_no_feedback",
+    "hitl_exhausted",
 }
 
 # (from, condition, to) — ``None`` where the edge is unconditional.
@@ -42,17 +45,31 @@ EXPECTED_EDGES = {
     ("user_info_exhausted", None, END),
     ("write_todo", None, "coach_agent"),
     ("coach_agent", None, "deterministic_verification"),
-    ("deterministic_verification", "pass", END),
+    ("deterministic_verification", "pass", "hitl_review"),
     ("deterministic_verification", "retry", "coach_agent"),
     ("deterministic_verification", "exhausted", "notify_fail"),
     ("notify_fail", None, END),
+    ("hitl_review", "approve", END),
+    ("hitl_review", "revise", "coach_agent"),
+    ("hitl_review", "no_feedback", "hitl_rejected_no_feedback"),
+    ("hitl_review", "exhausted", "hitl_exhausted"),
+    ("hitl_rejected_no_feedback", None, END),
+    ("hitl_exhausted", None, END),
 }
 
 # What ``route_after_verification`` may return, and where each answer goes.
 EXPECTED_VERIFICATION_ROUTES = {
-    "pass": END,
+    "pass": "hitl_review",
     "retry": "coach_agent",
     "exhausted": "notify_fail",
+}
+
+# What ``route_after_hitl_review`` may return, and where each answer goes.
+EXPECTED_HITL_ROUTES = {
+    "approve": END,
+    "revise": "coach_agent",
+    "no_feedback": "hitl_rejected_no_feedback",
+    "exhausted": "hitl_exhausted",
 }
 
 
@@ -144,3 +161,27 @@ def test_the_gate_routes_exactly_the_three_ways_the_spec_names() -> None:
     [branch] = build_graph().branches["deterministic_verification"].values()
 
     assert branch.ends == EXPECTED_VERIFICATION_ROUTES
+
+
+def test_a_verified_plan_goes_to_the_reviewer(edges) -> None:
+    """The gate no longer hands the plan straight to the user; review comes first."""
+    assert ("deterministic_verification", "pass", "hitl_review") in edges
+
+
+def test_the_reviewer_routes_exactly_the_four_ways_the_spec_names() -> None:
+    """Approve, revise, no feedback, exhausted: nothing else gets past the reviewer."""
+    [branch] = build_graph().branches["hitl_review"].values()
+
+    assert branch.ends == EXPECTED_HITL_ROUTES
+
+
+def test_a_rejection_with_no_feedback_stops_without_looping(edges) -> None:
+    """No feedback means nothing to revise with, so the run ends rather than retrying."""
+    assert ("hitl_review", "no_feedback", "hitl_rejected_no_feedback") in edges
+    assert ("hitl_rejected_no_feedback", None, END) in edges
+
+
+def test_a_reviewer_exhausted_by_retries_stops_too(edges) -> None:
+    """The revision loop is bounded, just like the verification loop is."""
+    assert ("hitl_review", "exhausted", "hitl_exhausted") in edges
+    assert ("hitl_exhausted", None, END) in edges

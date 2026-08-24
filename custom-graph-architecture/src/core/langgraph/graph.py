@@ -8,6 +8,9 @@ from src.core.langgraph.nodes import (
     classify_intent,
     determine_context,
     deterministic_verification,
+    hitl_exhausted,
+    hitl_rejected_no_feedback,
+    hitl_review,
     llm_guard,
     load_context,
     notify_fail,
@@ -16,6 +19,7 @@ from src.core.langgraph.nodes import (
     route_after_context,
     route_after_determine_context,
     route_after_guard,
+    route_after_hitl_review,
     route_after_intent,
     route_after_verification,
     save_user_data,
@@ -44,9 +48,16 @@ MISSING_INFO_ROUTES: dict[str, str] = {
 }
 
 VERIFICATION_ROUTES: dict[str, str] = {
-    "pass": END,
+    "pass": "hitl_review",
     "retry": "coach_agent",
     "exhausted": "notify_fail",
+}
+
+HITL_ROUTES: dict[str, str] = {
+    "approve": END,
+    "revise": "coach_agent",
+    "no_feedback": "hitl_rejected_no_feedback",
+    "exhausted": "hitl_exhausted",
 }
 
 
@@ -68,6 +79,9 @@ def build_graph() -> StateGraph:
     builder.add_node("coach_agent", coach_agent)
     builder.add_node("deterministic_verification", deterministic_verification)
     builder.add_node("notify_fail", notify_fail)
+    builder.add_node("hitl_review", hitl_review)
+    builder.add_node("hitl_rejected_no_feedback", hitl_rejected_no_feedback)
+    builder.add_node("hitl_exhausted", hitl_exhausted)
 
     builder.add_edge(START, "llm_guard")
     builder.add_conditional_edges("llm_guard", route_after_guard, GUARD_ROUTES)
@@ -88,5 +102,8 @@ def build_graph() -> StateGraph:
     builder.add_conditional_edges(
         "deterministic_verification", route_after_verification, VERIFICATION_ROUTES
     )
+    builder.add_conditional_edges("hitl_review", route_after_hitl_review, HITL_ROUTES)
+    builder.add_edge("hitl_rejected_no_feedback", END)
+    builder.add_edge("hitl_exhausted", END)
 
     return builder

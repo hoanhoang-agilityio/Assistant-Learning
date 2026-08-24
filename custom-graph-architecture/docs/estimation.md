@@ -73,11 +73,11 @@ classifier accuracy checks are all passing.
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
 | 25/08 | Implement `hitl_review` node (`interrupt()` approve/reject) | 1 | 1 | Done |
-| 25/08 | Implement approve routing → end | 0.5 | | Todo |
-| 25/08 | Implement reject + feedback routing → `coach_agent` revision | 1.5 | | Todo |
-| 25/08 | Implement `hitl_rejected_no_feedback` node (stop immediately) | 0.5 | | Todo |
-| 25/08 | Implement `hitl_exhausted` node (reject + retry >= 3) | 0.5 | | Todo |
-| 25/08 | Implement `hitl_retry_count` tracking | 0.5 | | Todo |
+| 25/08 | Implement approve routing → end | 0.5 | 0.25 | Done |
+| 25/08 | Implement reject + feedback routing → `coach_agent` revision | 1.5 | 0.75 | Done |
+| 25/08 | Implement `hitl_rejected_no_feedback` node (stop immediately) | 0.5 | 0.5 | Done |
+| 25/08 | Implement `hitl_exhausted` node (reject + retry >= 3) | 0.5 | 0.5 | Done |
+| 25/08 | Implement `hitl_retry_count` tracking | 0.5 | 0.5 | Done |
 | 25/08 | Integration test: full HITL approve/reject/exhausted loop | 0.5 | | Todo |
 
 ## Milestone 7 — QA agent & RAG pipeline (8h)
