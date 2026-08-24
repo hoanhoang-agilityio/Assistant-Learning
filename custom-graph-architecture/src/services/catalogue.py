@@ -197,3 +197,29 @@ def as_candidate(exercise: Exercise) -> dict:
     """Render one exercise as the compact row the agent chooses from."""
 
     return exercise.model_dump(mode="json", include=CANDIDATE_FIELDS)
+
+
+async def fetch_template(template_id: str) -> WorkoutTemplate | None:
+    """One template by id — how the verification gate re-resolves what a plan claims to fill."""
+
+    async with session_factory() as session:
+        row = await session.get(TemplateRow, template_id)
+
+    return row.to_schema() if row is not None else None
+
+
+async def fetch_exercises_by_id(exercise_ids: list[str]) -> dict[str, Exercise]:
+    """The catalogue rows behind a plan's prescriptions, keyed by id.
+
+    Ids with no row are simply absent from the result: the gate reads that gap as an
+    invented exercise, so this must not raise on one.
+    """
+
+    if not exercise_ids:
+        return {}
+
+    statement = select(ExerciseRow).where(ExerciseRow.id.in_(list(set(exercise_ids))))
+    async with session_factory() as session:
+        rows = (await session.execute(statement)).scalars().all()
+
+    return {row.id: row.to_schema() for row in rows}

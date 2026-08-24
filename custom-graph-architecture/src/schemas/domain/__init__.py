@@ -36,10 +36,17 @@ from src.schemas.domain.template import (
     WorkoutDayTemplate,
     WorkoutTemplate,
 )
+from src.schemas.domain.verification import (
+    CheckName,
+    Severity,
+    VerificationIssue,
+    VerificationResult,
+)
 
 __all__ = [
     "ActivityLevel",
     "BodyRegion",
+    "CheckName",
     "DifficultyLevel",
     "EquipmentType",
     "Exercise",
@@ -58,10 +65,13 @@ __all__ = [
     "PlanDay",
     "PlannedExercise",
     "RestrictionAction",
+    "Severity",
     "Sex",
     "TrainingPlan",
     "UserEquipment",
     "UserProfile",
+    "VerificationIssue",
+    "VerificationResult",
     "WorkoutDayTemplate",
     "WorkoutTemplate",
 ]

@@ -63,7 +63,7 @@ classifier accuracy checks are all passing.
 | 24/08 | Implement macro consistency check | 1 | | Todo |
 | 24/08 | Implement training volume & schedule check | 1 | | Todo |
 | 24/08 | Implement exercise availability & user constraints check | 1 | | Todo |
-| 25/08 | Implement safety constraints check | 1 | | Todo |
+| 24/08 | Implement safety constraints check | 1 | 1 | Done |
 | 25/08 | Implement `coach_retry_count` logic & pass/fail routing | 1 | | Todo |
 | 25/08 | Implement `notify_fail` node (retry >= 3) | 0.5 | | Todo |
 | 25/08 | Unit tests for deterministic verification rules | 0.5 | | Todo |
