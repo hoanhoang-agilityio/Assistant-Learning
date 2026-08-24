@@ -1,11 +1,14 @@
 """The ``hitl_review`` node: pause for the user's approve/reject decision on the plan."""
 
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 from langchain_core.messages import AnyMessage, HumanMessage
 from langgraph.types import interrupt
 
+from src.core.configs.config import settings
 from src.schemas import GraphState, HitlDecision
+
+HitlReviewRoute = Literal["approve", "revise", "no_feedback", "exhausted"]
 
 HITL_REVIEW_INTERRUPT = "hitl_review"
 
@@ -28,6 +31,7 @@ class HitlReviewUpdate(TypedDict):
 
     hitl_decision: HitlDecision
     hitl_feedback: str | None
+    hitl_retry_count: int
     messages: list[AnyMessage]
 
 
@@ -59,8 +63,25 @@ async def hitl_review(state: GraphState) -> HitlReviewUpdate:
 
     decision, feedback = _parse_decision(reply)
 
+    retry_count = state.get("hitl_retry_count", 0)
+    if decision == "reject" and feedback:
+        retry_count += 1
+
     return {
         "hitl_decision": decision,
         "hitl_feedback": feedback,
+        "hitl_retry_count": retry_count,
         "messages": [HumanMessage(content=feedback or decision)],
     }
+
+
+def route_after_hitl_review(state: GraphState) -> HitlReviewRoute:
+    """Send an approved plan on, a revision back to the coach, or give up."""
+
+    if state.get("hitl_decision") != "reject":
+        return "approve"
+    if not state.get("hitl_feedback"):
+        return "no_feedback"
+    if state.get("hitl_retry_count", 0) >= settings.HITL_MAX_RETRIES:
+        return "exhausted"
+    return "revise"
