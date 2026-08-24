@@ -7,6 +7,7 @@ from src.core.langgraph.nodes import (
     blocked,
     classify_intent,
     determine_context,
+    deterministic_verification,
     llm_guard,
     load_context,
     off_topic,
@@ -15,6 +16,7 @@ from src.core.langgraph.nodes import (
     route_after_determine_context,
     route_after_guard,
     route_after_intent,
+    route_after_verification,
     save_user_data,
     user_info_exhausted,
     wait_for_user,
@@ -40,6 +42,12 @@ MISSING_INFO_ROUTES: dict[str, str] = {
     "exhausted": "user_info_exhausted",
 }
 
+VERIFICATION_ROUTES: dict[str, str] = {
+    "pass": END,
+    "retry": "coach_agent",
+    "exhausted": END,
+}
+
 
 def build_graph() -> StateGraph:
     """The workflow graph."""
@@ -57,6 +65,7 @@ def build_graph() -> StateGraph:
     builder.add_node("user_info_exhausted", user_info_exhausted)
     builder.add_node("write_todo", write_todo)
     builder.add_node("coach_agent", coach_agent)
+    builder.add_node("deterministic_verification", deterministic_verification)
 
     builder.add_edge(START, "llm_guard")
     builder.add_conditional_edges("llm_guard", route_after_guard, GUARD_ROUTES)
@@ -72,6 +81,9 @@ def build_graph() -> StateGraph:
     builder.add_edge("off_topic", END)
     builder.add_edge("user_info_exhausted", END)
     builder.add_edge("write_todo", "coach_agent")
-    builder.add_edge("coach_agent", END)
+    builder.add_edge("coach_agent", "deterministic_verification")
+    builder.add_conditional_edges(
+        "deterministic_verification", route_after_verification, VERIFICATION_ROUTES
+    )
 
     return builder

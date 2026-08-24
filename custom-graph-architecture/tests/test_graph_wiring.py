@@ -19,6 +19,7 @@ EXPECTED_NODES = {
     "user_info_exhausted",
     "write_todo",
     "coach_agent",
+    "deterministic_verification",
 }
 
 # (from, condition, to) — ``None`` where the edge is unconditional.
@@ -39,7 +40,17 @@ EXPECTED_EDGES = {
     ("off_topic", None, END),
     ("user_info_exhausted", None, END),
     ("write_todo", None, "coach_agent"),
-    ("coach_agent", None, END),
+    ("coach_agent", None, "deterministic_verification"),
+    ("deterministic_verification", "retry", "coach_agent"),
+}
+
+# What ``route_after_verification`` may return, and where each answer goes. Read from the
+# builder rather than from the drawn graph: the drawing collapses the two routes that both
+# end the run today, and those are exactly the two the spec distinguishes.
+EXPECTED_VERIFICATION_ROUTES = {
+    "pass": END,
+    "retry": "coach_agent",
+    "exhausted": END,
 }
 
 
@@ -84,6 +95,7 @@ def test_the_context_branch_has_no_edges_beyond_the_spec(edges) -> None:
         "blocked",
         "classify_intent",
         "off_topic",
+        "deterministic_verification",
     }
     actual = {edge for edge in edges if edge[0] in context_nodes}
 
@@ -110,6 +122,18 @@ def test_the_todo_leads_into_the_coach_agent(edges) -> None:
     assert ("write_todo", None, "coach_agent") in edges
 
 
-def test_the_verification_gate_is_still_unbuilt(edges) -> None:
-    """A generated plan ends the run until ``deterministic_verification`` lands."""
-    assert ("coach_agent", None, END) in edges
+def test_a_generated_plan_is_verified_before_anything_else(edges) -> None:
+    """The gate is the only thing between the agent's plan and the user."""
+    assert ("coach_agent", None, "deterministic_verification") in edges
+    assert not [
+        edge
+        for edge in edges
+        if edge[0] == "coach_agent" and edge[2] != "deterministic_verification"
+    ]
+
+
+def test_the_gate_routes_exactly_the_three_ways_the_spec_names() -> None:
+    """Pass, send back, give up: a fourth way out would be a way past the gate."""
+    [branch] = build_graph().branches["deterministic_verification"].values()
+
+    assert branch.ends == EXPECTED_VERIFICATION_ROUTES
