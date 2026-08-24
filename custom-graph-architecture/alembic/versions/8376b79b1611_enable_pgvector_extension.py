@@ -1,10 +1,8 @@
 """enable pgvector extension
 
-The compose init script also creates this extension, but only on a *fresh* volume — it
-never runs against an existing database. This migration is the durable path: it is what
-guarantees the extension exists on a staging or production database that compose never
-touched, and it must stay the first revision so no later migration can declare a ``vector``
-column before the type exists.
+The sole place the extension is created. It must stay the first revision so no later
+migration can declare a ``vector`` column before the type exists, and it is what guarantees
+the extension on a staging or production database nobody set up by hand.
 
 Revision ID: 8376b79b1611
 Revises:

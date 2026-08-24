@@ -40,7 +40,6 @@ src/
 tests/
 scripts/                    catalogue conversion + seeding
 data/                       exercises.json, templates.json
-docker/postgres/init/       pgvector extension, run on first container start
 ```
 
 ## Local setup
