@@ -8,6 +8,7 @@ from langchain.tools import ToolRuntime
 
 from src.core.langgraph.tools import COACH_TOOLS, load_exercise
 from src.core.langgraph.tools.context import context_profile
+from src.core.langgraph.tools.load_exercise import SlotQuery
 from src.schemas import (
     BodyRegion,
     CoachContext,
@@ -214,29 +215,34 @@ async def test_an_unreachable_database_finds_nothing_rather_than_raising(
 # --- The tool -----------------------------------------------------------------------------
 
 
+def _slot(slot_id: str, patterns: list[MovementPattern], **overrides) -> dict:
+    """One slot as the model passes it in the batch."""
+    return {"slot_id": slot_id, "movement_patterns": patterns} | overrides
+
+
 async def test_the_tool_returns_candidates_the_agent_can_choose_between(seeded) -> None:
     """The agent prescribes by id, so the id and the name have to be in the payload."""
     result = await load_exercise.ainvoke(
         {
-            "movement_patterns": [MovementPattern.SQUAT],
+            "slots": [_slot("d1_s1", [MovementPattern.SQUAT])],
             "runtime": _runtime(COMPLETE_PROFILE),
         }
     )
 
-    assert result
-    assert all({"id", "name"} <= set(candidate) for candidate in result)
+    assert result["slots"]["d1_s1"]
+    assert all({"id", "name"} <= set(candidate) for candidate in result["exercises"])
 
 
 async def test_the_tool_leaves_out_what_the_agent_does_not_choose_on(seeded) -> None:
     """Instructions for a hundred rows would cost more context than the plan itself."""
     result = await load_exercise.ainvoke(
         {
-            "movement_patterns": [MovementPattern.SQUAT],
+            "slots": [_slot("d1_s1", [MovementPattern.SQUAT])],
             "runtime": _runtime(COMPLETE_PROFILE),
         }
     )
 
-    assert set(result[0]) == catalogue.CANDIDATE_FIELDS
+    assert set(result["exercises"][0]) == catalogue.CANDIDATE_FIELDS
     assert json.dumps(result)
 
 
@@ -244,25 +250,85 @@ async def test_the_tool_filters_on_the_injury_the_model_never_passed(seeded) -> 
     """The whole point of the out-of-band profile: the filter is not the model's to skip."""
     result = await load_exercise.ainvoke(
         {
-            "movement_patterns": [MovementPattern.VERTICAL_PUSH],
+            "slots": [_slot("d1_s1", [MovementPattern.VERTICAL_PUSH])],
             "runtime": _runtime(COMPLETE_PROFILE | {"injuries": [SHOULDER_INJURY]}),
         }
     )
 
-    assert result == []
+    assert result == {"exercises": [], "slots": {"d1_s1": []}}
 
 
 async def test_the_tool_narrows_on_the_slot_it_was_given(seeded) -> None:
     """`required_body_region` is a slot constraint the gate re-checks afterwards."""
     result = await load_exercise.ainvoke(
         {
-            "movement_patterns": [MovementPattern.SQUAT],
-            "body_region": BodyRegion.LOWER,
+            "slots": [
+                _slot("d1_s1", [MovementPattern.SQUAT], body_region=BodyRegion.LOWER)
+            ],
             "runtime": _runtime(COMPLETE_PROFILE),
         }
     )
 
-    assert all(candidate["body_region"] == BodyRegion.LOWER for candidate in result)
+    assert all(
+        candidate["body_region"] == BodyRegion.LOWER
+        for candidate in result["exercises"]
+    )
+
+
+# --- The batch ------------------------------------------------------------------------------
+
+
+async def test_every_slot_in_the_batch_gets_its_own_candidates(seeded) -> None:
+    """One call has to answer the whole week, not just the slot the model asked last."""
+    result = await load_exercise.ainvoke(
+        {
+            "slots": [
+                _slot("d1_s1", [MovementPattern.HORIZONTAL_PUSH]),
+                _slot("d2_s1", [MovementPattern.SQUAT]),
+            ],
+            "runtime": _runtime(COMPLETE_PROFILE),
+        }
+    )
+
+    assert set(result["slots"]) == {"d1_s1", "d2_s1"}
+    assert result["slots"]["d1_s1"] and result["slots"]["d2_s1"]
+    assert result["slots"]["d1_s1"] != result["slots"]["d2_s1"]
+
+
+async def test_an_exercise_two_slots_share_is_sent_once(seeded) -> None:
+    """Repeating the row per slot is what made a twenty-slot week cost what it did."""
+    result = await load_exercise.ainvoke(
+        {
+            "slots": [
+                _slot("d1_s1", [MovementPattern.SQUAT]),
+                _slot("d3_s1", [MovementPattern.SQUAT]),
+            ],
+            "runtime": _runtime(COMPLETE_PROFILE),
+        }
+    )
+
+    sent = [candidate["id"] for candidate in result["exercises"]]
+
+    assert result["slots"]["d1_s1"] == result["slots"]["d3_s1"]
+    assert sent == list(dict.fromkeys(sent))
+    assert len(sent) == len(result["slots"]["d1_s1"])
+
+
+async def test_the_ids_a_slot_lists_are_all_in_the_payload(seeded) -> None:
+    """A slot pointing at an id the batch never sent leaves the agent nothing to prescribe."""
+    result = await load_exercise.ainvoke(
+        {
+            "slots": [
+                _slot("d1_s1", [MovementPattern.HORIZONTAL_PUSH]),
+                _slot("d2_s1", [MovementPattern.HINGE]),
+            ],
+            "runtime": _runtime(COMPLETE_PROFILE),
+        }
+    )
+
+    sent = {candidate["id"] for candidate in result["exercises"]}
+
+    assert all(set(ids) <= sent for ids in result["slots"].values())
 
 
 # --- The context the tool reads -------------------------------------------------------------
@@ -297,7 +363,13 @@ def test_the_profile_is_not_an_argument_the_model_can_get_wrong() -> None:
     """A filter the model has to remember to pass is advisory, not a constraint."""
     properties = set(load_exercise.tool_call_schema.model_json_schema()["properties"])
 
-    assert properties == {
+    assert properties == {"slots"}
+
+
+def test_a_slot_asks_for_everything_that_narrows_it() -> None:
+    """Batching must not cost the per-slot constraints the single-slot tool accepted."""
+    assert set(SlotQuery.model_fields) == {
+        "slot_id",
         "movement_patterns",
         "target_muscles",
         "body_region",

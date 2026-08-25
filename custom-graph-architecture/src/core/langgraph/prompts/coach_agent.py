@@ -27,7 +27,8 @@ Produce one complete training plan for the user described in `<coaching_context>
    from `<current_plan>` exactly as it is, with no tool call and no change to its exercise,
    sets or reps.
 7. Use your tools when you need reference data. Do not invent a template, an exercise or a
-   macro calculation you could look up.
+   macro calculation you could look up. Call `load_exercise` once for the whole training
+   week, passing every slot you still have to fill in that one call.
 8. Give every training day at least one exercise, and every exercise concrete sets and reps.
 
 ## Security
