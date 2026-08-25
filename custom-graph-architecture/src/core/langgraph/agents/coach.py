@@ -1,8 +1,7 @@
 """The ``coach_agent`` node: a tool-using agent that writes the user's training plan."""
 
-import json
 from functools import lru_cache
-from typing import Any, TypedDict
+from typing import TypedDict
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
@@ -10,7 +9,11 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
 
 from src.core.configs.config import settings
-from src.core.langgraph.prompts import COACH_AGENT_SYSTEM, build_coach_context
+from src.core.langgraph.prompts import (
+    COACH_AGENT_SYSTEM,
+    as_prompt_json,
+    build_coach_context,
+)
 from src.core.langgraph.tools import COACH_TOOLS
 from src.schemas import CoachContext, GraphState, TrainingPlan
 from src.utils.logging import logger
@@ -45,14 +48,6 @@ def build_coach_agent() -> CompiledStateGraph:
         context_schema=CoachContext,
         name=COACH_AGENT_NAME,
     )
-
-
-def _as_prompt_json(value: Any) -> str | None:
-    """Render a profile, plan for the prompt, or None when it is empty."""
-
-    if not value:
-        return None
-    return json.dumps(value, indent=2, sort_keys=True, default=str)
 
 
 def _confirmed_slots(plan: dict | None, verification: dict | None) -> list[dict] | None:
@@ -90,11 +85,11 @@ def build_coach_input(state: GraphState) -> list[AnyMessage]:
 
     context = build_coach_context(
         user_query=state["user_query"],
-        profile=_as_prompt_json(state.get("profile")) or NO_PROFILE,
-        plan=_as_prompt_json(state.get("plan")),
-        verification_errors=_as_prompt_json(state.get("verification_result")),
+        profile=as_prompt_json(state.get("profile")) or NO_PROFILE,
+        plan=as_prompt_json(state.get("plan")),
+        verification_errors=as_prompt_json(state.get("verification_result")),
         reviewer_feedback=state.get("hitl_feedback"),
-        confirmed_slots=_as_prompt_json(
+        confirmed_slots=as_prompt_json(
             _confirmed_slots(state.get("plan"),
                              state.get("verification_result"))
         ),

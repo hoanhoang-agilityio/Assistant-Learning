@@ -1,6 +1,5 @@
 """Generation of the coach agent's plan of work for one coaching request."""
 
-import json
 from functools import lru_cache
 from typing import Any
 
@@ -8,7 +7,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from src.core.configs.config import settings
-from src.core.langgraph.prompts import build_todo_writer_messages
+from src.core.langgraph.prompts import as_prompt_json, build_todo_writer_messages
 from src.utils.logging import logger
 
 MAX_TODO_STEPS = 8
@@ -42,14 +41,6 @@ def _build_writer() -> ChatOpenAI:
     )
 
 
-def _as_prompt_json(value: dict[str, Any] | None) -> str | None:
-    """Render a profile or plan for the prompt, or None when there is nothing to render."""
-
-    if not value:
-        return None
-    return json.dumps(value, indent=2, sort_keys=True, default=str)
-
-
 def usable_tasks(tasks: list[str]) -> list[str]:
     """Keep the steps that carry text, capped at what a single turn should attempt."""
 
@@ -66,8 +57,8 @@ async def generate_todo(
         todo_plan = await writer.ainvoke(
             build_todo_writer_messages(
                 user_query=user_query,
-                profile=_as_prompt_json(profile) or "none on record",
-                plan=_as_prompt_json(plan),
+                profile=as_prompt_json(profile) or "none on record",
+                plan=as_prompt_json(plan),
             )
         )
     except Exception as error:
