@@ -80,6 +80,26 @@ uv run uvicorn src.main:app --reload
 
 `GET /api/v1/health` should return `{"status": "ok", ...}`.
 
+## Watching a run: LangSmith + Studio
+
+Set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` in `.env.development` (get a key at
+[smith.langchain.com](https://smith.langchain.com)) to send every graph run there — no code
+change needed, the SDK reads those two vars straight from the process environment.
+
+To step through a run node-by-node, inspect state at each `interrupt()` gate, or replay from
+any checkpoint, run LangGraph Studio instead:
+
+```bash
+uv run langgraph dev
+```
+
+This starts an in-memory API on `localhost:2024` and opens Studio in the browser
+(`smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024`). It compiles the same
+`build_graph()` as the app (`langgraph.json` points at `build_compiled_graph`), but with its
+own in-memory checkpointer — separate threads from the ones the FastAPI app persists to
+Postgres. Nodes that hit Postgres directly (`load_context`, `save_user_data`, the knowledge
+retriever) still need `docker compose up -d db` running alongside it.
+
 ## Authentication
 
 Two JWT scopes plus one opaque refresh credential. They are deliberately not

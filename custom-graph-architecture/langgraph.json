@@ -1,0 +1,8 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "coaching_graph": "./src/core/langgraph/graph.py:build_compiled_graph"
+  },
+  "env": ".env.development",
+  "python_version": "3.13"
+}

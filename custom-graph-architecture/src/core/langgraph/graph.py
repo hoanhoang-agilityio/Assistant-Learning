@@ -1,6 +1,7 @@
 """The workflow graph"""
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from src.core.langgraph.agents import coach_agent
 from src.core.langgraph.nodes import (
@@ -104,3 +105,8 @@ def build_graph() -> StateGraph:
     builder.add_edge("hitl_exhausted", END)
 
     return builder
+
+
+def build_compiled_graph() -> CompiledStateGraph:
+    """The graph for LangGraph Studio; `langgraph dev` injects its own checkpointer."""
+    return build_graph().compile()

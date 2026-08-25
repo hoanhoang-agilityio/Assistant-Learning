@@ -8,3 +8,4 @@ logs/
 .env.*
 !.env.example
 .DS_Store
+.langgraph_api/
