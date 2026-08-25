@@ -16,6 +16,14 @@ class CoachContext:
     profile: dict | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class QaContext:
+    """What the QA agent's tools read for themselves rather than being told."""
+
+    user_id: str
+    profile: dict | None = None
+
+
 class RetrievedChunk(TypedDict):
     """One passage returned by knowledge retrieval."""
 

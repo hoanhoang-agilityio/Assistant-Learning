@@ -3,7 +3,7 @@
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from src.core.langgraph.agents import coach_agent
+from src.core.langgraph.agents import coach_agent, qa_agent
 from src.core.langgraph.nodes import (
     bg_save_profile,
     blocked,
@@ -33,7 +33,7 @@ GUARD_ROUTES: dict[str, str] = {"blocked": "blocked", "pass": "classify_intent"}
 
 INTENT_ROUTES: dict[str, str] = {
     "coaching": "load_context",
-    "qa": END,
+    "qa": "qa_agent",
     "off_topic": "off_topic",
 }
 
@@ -78,6 +78,7 @@ def build_graph() -> StateGraph:
     builder.add_node("hitl_review", hitl_review)
     builder.add_node("hitl_rejected_no_feedback", hitl_rejected_no_feedback)
     builder.add_node("hitl_exhausted", hitl_exhausted)
+    builder.add_node("qa_agent", qa_agent)
 
     builder.add_edge(START, "llm_guard")
     builder.add_conditional_edges("llm_guard", route_after_guard, GUARD_ROUTES)
@@ -101,6 +102,7 @@ def build_graph() -> StateGraph:
     builder.add_conditional_edges("hitl_review", route_after_hitl_review, HITL_ROUTES)
     builder.add_edge("hitl_rejected_no_feedback", END)
     builder.add_edge("hitl_exhausted", END)
+    builder.add_edge("qa_agent", END)
 
     return builder
 

@@ -6,10 +6,22 @@ from src.core.langgraph.agents.coach import (
     build_coach_input,
     coach_agent,
 )
+from src.core.langgraph.agents.qa import (
+    QA_AGENT_NAME,
+    answer_text,
+    build_qa_agent,
+    build_qa_input,
+    qa_agent,
+)
 
 __all__ = [
     "COACH_AGENT_NAME",
+    "QA_AGENT_NAME",
+    "answer_text",
     "build_coach_agent",
     "build_coach_input",
+    "build_qa_agent",
+    "build_qa_input",
     "coach_agent",
+    "qa_agent",
 ]

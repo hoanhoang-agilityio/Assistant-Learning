@@ -84,7 +84,7 @@ classifier accuracy checks are all passing.
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| 25/08 | Implement `qa_agent` node (LangGraph agent) + tools binding | 1 | | Todo |
+| 25/08 | Implement `qa_agent` node (LangGraph agent) + tools binding | 1 | 1 | Done |
 | 25/08 | Implement `search_knowledge` tool (pgvector retrieval, `top_k=4`, cosine similarity) | 1 | | Todo |
 | 26/08 | Implement `load_profile` tool for QA context | 0.5 | | Todo |
 | 26/08 | Build embedding pipeline (`text-embedding-3-small`) for `knowledge_chunks` | 1 | | Todo |

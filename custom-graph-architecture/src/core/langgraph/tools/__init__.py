@@ -8,4 +8,12 @@ from src.core.langgraph.tools.load_template import load_template
 
 COACH_TOOLS: list[BaseTool] = [load_template, load_exercise]
 
-__all__ = ["COACH_TOOLS", "calc_macro", "load_exercise", "load_template"]
+QA_TOOLS: list[BaseTool] = [calc_macro]
+
+__all__ = [
+    "COACH_TOOLS",
+    "QA_TOOLS",
+    "calc_macro",
+    "load_exercise",
+    "load_template",
+]

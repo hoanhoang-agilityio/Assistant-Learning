@@ -46,6 +46,7 @@ from src.schemas.graph import (
     GraphState,
     HitlDecision,
     Intent,
+    QaContext,
     RetrievedChunk,
     initial_state,
 )
@@ -81,6 +82,7 @@ __all__ = [
     "NutritionTargets",
     "PlanDay",
     "PlannedExercise",
+    "QaContext",
     "RestrictionAction",
     "RetrievedChunk",
     "SessionResponse",

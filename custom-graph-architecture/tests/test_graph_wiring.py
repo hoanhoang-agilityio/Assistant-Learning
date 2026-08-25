@@ -24,6 +24,7 @@ EXPECTED_NODES = {
     "hitl_review",
     "hitl_rejected_no_feedback",
     "hitl_exhausted",
+    "qa_agent",
 }
 
 # (from, condition, to) — ``None`` where the edge is unconditional.
@@ -55,6 +56,8 @@ EXPECTED_EDGES = {
     ("hitl_review", "exhausted", "hitl_exhausted"),
     ("hitl_rejected_no_feedback", None, END),
     ("hitl_exhausted", None, END),
+    ("classify_intent", "qa", "qa_agent"),
+    ("qa_agent", None, END),
 }
 
 # What ``route_after_verification`` may return, and where each answer goes.
