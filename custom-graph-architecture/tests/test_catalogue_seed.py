@@ -54,7 +54,7 @@ def test_the_catalogue_validates_against_the_domain_models(
 ) -> None:
     """The seed is only useful if it is the shape the tools hand to the agent."""
     assert len(exercises) == 103
-    assert len(templates) == 5
+    assert len(templates) == 8
 
 
 def test_exercise_ids_are_unique(exercises) -> None:
@@ -192,7 +192,7 @@ def test_slots_carry_the_volume_the_template_prescribes(templates) -> None:
 
 def test_the_templates_span_the_training_weeks_a_user_can_ask_for(templates) -> None:
     """``load_template`` filters on this, and a gap means a user with no template."""
-    assert {template.days_per_week for template in templates} == {2, 3, 4, 5}
+    assert {template.days_per_week for template in templates} == {1, 2, 3, 4, 5, 6, 7}
 
 
 def test_every_goal_has_a_template(templates) -> None:

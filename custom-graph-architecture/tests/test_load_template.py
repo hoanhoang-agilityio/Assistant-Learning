@@ -53,11 +53,20 @@ def test_popularity_breaks_a_tie(templates) -> None:
     assert best.id == "full_body_3day"
 
 
-def test_an_unavailable_week_falls_back_to_the_closest_one(templates) -> None:
-    """The catalogue tops out at five days; a six-day user still needs a plan."""
-    best = catalogue.rank_templates(templates, 6)[0]
+def test_the_ends_of_the_range_have_a_template_of_their_own(templates) -> None:
+    """A once-a-week user used to be handed two days, a six-day user five."""
+    assert catalogue.rank_templates(templates, 1)[0].days_per_week == 1
+    assert catalogue.rank_templates(templates, 6)[0].days_per_week == 6
+    assert catalogue.rank_templates(templates, 7)[0].days_per_week == 7
 
-    assert best.days_per_week == 5
+
+def test_an_unavailable_week_falls_back_to_the_closest_one(templates) -> None:
+    """The goal filter runs first, so the week the user asked for can be missing."""
+    available = [template for template in templates if template.days_per_week != 3]
+
+    best = catalogue.rank_templates(available, 3)[0]
+
+    assert best.days_per_week == 4
 
 
 def test_ranking_is_total_so_the_same_request_returns_the_same_template(
@@ -194,6 +203,7 @@ async def test_the_goal_filter_runs_in_the_database(require_postgres: None) -> N
     matching = await catalogue.fetch_templates(FitnessGoal.GENERAL_FITNESS)
 
     assert {template.id for template in matching} == {
+        "full_body_1day",
         "full_body_3day",
         "upper_lower_2day",
     }

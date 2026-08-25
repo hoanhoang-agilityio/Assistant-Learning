@@ -1,5 +1,753 @@
 [
   {
+    "id": "body_part_split_7day",
+    "name": "Chest / Back / Shoulders / Arms / Legs / Upper / Lower, 7 days",
+    "goals": [
+      "MUSCLE_GAIN",
+      "MAINTENANCE"
+    ],
+    "training_days": [
+      {
+        "day_number": 1,
+        "name": "Chest",
+        "body_region": "UPPER",
+        "exercise_slots": [
+          {
+            "slot_id": "bp7_ch_horiz_push",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PUSH"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              6,
+              8
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_ch_horiz_push_b",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PUSH"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_ch_chest_iso",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_ADDUCTION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_ch_dip",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "DIP"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 2,
+        "name": "Back",
+        "body_region": "UPPER",
+        "exercise_slots": [
+          {
+            "slot_id": "bp7_bk_vert_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "VERTICAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              6,
+              10
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_bk_horiz_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_bk_vert_pull_b",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "VERTICAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              12
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_bk_rear_delt",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "REAR_DELT_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 3,
+        "name": "Shoulders",
+        "body_region": "UPPER",
+        "exercise_slots": [
+          {
+            "slot_id": "bp7_sh_vert_push",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "VERTICAL_PUSH"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              6,
+              10
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_sh_lateral",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ABDUCTION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_sh_rear_delt",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "REAR_DELT_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              15,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_sh_high_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HIGH_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 4,
+        "name": "Arms",
+        "body_region": "UPPER",
+        "exercise_slots": [
+          {
+            "slot_id": "bp7_ar_biceps",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ELBOW_FLEXION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_ar_triceps",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ELBOW_EXTENSION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_ar_biceps_b",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ELBOW_FLEXION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_ar_triceps_b",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ELBOW_EXTENSION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 5,
+        "name": "Legs",
+        "body_region": "LOWER",
+        "exercise_slots": [
+          {
+            "slot_id": "bp7_lg_squat",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "SQUAT"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              5,
+              8
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_lg_hinge",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HINGE"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              6,
+              10
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_lg_knee_iso",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "KNEE_EXTENSION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_lg_knee_flexion",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "KNEE_FLEXION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_lg_calf",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "CALF_RAISE"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              10,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 6,
+        "name": "Upper",
+        "body_region": "UPPER",
+        "exercise_slots": [
+          {
+            "slot_id": "bp7_up_horiz_push",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PUSH"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              12
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_up_horiz_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              12
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_up_vert_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "VERTICAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              12
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_up_lateral",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ABDUCTION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              15,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_up_arms",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ELBOW_FLEXION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 7,
+        "name": "Lower",
+        "body_region": "LOWER",
+        "exercise_slots": [
+          {
+            "slot_id": "bp7_lo_lunge",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "LUNGE"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              12
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_lo_hip_iso",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HIP_THRUST"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_lo_knee_iso",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "KNEE_EXTENSION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_lo_knee_flexion",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "KNEE_FLEXION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_lo_calf",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "CALF_RAISE"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "bp7_lo_core",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ANTI_EXTENSION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      }
+    ],
+    "popularity": 50,
+    "description": null,
+    "notes": null
+  },
+  {
     "id": "chest_back_legs_upper_lower_5day",
     "name": "Chest / Back / Legs / Upper / Lower, 5 days",
     "goals": [
@@ -580,6 +1328,177 @@
       }
     ],
     "popularity": 75,
+    "description": null,
+    "notes": null
+  },
+  {
+    "id": "full_body_1day",
+    "name": "Full body, 1 day",
+    "goals": [
+      "FAT_LOSS",
+      "MUSCLE_GAIN",
+      "MAINTENANCE",
+      "GENERAL_FITNESS"
+    ],
+    "training_days": [
+      {
+        "day_number": 1,
+        "name": "Full body",
+        "body_region": "FULL_BODY",
+        "exercise_slots": [
+          {
+            "slot_id": "fb1_squat",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "SQUAT"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              6,
+              10
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "fb1_hinge",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HINGE"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              6,
+              10
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "fb1_horiz_push",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PUSH"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "fb1_horiz_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "fb1_vert_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "VERTICAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "fb1_lateral",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ABDUCTION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 2,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "fb1_core",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ANTI_EXTENSION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 2,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      }
+    ],
+    "popularity": 40,
     "description": null,
     "notes": null
   },
@@ -1230,6 +2149,725 @@
       }
     ],
     "popularity": 80,
+    "description": null,
+    "notes": null
+  },
+  {
+    "id": "push_pull_legs_6day",
+    "name": "Push / Pull / Legs, 6 days",
+    "goals": [
+      "FAT_LOSS",
+      "MUSCLE_GAIN",
+      "MAINTENANCE"
+    ],
+    "training_days": [
+      {
+        "day_number": 1,
+        "name": "Push A",
+        "body_region": "UPPER",
+        "exercise_slots": [
+          {
+            "slot_id": "ppl6_pa_horiz_push",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PUSH"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              5,
+              8
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_pa_vert_push",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "VERTICAL_PUSH"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              6,
+              10
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_pa_chest_iso",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_ADDUCTION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_pa_lateral",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ABDUCTION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_pa_triceps",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ELBOW_EXTENSION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 2,
+        "name": "Pull A",
+        "body_region": "UPPER",
+        "exercise_slots": [
+          {
+            "slot_id": "ppl6_la_vert_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "VERTICAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              6,
+              10
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_la_horiz_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_la_high_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HIGH_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_la_rear_delt",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "REAR_DELT_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_la_biceps",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ELBOW_FLEXION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 3,
+        "name": "Legs A",
+        "body_region": "LOWER",
+        "exercise_slots": [
+          {
+            "slot_id": "ppl6_ga_squat",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "SQUAT"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              5,
+              8
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_ga_hinge",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HINGE"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              6,
+              10
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_ga_knee_iso",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "KNEE_EXTENSION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_ga_knee_flexion",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "KNEE_FLEXION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_ga_calf",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "CALF_RAISE"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              10,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 4,
+        "name": "Push B",
+        "body_region": "UPPER",
+        "exercise_slots": [
+          {
+            "slot_id": "ppl6_pb_vert_push",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "VERTICAL_PUSH"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              8,
+              12
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_pb_horiz_push",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PUSH"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              15
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_pb_chest_iso",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_ADDUCTION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_pb_lateral",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ABDUCTION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              15,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_pb_triceps",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ELBOW_EXTENSION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 5,
+        "name": "Pull B",
+        "body_region": "UPPER",
+        "exercise_slots": [
+          {
+            "slot_id": "ppl6_lb_horiz_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HORIZONTAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              10,
+              15
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_lb_vert_pull",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "VERTICAL_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              12
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_lb_rear_delt",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "REAR_DELT_PULL"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              15,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_lb_biceps",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ELBOW_FLEXION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_lb_core",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ANTI_ROTATION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      },
+      {
+        "day_number": 6,
+        "name": "Legs B",
+        "body_region": "LOWER",
+        "exercise_slots": [
+          {
+            "slot_id": "ppl6_gb_hinge",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HINGE"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              5,
+              8
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_gb_lunge",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "LUNGE"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              12
+            ],
+            "rir_range": [
+              2,
+              3
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_gb_hip_iso",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "HIP_THRUST"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              10,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_gb_knee_flexion",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "KNEE_FLEXION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              15
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_gb_calf",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "CALF_RAISE"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 4,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          },
+          {
+            "slot_id": "ppl6_gb_core",
+            "exercise_type": null,
+            "target_muscles": [],
+            "allowed_movement_patterns": [
+              "ANTI_EXTENSION"
+            ],
+            "excluded_movement_patterns": [],
+            "required_body_region": null,
+            "alternatives_allowed": true,
+            "sets": 3,
+            "rep_range": [
+              12,
+              20
+            ],
+            "rir_range": [
+              1,
+              2
+            ],
+            "notes": null
+          }
+        ],
+        "target_muscles": [],
+        "notes": null
+      }
+    ],
+    "popularity": 78,
     "description": null,
     "notes": null
   },
