@@ -1,5 +1,7 @@
 """Catalogue lookups behind the coach agent's tools."""
 
+import time
+
 from sqlmodel import select
 
 from src.models.catalogue import Exercise as ExerciseRow
@@ -87,13 +89,26 @@ _DIFFICULTY_ORDER: dict[DifficultyLevel, int] = {
 }
 
 
-async def fetch_exercises(
-    movement_patterns: list[MovementPattern],
-    *,
-    body_region: BodyRegion | None = None,
-    exclude_ids: list[str] | None = None,
+_EXERCISE_CACHE_TTL = 300.0
+
+# Keyed by pattern and region only: what changes per call (profile, exclude_ids) is
+# filtered in Python after the cached rows come back, so one slot shape shared across
+# retries and other slots costs one query instead of one per call.
+_exercise_cache: dict[
+    tuple[frozenset[MovementPattern], BodyRegion | None], tuple[float, list[Exercise]]
+] = {}
+
+
+def clear_exercise_cache() -> None:
+    """Drop every cached catalogue row — for tests, or after the catalogue changes."""
+
+    _exercise_cache.clear()
+
+
+async def _query_exercises(
+    movement_patterns: list[MovementPattern], body_region: BodyRegion | None
 ) -> list[Exercise]:
-    """Catalogue rows matching a slot's pattern and region — what the indexes answer."""
+    """The uncached catalogue query for one pattern-and-region shape."""
 
     statement = select(ExerciseRow)
     if movement_patterns:
@@ -102,13 +117,35 @@ async def fetch_exercises(
         )
     if body_region is not None:
         statement = statement.where(ExerciseRow.body_region == body_region)
-    if exclude_ids:
-        statement = statement.where(ExerciseRow.id.not_in(list(exclude_ids)))
 
     async with session_factory() as session:
         rows = (await session.execute(statement)).scalars().all()
 
     return [row.to_schema() for row in rows]
+
+
+async def fetch_exercises(
+    movement_patterns: list[MovementPattern],
+    *,
+    body_region: BodyRegion | None = None,
+    exclude_ids: list[str] | None = None,
+) -> list[Exercise]:
+    """Catalogue rows matching a slot's pattern and region — what the indexes answer."""
+
+    key = (frozenset(movement_patterns), body_region)
+    now = time.monotonic()
+    cached = _exercise_cache.get(key)
+
+    if cached is not None and cached[0] > now:
+        exercises = cached[1]
+    else:
+        exercises = await _query_exercises(movement_patterns, body_region)
+        _exercise_cache[key] = (now + _EXERCISE_CACHE_TTL, exercises)
+
+    if not exclude_ids:
+        return exercises
+    excluded = set(exclude_ids)
+    return [exercise for exercise in exercises if exercise.id not in excluded]
 
 
 def equipment_available(exercise: Exercise, equipment: UserEquipment) -> bool:

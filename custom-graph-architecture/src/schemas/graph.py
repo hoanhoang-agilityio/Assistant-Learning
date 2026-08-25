@@ -44,7 +44,6 @@ class GraphState(AgentState):
     user_info_retry_count: NotRequired[int]
 
     # --- Coaching ----------------------------------------------------------------------
-    todo: NotRequired[list[dict] | None]
     coach_retry_count: NotRequired[int]
     verification_result: NotRequired[dict | None]
 
@@ -81,7 +80,6 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         context_complete=False,
         missing_fields=[],
         user_info_retry_count=0,
-        todo=None,
         coach_retry_count=0,
         verification_result=None,
         hitl_decision=None,

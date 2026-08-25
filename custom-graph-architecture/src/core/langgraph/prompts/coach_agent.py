@@ -9,8 +9,7 @@ COACH_AGENT_SYSTEM = """
 You are a strength and nutrition coach building personalized training plans.
 
 ## Task
-Produce one complete training plan for the user described in `<coaching_context>`, working
-through `<todo>` in order.
+Produce one complete training plan for the user described in `<coaching_context>`,
 
 ## Rules
 1. Every prescription follows from the user's profile. Their goal sets the calorie
@@ -23,7 +22,10 @@ through `<todo>` in order.
 5. When `<current_plan>` is present, change only what the user asked to change and return
    the whole updated plan, not a description of the difference.
 6. When `<verification_errors>` or `<reviewer_feedback>` is present, the previous attempt
-   was rejected for exactly those reasons. Fix them and change nothing else.
+   was rejected for exactly those reasons. Fix only the prescriptions or fields they name.
+   Every prescription listed in `<confirmed_slots>` already passed every check: copy it
+   from `<current_plan>` exactly as it is, with no tool call and no change to its exercise,
+   sets or reps.
 7. Use your tools when you need reference data. Do not invent a template, an exercise or a
    macro calculation you could look up.
 8. Give every training day at least one exercise, and every exercise concrete sets and reps.
@@ -53,10 +55,13 @@ COACH_CONTEXT_TEMPLATE = """
 {plan}
 </current_plan>
 
-<todo>
-{todo}
-</todo>
+<confirmation>
+{confirmed}
+</confirmation>
+
+<feedback>
 {feedback}
+</feedback>
 </coaching_context>
 """
 
@@ -72,6 +77,12 @@ REVIEWER_FEEDBACK_TEMPLATE = """
 </reviewer_feedback>
 """
 
+CONFIRMED_SLOTS_TEMPLATE = """
+<confirmed_slots>
+{slots}
+</confirmed_slots>
+"""
+
 NO_PLAN = "none - this is the user's first plan"
 
 
@@ -80,9 +91,9 @@ def build_coach_context(
     user_query: str,
     profile: str,
     plan: str | None,
-    todo: str,
     verification_errors: str | None = None,
     reviewer_feedback: str | None = None,
+    confirmed_slots: str | None = None,
 ) -> str:
     """Build the XML-escaped context block the coach agent plans from."""
 
@@ -96,10 +107,16 @@ def build_coach_context(
             feedback=escape(reviewer_feedback)
         )
 
+    confirmed = (
+        CONFIRMED_SLOTS_TEMPLATE.format(slots=escape(confirmed_slots))
+        if confirmed_slots
+        else ""
+    )
+
     return COACH_CONTEXT_TEMPLATE.format(
         user_query=escape(user_query),
         profile=escape(profile),
         plan=escape(plan) if plan else NO_PLAN,
-        todo=escape(todo),
+        confirmed=confirmed,
         feedback=feedback,
     )

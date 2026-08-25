@@ -17,7 +17,6 @@ from src.utils.logging import logger
 
 COACH_AGENT_NAME = "coach_agent"
 NO_PROFILE = "none on record"
-NO_TODO = "no todo list was written; work from the user's request"
 PLAN_READY_MESSAGE = "I've put your training plan together."
 
 
@@ -49,11 +48,41 @@ def build_coach_agent() -> CompiledStateGraph:
 
 
 def _as_prompt_json(value: Any) -> str | None:
-    """Render a profile, plan or todo list for the prompt, or None when it is empty."""
+    """Render a profile, plan for the prompt, or None when it is empty."""
 
     if not value:
         return None
     return json.dumps(value, indent=2, sort_keys=True, default=str)
+
+
+def _confirmed_slots(plan: dict | None, verification: dict | None) -> list[dict] | None:
+    """Prescriptions the last verification pass raised no error against.
+
+    Warnings do not disqualify a slot: the gate lets a plan through with them standing, so
+    a slot flagged only by a warning is still one the coach agent need not touch again.
+    """
+
+    if not plan or not verification:
+        return None
+
+    flagged = {
+        (issue.get("day_number"), issue.get("slot_id"))
+        for issue in verification.get("issues", [])
+        if issue.get("severity") == "error"
+    }
+
+    confirmed = [
+        {
+            "day_number": day.get("day_number"),
+            "slot_id": exercise.get("slot_id"),
+            "exercise_id": exercise.get("exercise_id"),
+        }
+        for day in plan.get("training_days", [])
+        for exercise in day.get("exercises", [])
+        if (day.get("day_number"), exercise.get("slot_id")) not in flagged
+    ]
+
+    return confirmed or None
 
 
 def build_coach_input(state: GraphState) -> list[AnyMessage]:
@@ -63,9 +92,12 @@ def build_coach_input(state: GraphState) -> list[AnyMessage]:
         user_query=state["user_query"],
         profile=_as_prompt_json(state.get("profile")) or NO_PROFILE,
         plan=_as_prompt_json(state.get("plan")),
-        todo=_as_prompt_json(state.get("todo")) or NO_TODO,
         verification_errors=_as_prompt_json(state.get("verification_result")),
         reviewer_feedback=state.get("hitl_feedback"),
+        confirmed_slots=_as_prompt_json(
+            _confirmed_slots(state.get("plan"),
+                             state.get("verification_result"))
+        ),
     )
     return [*state["messages"], HumanMessage(content=context)]
 
