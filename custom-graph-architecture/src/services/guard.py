@@ -29,16 +29,40 @@ GUARD_FAILURE_REASON = (
 
 # Keyed by llm-guard's own scanner class names, which is what ``scan_prompt`` reports.
 BLOCK_REASONS: dict[str, str] = {
-    "BanSubstrings": "This request contains wording that is not allowed.",
-    "BanTopics": "This assistant only covers fitness training and nutrition.",
-    "InvisibleText": "This request contains hidden characters.",
-    "PromptInjection": (
-        "This request looks like an attempt to override the assistant's instructions."
+    "BanSubstrings": (
+        "This request contains content I can't process."
     ),
-    "Regex": "This request matches a pattern that is not allowed.",
-    "Secrets": "This request appears to contain a password, key or other credential.",
-    "TokenLimit": "This request is too long. Please shorten it and try again.",
-    "Toxicity": "This request contains abusive or harmful language.",
+
+    "BanTopics": (
+        "I can help with fitness training and nutrition, but not with this topic."
+    ),
+
+    "InvisibleText": (
+        "This request contains characters I can't process. "
+        "Please check your message and try again."
+    ),
+
+    "PromptInjection": (
+        "I can't follow requests that attempt to change or bypass my instructions."
+    ),
+
+    "Regex": (
+        "This request contains content I can't process."
+    ),
+
+    "Secrets": (
+        "It looks like your message may contain a password, access key, "
+        "or other sensitive credential. Please remove it and try again."
+    ),
+
+    "TokenLimit": (
+        "This request is too long to process. "
+        "Please shorten it and try again."
+    ),
+
+    "Toxicity": (
+        "Please keep the conversation respectful so I can help you with your request."
+    ),
 }
 
 
@@ -195,12 +219,14 @@ async def scan_input(prompt: str) -> GuardVerdict:
         logger.exception("guard_scan_failed", error=str(e))
         return GuardVerdict(is_blocked=True, reason=GUARD_FAILURE_REASON)
 
-    failed = tuple(name for name, is_valid in results_valid.items() if not is_valid)
+    failed = tuple(
+        name for name, is_valid in results_valid.items() if not is_valid)
     if not failed:
         logger.debug("guard_scan_passed", scores=results_score)
         return GuardVerdict(is_blocked=False, scores=results_score)
 
-    logger.warning("guard_scan_blocked", failed_scanners=failed, scores=results_score)
+    logger.warning("guard_scan_blocked",
+                   failed_scanners=failed, scores=results_score)
     return GuardVerdict(
         is_blocked=True,
         reason=BLOCK_REASONS.get(failed[0], DEFAULT_BLOCK_REASON),
