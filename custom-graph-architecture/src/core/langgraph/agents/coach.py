@@ -7,6 +7,7 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
+from pydantic import ValidationError
 
 from src.core.configs.config import settings
 from src.core.langgraph.prompts import (
@@ -15,7 +16,8 @@ from src.core.langgraph.prompts import (
     build_coach_context,
 )
 from src.core.langgraph.tools import COACH_TOOLS
-from src.schemas import CoachContext, GraphState, TrainingPlan
+from src.schemas import CoachContext, GraphState, TrainingPlan, UserProfile
+from src.services.nutrition import calc_macros
 from src.utils.logging import logger
 
 COACH_AGENT_NAME = "coach_agent"
@@ -48,6 +50,18 @@ def build_coach_agent() -> CompiledStateGraph:
         context_schema=CoachContext,
         name=COACH_AGENT_NAME,
     )
+
+
+def _nutrition_targets(profile: dict | None) -> dict | None:
+    """The calorie and macro targets the profile works out to, computed rather than asked for."""
+
+    if not profile:
+        return None
+
+    try:
+        return calc_macros(UserProfile.model_validate(profile)).model_dump(mode="json")
+    except ValidationError:
+        return None
 
 
 def _confirmed_slots(plan: dict | None, verification: dict | None) -> list[dict] | None:
@@ -86,6 +100,7 @@ def build_coach_input(state: GraphState) -> list[AnyMessage]:
     context = build_coach_context(
         user_query=state["user_query"],
         profile=as_prompt_json(state.get("profile")) or NO_PROFILE,
+        nutrition_targets=as_prompt_json(_nutrition_targets(state.get("profile"))),
         plan=as_prompt_json(state.get("plan")),
         verification_errors=as_prompt_json(state.get("verification_result")),
         reviewer_feedback=state.get("hitl_feedback"),

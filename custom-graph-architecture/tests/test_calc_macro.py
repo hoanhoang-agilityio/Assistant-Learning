@@ -245,9 +245,9 @@ def test_an_incomplete_profile_is_refused_rather_than_guessed_around() -> None:
 # --- Binding -----------------------------------------------------------------------------
 
 
-def test_the_tool_is_bound_to_the_coach_agent() -> None:
-    """Written but unbound, the agent would do the arithmetic in its own head."""
-    assert calc_macro in COACH_TOOLS
+def test_the_coach_is_handed_the_targets_rather_than_this_tool() -> None:
+    """A pure function of the profile is a round trip the plan does not have to pay for."""
+    assert calc_macro not in COACH_TOOLS
 
 
 def test_the_model_may_choose_the_goal_and_nothing_else() -> None:

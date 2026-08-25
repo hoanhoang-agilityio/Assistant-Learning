@@ -1,10 +1,11 @@
 """Macro consistency.
 
-Arithmetic the agent is not trusted to do. The coach has ``calc_macro`` and is told to use
-it; this rule is what notices when it did the sum in its head instead. Four things have to
-hold: the macros add up to the calorie target the plan states, that target is the one the
-profile implies, it sits above the floor below which a number stops being a target, and
-the goal the macros were computed for is the user's own.
+Arithmetic the agent is not trusted to do. The coach is handed the targets in
+``<nutrition_targets>`` and told to copy them; this rule is what notices when it did the
+sum in its head instead. Four things have to hold: the macros add up to the calorie target
+the plan states, that target is the one the profile implies, it sits above the floor below
+which a number stops being a target, and the goal the macros were computed for is the
+user's own.
 
 Everything downstream of the goal is skipped when the goal itself is wrong — recomputing
 against a goal the user does not have would report the same mistake three more times.
@@ -36,7 +37,7 @@ CALORIE_TARGET_TOLERANCE = 0.05
 # to squeeze. Under target by more than this is worth saying, not worth failing a plan for.
 PROTEIN_SHORTFALL_TOLERANCE = 0.20
 
-_RECOMPUTE = "Recompute the targets with calc_macro and use what it returns."
+_RECOMPUTE = "Use the daily_calories and macros given in <nutrition_targets>."
 
 
 def _issue(

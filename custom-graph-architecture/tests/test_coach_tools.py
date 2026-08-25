@@ -15,7 +15,7 @@ from src.core.langgraph.tools import (
 # Renaming a tool changes the agent's interface rather than its implementation: the names
 # reach the model, and traces are read by them. A rename should fail here and be a
 # decision, not a silent edit.
-COACH_TOOL_NAMES = {"load_template", "load_exercise", "calc_macro"}
+COACH_TOOL_NAMES = {"load_template", "load_exercise"}
 
 # What the user told the collection loop. A tool that took any of these as an argument
 # would let the model supply them, and a supplied profile field is an invented one.
@@ -38,9 +38,14 @@ TOOL_IDS = [tool.name for tool in COACH_TOOLS]
 # --- The set ------------------------------------------------------------------------------
 
 
-def test_the_coach_has_the_three_tools_its_task_table_names() -> None:
-    """Template, exercises and macros: the spec's tool list for the coach agent."""
+def test_the_coach_has_only_the_lookups_it_cannot_be_handed_up_front() -> None:
+    """Templates and exercises depend on choices the coach makes; the macros do not."""
     assert {tool.name for tool in COACH_TOOLS} == COACH_TOOL_NAMES
+
+
+def test_the_macro_arithmetic_is_not_a_round_trip_the_coach_pays_for() -> None:
+    """A pure function of the profile, computed into the context instead of asked for."""
+    assert calc_macro not in COACH_TOOLS
 
 
 def test_the_tools_are_registered_once_each() -> None:

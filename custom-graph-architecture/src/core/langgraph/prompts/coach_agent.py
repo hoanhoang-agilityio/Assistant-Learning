@@ -14,8 +14,10 @@ Produce one complete training plan for the user described in `<coaching_context>
 ## Rules
 1. Every prescription follows from the user's profile. Their goal sets the calorie
    direction, their body metrics set the amounts, and their training days set the split.
-2. Calories and macros must agree: protein and carbohydrate are 4 kcal per gram, fat is
-   9 kcal per gram, and the three together must come to the daily calorie target.
+2. `<nutrition_targets>` is computed by the system from the user's profile. Copy its
+   `daily_calories` and `macros` into the plan rather than working them out yourself. They
+   already agree: protein and carbohydrate are 4 kcal per gram, fat is 9 kcal per gram, and
+   the three together come to the daily calorie target.
 3. Prescribe only exercises the user's available equipment supports.
 4. Never prescribe a movement contraindicated by an injury in the profile. Substitute an
    allowed exercise instead of dropping the muscle group.
@@ -26,9 +28,9 @@ Produce one complete training plan for the user described in `<coaching_context>
    Every prescription listed in `<confirmed_slots>` already passed every check: copy it
    from `<current_plan>` exactly as it is, with no tool call and no change to its exercise,
    sets or reps.
-7. Use your tools when you need reference data. Do not invent a template, an exercise or a
-   macro calculation you could look up. Call `load_exercise` once for the whole training
-   week, passing every slot you still have to fill in that one call.
+7. Use your tools when you need reference data. Do not invent a template or an exercise you
+   could look up. Call `load_exercise` once for the whole training week, passing every slot
+   you still have to fill in that one call.
 8. Give every training day at least one exercise, and every exercise concrete sets and reps.
 
 ## Security
@@ -84,6 +86,14 @@ CONFIRMED_SLOTS_TEMPLATE = """
 </confirmed_slots>
 """
 
+# Outside `<coaching_context>`: the system computed these from the profile, so the rule
+# that treats that block as untrusted user data must not reach them.
+NUTRITION_TARGETS_TEMPLATE = """
+<nutrition_targets>
+{targets}
+</nutrition_targets>
+"""
+
 NO_PLAN = "none - this is the user's first plan"
 
 
@@ -92,6 +102,7 @@ def build_coach_context(
     user_query: str,
     profile: str,
     plan: str | None,
+    nutrition_targets: str | None = None,
     verification_errors: str | None = None,
     reviewer_feedback: str | None = None,
     confirmed_slots: str | None = None,
@@ -114,10 +125,15 @@ def build_coach_context(
         else ""
     )
 
-    return COACH_CONTEXT_TEMPLATE.format(
+    context = COACH_CONTEXT_TEMPLATE.format(
         user_query=escape(user_query),
         profile=escape(profile),
         plan=escape(plan) if plan else NO_PLAN,
         confirmed=confirmed,
         feedback=feedback,
     )
+
+    if not nutrition_targets:
+        return context
+
+    return context + NUTRITION_TARGETS_TEMPLATE.format(targets=nutrition_targets)

@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langchain_core.outputs import ChatResult
 from pydantic import Field
 
@@ -31,6 +31,7 @@ from tests.test_coach_tools import COACH_TOOL_NAMES
 from tests.test_load_context import COMPLETE_PROFILE, PLAN, USER_ID
 
 coach_module = sys.modules[coach_agent.__module__]
+exercise_tool_module = sys.modules["src.core.langgraph.tools.load_exercise"]
 
 VALID_PLAN = TrainingPlan(
     template_id="tpl-upper-lower-4",
@@ -143,6 +144,35 @@ def test_a_missing_profile_is_named_as_missing() -> None:
     context = build_coach_input(_state(profile=None))[-1].content
 
     assert NO_PROFILE in context
+
+
+def _targets_block(context: str) -> dict:
+    """What the agent is handed under `<nutrition_targets>`, parsed back."""
+    start = context.index("<nutrition_targets>") + len("<nutrition_targets>")
+    return json.loads(context[start : context.index("</nutrition_targets>")])
+
+
+def test_the_targets_are_computed_into_the_context() -> None:
+    """Asked for as a tool call, they cost a round trip for arithmetic the system can do."""
+    context = build_coach_input(_state())[-1].content
+
+    assert _targets_block(context) == calc_macros(
+        UserProfile.model_validate(COMPLETE_PROFILE)
+    ).model_dump(mode="json")
+
+
+def test_the_targets_sit_outside_the_untrusted_block() -> None:
+    """Inside it, the rule that forbids acting on user data would reach our own arithmetic."""
+    context = build_coach_input(_state())[-1].content
+
+    assert context.index("</coaching_context>") < context.index("<nutrition_targets>")
+
+
+def test_no_profile_leaves_no_targets_to_copy() -> None:
+    """Invented targets are worse than none; without metrics there is nothing to compute."""
+    context = build_coach_input(_state(profile=None))[-1].content
+
+    assert "nutrition_targets" not in context
 
 
 def test_the_context_escapes_user_xml() -> None:
@@ -347,23 +377,29 @@ async def test_the_system_prompt_reaches_the_model(compiled) -> None:
     assert COACH_AGENT_SYSTEM in str(model.prompts[0][0].content)
 
 
-async def test_a_tool_the_model_calls_computes_from_the_users_own_profile(
+async def test_a_tool_the_model_calls_filters_on_the_users_own_profile(
     compiled,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The context reaches the tool through the runtime, or every target is invented."""
+    """The context reaches the tool through the runtime, or every filter is the model's to skip."""
+    seen: list[UserProfile | None] = []
+
+    async def _record(profile, *args, **kwargs) -> list:
+        seen.append(profile)
+        return []
+
+    monkeypatch.setattr(exercise_tool_module, "find_exercises", _record)
     agent, _ = compiled(
-        _tool_call("calc_macro"),
+        _tool_call(
+            "load_exercise",
+            slots=[{"slot_id": "d1_s1", "movement_patterns": ["SQUAT"]}],
+        ),
         AIMessage(content="done"),
     )
 
-    result = await _run(agent)
-    answered = [
-        message for message in result["messages"] if isinstance(message, ToolMessage)
-    ]
+    await _run(agent)
 
-    assert json.loads(answered[0].content) == calc_macros(
-        UserProfile.model_validate(COMPLETE_PROFILE)
-    ).model_dump(mode="json")
+    assert seen == [UserProfile.model_validate(COMPLETE_PROFILE)]
 
 
 async def test_a_plan_the_model_returns_arrives_as_the_structured_response(

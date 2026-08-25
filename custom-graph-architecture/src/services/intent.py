@@ -1,7 +1,6 @@
 """Intent classification for the first post-guard routing step."""
 
 from functools import lru_cache
-from typing import Any
 
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
