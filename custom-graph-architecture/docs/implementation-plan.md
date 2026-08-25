@@ -104,7 +104,6 @@ Input: `user_query`, `profile` (when relevant), `messages`. Output: `answer`.
 | Tool | Purpose |
 |---|---|
 | `search_knowledge` | Retrieve relevant passages from the local knowledge base |
-| `load_profile` | Load user profile when the answer requires user-specific context |
 | `calc_macro` | Calculate calorie and macro targets to answer a question relative to the user |
 
 ## 5. Verification design

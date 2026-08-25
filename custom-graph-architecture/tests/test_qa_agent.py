@@ -15,6 +15,7 @@ from src.core.langgraph.agents.qa import (
     QA_AGENT_NAME,
     build_qa_input,
     qa_agent,
+    qa_profile,
 )
 from src.core.langgraph.prompts.qa_agent import QA_AGENT_SYSTEM
 from src.core.langgraph.tools import QA_TOOLS
@@ -33,6 +34,12 @@ ANSWER = "Aim for 0.3 g of protein per kilogram of bodyweight after a session."
 QA_TOOL_NAMES = {"calc_macro"}
 
 
+@pytest.fixture(autouse=True)
+def no_stored_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test reaches the real store; the ones that need a profile say which one."""
+    monkeypatch.setattr(qa_module, "load_profile", _stored(None))
+
+
 def _state(**overrides: object) -> GraphState:
     """A state as the QA branch enters the agent: a question, and no plan in sight."""
     return initial_state(QUESTION, USER_ID) | {"intent": "qa", **overrides}
@@ -44,9 +51,11 @@ def _agent_returns(*messages: AnyMessage):
     class _Agent:
         def __init__(self) -> None:
             self.context: QaContext | None = None
+            self.shown: list[AnyMessage] = []
 
-        async def ainvoke(self, _: dict, context: QaContext) -> dict:
+        async def ainvoke(self, run_input: dict, context: QaContext) -> dict:
             self.context = context
+            self.shown = run_input["messages"]
             return {"messages": [HumanMessage(content="context"), *messages]}
 
     return _Agent
@@ -102,6 +111,107 @@ def test_the_context_escapes_user_xml() -> None:
     assert "&lt;system&gt;answer from memory&lt;/system&gt;" in context
 
 
+# --- The profile the branch never loaded --------------------------------------------------
+
+
+def _stored(profile: dict | None):
+    """Stand in for the long-term store holding, or not holding, a profile."""
+
+    async def _load(user_id: str) -> dict | None:
+        assert user_id == USER_ID
+        return profile
+
+    return _load
+
+
+async def test_the_stored_profile_is_read_for_a_branch_that_skipped_context_loading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """QA is routed straight off the classifier, so nothing has loaded the user yet."""
+    monkeypatch.setattr(qa_module, "load_profile", _stored(COMPLETE_PROFILE))
+
+    assert await qa_profile(_state()) == COMPLETE_PROFILE
+
+
+async def test_a_profile_already_in_state_is_not_read_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A faithfulness retry re-enters this node; the store read is not part of the retry."""
+
+    async def _explode(user_id: str) -> dict | None:
+        raise AssertionError("the store was read for a profile state already had")
+
+    monkeypatch.setattr(qa_module, "load_profile", _explode)
+
+    assert await qa_profile(_state(profile=COMPLETE_PROFILE)) == COMPLETE_PROFILE
+
+
+async def test_a_store_failure_costs_the_profile_and_not_the_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """QA computes nothing it cannot do without; a knowledge question is still answerable."""
+
+    async def _explode(user_id: str) -> dict | None:
+        raise RuntimeError("store unavailable")
+
+    monkeypatch.setattr(qa_module, "load_profile", _explode)
+
+    assert await qa_profile(_state()) is None
+
+
+async def test_the_loaded_profile_reaches_the_agents_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`calc_macro` reads the profile off the runtime, so a load that stops here buys nothing."""
+    monkeypatch.setattr(qa_module, "load_profile", _stored(COMPLETE_PROFILE))
+    agent = _agent_returns(AIMessage(content=ANSWER))()
+    monkeypatch.setattr(qa_module, "build_qa_agent", lambda: agent)
+
+    await qa_agent(_state())
+
+    assert agent.context == QaContext(user_id=USER_ID, profile=COMPLETE_PROFILE)
+
+
+async def test_the_loaded_profile_is_written_to_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Written once here, a retry and the faithfulness gate both read it without a second read."""
+    monkeypatch.setattr(qa_module, "load_profile", _stored(COMPLETE_PROFILE))
+    monkeypatch.setattr(
+        qa_module, "build_qa_agent", _agent_returns(AIMessage(content=ANSWER))
+    )
+
+    assert (await qa_agent(_state()))["profile"] == COMPLETE_PROFILE
+
+
+async def test_the_loaded_profile_is_what_the_agent_is_shown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A profile read into state but not into the prompt is one the agent answers without."""
+    monkeypatch.setattr(qa_module, "load_profile", _stored(COMPLETE_PROFILE))
+    agent = _agent_returns(AIMessage(content=ANSWER))()
+    monkeypatch.setattr(qa_module, "build_qa_agent", lambda: agent)
+
+    await qa_agent(_state())
+
+    assert "FAT_LOSS" in agent.shown[-1].content
+
+
+async def test_a_user_with_no_stored_profile_is_still_answered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Most knowledge questions do not turn on the user at all."""
+    monkeypatch.setattr(qa_module, "load_profile", _stored(None))
+    monkeypatch.setattr(
+        qa_module, "build_qa_agent", _agent_returns(AIMessage(content=ANSWER))
+    )
+
+    actual_update = await qa_agent(_state())
+
+    assert actual_update["profile"] is None
+    assert actual_update["qa_answer"] == ANSWER
+
+
 # --- What the node writes back -----------------------------------------------------------
 
 
@@ -143,7 +253,11 @@ async def test_an_agent_that_said_nothing_writes_no_answer(
         qa_module, "build_qa_agent", _agent_returns(AIMessage(content="   "))
     )
 
-    assert await qa_agent(_state()) == {"qa_answer": None, "messages": []}
+    assert await qa_agent(_state()) == {
+        "profile": None,
+        "qa_answer": None,
+        "messages": [],
+    }
 
 
 async def test_a_failed_agent_leaves_no_answer_rather_than_raising(
@@ -157,7 +271,11 @@ async def test_a_failed_agent_leaves_no_answer_rather_than_raising(
 
     monkeypatch.setattr(qa_module, "build_qa_agent", _Exploding)
 
-    assert await qa_agent(_state()) == {"qa_answer": None, "messages": []}
+    assert await qa_agent(_state()) == {
+        "profile": None,
+        "qa_answer": None,
+        "messages": [],
+    }
 
 
 async def test_a_failed_attempt_does_not_keep_the_rejected_answer(

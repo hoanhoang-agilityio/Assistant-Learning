@@ -12,6 +12,7 @@ from src.core.langgraph.agents.qa import (
     build_qa_agent,
     build_qa_input,
     qa_agent,
+    qa_profile,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "build_qa_input",
     "coach_agent",
     "qa_agent",
+    "qa_profile",
 ]

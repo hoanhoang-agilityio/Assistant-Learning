@@ -12,6 +12,7 @@ from src.core.configs.config import settings
 from src.core.langgraph.prompts import QA_AGENT_SYSTEM, as_prompt_json, build_qa_context
 from src.core.langgraph.tools import QA_TOOLS
 from src.schemas import GraphState, QaContext
+from src.services.profile import load_profile
 from src.utils.logging import logger
 
 QA_AGENT_NAME = "qa_agent"
@@ -21,6 +22,7 @@ NO_PROFILE = "none on record"
 class QaUpdate(TypedDict):
     """The state ``qa_agent`` writes."""
 
+    profile: dict | None
     qa_answer: str | None
     messages: list[AnyMessage]
 
@@ -42,6 +44,22 @@ def build_qa_agent() -> CompiledStateGraph:
         context_schema=QaContext,
         name=QA_AGENT_NAME,
     )
+
+
+async def qa_profile(state: GraphState) -> dict | None:
+    """The user's stored profile, read here rather than gated behind a tool call."""
+
+    profile = state.get("profile")
+    if profile is not None:
+        return profile
+
+    try:
+        return await load_profile(state["user_id"])
+    except Exception as error:
+        logger.exception(
+            "qa_profile_load_failed", user_id=state["user_id"], error=str(error)
+        )
+        return None
 
 
 def build_qa_input(state: GraphState) -> list[AnyMessage]:
@@ -71,17 +89,23 @@ def answer_text(messages: list[AnyMessage]) -> str | None:
 async def qa_agent(state: GraphState) -> QaUpdate:
     """Answer the user's knowledge question from the knowledge base."""
 
+    profile = await qa_profile(state)
+
     try:
         result = await build_qa_agent().ainvoke(
-            {"messages": build_qa_input(state)},
-            context=QaContext(user_id=state["user_id"], profile=state.get("profile")),
+            {"messages": build_qa_input(state | {"profile": profile})},
+            context=QaContext(user_id=state["user_id"], profile=profile),
         )
     except Exception as error:
         logger.exception("qa_agent_failed", user_id=state["user_id"], error=str(error))
-        return {"qa_answer": None, "messages": []}
+        return {"profile": profile, "qa_answer": None, "messages": []}
 
     answer = answer_text(result.get("messages", []))
     if answer is None:
-        return {"qa_answer": None, "messages": []}
+        return {"profile": profile, "qa_answer": None, "messages": []}
 
-    return {"qa_answer": answer, "messages": [AIMessage(content=answer)]}
+    return {
+        "profile": profile,
+        "qa_answer": answer,
+        "messages": [AIMessage(content=answer)],
+    }

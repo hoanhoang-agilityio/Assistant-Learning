@@ -86,7 +86,7 @@ classifier accuracy checks are all passing.
 |---|---|---|---|---|
 | 25/08 | Implement `qa_agent` node (LangGraph agent) + tools binding | 1 | 1 | Done |
 | 25/08 | Implement `search_knowledge` tool (pgvector retrieval, `top_k=4`, cosine similarity) | 1 | | Todo |
-| 26/08 | Implement `load_profile` tool for QA context | 0.5 | | Todo |
+| 25/08 | Load the user profile into the QA agent's context (node-side, not a tool) | 0.5 | 0.5 | Done |
 | 26/08 | Build embedding pipeline (`text-embedding-3-small`) for `knowledge_chunks` | 1 | | Todo |
 | 26/08 | Implement similarity threshold filtering & duplicate/overlap removal | 1 | | Todo |
 | 26/08 | Implement `ragas_verification` node (faithfulness scoring) | 1 | | Todo |
