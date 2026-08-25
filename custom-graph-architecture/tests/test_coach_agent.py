@@ -14,7 +14,6 @@ from src.core.configs.config import settings
 from src.core.langgraph.agents.coach import (
     COACH_AGENT_NAME,
     NO_PROFILE,
-    NO_TODO,
     PLAN_READY_MESSAGE,
     build_coach_input,
     coach_agent,
@@ -32,9 +31,6 @@ from tests.test_coach_tools import COACH_TOOL_NAMES
 from tests.test_load_context import COMPLETE_PROFILE, PLAN, USER_ID
 
 coach_module = sys.modules[coach_agent.__module__]
-
-TODO = [{"id": 1, "task": "Set the calorie target.", "status": "pending"}]
-TODO_IN_PROGRESS = [{**TODO[0], "status": "in_progress"}]
 
 VALID_PLAN = TrainingPlan(
     template_id="tpl-upper-lower-4",
@@ -60,11 +56,10 @@ VALID_PLAN = TrainingPlan(
 
 
 def _state(**overrides: object) -> GraphState:
-    """A state as it stands once ``write_todo`` has run."""
+    """A state as it stands once the profile gate has cleared."""
     return initial_state("build me a 4 day plan", USER_ID) | {
         "profile": COMPLETE_PROFILE,
         "plan": None,
-        "todo": TODO,
         "context_complete": True,
         **overrides,
     }
@@ -93,13 +88,12 @@ def _agent_returns(structured: object, text: str = "Here is your plan."):
 # --- What the agent is shown ------------------------------------------------------------
 
 
-def test_the_context_carries_the_request_profile_and_todo() -> None:
-    """All three are named as the agent's input in the spec."""
+def test_the_context_carries_the_request_and_profile() -> None:
+    """Both are named as the agent's input in the spec."""
     context = build_coach_input(_state())[-1].content
 
     assert "build me a 4 day plan" in context
     assert "FAT_LOSS" in context
-    assert "Set the calorie target." in context
 
 
 def test_the_conversation_so_far_is_kept() -> None:
@@ -144,12 +138,11 @@ def test_no_feedback_leaves_no_empty_sections() -> None:
     assert "reviewer_feedback" not in context
 
 
-def test_a_missing_profile_and_todo_are_named_as_missing() -> None:
+def test_a_missing_profile_is_named_as_missing() -> None:
     """Unreachable past the gate, but the agent must not read `{}` as real data."""
-    context = build_coach_input(_state(profile=None, todo=None))[-1].content
+    context = build_coach_input(_state(profile=None))[-1].content
 
     assert NO_PROFILE in context
-    assert NO_TODO in context
 
 
 def test_the_context_escapes_user_xml() -> None:
@@ -176,18 +169,6 @@ async def test_a_generated_plan_is_written_to_state(
     actual_update = await coach_agent(_state())
 
     assert actual_update["plan"] == VALID_PLAN.model_dump()
-
-
-async def test_the_todo_moves_to_in_progress_while_the_coach_works_it(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The list reflects that the coach agent has started, not that it is finished."""
-    monkeypatch.setattr(coach_module, "build_coach_agent",
-                        _agent_returns(VALID_PLAN))
-
-    actual_update = await coach_agent(_state())
-
-    assert actual_update["todo"] == TODO_IN_PROGRESS
 
 
 async def test_the_conversation_records_prose_and_not_the_serialised_plan(
@@ -233,11 +214,7 @@ async def test_a_failed_agent_leaves_no_plan_rather_than_raising(
 
     monkeypatch.setattr(coach_module, "build_coach_agent", _Exploding)
 
-    assert await coach_agent(_state()) == {
-        "plan": None,
-        "todo": TODO_IN_PROGRESS,
-        "messages": [],
-    }
+    assert await coach_agent(_state()) == {"plan": None, "messages": []}
 
 
 async def test_an_agent_that_produced_no_plan_writes_none(

@@ -1,9 +1,9 @@
 """The HITL review loop end to end: approve, revise, stop, and exhaust the budget.
 
 Runs the real compiled graph from a verified plan through ``hitl_review``. The coach agent
-and todo writer are stubbed — their own contracts are covered in ``test_coach_agent.py`` and
-``test_write_todo.py`` — everything else, including ``deterministic_verification``, runs for
-real against the fixture catalogue from ``test_verification_gate.py``.
+is stubbed — its own contract is covered in ``test_coach_agent.py`` — everything else,
+including ``deterministic_verification``, runs for real against the fixture catalogue from
+``test_verification_gate.py``.
 """
 
 import sys
@@ -22,7 +22,6 @@ from src.core.langgraph.nodes.hitl_exhausted import HITL_EXHAUSTED_MESSAGE
 from src.core.langgraph.nodes.hitl_rejected_no_feedback import (
     HITL_REJECTED_NO_FEEDBACK_MESSAGE,
 )
-from src.core.langgraph.nodes.write_todo import write_todo
 from src.core.langgraph.runtime import MemoryScope, namespace_for
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import initial_state
@@ -32,13 +31,10 @@ from tests.test_verification_completeness import CATALOGUE, TEMPLATE
 from tests.test_verification_gate import PROFILE, passing_plan
 
 coach_module = sys.modules[coach_agent.__module__]
-todo_node = sys.modules[write_todo.__module__]
 extract_node = sys.modules[extract_user_info.__module__]
 
 USER_ID = "user-hitl-loop"
 CONFIG = {"configurable": {"thread_id": "hitl-loop"}}
-
-TASKS = ["Return the complete plan."]
 
 
 class _StubAgent:
@@ -74,9 +70,6 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
             if exercise_id in CATALOGUE
         }
 
-    async def write_tasks(**kwargs: object) -> list[str]:
-        return TASKS
-
     runtime = InMemoryRuntime()
     monkeypatch.setattr(profile_service, "graph_runtime", runtime)
     monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_coaching)
@@ -84,7 +77,6 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(plan_context, "fetch_template", fetch_template)
     monkeypatch.setattr(plan_context, "fetch_exercises_by_id", fetch_exercises_by_id)
     monkeypatch.setattr(plan_presentation, "fetch_exercises_by_id", fetch_exercises_by_id)
-    monkeypatch.setattr(todo_node, "generate_todo", write_tasks)
 
     agent = _StubAgent()
     monkeypatch.setattr(coach_module, "build_coach_agent", lambda: agent)

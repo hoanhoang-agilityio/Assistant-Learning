@@ -13,8 +13,8 @@ from src.core.langgraph.tools import (
 )
 
 # Renaming a tool changes the agent's interface rather than its implementation: the names
-# reach the model, the todo writer is checked for never using them, and traces are read by
-# them. A rename should fail here and be a decision, not a silent edit.
+# reach the model, and traces are read by them. A rename should fail here and be a
+# decision, not a silent edit.
 COACH_TOOL_NAMES = {"load_template", "load_exercise", "calc_macro"}
 
 # What the user told the collection loop. A tool that took any of these as an argument
