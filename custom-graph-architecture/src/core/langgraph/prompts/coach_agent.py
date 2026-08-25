@@ -25,9 +25,10 @@ Produce one complete training plan for the user described in `<coaching_context>
    the whole updated plan, not a description of the difference.
 6. When `<verification_errors>` or `<reviewer_feedback>` is present, the previous attempt
    was rejected for exactly those reasons. Fix only the prescriptions or fields they name.
-   Every prescription listed in `<confirmed_slots>` already passed every check: copy it
-   from `<current_plan>` exactly as it is, with no tool call and no change to its exercise,
-   sets or reps.
+   `<slots_to_fix>` names every slot an error was raised against: pass those slots to
+   `load_exercise` and no others. Every prescription it does not name already passed every
+   check — copy it from `<current_plan>` exactly as it is, with no tool call and no change
+   to its exercise, sets or reps. When it names no slot, look up no exercises at all.
 7. Use your tools when you need reference data. Do not invent a template or an exercise you
    could look up. Call `load_exercise` once for the whole training week, passing every slot
    you still have to fill in that one call.
@@ -58,10 +59,7 @@ COACH_CONTEXT_TEMPLATE = """
 {plan}
 </current_plan>
 
-<confirmation>
-{confirmed}
-</confirmation>
-
+{slots_to_fix}
 <feedback>
 {feedback}
 </feedback>
@@ -80,11 +78,15 @@ REVIEWER_FEEDBACK_TEMPLATE = """
 </reviewer_feedback>
 """
 
-CONFIRMED_SLOTS_TEMPLATE = """
-<confirmed_slots>
+SLOTS_TO_FIX_TEMPLATE = """
+<slots_to_fix>
 {slots}
-</confirmed_slots>
+</slots_to_fix>
 """
+
+NO_SLOTS_TO_FIX = (
+    "none - every prescription in the current plan passed; copy them all unchanged"
+)
 
 # Outside `<coaching_context>`: the system computed these from the profile, so the rule
 # that treats that block as untrusted user data must not reach them.
@@ -105,7 +107,7 @@ def build_coach_context(
     nutrition_targets: str | None = None,
     verification_errors: str | None = None,
     reviewer_feedback: str | None = None,
-    confirmed_slots: str | None = None,
+    slots_to_fix: str | None = None,
 ) -> str:
     """Build the XML-escaped context block the coach agent plans from."""
 
@@ -119,17 +121,15 @@ def build_coach_context(
             feedback=escape(reviewer_feedback)
         )
 
-    confirmed = (
-        CONFIRMED_SLOTS_TEMPLATE.format(slots=escape(confirmed_slots))
-        if confirmed_slots
-        else ""
-    )
-
     context = COACH_CONTEXT_TEMPLATE.format(
         user_query=escape(user_query),
         profile=escape(profile),
         plan=escape(plan) if plan else NO_PLAN,
-        confirmed=confirmed,
+        slots_to_fix=(
+            SLOTS_TO_FIX_TEMPLATE.format(slots=escape(slots_to_fix))
+            if slots_to_fix
+            else ""
+        ),
         feedback=feedback,
     )
 

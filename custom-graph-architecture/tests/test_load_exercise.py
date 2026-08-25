@@ -187,6 +187,35 @@ async def test_the_candidates_are_capped(seeded) -> None:
     assert len(found) == catalogue.MAX_EXERCISE_CANDIDATES
 
 
+def test_the_cap_does_not_starve_a_slot_the_catalogue_can_fill(exercises) -> None:
+    """Trimming candidates to save tokens must not leave a slot with nothing to choose."""
+    pushes = [
+        exercise
+        for exercise in exercises
+        if exercise.movement_pattern is MovementPattern.HORIZONTAL_PUSH
+    ]
+
+    assert len(pushes[: catalogue.MAX_EXERCISE_CANDIDATES]) > 1
+
+
+def test_the_candidate_carries_what_the_slot_is_checked_against(exercises) -> None:
+    """The gate re-checks pattern, region and primary muscles; a blind pick fails it."""
+    assert {
+        "id",
+        "name",
+        "movement_pattern",
+        "body_region",
+        "primary_muscles",
+        "equipment",
+    } <= catalogue.CANDIDATE_FIELDS
+
+
+def test_the_ranking_inputs_are_not_paid_for_twice(exercises) -> None:
+    """Both are spent ordering the list the agent reads top-first; sending them repeats it."""
+    assert "secondary_muscles" not in catalogue.CANDIDATE_FIELDS
+    assert "difficulty" not in catalogue.CANDIDATE_FIELDS
+
+
 async def test_exercises_already_used_can_be_excluded(seeded) -> None:
     """The same movement on every day of the week is a plan nobody wants."""
     first = await catalogue.find_exercises(

@@ -1,7 +1,8 @@
 """Load the training catalogue into Postgres.
 
-Idempotent: rows are upserted by primary key, so re-running after editing ``data/`` brings
-the database to match the files rather than duplicating or failing.
+Idempotent: rows are upserted by primary key and anything the files no longer carry is
+deleted, so re-running after editing ``data/`` brings the database to match the files
+rather than duplicating, failing, or leaving a renamed row behind.
 
     uv run python scripts/seed_catalogue.py
 """
@@ -11,6 +12,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
 
 from src.models.catalogue import Exercise, WorkoutTemplate
@@ -53,15 +55,38 @@ async def _upsert(model: type, rows: list[dict[str, Any]]) -> None:
         await session.commit()
 
 
+async def _prune(model: type, rows: list[dict[str, Any]]) -> int:
+    """Delete the rows the seed no longer carries.
+
+    Upserting alone leaves a renamed id behind as an orphan, and the coach agent goes on
+    being offered an exercise the catalogue no longer describes.
+    """
+    async with session_factory() as session:
+        result = await session.execute(
+            delete(model).where(model.id.notin_([row["id"] for row in rows]))
+        )
+        await session.commit()
+
+    return result.rowcount
+
+
 async def main() -> None:
     """Seed both catalogue tables from ``data/``."""
     exercises, templates = _exercise_rows(), _template_rows()
 
     await _upsert(Exercise, exercises)
     await _upsert(WorkoutTemplate, templates)
+    dropped = await _prune(Exercise, exercises) + await _prune(
+        WorkoutTemplate, templates
+    )
     await close_engine()
 
-    logger.info("catalogue_seeded", exercises=len(exercises), templates=len(templates))
+    logger.info(
+        "catalogue_seeded",
+        exercises=len(exercises),
+        templates=len(templates),
+        dropped=dropped,
+    )
 
 
 if __name__ == "__main__":

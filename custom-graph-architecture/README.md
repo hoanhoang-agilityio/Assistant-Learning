@@ -74,6 +74,13 @@ re-run after editing `data/`:
 uv run python scripts/seed_catalogue.py
 ```
 
+`data/exercises.json` and `data/templates.json` are generated from `data/source/`. After
+editing the source seed, rebuild them and re-seed:
+
+```bash
+uv run python scripts/convert_catalogue_seed.py
+```
+
 ```bash
 uv run uvicorn src.main:app --reload
 ```

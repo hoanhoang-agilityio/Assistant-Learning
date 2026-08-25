@@ -1,10 +1,13 @@
-"""One-off conversion of the subagents-architecture seed data into this repo's schema.
+"""Conversion of the source catalogue seed into this repo's schema.
 
 Kept in the repo because the mapping below is the auditable part: every field this project
 needs that the source data did not carry is derived here, in one place, rather than hidden
 inside a migration. Re-runnable — it validates its output against the domain models.
 
-    uv run python scripts/convert_catalogue_seed.py <source-data-dir>
+    uv run python scripts/convert_catalogue_seed.py [source-data-dir]
+
+The source lives in ``data/source`` so this project seeds from its own copy rather than
+from a sibling repo's working tree.
 """
 
 import json
@@ -24,6 +27,13 @@ from src.schemas import (
 )
 
 OUTPUT_DIR = Path("data")
+SOURCE_DIR = Path("data/source")
+
+# A plan prescribes sets and reps, and the gate rejects anything else in `reps`. A source
+# row measured in seconds gives the agent no reps to write, so it writes "45-60s" and the
+# plan fails verification three times over. Such a row has to be re-expressed as a
+# repetition movement in the seed before it reaches the catalogue.
+DURATION_KEYS = ("unit", "duration_seconds")
 
 # The source names its own taxonomy in lower snake case. Every value maps onto a member of
 # our enums; nothing is dropped and nothing is collapsed onto a shared bucket.
@@ -207,10 +217,24 @@ def convert_template(
     )
 
 
-def main(source_dir: Path) -> None:
+def reject_duration_rows(rows: list[dict[str, Any]]) -> None:
+    """Refuse a seed the coach agent could only prescribe in seconds."""
+
+    timed = [row["id"] for row in rows if any(key in row for key in DURATION_KEYS)]
+    if timed:
+        raise ValueError(
+            f"{len(timed)} source rows are measured in time, not repetitions: "
+            f"{', '.join(timed)}. Re-express them as repetition movements in "
+            f"{SOURCE_DIR / 'exercise_seed.json'} before converting."
+        )
+
+
+def main(source_dir: Path = SOURCE_DIR) -> None:
     """Convert both seed files and write them into this repo's ``data/`` directory."""
     source_exercises = json.loads((source_dir / "exercise_seed.json").read_text())
     source_templates = json.loads((source_dir / "template_seed.json").read_text())
+
+    reject_duration_rows(source_exercises)
 
     exercises = {row["id"]: convert_exercise(row) for row in source_exercises}
     templates = [convert_template(row, exercises) for row in source_templates]
@@ -233,4 +257,4 @@ def main(source_dir: Path) -> None:
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1]))
+    main(Path(sys.argv[1]) if len(sys.argv) > 1 else SOURCE_DIR)

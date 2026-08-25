@@ -64,20 +64,20 @@ async def find_template(
     return ranked[0] if ranked else None
 
 
-MAX_EXERCISE_CANDIDATES = 8
+MAX_EXERCISE_CANDIDATES = 5
 
 # What the agent is handed per candidate. Instructions, contraindications and notes are
 # left out: the agent picks a slot's exercise by id, and the rest would crowd the plan's
-# context with a hundred rows it did not choose.
+# context with a hundred rows it did not choose. `secondary_muscles` and `difficulty` are
+# left out for the same reason: both are already spent ranking the list the agent reads
+# top-first, and neither changes whether a candidate satisfies its slot.
 CANDIDATE_FIELDS = {
     "id",
     "name",
     "movement_pattern",
     "body_region",
     "primary_muscles",
-    "secondary_muscles",
     "equipment",
-    "difficulty",
 }
 
 # The tie-break when nothing else separates two candidates: the profile records no

@@ -15,6 +15,7 @@ from src.core.langgraph.prompts import (
     as_prompt_json,
     build_coach_context,
 )
+from src.core.langgraph.prompts.coach_agent import NO_SLOTS_TO_FIX
 from src.core.langgraph.tools import COACH_TOOLS
 from src.schemas import CoachContext, GraphState, TrainingPlan, UserProfile
 from src.services.nutrition import calc_macros
@@ -64,34 +65,28 @@ def _nutrition_targets(profile: dict | None) -> dict | None:
         return None
 
 
-def _confirmed_slots(plan: dict | None, verification: dict | None) -> list[dict] | None:
-    """Prescriptions the last verification pass raised no error against.
+def _slots_to_fix(verification: dict) -> list[dict]:
+    """The slots the last verification pass raised an error against."""
 
-    Warnings do not disqualify a slot: the gate lets a plan through with them standing, so
-    a slot flagged only by a warning is still one the coach agent need not touch again.
-    """
-
-    if not plan or not verification:
-        return None
-
-    flagged = {
+    flagged = dict.fromkeys(
         (issue.get("day_number"), issue.get("slot_id"))
         for issue in verification.get("issues", [])
-        if issue.get("severity") == "error"
-    }
+        if issue.get("severity") == "error" and issue.get("slot_id")
+    )
 
-    confirmed = [
-        {
-            "day_number": day.get("day_number"),
-            "slot_id": exercise.get("slot_id"),
-            "exercise_id": exercise.get("exercise_id"),
-        }
-        for day in plan.get("training_days", [])
-        for exercise in day.get("exercises", [])
-        if (day.get("day_number"), exercise.get("slot_id")) not in flagged
+    return [
+        {"day_number": day_number, "slot_id": slot_id}
+        for day_number, slot_id in flagged
     ]
 
-    return confirmed or None
+
+def _slots_to_fix_block(verification: dict | None) -> str | None:
+    """What the retry has to look up again, or None when this is not a verification retry."""
+
+    if not verification:
+        return None
+
+    return as_prompt_json(_slots_to_fix(verification)) or NO_SLOTS_TO_FIX
 
 
 def build_coach_input(state: GraphState) -> list[AnyMessage]:
@@ -100,14 +95,12 @@ def build_coach_input(state: GraphState) -> list[AnyMessage]:
     context = build_coach_context(
         user_query=state["user_query"],
         profile=as_prompt_json(state.get("profile")) or NO_PROFILE,
-        nutrition_targets=as_prompt_json(_nutrition_targets(state.get("profile"))),
+        nutrition_targets=as_prompt_json(
+            _nutrition_targets(state.get("profile"))),
         plan=as_prompt_json(state.get("plan")),
         verification_errors=as_prompt_json(state.get("verification_result")),
         reviewer_feedback=state.get("hitl_feedback"),
-        confirmed_slots=as_prompt_json(
-            _confirmed_slots(state.get("plan"),
-                             state.get("verification_result"))
-        ),
+        slots_to_fix=_slots_to_fix_block(state.get("verification_result")),
     )
     return [*state["messages"], HumanMessage(content=context)]
 

@@ -18,7 +18,11 @@ from src.core.langgraph.agents.coach import (
     build_coach_input,
     coach_agent,
 )
-from src.core.langgraph.prompts.coach_agent import COACH_AGENT_SYSTEM, NO_PLAN
+from src.core.langgraph.prompts.coach_agent import (
+    COACH_AGENT_SYSTEM,
+    NO_PLAN,
+    NO_SLOTS_TO_FIX,
+)
 from src.schemas import (
     CoachContext,
     GraphState,
@@ -137,6 +141,65 @@ def test_no_feedback_leaves_no_empty_sections() -> None:
 
     assert "verification_errors" not in context
     assert "reviewer_feedback" not in context
+    assert "slots_to_fix" not in context
+
+
+# --- What a retry is told to look up again -----------------------------------------------
+
+
+def _failed(**issue: object) -> dict:
+    """A verification result carrying one error."""
+    return {"issues": [{"severity": "error", "message": "wrong", **issue}]}
+
+
+def test_a_retry_is_told_which_slots_to_look_up_again() -> None:
+    """Re-resolving twenty slots to fix one is what the retry used to cost."""
+    state = _state(verification_result=_failed(day_number=2, slot_id="d2_s3"))
+
+    context = build_coach_input(state)[-1].content
+
+    assert _fix_block(context) == [{"day_number": 2, "slot_id": "d2_s3"}]
+
+
+def test_a_slot_flagged_twice_is_named_once() -> None:
+    """Two rules can fail one prescription; it is still one slot to look up."""
+    state = _state(
+        verification_result={
+            "issues": [
+                {"severity": "error", "message": "a", "day_number": 1, "slot_id": "s1"},
+                {"severity": "error", "message": "b", "day_number": 1, "slot_id": "s1"},
+            ]
+        }
+    )
+
+    assert _fix_block(build_coach_input(state)[-1].content) == [
+        {"day_number": 1, "slot_id": "s1"}
+    ]
+
+
+def test_a_warning_does_not_put_a_slot_on_the_list() -> None:
+    """The gate passes a plan with warnings standing, so the slot is not worth re-resolving."""
+    state = _state(
+        verification_result=_failed(day_number=1, slot_id="s1", severity="warning")
+    )
+
+    context = build_coach_input(state)[-1].content
+
+    assert NO_SLOTS_TO_FIX in context
+
+
+def test_an_error_tied_to_no_slot_asks_for_no_lookups() -> None:
+    """A macro error is arithmetic; re-resolving the week to fix it buys nothing."""
+    state = _state(verification_result=_failed(field="daily_calories"))
+
+    context = build_coach_input(state)[-1].content
+
+    assert NO_SLOTS_TO_FIX in context
+
+
+def test_the_first_attempt_is_told_nothing_about_fixing() -> None:
+    """Nothing has failed yet, and an empty list would read as a plan already checked."""
+    assert "slots_to_fix" not in build_coach_input(_state())[-1].content
 
 
 def test_a_missing_profile_is_named_as_missing() -> None:
@@ -146,10 +209,20 @@ def test_a_missing_profile_is_named_as_missing() -> None:
     assert NO_PROFILE in context
 
 
+def _block(context: str, tag: str) -> str:
+    """The text the agent is handed inside one tag."""
+    start = context.index(f"<{tag}>") + len(tag) + 2
+    return context[start : context.index(f"</{tag}>")]
+
+
 def _targets_block(context: str) -> dict:
     """What the agent is handed under `<nutrition_targets>`, parsed back."""
-    start = context.index("<nutrition_targets>") + len("<nutrition_targets>")
-    return json.loads(context[start : context.index("</nutrition_targets>")])
+    return json.loads(_block(context, "nutrition_targets"))
+
+
+def _fix_block(context: str) -> list[dict]:
+    """What the agent is handed under `<slots_to_fix>`, parsed back."""
+    return json.loads(_block(context, "slots_to_fix"))
 
 
 def test_the_targets_are_computed_into_the_context() -> None:

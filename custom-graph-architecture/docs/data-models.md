@@ -297,9 +297,11 @@ attributes as real columns because `load_exercise` queries on them; a template's
 slots are one JSONB document, because nothing queries a slot independently of the template
 it belongs to.
 
-The seed in `data/` was converted from the `subagents-architecture` project by
-`scripts/convert_catalogue_seed.py`, which holds every mapping decision. Three additions to
-the spec's enums were needed for the conversion to stay lossless:
+The seed in `data/` is converted from this project's own copy of the source catalogue in
+`data/source/` by `scripts/convert_catalogue_seed.py`, which holds every mapping decision.
+The source originated in `subagents-architecture` and is kept here so each project seeds
+from its own data. Three additions to the spec's enums were needed for the conversion to
+stay lossless:
 
 | Enum | Added | Why |
 |---|---|---|
@@ -311,3 +313,10 @@ the spec's enums were needed for the conversion to stay lossless:
 user's goal, and the spec's template model had no goal field — and `ExerciseSlot` gained
 `sets`, `rep_range` and `rir_range`, which the seed templates prescribe and which give the
 training-volume check something to verify against.
+
+Every exercise is prescribed in sets and repetitions. The source carried four rows measured
+in time — three planks and a dead bug — and a timed row gives the coach agent nothing to
+put in `reps`, so it wrote `"45-60s"` and the volume check failed the plan on every retry.
+They are re-expressed as repetition movements in `data/source/exercise_seed.json`, and
+`convert_catalogue_seed.py` now refuses a source row carrying `unit` or `duration_seconds`
+rather than dropping the field silently.

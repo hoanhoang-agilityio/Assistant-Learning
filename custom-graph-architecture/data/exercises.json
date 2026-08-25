@@ -497,8 +497,8 @@
     "notes": null
   },
   {
-    "id": "dead_bug_neutral_grip",
-    "name": "Dead Bug (Neutral Grip)",
+    "id": "ab_rollout_machine",
+    "name": "Ab Rollout (Machine)",
     "body_region": "CORE",
     "primary_muscles": [
       "ABS"
@@ -1182,7 +1182,7 @@
   },
   {
     "id": "landmine_press_machine",
-    "name": "Landmine Press (Machine)",
+    "name": "Landmine Angled Press (Machine)",
     "body_region": "UPPER",
     "primary_muscles": [
       "CHEST",
@@ -1535,8 +1535,8 @@
     "notes": null
   },
   {
-    "id": "plank",
-    "name": "Plank",
+    "id": "ab_rollout",
+    "name": "Ab Rollout",
     "body_region": "CORE",
     "primary_muscles": [
       "ABS"
@@ -1553,8 +1553,8 @@
     "notes": null
   },
   {
-    "id": "plank_bodyweight",
-    "name": "Plank (Bodyweight)",
+    "id": "ab_rollout_bodyweight",
+    "name": "Ab Rollout (Bodyweight)",
     "body_region": "CORE",
     "primary_muscles": [
       "ABS"
@@ -1808,8 +1808,8 @@
     "notes": null
   },
   {
-    "id": "side_plank_wide_grip",
-    "name": "Side Plank (Wide Grip)",
+    "id": "standing_side_bend",
+    "name": "Standing Side Bend",
     "body_region": "CORE",
     "primary_muscles": [
       "OBLIQUES"
