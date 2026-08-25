@@ -16,7 +16,7 @@ from tests.test_load_context import USER_ID
 
 
 def _state(missing_fields: list[str]) -> dict:
-    """A state as it stands after ``determine_context`` named the gaps."""
+    """A state as it stands after ``check_profile_complete`` named the gaps."""
     return initial_state("build me a plan", USER_ID) | {
         "missing_fields": missing_fields
     }
@@ -24,7 +24,12 @@ def _state(missing_fields: list[str]) -> dict:
 
 def test_every_required_field_has_something_to_ask_for() -> None:
     """A field added to the required set without a prompt would be asked for by key name."""
-    assert set(FIELD_PROMPTS) == set(REQUIRED_PROFILE_FIELDS)
+    assert set(REQUIRED_PROFILE_FIELDS) <= set(FIELD_PROMPTS)
+
+
+def test_target_weight_has_a_prompt_even_though_it_is_optional() -> None:
+    """A revision can flag it for re-asking, so it needs a phrasing beyond its key name."""
+    assert "target_weight_kg" in FIELD_PROMPTS
 
 
 def test_only_the_missing_fields_are_asked_for() -> None:
@@ -37,7 +42,7 @@ def test_only_the_missing_fields_are_asked_for() -> None:
 
 
 def test_the_request_keeps_the_order_it_was_given() -> None:
-    """``determine_context`` fixes the ask order; formatting must not shuffle it."""
+    """``check_profile_complete`` fixes the ask order; formatting must not shuffle it."""
     request = build_missing_info_request(["goal", "age"])
 
     assert request.index(FIELD_PROMPTS["goal"]) < request.index(FIELD_PROMPTS["age"])

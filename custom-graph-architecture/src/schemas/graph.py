@@ -41,6 +41,7 @@ class GraphState(AgentState):
     plan: NotRequired[dict | None]
     context_complete: NotRequired[bool]
     missing_fields: NotRequired[list[str]]
+    revision_fields: NotRequired[list[str]]
     user_info_retry_count: NotRequired[int]
 
     # --- Coaching ----------------------------------------------------------------------
@@ -79,6 +80,7 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         plan=None,
         context_complete=False,
         missing_fields=[],
+        revision_fields=[],
         user_info_retry_count=0,
         coach_retry_count=0,
         verification_result=None,

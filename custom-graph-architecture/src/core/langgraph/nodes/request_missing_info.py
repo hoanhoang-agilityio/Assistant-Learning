@@ -16,6 +16,7 @@ FIELD_PROMPTS: dict[str, str] = {
     "sex": "your sex (male or female)",
     "height_cm": "your height in cm",
     "current_weight_kg": "your current weight in kg",
+    "target_weight_kg": "your goal weight in kg",
     "activity_level": (
         "your usual activity level "
         "(sedentary, lightly active, moderately active, very active, or extra active)"

@@ -5,10 +5,12 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.core.langgraph.agents import coach_agent
 from src.core.langgraph.nodes import (
+    bg_save_profile,
     blocked,
+    check_profile_complete,
     classify_intent,
-    determine_context,
     deterministic_verification,
+    extract_user_info,
     hitl_exhausted,
     hitl_rejected_no_feedback,
     hitl_review,
@@ -17,13 +19,11 @@ from src.core.langgraph.nodes import (
     notify_fail,
     off_topic,
     request_missing_info,
-    route_after_context,
-    route_after_determine_context,
     route_after_guard,
     route_after_hitl_review,
     route_after_intent,
+    route_after_profile_check,
     route_after_verification,
-    save_user_data,
     user_info_exhausted,
     wait_for_user,
 )
@@ -37,12 +37,8 @@ INTENT_ROUTES: dict[str, str] = {
     "off_topic": "off_topic",
 }
 
-CONTEXT_ROUTES: dict[str, str] = {
-    "complete": "coach_agent",
-    "incomplete": "determine_context",
-}
-
-MISSING_INFO_ROUTES: dict[str, str] = {
+PROFILE_ROUTES: dict[str, str] = {
+    "complete": "bg_save_profile",
     "ask": "request_missing_info",
     "exhausted": "user_info_exhausted",
 }
@@ -70,10 +66,11 @@ def build_graph() -> StateGraph:
     builder.add_node("classify_intent", classify_intent)
     builder.add_node("off_topic", off_topic)
     builder.add_node("load_context", load_context)
-    builder.add_node("determine_context", determine_context)
+    builder.add_node("extract_user_info", extract_user_info)
+    builder.add_node("check_profile_complete", check_profile_complete)
     builder.add_node("request_missing_info", request_missing_info)
     builder.add_node("wait_for_user", wait_for_user)
-    builder.add_node("save_user_data", save_user_data)
+    builder.add_node("bg_save_profile", bg_save_profile)
     builder.add_node("user_info_exhausted", user_info_exhausted)
     builder.add_node("coach_agent", coach_agent)
     builder.add_node("deterministic_verification", deterministic_verification)
@@ -85,13 +82,14 @@ def build_graph() -> StateGraph:
     builder.add_edge(START, "llm_guard")
     builder.add_conditional_edges("llm_guard", route_after_guard, GUARD_ROUTES)
     builder.add_conditional_edges("classify_intent", route_after_intent, INTENT_ROUTES)
-    builder.add_conditional_edges("load_context", route_after_context, CONTEXT_ROUTES)
+    builder.add_edge("load_context", "extract_user_info")
+    builder.add_edge("extract_user_info", "check_profile_complete")
     builder.add_conditional_edges(
-        "determine_context", route_after_determine_context, MISSING_INFO_ROUTES
+        "check_profile_complete", route_after_profile_check, PROFILE_ROUTES
     )
     builder.add_edge("request_missing_info", "wait_for_user")
-    builder.add_edge("wait_for_user", "save_user_data")
-    builder.add_edge("save_user_data", "load_context")
+    builder.add_edge("wait_for_user", "extract_user_info")
+    builder.add_edge("bg_save_profile", "coach_agent")
     builder.add_edge("blocked", END)
     builder.add_edge("off_topic", END)
     builder.add_edge("user_info_exhausted", END)

@@ -1,5 +1,7 @@
 """Tests for intent classification routing and the off-topic branch."""
 
+import sys
+
 import pytest
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import InMemorySaver
@@ -7,13 +9,18 @@ from langgraph.checkpoint.memory import InMemorySaver
 import src.core.langgraph.nodes.context as context_node
 import src.core.langgraph.nodes.intent as intent_node
 from src.core.langgraph.graph import build_graph
+from src.core.langgraph.nodes.extract_user_info import extract_user_info
 from src.core.langgraph.nodes.intent import classify_intent, route_after_intent
 from src.core.langgraph.nodes.off_topic import OFF_TOPIC_MESSAGE
 from src.core.langgraph.prompts.intent_classifier import (
     build_intent_classifier_messages,
 )
 from src.schemas import initial_state
-from src.services.profile import REQUIRED_PROFILE_FIELDS, UserContext
+from src.services.profile import REQUIRED_PROFILE_FIELDS, ProfileExtraction, UserContext
+
+# The package re-exports the node function under its module's own name, so the module
+# object has to come from the function rather than from an import statement.
+extract_node = sys.modules[extract_user_info.__module__]
 
 
 @pytest.mark.parametrize(("intent",), [("coaching",), ("qa",), ("off_topic",)])
@@ -111,8 +118,14 @@ async def test_graph_sends_coaching_requests_into_the_context_branch(
     async def loaded(_: str) -> UserContext:
         return UserContext(profile=None, plan=None)
 
+    async def extract_nothing(
+        _: str, fields_in_focus: list[str] | None = None
+    ) -> ProfileExtraction:
+        return ProfileExtraction()
+
     monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_coaching)
     monkeypatch.setattr(context_node, "load_user_context", loaded)
+    monkeypatch.setattr(extract_node, "extract_profile_fields", extract_nothing)
 
     result = await (
         build_graph()

@@ -76,7 +76,7 @@ async def test_the_interrupt_is_labelled_for_its_gate(graph) -> None:
 
 
 async def test_the_answer_becomes_the_next_turn_of_the_conversation(graph) -> None:
-    """``save_user_data`` reads the reply off the end of ``messages``."""
+    """``extract_user_info`` reads the reply off the end of ``messages``."""
     config = _config("resume")
     await graph.ainvoke(_start(), config)
 

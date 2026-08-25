@@ -22,7 +22,7 @@ SPEC_FIELDS = {
     "plan",
     "context_complete",
     "missing_fields",
-    "todo",
+    "revision_fields",
     "coach_retry_count",
     "verification_result",
     "hitl_decision",

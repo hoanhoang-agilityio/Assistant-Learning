@@ -3,7 +3,7 @@
 import asyncio
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal, get_args
 
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
@@ -46,6 +46,18 @@ POSITIVE_PROFILE_FIELDS: tuple[str, ...] = (
 
 _EXTRACTOR_TOKEN_LIMIT = 256
 
+FieldName = Literal[
+    "age",
+    "sex",
+    "height_cm",
+    "current_weight_kg",
+    "target_weight_kg",
+    "activity_level",
+    "goal",
+    "training_days_per_week",
+]
+EXTRACTABLE_FIELDS: tuple[str, ...] = get_args(FieldName)
+
 
 class ProfileExtraction(BaseModel):
     """Structured output for the profile extractor."""
@@ -62,6 +74,10 @@ class ProfileExtraction(BaseModel):
     activity_level: ActivityLevel | None = Field(default=None)
     goal: FitnessGoal | None = Field(default=None)
     training_days_per_week: int | None = Field(default=None)
+    fields_to_revise: list[FieldName] = Field(
+        default_factory=list,
+        description="Fields the user wants changed but did not restate a value for.",
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,11 +161,13 @@ def _is_in_range(name: str, value: Any) -> bool:
 
 
 def usable_profile_fields(extraction: ProfileExtraction) -> dict[str, Any]:
-    """Keep the extracted fields that were stated and are within range."""
+    """Keep the extracted scalar fields that were stated and are within range."""
 
-    usable: dict[str, Any] = {}
     # JSON mode so enum members reach the store as the plain strings they read back as.
-    for name, value in extraction.model_dump(mode="json").items():
+    dumped = extraction.model_dump(mode="json")
+    usable: dict[str, Any] = {}
+    for name in EXTRACTABLE_FIELDS:
+        value = dumped[name]
         if value is None:
             continue
         if not _is_in_range(name, value):
@@ -158,24 +176,46 @@ def usable_profile_fields(extraction: ProfileExtraction) -> dict[str, Any]:
     return usable
 
 
-async def extract_profile_fields(user_reply: str) -> dict[str, Any]:
-    """Read the profile facts the user stated in one reply."""
+async def extract_profile_fields(
+    user_reply: str, fields_in_focus: list[str] | None = None
+) -> ProfileExtraction:
+    """Read the profile facts and revision requests the user stated in one reply."""
 
     if not user_reply.strip():
-        return {}
+        return ProfileExtraction()
 
     try:
         extractor = _build_extractor().with_structured_output(ProfileExtraction)
         extraction = await extractor.ainvoke(
-            build_profile_extractor_messages(user_reply)
+            build_profile_extractor_messages(user_reply, fields_in_focus)
         )
     except Exception as error:
         # The collection loop asks again, and its retry counter bounds that — so a failed
         # extraction costs one more question rather than the whole run.
         logger.exception("profile_extraction_failed", error=str(error))
-        return {}
+        return ProfileExtraction()
 
-    return usable_profile_fields(extraction)
+    return extraction
+
+
+def merge_profile_updates(profile: dict | None, extraction: ProfileExtraction) -> dict[str, Any]:
+    """Fold one reply's stated values and revision flags into a runtime profile."""
+
+    merged = dict(profile or {})
+    updates = usable_profile_fields(extraction)
+    merged.update(updates)
+
+    for name in extraction.fields_to_revise:
+        if name not in updates:
+            merged[name] = None
+
+    return merged
+
+
+def pending_revision_fields(profile: dict | None, revision_fields: list[str]) -> list[str]:
+    """Revision-flagged fields, in the order given, that are still blank in ``profile``."""
+
+    return [name for name in revision_fields if _is_blank((profile or {}).get(name))]
 
 
 async def save_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
@@ -189,3 +229,34 @@ async def save_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
     await store.aput(namespace, PROFILE_KEY, merged)
 
     return merged
+
+
+_pending_saves: set[asyncio.Task] = set()
+
+
+def save_profile_in_background(user_id: str, profile: dict[str, Any]) -> asyncio.Task:
+    """Persist the profile without blocking the caller."""
+
+    task = asyncio.create_task(save_profile(user_id, profile))
+    _pending_saves.add(task)
+    task.add_done_callback(_forget_and_log)
+    return task
+
+
+def _forget_and_log(task: asyncio.Task) -> None:
+    """Drop a finished background save from the registry, logging any failure."""
+
+    _pending_saves.discard(task)
+    if task.cancelled():
+        return
+    error = task.exception()
+    if error is not None:
+        logger.exception("background_profile_save_failed", error=str(error))
+
+
+async def flush_pending_saves() -> None:
+    """Wait for every in-flight background save — call before asserting persisted state."""
+
+    pending = list(_pending_saves)
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)

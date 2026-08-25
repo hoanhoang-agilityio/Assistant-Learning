@@ -17,6 +17,7 @@ import src.services.profile as profile_service
 from src.core.configs.config import settings
 from src.core.langgraph.agents.coach import coach_agent
 from src.core.langgraph.graph import build_graph
+from src.core.langgraph.nodes.extract_user_info import extract_user_info
 from src.core.langgraph.nodes.hitl_exhausted import HITL_EXHAUSTED_MESSAGE
 from src.core.langgraph.nodes.hitl_rejected_no_feedback import (
     HITL_REJECTED_NO_FEEDBACK_MESSAGE,
@@ -26,12 +27,13 @@ from src.core.langgraph.runtime import MemoryScope, namespace_for
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import initial_state
 from src.services import plan_presentation
-from src.services.profile import PROFILE_KEY
+from src.services.profile import PROFILE_KEY, ProfileExtraction
 from tests.test_verification_completeness import CATALOGUE, TEMPLATE
 from tests.test_verification_gate import PROFILE, passing_plan
 
 coach_module = sys.modules[coach_agent.__module__]
 todo_node = sys.modules[write_todo.__module__]
+extract_node = sys.modules[extract_user_info.__module__]
 
 USER_ID = "user-hitl-loop"
 CONFIG = {"configurable": {"thread_id": "hitl-loop"}}
@@ -57,6 +59,11 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
     async def classify_as_coaching(_: str) -> str:
         return "coaching"
 
+    async def extract_nothing(
+        _: str, fields_in_focus: list[str] | None = None
+    ) -> ProfileExtraction:
+        return ProfileExtraction()
+
     async def fetch_template(template_id: str):
         return TEMPLATE if template_id == TEMPLATE.id else None
 
@@ -73,6 +80,7 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
     runtime = InMemoryRuntime()
     monkeypatch.setattr(profile_service, "graph_runtime", runtime)
     monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_coaching)
+    monkeypatch.setattr(extract_node, "extract_profile_fields", extract_nothing)
     monkeypatch.setattr(plan_context, "fetch_template", fetch_template)
     monkeypatch.setattr(plan_context, "fetch_exercises_by_id", fetch_exercises_by_id)
     monkeypatch.setattr(plan_presentation, "fetch_exercises_by_id", fetch_exercises_by_id)

@@ -4,7 +4,7 @@ import pytest
 
 import src.core.langgraph.nodes.context as context_node
 import src.services.profile as profile_service
-from src.core.langgraph.nodes.context import load_context, route_after_context
+from src.core.langgraph.nodes.context import load_context
 from src.core.langgraph.runtime import MemoryScope, namespace_for, plan_namespace
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import initial_state
@@ -155,12 +155,17 @@ async def test_an_empty_user_id_is_rejected(store, load) -> None:
 
 
 # --- The node ----------------------------------------------------------------------------
+#
+# ``load_context`` only loads now — it makes no completeness decision, because the current
+# message may still fill a gap this baseline has. That decision belongs to
+# ``check_profile_complete`` in ``test_check_profile_complete.py``, run after
+# ``extract_user_info`` has had a chance to merge the message in.
 
 
-async def test_node_writes_profile_plan_and_completeness(
+async def test_node_writes_only_profile_and_plan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The node reports what it loaded plus the single routing bit the edges read."""
+    """The node reports exactly what it loaded — nothing about whether it is enough."""
 
     async def loaded(user_id: str) -> UserContext:
         assert user_id == USER_ID
@@ -170,19 +175,13 @@ async def test_node_writes_profile_plan_and_completeness(
 
     actual_update = await load_context(initial_state("adjust my plan", USER_ID))
 
-    assert actual_update == {
-        "profile": COMPLETE_PROFILE,
-        "plan": PLAN,
-        "context_complete": True,
-        "missing_fields": [],
-        "user_info_retry_count": 0,
-    }
+    assert actual_update == {"profile": COMPLETE_PROFILE, "plan": PLAN}
 
 
-async def test_node_marks_an_incomplete_profile(
+async def test_node_loads_a_partial_profile_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A partial profile is loaded but must not be treated as ready to plan from."""
+    """A partial profile passes through as-is; completeness is not this node's call."""
 
     async def loaded(_: str) -> UserContext:
         return UserContext(profile={"age": 34}, plan=None)
@@ -191,8 +190,7 @@ async def test_node_marks_an_incomplete_profile(
 
     actual_update = await load_context(initial_state("build me a plan", USER_ID))
 
-    assert actual_update["profile"] == {"age": 34}
-    assert actual_update["context_complete"] is False
+    assert actual_update == {"profile": {"age": 34}, "plan": None}
 
 
 async def test_node_reads_the_store_through_the_service(store) -> None:
@@ -201,79 +199,4 @@ async def test_node_reads_the_store_through_the_service(store) -> None:
 
     actual_update = await load_context(initial_state("build me a plan", USER_ID))
 
-    assert actual_update == {
-        "profile": COMPLETE_PROFILE,
-        "plan": PLAN,
-        "context_complete": True,
-        "missing_fields": [],
-        "user_info_retry_count": 0,
-    }
-
-
-async def test_a_completed_profile_clears_an_earlier_request(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """After the interrupt loop fills the gaps, the old ask list must not survive."""
-
-    async def loaded(_: str) -> UserContext:
-        return UserContext(profile=COMPLETE_PROFILE, plan=None)
-
-    monkeypatch.setattr(context_node, "load_user_context", loaded)
-    state = initial_state("build me a plan", USER_ID) | {"missing_fields": ["goal"]}
-
-    actual_update = await load_context(state)
-
-    assert actual_update["missing_fields"] == []
-
-
-async def test_a_completed_profile_clears_the_collection_counter(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A count left over from this round would exhaust the next one on its first ask."""
-
-    async def loaded(_: str) -> UserContext:
-        return UserContext(profile=COMPLETE_PROFILE, plan=None)
-
-    monkeypatch.setattr(context_node, "load_user_context", loaded)
-    state = initial_state("build me a plan", USER_ID) | {"user_info_retry_count": 3}
-
-    actual_update = await load_context(state)
-
-    assert actual_update["user_info_retry_count"] == 0
-
-
-async def test_an_incomplete_profile_keeps_the_collection_counter(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The loop passes through here every round, so its count must survive the trip."""
-
-    async def loaded(_: str) -> UserContext:
-        return UserContext(profile={"age": 34}, plan=None)
-
-    monkeypatch.setattr(context_node, "load_user_context", loaded)
-    state = initial_state("build me a plan", USER_ID) | {"user_info_retry_count": 2}
-
-    actual_update = await load_context(state)
-
-    assert actual_update["user_info_retry_count"] == 2
-
-
-@pytest.mark.parametrize(
-    ("context_complete", "expected"),
-    [(True, "complete"), (False, "incomplete")],
-)
-def test_route_after_context_follows_the_completeness_flag(
-    context_complete: bool, expected: str
-) -> None:
-    """Routing is a pure read of what ``load_context`` decided."""
-    state = initial_state("build me a plan", USER_ID) | {
-        "context_complete": context_complete
-    }
-    assert route_after_context(state) == expected
-
-
-def test_route_after_context_defaults_to_collecting_data() -> None:
-    """With the flag unset, collect data rather than plan from an unknown profile."""
-    state = initial_state("build me a plan", USER_ID)
-    del state["context_complete"]
-    assert route_after_context(state) == "incomplete"
+    assert actual_update == {"profile": COMPLETE_PROFILE, "plan": PLAN}

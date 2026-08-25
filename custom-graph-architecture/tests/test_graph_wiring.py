@@ -12,10 +12,11 @@ EXPECTED_NODES = {
     "classify_intent",
     "off_topic",
     "load_context",
-    "determine_context",
+    "extract_user_info",
+    "check_profile_complete",
     "request_missing_info",
     "wait_for_user",
-    "save_user_data",
+    "bg_save_profile",
     "user_info_exhausted",
     "coach_agent",
     "deterministic_verification",
@@ -32,13 +33,14 @@ EXPECTED_EDGES = {
     ("llm_guard", "pass", "classify_intent"),
     ("classify_intent", "coaching", "load_context"),
     ("classify_intent", "off_topic", "off_topic"),
-    ("load_context", "incomplete", "determine_context"),
-    ("load_context", "complete", "coach_agent"),
-    ("determine_context", "ask", "request_missing_info"),
-    ("determine_context", "exhausted", "user_info_exhausted"),
+    ("load_context", None, "extract_user_info"),
+    ("extract_user_info", None, "check_profile_complete"),
+    ("check_profile_complete", "ask", "request_missing_info"),
+    ("check_profile_complete", "exhausted", "user_info_exhausted"),
+    ("check_profile_complete", "complete", "bg_save_profile"),
     ("request_missing_info", None, "wait_for_user"),
-    ("wait_for_user", None, "save_user_data"),
-    ("save_user_data", None, "load_context"),
+    ("wait_for_user", None, "extract_user_info"),
+    ("bg_save_profile", None, "coach_agent"),
     ("blocked", None, END),
     ("off_topic", None, END),
     ("user_info_exhausted", None, END),
@@ -118,19 +120,20 @@ def test_the_context_branch_has_no_edges_beyond_the_spec(edges) -> None:
     assert actual == {edge for edge in EXPECTED_EDGES if edge[0] in context_nodes}
 
 
-def test_the_collection_loop_returns_to_the_reload(edges) -> None:
-    """``save_user_data`` must route back through ``load_context``, not straight to planning."""
-    assert ("save_user_data", None, "load_context") in edges
+def test_the_collection_loop_returns_to_extraction_not_the_reload(edges) -> None:
+    """A reload here would race the background save with a stale read; extraction skips it."""
+    assert ("wait_for_user", None, "extract_user_info") in edges
     assert not [
         edge
         for edge in edges
-        if edge[0] == "save_user_data" and edge[2] != "load_context"
+        if edge[0] == "wait_for_user" and edge[2] != "extract_user_info"
     ]
 
 
-def test_a_complete_profile_goes_to_planning(edges) -> None:
+def test_a_complete_profile_goes_to_a_background_save_then_planning(edges) -> None:
     """The profile gate's whole purpose: a complete profile is what opens the coach branch."""
-    assert ("load_context", "complete", "coach_agent") in edges
+    assert ("check_profile_complete", "complete", "bg_save_profile") in edges
+    assert ("bg_save_profile", None, "coach_agent") in edges
 
 
 def test_a_generated_plan_is_verified_before_anything_else(edges) -> None:
