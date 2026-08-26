@@ -6,7 +6,7 @@ import pytest
 from langgraph.types import Command
 
 import src.core.langgraph.nodes.intent as intent_node
-import src.services.profile as profile_service
+import src.services.memory as memory_service
 from src.core.configs.config import settings
 from src.core.langgraph.graph import build_graph
 from src.core.langgraph.nodes.extract_user_info import extract_user_info
@@ -30,7 +30,7 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
         return "coaching"
 
     runtime = InMemoryRuntime()
-    monkeypatch.setattr(profile_service, "graph_runtime", runtime)
+    monkeypatch.setattr(memory_service, "graph_runtime", runtime)
     monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_coaching)
 
     yield build_graph().compile(

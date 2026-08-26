@@ -359,7 +359,7 @@ async def test_the_profile_reaches_the_tools_out_of_band(
 
     await coach_agent(_state())
 
-    assert agent.context == CoachContext(profile=COMPLETE_PROFILE)
+    assert agent.context == CoachContext(user_id=USER_ID, profile=COMPLETE_PROFILE)
 
 
 # --- The compiled agent -------------------------------------------------------------------
@@ -419,7 +419,7 @@ async def _run(agent, profile: dict | None = COMPLETE_PROFILE) -> dict:
     """One turn of the compiled agent, invoked the way the node invokes it."""
     return await agent.ainvoke(
         {"messages": [HumanMessage(content="build me a 4 day plan")]},
-        context=CoachContext(profile=profile),
+        context=CoachContext(user_id="user-1", profile=profile),
     )
 
 

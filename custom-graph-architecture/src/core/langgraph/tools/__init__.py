@@ -5,9 +5,10 @@ from langchain_core.tools import BaseTool
 from src.core.langgraph.tools.calc_macro import calc_macro
 from src.core.langgraph.tools.load_exercise import load_exercise
 from src.core.langgraph.tools.load_template import load_template
+from src.core.langgraph.tools.recall_memory import recall_memory
 from src.core.langgraph.tools.search_knowledge import search_knowledge
 
-COACH_TOOLS: list[BaseTool] = [load_template, load_exercise]
+COACH_TOOLS: list[BaseTool] = [load_template, load_exercise, recall_memory]
 
 QA_TOOLS: list[BaseTool] = [search_knowledge, calc_macro]
 
@@ -17,5 +18,6 @@ __all__ = [
     "calc_macro",
     "load_exercise",
     "load_template",
+    "recall_memory",
     "search_knowledge",
 ]

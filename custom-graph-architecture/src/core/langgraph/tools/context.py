@@ -21,3 +21,13 @@ def context_profile(runtime: ToolRuntime[AgentContext, Any]) -> UserProfile | No
         return UserProfile.model_validate(context.profile)
     except ValidationError:
         return None
+
+
+def context_user_id(runtime: ToolRuntime[AgentContext, Any]) -> str:
+    """The id of the user the agent was invoked for, or "" when the runtime carries none."""
+
+    context = runtime.context
+    if not isinstance(context, CoachContext | QaContext):
+        return ""
+
+    return context.user_id

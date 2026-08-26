@@ -93,6 +93,7 @@ Output: training plan — goal, calories, macro, training days, exercises.
 |---|---|
 | `load_template` | Retrieve a suitable training plan template |
 | `load_exercise` | Retrieve exercises matching training requirements and constraints |
+| `recall_memory` | Retrieve the user's stored preferences and accumulated knowledge |
 | `calc_macro` | Calculate calorie and macro targets |
 
 ### QA agent
@@ -180,6 +181,10 @@ Short-term memory is for the **current workflow execution**, not persistent user
 - *Accumulated knowledge*: behavioral patterns learned over time, e.g. tendency to skip workouts
   longer than 60 minutes, or better adherence to 4-day plans.
 - *Facts*: name, age, weight, sex, activity level, goal, equipment, injury.
+
+All three are addressed as `("users", user_id, scope)` and reached through `src/services/memory.py`
+— the one gateway to the store. Facts are what `load_context` reads and the profile loop writes;
+preferences and accumulated knowledge reach the coach agent through the `recall_memory` tool.
 
 ## 8. RAG design
 

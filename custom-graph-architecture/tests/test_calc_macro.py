@@ -37,7 +37,7 @@ def _runtime(profile: dict | None) -> ToolRuntime:
         stream_writer=None,
         tool_call_id="call_1",
         store=None,
-        context=CoachContext(profile=profile),
+        context=CoachContext(user_id="user-1", profile=profile),
     )
 
 

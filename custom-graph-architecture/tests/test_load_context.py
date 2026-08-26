@@ -3,13 +3,13 @@
 import pytest
 
 import src.core.langgraph.nodes.context as context_node
-import src.services.profile as profile_service
+import src.services.memory as memory_service
 from src.core.langgraph.nodes.context import load_context
 from src.core.langgraph.runtime import MemoryScope, namespace_for, plan_namespace
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import initial_state
+from src.services.memory import CURRENT_PLAN_KEY
 from src.services.profile import (
-    CURRENT_PLAN_KEY,
     PROFILE_KEY,
     REQUIRED_PROFILE_FIELDS,
     UserContext,
@@ -38,7 +38,7 @@ PLAN: dict = {"id": "plan-7", "training_days": [{"day_number": 1, "name": "Upper
 async def store(monkeypatch: pytest.MonkeyPatch):
     """Point the profile service at an in-process store instead of Postgres."""
     runtime = InMemoryRuntime()
-    monkeypatch.setattr(profile_service, "graph_runtime", runtime)
+    monkeypatch.setattr(memory_service, "graph_runtime", runtime)
     yield await runtime.store()
     await runtime.close()
 

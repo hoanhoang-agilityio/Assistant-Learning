@@ -10,12 +10,7 @@ from pydantic import BaseModel, Field
 
 from src.core.configs.config import settings
 from src.core.langgraph.prompts import build_profile_extractor_messages
-from src.core.langgraph.runtime import (
-    MemoryScope,
-    graph_runtime,
-    namespace_for,
-    plan_namespace,
-)
+from src.core.langgraph.runtime import MemoryScope
 from src.schemas import ActivityLevel, FitnessGoal, Sex, UserProfile
 from src.schemas.domain.profile import (
     MAX_AGE,
@@ -23,10 +18,10 @@ from src.schemas.domain.profile import (
     MIN_AGE,
     MIN_TRAINING_DAYS,
 )
+from src.services.memory import recall, recall_plan, save
 from src.utils.logging import logger
 
 PROFILE_KEY = "profile"
-CURRENT_PLAN_KEY = "current"
 
 # Derived rather than restated: a field the coach agent cannot run without is exactly a
 # field on ``UserProfile`` with no default, and declaration order is the order to ask in.
@@ -64,10 +59,8 @@ class ProfileExtraction(BaseModel):
 
     age: int | None = Field(default=None, description="Age in years.")
     sex: Sex | None = Field(default=None)
-    height_cm: float | None = Field(
-        default=None, description="Height in centimetres.")
-    current_weight_kg: float | None = Field(
-        default=None, description="Weight in kg.")
+    height_cm: float | None = Field(default=None, description="Height in centimetres.")
+    current_weight_kg: float | None = Field(default=None, description="Weight in kg.")
     target_weight_kg: float | None = Field(
         default=None, description="Goal weight in kg."
     )
@@ -116,18 +109,13 @@ def missing_profile_fields(profile: dict | None) -> list[str]:
 async def load_profile(user_id: str) -> dict | None:
     """Load the user's stored profile from long-term memory."""
 
-    store = await graph_runtime.store()
-    item = await store.aget(namespace_for(user_id, MemoryScope.FACTS), PROFILE_KEY)
-
-    return dict(item.value) if item is not None else None
+    return await recall(user_id, MemoryScope.FACTS, PROFILE_KEY)
 
 
 async def load_current_plan(user_id: str) -> dict | None:
     """Load the user's current training plan from long-term memory."""
 
-    store = await graph_runtime.store()
-    item = await store.aget(plan_namespace(user_id), CURRENT_PLAN_KEY)
-    return dict(item.value) if item is not None else None
+    return await recall_plan(user_id)
 
 
 async def load_user_context(user_id: str) -> UserContext:
@@ -198,7 +186,9 @@ async def extract_profile_fields(
     return extraction
 
 
-def merge_profile_updates(profile: dict | None, extraction: ProfileExtraction) -> dict[str, Any]:
+def merge_profile_updates(
+    profile: dict | None, extraction: ProfileExtraction
+) -> dict[str, Any]:
     """Fold one reply's stated values and revision flags into a runtime profile."""
 
     merged = dict(profile or {})
@@ -212,7 +202,9 @@ def merge_profile_updates(profile: dict | None, extraction: ProfileExtraction) -
     return merged
 
 
-def pending_revision_fields(profile: dict | None, revision_fields: list[str]) -> list[str]:
+def pending_revision_fields(
+    profile: dict | None, revision_fields: list[str]
+) -> list[str]:
     """Revision-flagged fields, in the order given, that are still blank in ``profile``."""
 
     return [name for name in revision_fields if _is_blank((profile or {}).get(name))]
@@ -221,14 +213,7 @@ def pending_revision_fields(profile: dict | None, revision_fields: list[str]) ->
 async def save_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
     """Merge new fields into the user's stored profile and persist the result."""
 
-    store = await graph_runtime.store()
-    namespace = namespace_for(user_id, MemoryScope.FACTS)
-    stored = await load_profile(user_id) or {}
-    merged = stored | updates
-
-    await store.aput(namespace, PROFILE_KEY, merged)
-
-    return merged
+    return await save(user_id, MemoryScope.FACTS, PROFILE_KEY, updates)
 
 
 _pending_saves: set[asyncio.Task] = set()

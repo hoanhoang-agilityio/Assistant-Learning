@@ -2,7 +2,7 @@
 
 import pytest
 
-import src.services.profile as profile_service
+import src.services.memory as memory_service
 from src.core.configs.config import settings
 from src.core.langgraph.nodes.context import (
     check_profile_complete,
@@ -91,7 +91,7 @@ async def test_the_node_reads_state_and_not_the_store(
     async def fail(*args: object, **kwargs: object) -> None:
         raise AssertionError("check_profile_complete must not touch long-term memory")
 
-    monkeypatch.setattr(profile_service.graph_runtime, "store", fail)
+    monkeypatch.setattr(memory_service.graph_runtime, "store", fail)
 
     actual_update = await check_profile_complete(_state({"age": 34}))
 

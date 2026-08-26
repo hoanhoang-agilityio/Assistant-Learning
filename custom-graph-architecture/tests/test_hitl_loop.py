@@ -13,7 +13,7 @@ from langgraph.types import Command
 
 import src.core.langgraph.nodes.intent as intent_node
 import src.core.langgraph.verification.deterministic.context as plan_context
-import src.services.profile as profile_service
+import src.services.memory as memory_service
 from src.core.configs.config import settings
 from src.core.langgraph.agents.coach import coach_agent
 from src.core.langgraph.graph import build_graph
@@ -71,7 +71,7 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
         }
 
     runtime = InMemoryRuntime()
-    monkeypatch.setattr(profile_service, "graph_runtime", runtime)
+    monkeypatch.setattr(memory_service, "graph_runtime", runtime)
     monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_coaching)
     monkeypatch.setattr(extract_node, "extract_profile_fields", extract_nothing)
     monkeypatch.setattr(plan_context, "fetch_template", fetch_template)

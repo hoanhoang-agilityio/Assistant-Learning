@@ -92,17 +92,17 @@ classifier accuracy checks are all passing.
 | 26/08 | Implement `ragas_verification` node (faithfulness scoring) | 1 | 1 | Done |
 | 26/08 | Implement `qa_fallback` node (untrusted/insufficient-context response) | 1 | 0.5 | Done |
 | 26/08 | Wire routing: `>= 0.9` pass / `< 0.9` retry / `< 0.9` & retry >= 3 fallback | 0.5 | 0.5 | Done |
-| 26/08 | Unit tests for QA agent + RAG retrieval pipeline | 1 | | Todo |
+| 26/08 | Unit tests for QA agent + RAG retrieval pipeline | 1 | 1 | Done |
 
 ## Milestone 8 — Memory & persistence (6h)
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| 26/08 | Integrate `AsyncPostgresSaver` checkpointer + resume-after-interrupt tests | 1 | | Todo |
-| 27/08 | Setup `PostgresStore` for preferences, accumulated knowledge, facts | 2 | | Todo |
+| 26/08 | Integrate `AsyncPostgresSaver` checkpointer + resume-after-interrupt tests | 1 | 1 | Done |
+| 27/08 | Setup `PostgresStore` for preferences, accumulated knowledge, facts | 2 | 2 | Done |
 | 27/08 | Create `knowledge_chunks` table + pgvector index | 1 | 0.5 | Done |
 | 27/08 | Data migration scripts / seed nutrition & injury knowledge base | 1 | 1 | Done |
-| 27/08 | Integration test: short-term (checkpoint) vs long-term memory separation | 1 | | Todo |
+| 27/08 | Integration test: short-term (checkpoint) vs long-term memory separation | 1 | 1 | Done |
 
 ## Milestone 9 — Observability & error handling (4h)
 

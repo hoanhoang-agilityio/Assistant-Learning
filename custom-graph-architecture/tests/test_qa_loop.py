@@ -10,7 +10,7 @@ goes back to the agent with the reason, and that the loop stops instead of runni
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
-import src.services.profile as profile_service
+import src.services.memory as memory_service
 from src.core.configs.config import settings
 from src.core.langgraph.agents import qa as qa_module
 from src.core.langgraph.graph import build_graph
@@ -70,7 +70,7 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
         return "qa"
 
     runtime = InMemoryRuntime()
-    monkeypatch.setattr(profile_service, "graph_runtime", runtime)
+    monkeypatch.setattr(memory_service, "graph_runtime", runtime)
     monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_qa)
 
     store = await runtime.store()

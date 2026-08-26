@@ -13,6 +13,7 @@ HitlDecision = Literal["approve", "reject"]
 class CoachContext:
     """What the coach agent's tools read for themselves rather than being told."""
 
+    user_id: str
     profile: dict | None = None
 
 

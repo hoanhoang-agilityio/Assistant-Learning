@@ -95,8 +95,7 @@ def build_coach_input(state: GraphState) -> list[AnyMessage]:
     context = build_coach_context(
         user_query=state["user_query"],
         profile=as_prompt_json(state.get("profile")) or NO_PROFILE,
-        nutrition_targets=as_prompt_json(
-            _nutrition_targets(state.get("profile"))),
+        nutrition_targets=as_prompt_json(_nutrition_targets(state.get("profile"))),
         plan=as_prompt_json(state.get("plan")),
         verification_errors=as_prompt_json(state.get("verification_result")),
         reviewer_feedback=state.get("hitl_feedback"),
@@ -111,7 +110,9 @@ async def coach_agent(state: GraphState) -> CoachUpdate:
     try:
         result = await build_coach_agent().ainvoke(
             {"messages": build_coach_input(state)},
-            context=CoachContext(profile=state.get("profile")),
+            context=CoachContext(
+                user_id=state["user_id"], profile=state.get("profile")
+            ),
         )
     except Exception as error:
         logger.exception(

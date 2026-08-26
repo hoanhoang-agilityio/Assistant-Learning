@@ -10,12 +10,13 @@ from src.core.langgraph.tools import (
     calc_macro,
     load_exercise,
     load_template,
+    recall_memory,
 )
 
 # Renaming a tool changes the agent's interface rather than its implementation: the names
 # reach the model, and traces are read by them. A rename should fail here and be a
 # decision, not a silent edit.
-COACH_TOOL_NAMES = {"load_template", "load_exercise"}
+COACH_TOOL_NAMES = {"load_template", "load_exercise", "recall_memory"}
 
 # What the user told the collection loop. A tool that took any of these as an argument
 # would let the model supply them, and a supplied profile field is an invented one.
@@ -39,7 +40,7 @@ TOOL_IDS = [tool.name for tool in COACH_TOOLS]
 
 
 def test_the_coach_has_only_the_lookups_it_cannot_be_handed_up_front() -> None:
-    """Templates and exercises depend on choices the coach makes; the macros do not."""
+    """Templates, exercises and stored memory follow the coach's choices; macros do not."""
     assert {tool.name for tool in COACH_TOOLS} == COACH_TOOL_NAMES
 
 
@@ -93,6 +94,12 @@ def test_the_tools_that_depend_on_the_user_read_the_runtime() -> None:
     """Exercise filtering and macro arithmetic are both wrong without the real profile."""
     assert "runtime" in load_exercise.args_schema.model_fields
     assert "runtime" in calc_macro.args_schema.model_fields
+
+
+def test_the_memory_lookup_is_scoped_to_the_runtimes_user() -> None:
+    """Offered `user_id`, the model could read whichever user's memory it named."""
+    assert "runtime" in recall_memory.args_schema.model_fields
+    assert "user_id" not in recall_memory.args
 
 
 def test_the_template_lookup_asks_for_nothing_it_does_not_use() -> None:
