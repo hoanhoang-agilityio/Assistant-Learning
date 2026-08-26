@@ -18,11 +18,14 @@ from src.core.langgraph.nodes import (
     load_context,
     notify_fail,
     off_topic,
+    qa_fallback,
+    ragas_verification,
     request_missing_info,
     route_after_guard,
     route_after_hitl_review,
     route_after_intent,
     route_after_profile_check,
+    route_after_ragas,
     route_after_verification,
     user_info_exhausted,
     wait_for_user,
@@ -47,6 +50,12 @@ VERIFICATION_ROUTES: dict[str, str] = {
     "pass": "hitl_review",
     "retry": "coach_agent",
     "exhausted": "notify_fail",
+}
+
+RAGAS_ROUTES: dict[str, str] = {
+    "pass": END,
+    "retry": "qa_agent",
+    "fallback": "qa_fallback",
 }
 
 HITL_ROUTES: dict[str, str] = {
@@ -79,6 +88,8 @@ def build_graph() -> StateGraph:
     builder.add_node("hitl_rejected_no_feedback", hitl_rejected_no_feedback)
     builder.add_node("hitl_exhausted", hitl_exhausted)
     builder.add_node("qa_agent", qa_agent)
+    builder.add_node("ragas_verification", ragas_verification)
+    builder.add_node("qa_fallback", qa_fallback)
 
     builder.add_edge(START, "llm_guard")
     builder.add_conditional_edges("llm_guard", route_after_guard, GUARD_ROUTES)
@@ -102,7 +113,9 @@ def build_graph() -> StateGraph:
     builder.add_conditional_edges("hitl_review", route_after_hitl_review, HITL_ROUTES)
     builder.add_edge("hitl_rejected_no_feedback", END)
     builder.add_edge("hitl_exhausted", END)
-    builder.add_edge("qa_agent", END)
+    builder.add_edge("qa_agent", "ragas_verification")
+    builder.add_conditional_edges("ragas_verification", route_after_ragas, RAGAS_ROUTES)
+    builder.add_edge("qa_fallback", END)
 
     return builder
 

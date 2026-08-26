@@ -25,6 +25,8 @@ EXPECTED_NODES = {
     "hitl_rejected_no_feedback",
     "hitl_exhausted",
     "qa_agent",
+    "ragas_verification",
+    "qa_fallback",
 }
 
 # (from, condition, to) — ``None`` where the edge is unconditional.
@@ -57,7 +59,11 @@ EXPECTED_EDGES = {
     ("hitl_rejected_no_feedback", None, END),
     ("hitl_exhausted", None, END),
     ("classify_intent", "qa", "qa_agent"),
-    ("qa_agent", None, END),
+    ("qa_agent", None, "ragas_verification"),
+    ("ragas_verification", "pass", END),
+    ("ragas_verification", "retry", "qa_agent"),
+    ("ragas_verification", "fallback", "qa_fallback"),
+    ("qa_fallback", None, END),
 }
 
 # What ``route_after_verification`` may return, and where each answer goes.
@@ -65,6 +71,13 @@ EXPECTED_VERIFICATION_ROUTES = {
     "pass": "hitl_review",
     "retry": "coach_agent",
     "exhausted": "notify_fail",
+}
+
+# What ``route_after_ragas`` may return, and where each answer goes.
+EXPECTED_RAGAS_ROUTES = {
+    "pass": END,
+    "retry": "qa_agent",
+    "fallback": "qa_fallback",
 }
 
 # What ``route_after_hitl_review`` may return, and where each answer goes.
@@ -184,3 +197,34 @@ def test_a_reviewer_exhausted_by_retries_stops_too(edges) -> None:
     """The revision loop is bounded, just like the verification loop is."""
     assert ("hitl_review", "exhausted", "hitl_exhausted") in edges
     assert ("hitl_exhausted", None, END) in edges
+
+
+def test_an_answer_is_scored_before_it_reaches_the_user(edges) -> None:
+    """The faithfulness gate is the only thing between the agent's answer and the user."""
+    assert ("qa_agent", None, "ragas_verification") in edges
+    assert not [
+        edge
+        for edge in edges
+        if edge[0] == "qa_agent" and edge[2] != "ragas_verification"
+    ]
+
+
+def test_the_faithfulness_gate_routes_exactly_the_three_ways_the_spec_names() -> None:
+    """Return it, retry it, give up: a fourth way out would be a way past the gate."""
+    [branch] = build_graph().branches["ragas_verification"].values()
+
+    assert branch.ends == EXPECTED_RAGAS_ROUTES
+
+
+def test_an_answer_that_never_scores_ends_at_the_fallback(edges) -> None:
+    """The run has to say the data is untrusted; ending silently reads as no answer at all."""
+    assert ("ragas_verification", "fallback", "qa_fallback") in edges
+    assert ("qa_fallback", None, END) in edges
+
+
+def test_the_qa_branch_has_no_edges_beyond_the_spec(edges) -> None:
+    """A second way out of the QA loop would be a way to return an unscored answer."""
+    qa_nodes = {"qa_agent", "ragas_verification", "qa_fallback"}
+    actual = {edge for edge in edges if edge[0] in qa_nodes}
+
+    assert actual == {edge for edge in EXPECTED_EDGES if edge[0] in qa_nodes}
