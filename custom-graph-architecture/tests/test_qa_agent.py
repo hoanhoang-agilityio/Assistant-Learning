@@ -18,7 +18,7 @@ from src.core.langgraph.agents.qa import (
     qa_profile,
 )
 from src.core.langgraph.prompts.qa_agent import QA_AGENT_SYSTEM
-from src.core.langgraph.tools import QA_TOOLS
+from src.core.langgraph.tools import QA_TOOLS, search_knowledge
 from src.schemas import GraphState, QaContext, UserProfile, initial_state
 from src.services.nutrition import calc_macros
 from tests.test_load_context import COMPLETE_PROFILE, USER_ID
@@ -29,9 +29,8 @@ QUESTION = "how much protein do I need after training?"
 ANSWER = "Aim for 0.3 g of protein per kilogram of bodyweight after a session."
 
 # Renaming a bound tool changes the agent's interface rather than its implementation: the
-# names reach the model, and traces are read by them. `search_knowledge` and `load_profile`
-# join this set with their own tasks.
-QA_TOOL_NAMES = {"calc_macro"}
+# names reach the model, and traces are read by them.
+QA_TOOL_NAMES = {"search_knowledge", "calc_macro"}
 
 
 @pytest.fixture(autouse=True)
@@ -256,6 +255,7 @@ async def test_an_agent_that_said_nothing_writes_no_answer(
     assert await qa_agent(_state()) == {
         "profile": None,
         "qa_answer": None,
+        "retrieved_context": [],
         "messages": [],
     }
 
@@ -274,6 +274,7 @@ async def test_a_failed_agent_leaves_no_answer_rather_than_raising(
     assert await qa_agent(_state()) == {
         "profile": None,
         "qa_answer": None,
+        "retrieved_context": [],
         "messages": [],
     }
 
@@ -330,6 +331,15 @@ class _ScriptedModel(FakeMessagesListChatModel):
     ) -> ChatResult:
         self.prompts.append(messages)
         return super()._generate(messages, *args, **kwargs)
+
+
+def _search_returning(passages: list[dict]):
+    """Stand in for pgvector retrieval, so the tool runs without a database."""
+
+    async def _search(query: str) -> list[dict]:
+        return passages
+
+    return _search
 
 
 def _tool_call(name: str, **args: Any) -> AIMessage:
@@ -431,3 +441,46 @@ def test_the_configured_model_and_token_ceiling_are_the_ones_built(
 
     assert captured["model"] == settings.DEFAULT_LLM_MODEL
     assert captured["max_completion_tokens"] == settings.QA_MAX_TOKENS
+
+
+async def test_the_retrieved_passages_are_written_to_state(
+    compiled, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """RAGAS scores the answer against these; a tool result stopping at the model is unscored."""
+    passages = [{"text": "Protein\n\n1.6 g/kg.", "source": "Nutrition", "score": 0.91}]
+    monkeypatch.setattr(
+        sys.modules[search_knowledge.coroutine.__module__],
+        "search",
+        _search_returning(passages),
+    )
+    compiled(_tool_call("search_knowledge", query=QUESTION), AIMessage(content=ANSWER))
+
+    assert (await qa_agent(_state()))["retrieved_context"] == passages
+
+
+async def test_a_passage_retrieved_twice_is_carried_once(
+    compiled, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The agent may search twice; a duplicated passage would weight the same claim twice."""
+    passages = [{"text": "Protein\n\n1.6 g/kg.", "source": "Nutrition", "score": 0.91}]
+    monkeypatch.setattr(
+        sys.modules[search_knowledge.coroutine.__module__],
+        "search",
+        _search_returning(passages),
+    )
+    compiled(
+        _tool_call("search_knowledge", query=QUESTION),
+        _tool_call("search_knowledge", query="protein per kilogram"),
+        AIMessage(content=ANSWER),
+    )
+
+    assert (await qa_agent(_state()))["retrieved_context"] == passages
+
+
+async def test_an_answer_written_without_retrieving_carries_no_context(
+    compiled,
+) -> None:
+    """The gate must be able to tell an unsupported answer from a supported one."""
+    compiled(AIMessage(content=ANSWER))
+
+    assert (await qa_agent(_state()))["retrieved_context"] == []

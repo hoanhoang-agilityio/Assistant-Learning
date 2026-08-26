@@ -4,14 +4,14 @@ from functools import lru_cache
 from typing import TypedDict
 
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
 
 from src.core.configs.config import settings
 from src.core.langgraph.prompts import QA_AGENT_SYSTEM, as_prompt_json, build_qa_context
-from src.core.langgraph.tools import QA_TOOLS
-from src.schemas import GraphState, QaContext
+from src.core.langgraph.tools import QA_TOOLS, search_knowledge
+from src.schemas import GraphState, QaContext, RetrievedChunk
 from src.services.profile import load_profile
 from src.utils.logging import logger
 
@@ -24,6 +24,7 @@ class QaUpdate(TypedDict):
 
     profile: dict | None
     qa_answer: str | None
+    retrieved_context: list[RetrievedChunk]
     messages: list[AnyMessage]
 
 
@@ -86,6 +87,27 @@ def answer_text(messages: list[AnyMessage]) -> str | None:
     return None
 
 
+def retrieved_passages(messages: list[AnyMessage]) -> list[RetrievedChunk]:
+    """What the agent retrieved this turn, which is what the faithfulness gate scores it against."""
+
+    passages: list[RetrievedChunk] = []
+    seen: set[str] = set()
+
+    for message in messages:
+        if (
+            not isinstance(message, ToolMessage)
+            or message.name != search_knowledge.name
+        ):
+            continue
+
+        for passage in message.artifact or []:
+            if passage["text"] not in seen:
+                seen.add(passage["text"])
+                passages.append(passage)
+
+    return passages
+
+
 async def qa_agent(state: GraphState) -> QaUpdate:
     """Answer the user's knowledge question from the knowledge base."""
 
@@ -98,14 +120,28 @@ async def qa_agent(state: GraphState) -> QaUpdate:
         )
     except Exception as error:
         logger.exception("qa_agent_failed", user_id=state["user_id"], error=str(error))
-        return {"profile": profile, "qa_answer": None, "messages": []}
+        return {
+            "profile": profile,
+            "qa_answer": None,
+            "retrieved_context": [],
+            "messages": [],
+        }
 
-    answer = answer_text(result.get("messages", []))
+    messages = result.get("messages", [])
+    passages = retrieved_passages(messages)
+
+    answer = answer_text(messages)
     if answer is None:
-        return {"profile": profile, "qa_answer": None, "messages": []}
+        return {
+            "profile": profile,
+            "qa_answer": None,
+            "retrieved_context": passages,
+            "messages": [],
+        }
 
     return {
         "profile": profile,
         "qa_answer": answer,
+        "retrieved_context": passages,
         "messages": [AIMessage(content=answer)],
     }

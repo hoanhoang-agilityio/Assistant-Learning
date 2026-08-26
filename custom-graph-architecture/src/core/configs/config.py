@@ -216,6 +216,7 @@ class Settings(BaseSettings):
     KNOWLEDGE_EMBEDDING_DIM: int = 1536
     KNOWLEDGE_TOP_K: int = 4
     KNOWLEDGE_MIN_SCORE: float = 0.3
+    KNOWLEDGE_MAX_OVERLAP: float = 0.8
     RAGAS_FAITHFULNESS_THRESHOLD: float = 0.9
 
     # --- Authentication --------------------------------------------------------------

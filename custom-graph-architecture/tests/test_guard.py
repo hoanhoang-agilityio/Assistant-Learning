@@ -184,6 +184,7 @@ async def test_the_graph_stops_at_blocked_and_explains_why(use_scanners) -> None
     assert result["messages"][-1].content == BLOCK_REASONS["PromptInjection"]
 
 
+@pytest.mark.skip(reason="slow: routes into the real qa_agent LLM call (~25s)")
 async def test_the_graph_carries_a_clean_query_past_the_guard(
     use_scanners, monkeypatch: pytest.MonkeyPatch
 ) -> None:
