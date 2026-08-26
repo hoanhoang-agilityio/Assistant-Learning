@@ -218,6 +218,9 @@ class Settings(BaseSettings):
     KNOWLEDGE_MIN_SCORE: float = 0.3
     KNOWLEDGE_MAX_OVERLAP: float = 0.8
     RAGAS_FAITHFULNESS_THRESHOLD: float = 0.9
+    # RAGAS defaults to 1024, which a reasoning model spends on reasoning tokens before
+    # it emits the structured verdict, and a truncated verdict scores nothing.
+    RAGAS_MAX_TOKENS: int = 4096
 
     # --- Authentication --------------------------------------------------------------
     # No default for the signing key: a fallback would let the service boot in

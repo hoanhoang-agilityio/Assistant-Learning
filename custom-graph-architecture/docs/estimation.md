@@ -89,7 +89,7 @@ classifier accuracy checks are all passing.
 | 25/08 | Load the user profile into the QA agent's context (node-side, not a tool) | 0.5 | 0.5 | Done |
 | 26/08 | Build embedding pipeline (`text-embedding-3-small`) for `knowledge_chunks` | 1 | 1 | Done |
 | 26/08 | Implement similarity threshold filtering & duplicate/overlap removal | 1 | 1 | Done |
-| 26/08 | Implement `ragas_verification` node (faithfulness scoring) | 1 | | Todo |
+| 26/08 | Implement `ragas_verification` node (faithfulness scoring) | 1 | 1 | Done |
 | 26/08 | Implement `qa_fallback` node (untrusted/insufficient-context response) | 1 | | Todo |
 | 26/08 | Wire routing: `>= 0.9` pass / `< 0.9` retry / `< 0.9` & retry >= 3 fallback | 0.5 | | Todo |
 | 26/08 | Unit tests for QA agent + RAG retrieval pipeline | 1 | | Todo |
