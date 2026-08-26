@@ -44,6 +44,13 @@ from src.core.langgraph.nodes.off_topic import (
     OFF_TOPIC_MESSAGE,
     off_topic,
 )
+from src.core.langgraph.nodes.qa_fallback import (
+    QA_FALLBACK_NO_CONTEXT,
+    QA_FALLBACK_OUTRO,
+    QA_FALLBACK_UNSUPPORTED,
+    build_qa_fallback_message,
+    qa_fallback,
+)
 from src.core.langgraph.nodes.ragas import (
     RagasRoute,
     is_faithful,
@@ -88,6 +95,9 @@ __all__ = [
     "NOTIFY_FAIL_OUTRO",
     "NO_PLAN_MESSAGE",
     "OFF_TOPIC_MESSAGE",
+    "QA_FALLBACK_NO_CONTEXT",
+    "QA_FALLBACK_OUTRO",
+    "QA_FALLBACK_UNSUPPORTED",
     "GuardRoute",
     "HitlReviewInterrupt",
     "HitlReviewRoute",
@@ -102,6 +112,7 @@ __all__ = [
     "build_exhausted_message",
     "build_missing_info_request",
     "build_notify_fail_message",
+    "build_qa_fallback_message",
     "check_profile_complete",
     "classify_intent",
     "deterministic_verification",
@@ -118,6 +129,7 @@ __all__ = [
     "mark_in_progress",
     "notify_fail",
     "off_topic",
+    "qa_fallback",
     "ragas_verification",
     "request_missing_info",
     "route_after_guard",
