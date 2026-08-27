@@ -9,6 +9,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 
 from src.core.configs.config import settings
+from src.core.langgraph.agents.history import trim_history
 from src.core.langgraph.prompts import (
     COACH_AGENT_SYSTEM,
     as_prompt_json,
@@ -94,7 +95,7 @@ def build_coach_input(state: GraphState) -> list[AnyMessage]:
         reviewer_feedback=state.get("hitl_feedback"),
         slots_to_fix=_slots_to_fix_block(state.get("verification_result")),
     )
-    return [*state["messages"], HumanMessage(content=context)]
+    return [*trim_history(state["messages"]), HumanMessage(content=context)]
 
 
 async def coach_agent(state: GraphState) -> CoachUpdate:

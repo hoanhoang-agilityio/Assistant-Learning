@@ -8,6 +8,7 @@ from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMes
 from langgraph.graph.state import CompiledStateGraph
 
 from src.core.configs.config import settings
+from src.core.langgraph.agents.history import trim_history
 from src.core.langgraph.prompts import QA_AGENT_SYSTEM, as_prompt_json, build_qa_context
 from src.core.langgraph.tools import QA_TOOLS, search_knowledge
 from src.core.llm import agent_middleware, chat_model
@@ -48,7 +49,7 @@ def build_qa_input(state: GraphState) -> list[AnyMessage]:
         previous_answer=state.get("qa_answer"),
         faithfulness_score=state.get("faithfulness_score"),
     )
-    return [*state["messages"], HumanMessage(content=context)]
+    return [*trim_history(state["messages"]), HumanMessage(content=context)]
 
 
 def answer_text(messages: list[AnyMessage]) -> str | None:

@@ -6,6 +6,7 @@ from src.core.langgraph.agents.coach import (
     build_coach_input,
     coach_agent,
 )
+from src.core.langgraph.agents.history import trim_history
 from src.core.langgraph.agents.qa import (
     QA_AGENT_NAME,
     answer_text,
@@ -24,4 +25,5 @@ __all__ = [
     "build_qa_input",
     "coach_agent",
     "qa_agent",
+    "trim_history",
 ]

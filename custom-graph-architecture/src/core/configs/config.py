@@ -177,6 +177,7 @@ class Settings(BaseSettings):
     MAX_TOKENS: int = 2000
     COACH_MAX_TOKENS: int = 8000
     QA_MAX_TOKENS: int = 2000
+    HISTORY_MAX_TOKENS: int = 4000
     # Attempts, not retries: 3 means one call and two more if the first two fail with
     # something transient. The agent middleware takes retries-after-the-first, so it is
     # handed this minus one.
