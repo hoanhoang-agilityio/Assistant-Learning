@@ -4,7 +4,8 @@ from typing import TypedDict
 
 from langchain_core.messages import AnyMessage, HumanMessage
 
-from src.schemas import GraphState, Intent
+from src.enums import Intent
+from src.schemas import GraphState
 from src.services.turn import DEFAULT_INTENT, TurnParse, parse_user_turn
 
 

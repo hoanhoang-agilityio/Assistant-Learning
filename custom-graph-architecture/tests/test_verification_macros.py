@@ -4,15 +4,17 @@ import pytest
 
 from src.core.langgraph.verification.deterministic.context import PlanContext
 from src.core.langgraph.verification.deterministic.macros import check_macros
-from src.schemas import (
+from src.enums import (
     ActivityLevel,
-    CheckName,
     FitnessGoal,
+    Sex,
+)
+from src.schemas import (
+    CheckName,
     MacroTargets,
     PlanDay,
     PlannedExercise,
     Severity,
-    Sex,
     TrainingPlan,
     UserProfile,
 )

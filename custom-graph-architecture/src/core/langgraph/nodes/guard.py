@@ -2,7 +2,8 @@
 
 from typing import TypedDict
 
-from src.schemas import GraphState, GuardRoute
+from src.enums import GuardRoute
+from src.schemas import GraphState
 from src.services.guard import scan_input
 
 

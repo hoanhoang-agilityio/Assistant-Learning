@@ -1,11 +1,13 @@
 """Calorie and macro arithmetic, shared by the coach agent and the QA agent."""
 
-from src.schemas import (
+from src.enums import (
     ActivityLevel,
     FitnessGoal,
+    Sex,
+)
+from src.schemas import (
     MacroTargets,
     NutritionTargets,
-    Sex,
     UserProfile,
 )
 

@@ -7,7 +7,7 @@ queried with, so the catalogue can change without the template changing.
 
 from pydantic import BaseModel, Field
 
-from src.schemas.domain.enums import (
+from src.enums import (
     BodyRegion,
     FitnessGoal,
     MovementPattern,

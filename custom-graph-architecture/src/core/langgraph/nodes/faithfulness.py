@@ -4,7 +4,8 @@ from typing import TypedDict
 
 from src.core.configs.config import settings
 from src.core.langgraph.verification import score_faithfulness
-from src.schemas import FaithfulnessRoute, GraphState
+from src.enums import FaithfulnessRoute
+from src.schemas import GraphState
 
 
 class VerifyFaithfulnessUpdate(TypedDict):

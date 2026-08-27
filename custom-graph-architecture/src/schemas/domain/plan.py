@@ -8,7 +8,10 @@ catalogue at render time.
 
 from pydantic import BaseModel, Field
 
-from src.schemas.domain.enums import BodyRegion, FitnessGoal
+from src.enums import (
+    BodyRegion,
+    FitnessGoal,
+)
 
 KCAL_PER_GRAM_PROTEIN = 4
 KCAL_PER_GRAM_CARBS = 4

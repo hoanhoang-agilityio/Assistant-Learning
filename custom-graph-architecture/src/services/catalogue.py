@@ -4,16 +4,18 @@ import time
 
 from sqlmodel import select
 
-from src.models.catalogue import Exercise as ExerciseRow
-from src.models.catalogue import WorkoutTemplate as TemplateRow
-from src.schemas import (
+from src.enums import (
     BodyRegion,
     DifficultyLevel,
     EquipmentType,
-    Exercise,
     FitnessGoal,
     MovementPattern,
     MuscleGroup,
+)
+from src.models.catalogue import Exercise as ExerciseRow
+from src.models.catalogue import WorkoutTemplate as TemplateRow
+from src.schemas import (
+    Exercise,
     UserEquipment,
     UserProfile,
     WorkoutTemplate,

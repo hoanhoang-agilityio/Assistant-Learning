@@ -14,10 +14,10 @@ import re
 from collections import Counter
 
 from src.core.langgraph.verification.deterministic.context import PlanContext
+from src.enums import MuscleGroup
 from src.schemas import (
     CheckName,
     ExerciseSlot,
-    MuscleGroup,
     PlanDay,
     PlannedExercise,
     Severity,

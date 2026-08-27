@@ -7,13 +7,15 @@ from langchain.tools import ToolRuntime
 
 from src.core.langgraph.tools import COACH_TOOLS, calc_macro
 from src.core.langgraph.tools.calc_macro import NO_PROFILE
-from src.schemas import (
+from src.enums import (
     ActivityLevel,
-    CoachContext,
     FitnessGoal,
+    Sex,
+)
+from src.schemas import (
+    CoachContext,
     MacroTargets,
     NutritionTargets,
-    Sex,
     TrainingPlan,
     UserProfile,
 )

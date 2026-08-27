@@ -2,7 +2,7 @@
 
 from langchain_core.tools import tool
 
-from src.schemas import FitnessGoal
+from src.enums import FitnessGoal
 from src.schemas.domain.profile import MAX_TRAINING_DAYS, MIN_TRAINING_DAYS
 from src.services.catalogue import find_template
 

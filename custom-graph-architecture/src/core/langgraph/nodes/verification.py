@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from src.core.configs.config import settings
 from src.core.langgraph.verification import verify_plan
+from src.enums import VerificationRoute
 from src.schemas import (
     CheckName,
     GraphState,
@@ -13,7 +14,6 @@ from src.schemas import (
     UserProfile,
     VerificationIssue,
     VerificationResult,
-    VerificationRoute,
 )
 
 NO_PLAN_MESSAGE = (

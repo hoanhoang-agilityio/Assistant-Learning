@@ -1,6 +1,6 @@
 """Enumerations: the spec's data-model values, and the graph's own node names."""
 
-from src.schemas.domain.enums.domain import (
+from src.enums.domain import (
     ActivityLevel,
     BodyRegion,
     DifficultyLevel,
@@ -12,8 +12,8 @@ from src.schemas.domain.enums.domain import (
     RestrictionAction,
     Sex,
 )
-from src.schemas.domain.enums.graph import Node
-from src.schemas.domain.enums.routes import (
+from src.enums.graph import Node
+from src.enums.routes import (
     FaithfulnessRoute,
     GuardRoute,
     HitlRoute,

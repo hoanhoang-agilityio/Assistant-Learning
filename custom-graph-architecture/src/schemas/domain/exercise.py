@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from src.schemas.domain.enums import (
+from src.enums import (
     BodyRegion,
     DifficultyLevel,
     EquipmentType,

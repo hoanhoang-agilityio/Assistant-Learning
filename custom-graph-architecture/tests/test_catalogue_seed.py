@@ -11,13 +11,15 @@ import pytest
 from sqlmodel import func, select
 
 import scripts.convert_catalogue_seed as convert
+from src.enums import (
+    BodyRegion,
+    MovementPattern,
+    MuscleGroup,
+)
 from src.models.catalogue import Exercise as ExerciseRow
 from src.models.catalogue import WorkoutTemplate as TemplateRow
 from src.schemas import (
-    BodyRegion,
     Exercise,
-    MovementPattern,
-    MuscleGroup,
     WorkoutTemplate,
 )
 from src.services.database import session_factory

@@ -5,7 +5,7 @@ from typing import Literal, NotRequired, TypedDict
 
 from langgraph.prebuilt.chat_agent_executor import AgentState
 
-from src.schemas.domain.enums.routes import Intent
+from src.enums.routes import Intent
 
 HitlDecision = Literal["approve", "reject"]
 

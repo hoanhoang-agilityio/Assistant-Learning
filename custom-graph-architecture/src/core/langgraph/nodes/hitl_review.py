@@ -6,7 +6,12 @@ from langchain_core.messages import AnyMessage, HumanMessage
 from langgraph.types import interrupt
 
 from src.core.configs.config import settings
-from src.schemas import GraphState, HitlDecision, HitlRoute, TrainingPlan
+from src.enums import HitlRoute
+from src.schemas import (
+    GraphState,
+    HitlDecision,
+    TrainingPlan,
+)
 from src.services.plan_presentation import render_plan_markdown
 
 HITL_REVIEW_INTERRUPT = "hitl_review"

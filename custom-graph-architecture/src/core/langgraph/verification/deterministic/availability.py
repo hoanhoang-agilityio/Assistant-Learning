@@ -16,12 +16,14 @@ Equipment needs neither, and is checked either way.
 """
 
 from src.core.langgraph.verification.deterministic.context import PlanContext
+from src.enums import (
+    EquipmentType,
+    MuscleGroup,
+)
 from src.schemas import (
     CheckName,
-    EquipmentType,
     Exercise,
     ExerciseSlot,
-    MuscleGroup,
     PlanDay,
     PlannedExercise,
     Severity,

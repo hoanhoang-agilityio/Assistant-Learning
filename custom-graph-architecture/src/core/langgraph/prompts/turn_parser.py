@@ -10,7 +10,12 @@ from xml.sax.saxutils import escape
 from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
 
-from src.schemas import ActivityLevel, FitnessGoal, InjuryStatus, Sex
+from src.enums import (
+    ActivityLevel,
+    FitnessGoal,
+    InjuryStatus,
+    Sex,
+)
 
 
 def _values(enum: type[ActivityLevel | FitnessGoal | InjuryStatus | Sex]) -> str:

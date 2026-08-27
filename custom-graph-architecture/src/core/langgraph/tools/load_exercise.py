@@ -6,7 +6,12 @@ from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
 
 from src.core.langgraph.tools.context import context_profile
-from src.schemas import BodyRegion, CoachContext, MovementPattern, MuscleGroup
+from src.enums import (
+    BodyRegion,
+    MovementPattern,
+    MuscleGroup,
+)
+from src.schemas import CoachContext
 from src.services.catalogue import as_candidate, find_exercises
 
 

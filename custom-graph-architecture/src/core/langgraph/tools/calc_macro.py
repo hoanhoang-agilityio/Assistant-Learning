@@ -5,7 +5,8 @@ from typing import Any
 from langchain.tools import ToolRuntime, tool
 
 from src.core.langgraph.tools.context import context_profile
-from src.schemas import CoachContext, FitnessGoal
+from src.enums import FitnessGoal
+from src.schemas import CoachContext
 from src.services.nutrition import calc_macros
 
 NO_PROFILE = (

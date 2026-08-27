@@ -11,9 +11,10 @@ Engineering conventions for `src/` come from the `langgraph-agent-arch` skill
 
 ## 1. Node design
 
-Node names and branch labels are each defined once — `Node` in `src/schemas/domain/enums/graph.py`,
-the routers' answers in `src/schemas/domain/enums/routes.py` — and referenced from `graph.py`, the
-route functions and the tests rather than repeated as strings.
+Node names and branch labels are each defined once, in `src/enums/` — `Node` in `graph.py`, the
+routers' answers in `routes.py` — and the route tables that map one to the other live in
+`src/constants/routes.py`. `graph.py`, the route functions and the tests reference those rather
+than repeating strings.
 
 | Node | Purpose |
 |---|---|

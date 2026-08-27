@@ -15,14 +15,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from src.schemas import (
+from src.enums import (
     BodyRegion,
     DifficultyLevel,
     EquipmentType,
-    Exercise,
     FitnessGoal,
     MovementPattern,
     MuscleGroup,
+)
+from src.schemas import (
+    Exercise,
     WorkoutTemplate,
 )
 

@@ -4,22 +4,24 @@ from src.core.langgraph.verification.deterministic.availability import (
     check_availability,
 )
 from src.core.langgraph.verification.deterministic.context import PlanContext
-from src.schemas import (
+from src.enums import (
     ActivityLevel,
     BodyRegion,
-    CheckName,
     DifficultyLevel,
     EquipmentType,
-    Exercise,
-    ExerciseSlot,
     FitnessGoal,
-    MacroTargets,
     MovementPattern,
     MuscleGroup,
+    Sex,
+)
+from src.schemas import (
+    CheckName,
+    Exercise,
+    ExerciseSlot,
+    MacroTargets,
     PlanDay,
     PlannedExercise,
     Severity,
-    Sex,
     TrainingPlan,
     UserEquipment,
     UserProfile,

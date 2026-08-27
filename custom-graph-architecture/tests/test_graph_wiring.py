@@ -4,7 +4,7 @@ import pytest
 from langgraph.graph import END, START
 
 from src.core.langgraph.graph import build_graph
-from src.schemas import Node
+from src.enums import Node
 
 EXPECTED_NODES = {node.value for node in Node}
 

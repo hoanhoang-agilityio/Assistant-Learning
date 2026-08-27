@@ -9,21 +9,23 @@ from src.core.langgraph.verification.deterministic.volume import (
     MAX_WEEKLY_SETS_PER_MUSCLE,
     check_volume,
 )
-from src.schemas import (
+from src.enums import (
     ActivityLevel,
     BodyRegion,
-    CheckName,
     DifficultyLevel,
-    Exercise,
-    ExerciseSlot,
     FitnessGoal,
-    MacroTargets,
     MovementPattern,
     MuscleGroup,
+    Sex,
+)
+from src.schemas import (
+    CheckName,
+    Exercise,
+    ExerciseSlot,
+    MacroTargets,
     PlanDay,
     PlannedExercise,
     Severity,
-    Sex,
     TrainingPlan,
     UserProfile,
     WorkoutDayTemplate,

@@ -16,13 +16,15 @@ from src.core.langgraph.verification.deterministic import (
     build_plan_context,
     run_rules,
 )
+from src.enums import (
+    MovementPattern,
+    RestrictionAction,
+)
 from src.schemas import (
     CheckName,
     Exercise,
     Injury,
-    MovementPattern,
     MovementRestriction,
-    RestrictionAction,
     Severity,
     TrainingPlan,
     UserProfile,

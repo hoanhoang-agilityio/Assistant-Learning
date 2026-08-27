@@ -4,24 +4,26 @@ import pytest
 
 from src.core.langgraph.verification.deterministic.context import PlanContext
 from src.core.langgraph.verification.deterministic.safety import check_safety
-from src.schemas import (
+from src.enums import (
     ActivityLevel,
     BodyRegion,
-    CheckName,
     DifficultyLevel,
-    Exercise,
     FitnessGoal,
-    Injury,
     InjuryStatus,
-    MacroTargets,
     MovementPattern,
-    MovementRestriction,
     MuscleGroup,
+    RestrictionAction,
+    Sex,
+)
+from src.schemas import (
+    CheckName,
+    Exercise,
+    Injury,
+    MacroTargets,
+    MovementRestriction,
     PlanDay,
     PlannedExercise,
-    RestrictionAction,
     Severity,
-    Sex,
     TrainingPlan,
     UserProfile,
 )

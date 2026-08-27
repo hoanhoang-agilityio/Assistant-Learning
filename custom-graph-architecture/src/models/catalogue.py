@@ -15,7 +15,7 @@ from sqlalchemy import Column, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
-from src.schemas import (
+from src.enums import (
     BodyRegion,
     DifficultyLevel,
     MovementPattern,

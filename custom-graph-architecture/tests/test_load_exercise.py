@@ -9,13 +9,15 @@ from langchain.tools import ToolRuntime
 from src.core.langgraph.tools import COACH_TOOLS, load_exercise
 from src.core.langgraph.tools.context import context_profile
 from src.core.langgraph.tools.load_exercise import SlotQuery
-from src.schemas import (
+from src.enums import (
     BodyRegion,
-    CoachContext,
     EquipmentType,
-    Exercise,
     MovementPattern,
     MuscleGroup,
+)
+from src.schemas import (
+    CoachContext,
+    Exercise,
     UserProfile,
 )
 from src.services import catalogue

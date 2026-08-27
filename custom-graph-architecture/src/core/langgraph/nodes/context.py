@@ -3,7 +3,11 @@
 from typing import TypedDict
 
 from src.core.configs.config import settings
-from src.schemas import GraphState, Intent, ProfileRoute
+from src.enums import (
+    Intent,
+    ProfileRoute,
+)
+from src.schemas import GraphState
 from src.services.profile import load_user_context as read_user_context
 from src.services.profile import missing_profile_fields
 

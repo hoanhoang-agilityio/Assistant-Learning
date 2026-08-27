@@ -3,22 +3,24 @@
 import pytest
 from pydantic import ValidationError
 
-from src.schemas import (
+from src.enums import (
     ActivityLevel,
     BodyRegion,
     DifficultyLevel,
     EquipmentType,
-    Exercise,
-    ExerciseSlot,
     FitnessGoal,
-    Injury,
     InjuryStatus,
-    MacroTargets,
     MovementPattern,
-    MovementRestriction,
     MuscleGroup,
     RestrictionAction,
     Sex,
+)
+from src.schemas import (
+    Exercise,
+    ExerciseSlot,
+    Injury,
+    MacroTargets,
+    MovementRestriction,
     TrainingPlan,
     UserEquipment,
     UserProfile,

@@ -11,15 +11,17 @@ an invented exercise is task 5.1's finding, and there is no catalogue row here t
 """
 
 from src.core.langgraph.verification.deterministic.context import PlanContext
+from src.enums import (
+    MovementPattern,
+    RestrictionAction,
+)
 from src.schemas import (
     CheckName,
     Exercise,
     Injury,
-    MovementPattern,
     MovementRestriction,
     PlanDay,
     PlannedExercise,
-    RestrictionAction,
     Severity,
     VerificationIssue,
 )

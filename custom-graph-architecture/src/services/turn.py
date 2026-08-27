@@ -8,7 +8,13 @@ from pydantic import BaseModel, Field
 
 from src.core.configs.config import settings
 from src.core.langgraph.prompts import build_turn_parser_messages
-from src.schemas import ActivityLevel, FitnessGoal, InjuryStatus, Intent, Sex
+from src.enums import (
+    ActivityLevel,
+    FitnessGoal,
+    InjuryStatus,
+    Intent,
+    Sex,
+)
 from src.utils.logging import logger
 
 DEFAULT_INTENT: Intent = Intent.QA

@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from src.schemas.domain.enums import (
+from src.enums import (
     ActivityLevel,
     EquipmentType,
     FitnessGoal,

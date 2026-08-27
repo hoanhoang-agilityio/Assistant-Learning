@@ -7,7 +7,8 @@ import pytest
 
 from src.core.langgraph.tools import COACH_TOOLS, load_template
 from src.core.langgraph.tools.load_template import NO_TEMPLATE, clamp_training_days
-from src.schemas import FitnessGoal, WorkoutTemplate
+from src.enums import FitnessGoal
+from src.schemas import WorkoutTemplate
 from src.services import catalogue
 
 DATA_DIR = Path("data")
