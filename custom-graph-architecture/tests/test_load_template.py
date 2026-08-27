@@ -156,6 +156,39 @@ async def test_the_tool_returns_json_the_agent_can_read(seeded) -> None:
     assert json.dumps(result)
 
 
+async def test_a_null_or_empty_field_is_left_out_rather_than_sent_empty(seeded) -> None:
+    """One unset field repeated across every slot in the week is a lot of nothing to read."""
+    seeded()
+
+    result = await load_template.ainvoke(
+        {"goal": FitnessGoal.FAT_LOSS, "days_per_week": 4}
+    )
+
+    slot = result["training_days"][0]["exercise_slots"][0]
+    assert "exercise_type" not in slot
+    assert "target_muscles" not in slot
+    assert "excluded_movement_patterns" not in slot
+    assert "required_body_region" not in slot
+    assert "notes" not in slot
+    assert "description" not in result
+
+
+async def test_a_slot_still_carries_what_it_actually_prescribes(seeded) -> None:
+    """Shrinking the payload must not cost the agent the volume it has to prescribe."""
+    seeded()
+
+    result = await load_template.ainvoke(
+        {"goal": FitnessGoal.FAT_LOSS, "days_per_week": 4}
+    )
+
+    slot = result["training_days"][0]["exercise_slots"][0]
+    assert slot["slot_id"] == "ua_horiz_push"
+    assert slot["allowed_movement_patterns"] == ["HORIZONTAL_PUSH"]
+    assert slot["sets"] == 4
+    assert slot["rep_range"] == [6, 8]
+    assert slot["rir_range"] == [1, 2]
+
+
 async def test_an_impossible_week_is_clamped_rather_than_refused(seeded) -> None:
     """A model that passes 0 or 99 days should still get the nearest real template."""
     seeded()

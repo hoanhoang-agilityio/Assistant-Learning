@@ -27,4 +27,4 @@ async def load_template(goal: FitnessGoal, days_per_week: int) -> dict:
     if template is None:
         return {"error": NO_TEMPLATE}
 
-    return template.model_dump(mode="json")
+    return template.model_dump(mode="json", exclude_defaults=True)
