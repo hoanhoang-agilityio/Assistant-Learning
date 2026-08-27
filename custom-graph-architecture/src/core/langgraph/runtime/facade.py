@@ -105,7 +105,9 @@ class LangGraphRuntime:
         replies = [message for message in new_messages if message.role == "assistant"]
         pending = _pending_interrupt_value(state)
         if pending is not None:
-            replies.append(Message(role="assistant", content=_interrupt_text(pending)))
+            question = _interrupt_text(pending)
+            if not replies or replies[-1].content != question:
+                replies.append(Message(role="assistant", content=question))
         return replies
 
 

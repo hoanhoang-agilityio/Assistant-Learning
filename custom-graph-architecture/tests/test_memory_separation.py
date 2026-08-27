@@ -45,7 +45,7 @@ class _State(TypedDict):
 
 
 async def _recall(state: _State) -> _State:
-    """Read long-term memory into the run, the way ``load_context`` does."""
+    """Read long-term memory into the run, the way ``load_user_context`` does."""
     memory = await load_user_memory(state["user_id"])
     return {"recalled": memory.preferences}
 

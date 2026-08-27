@@ -11,27 +11,28 @@ import sys
 import pytest
 from langgraph.types import Command
 
-import src.core.langgraph.nodes.intent as intent_node
 import src.core.langgraph.verification.deterministic.context as plan_context
 import src.services.memory as memory_service
 from src.core.configs.config import settings
 from src.core.langgraph.agents.coach import coach_agent
 from src.core.langgraph.graph import build_graph
-from src.core.langgraph.nodes.extract_user_info import extract_user_info
 from src.core.langgraph.nodes.hitl_exhausted import HITL_EXHAUSTED_MESSAGE
 from src.core.langgraph.nodes.hitl_rejected_no_feedback import (
     HITL_REJECTED_NO_FEEDBACK_MESSAGE,
 )
+from src.core.langgraph.nodes.parse_turn import parse_turn
 from src.core.langgraph.runtime import MemoryScope, namespace_for
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import initial_state
 from src.services import plan_presentation
-from src.services.profile import PROFILE_KEY, ProfileExtraction
+from src.services.profile import PROFILE_KEY
+from src.services.turn import TurnParse
 from tests.test_verification_completeness import CATALOGUE, TEMPLATE
 from tests.test_verification_gate import PROFILE, passing_plan
 
+parse_node = sys.modules[parse_turn.__module__]
+
 coach_module = sys.modules[coach_agent.__module__]
-extract_node = sys.modules[extract_user_info.__module__]
 
 USER_ID = "user-hitl-loop"
 CONFIG = {"configurable": {"thread_id": "hitl-loop"}}
@@ -52,13 +53,8 @@ class _StubAgent:
 async def loop(monkeypatch: pytest.MonkeyPatch):
     """The real graph, primed with a complete profile and a plan that clears the gate."""
 
-    async def classify_as_coaching(_: str) -> str:
-        return "coaching"
-
-    async def extract_nothing(
-        _: str, fields_in_focus: list[str] | None = None
-    ) -> ProfileExtraction:
-        return ProfileExtraction()
+    async def parse_as_coaching(*_: object, **__: object) -> TurnParse:
+        return TurnParse(intent="coaching")
 
     async def fetch_template(template_id: str):
         return TEMPLATE if template_id == TEMPLATE.id else None
@@ -72,11 +68,12 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
 
     runtime = InMemoryRuntime()
     monkeypatch.setattr(memory_service, "graph_runtime", runtime)
-    monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_coaching)
-    monkeypatch.setattr(extract_node, "extract_profile_fields", extract_nothing)
+    monkeypatch.setattr(parse_node, "parse_user_turn", parse_as_coaching)
     monkeypatch.setattr(plan_context, "fetch_template", fetch_template)
     monkeypatch.setattr(plan_context, "fetch_exercises_by_id", fetch_exercises_by_id)
-    monkeypatch.setattr(plan_presentation, "fetch_exercises_by_id", fetch_exercises_by_id)
+    monkeypatch.setattr(
+        plan_presentation, "fetch_exercises_by_id", fetch_exercises_by_id
+    )
 
     agent = _StubAgent()
     monkeypatch.setattr(coach_module, "build_coach_agent", lambda: agent)

@@ -5,7 +5,9 @@ from typing import Any, TypedDict
 from langchain_core.messages import AnyMessage, HumanMessage
 from langgraph.types import interrupt
 
-from src.core.langgraph.nodes.request_missing_info import build_missing_info_request
+from src.core.langgraph.nodes.request_missing_profile_fields import (
+    build_missing_info_request,
+)
 from src.schemas import GraphState
 
 MISSING_INFO_INTERRUPT = "missing_profile_fields"

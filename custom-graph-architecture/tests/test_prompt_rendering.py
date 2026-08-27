@@ -3,7 +3,7 @@
 import json
 
 from src.core.langgraph.prompts import as_prompt_json
-from tests.test_load_context import COMPLETE_PROFILE, PLAN
+from tests.test_load_user_context import COMPLETE_PROFILE, PLAN
 
 
 def test_the_value_survives_the_rendering() -> None:

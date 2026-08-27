@@ -36,17 +36,17 @@ classifier accuracy checks are all passing.
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
 | 22/08 | Implement `load_context` node (load profile & plan) | 1 | 1 | Done |
-| 22/08 | Implement `determine_context` node (identify missing fields) | 1 | 0.5 | Done |
+| 22/08 | Implement `check_profile_complete` node (identify missing fields) | 1 | 0.5 | Done |
 | 22/08 | Implement `request_missing_info` node | 0.5 | 0.5 | Done |
 | 22/08 | Implement `wait_for_user` node (`interrupt()` pause/resume) | 1 | 1 | Done |
-| 22/08 | Implement `save_user_data` node (persist reply to DB before reload) | 1 | 1 | Done |
+| 22/08 | Implement `persist_profile` node (persist the merged profile before the branch reads it) | 1 | 1 | Done |
 | 22/08 | Wire routing edges for context-complete / missing-fields branch | 0.5 | 0.5 | Done |
 
 ## Milestone 4 — Coach agent & tools (5h)
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| 22/08 | Implement `write_todo` node | 1 | 1 | Done |
+| 27/08 | ~~Implement `write_todo` node~~ — removed in the graph refactor, see `implementation-plan.md` §1 | 1 | 1 | Done |
 | 22/08 | Implement `coach_agent` core (LangGraph agent + tool binding) | 1 | 1 | Done |
 | 22/08 | Implement `load_template` tool | 0.5 | 0.5 | Done |
 | 22/08 | Implement `load_exercise` tool | 0.5 | 1 | Done |
@@ -120,3 +120,15 @@ classifier accuracy checks are all passing.
 | 28/08 | End-to-end test: full coaching flow (intent → context → plan → verify → HITL) | 3 | | Todo |
 | 28/08 | End-to-end test: full QA flow (intent → retrieval → answer → RAGAS) | 3 | | Todo |
 | 28/08 | Code review & cleanup | 2 | | Todo |
+
+## Milestone 11 — Graph refactor (27/08)
+
+| Date | Task | Est | Actual | Status |
+|---|---|---|---|---|
+| 27/08 | Rename nodes and add the `Node` enum, one name per node | 1 | 1 | Done |
+| 27/08 | Merge `classify_intent` + `extract_user_info` into `parse_turn` (one LLM call per turn) | 1.5 | 1.5 | Done |
+| 27/08 | Split the merge out as `merge_profile`, extract injuries by body part | 1 | 1 | Done |
+| 27/08 | Share `load_user_context` across both branches; drop the QA `qa_profile` workaround | 1 | 0.5 | Done |
+| 27/08 | Make `persist_profile` synchronous and unconditional | 0.5 | 0.5 | Done |
+| 27/08 | Add `finalize_turn`: persist the approved plan, settle `final_message` | 1 | 1 | Done |
+| 27/08 | Remove `write_todo` and the todo service/prompt | 0.5 | 0.5 | Done |

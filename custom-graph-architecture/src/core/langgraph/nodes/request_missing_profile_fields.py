@@ -1,4 +1,4 @@
-"""The ``request_missing_info`` node: ask the user for the profile fields still missing."""
+"""The ``request_missing_profile_fields`` node: ask the user for the profile fields still missing."""
 
 from typing import TypedDict
 
@@ -30,9 +30,8 @@ FIELD_PROMPTS: dict[str, str] = {
 
 
 class MissingInfoRequestUpdate(TypedDict):
-    """The state ``request_missing_info`` writes."""
+    """The state ``request_missing_profile_fields`` writes."""
 
-    final_message: str
     messages: list[AnyMessage]
     user_info_retry_count: int
 
@@ -46,7 +45,7 @@ def build_missing_info_request(missing_fields: list[str]) -> str:
     return f"{REQUEST_INTRO}\n{bullets}\n\n{REQUEST_OUTRO}"
 
 
-async def request_missing_info(state: GraphState) -> MissingInfoRequestUpdate:
+async def request_missing_profile_fields(state: GraphState) -> MissingInfoRequestUpdate:
     """Ask the user for the missing profile fields before the run suspends."""
 
     request = build_missing_info_request(state.get("missing_fields", []))
@@ -54,7 +53,6 @@ async def request_missing_info(state: GraphState) -> MissingInfoRequestUpdate:
     # Counted here rather than on the way back in, so the limit counts questions actually
     # put to the user — a reply that never arrives still spends an attempt.
     return {
-        "final_message": request,
         "messages": [AIMessage(content=request)],
         "user_info_retry_count": state.get("user_info_retry_count", 0) + 1,
     }

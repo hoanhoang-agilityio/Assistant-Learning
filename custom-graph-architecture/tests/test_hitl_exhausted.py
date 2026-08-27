@@ -8,7 +8,7 @@ from src.core.langgraph.nodes.hitl_exhausted import (
     hitl_exhausted,
 )
 from src.schemas import initial_state
-from tests.test_load_context import USER_ID
+from tests.test_load_user_context import USER_ID
 
 PLAN = {"goal": "fat_loss", "training_days_per_week": 4}
 

@@ -1,10 +1,10 @@
-"""The ``user_info_exhausted`` node: stop asking once the user has been asked enough times."""
+"""The ``profile_collection_exhausted`` node: stop asking once the user has been asked enough times."""
 
 from typing import TypedDict
 
 from langchain_core.messages import AIMessage, AnyMessage
 
-from src.core.langgraph.nodes.request_missing_info import FIELD_PROMPTS
+from src.core.langgraph.nodes.request_missing_profile_fields import FIELD_PROMPTS
 from src.schemas import GraphState
 
 EXHAUSTED_INTRO = (
@@ -20,8 +20,8 @@ EXHAUSTED_OUTRO = (
 )
 
 
-class UserInfoExhaustedUpdate(TypedDict):
-    """The state ``user_info_exhausted`` writes."""
+class ProfileCollectionExhaustedUpdate(TypedDict):
+    """The state ``profile_collection_exhausted`` writes."""
 
     final_message: str
     messages: list[AnyMessage]
@@ -37,7 +37,9 @@ def build_exhausted_message(missing_fields: list[str]) -> str:
     return f"{EXHAUSTED_INTRO}\n\n{EXHAUSTED_MISSING_INTRO}\n{bullets}\n\n{EXHAUSTED_OUTRO}"
 
 
-async def user_info_exhausted(state: GraphState) -> UserInfoExhaustedUpdate:
+async def profile_collection_exhausted(
+    state: GraphState,
+) -> ProfileCollectionExhaustedUpdate:
     """End the run after the user was asked for their profile too many times."""
 
     message = build_exhausted_message(state.get("missing_fields", []))

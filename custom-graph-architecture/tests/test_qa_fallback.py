@@ -31,7 +31,7 @@ PASSAGES: list[RetrievedChunk] = [
 ]
 
 
-def state_after_ragas(
+def state_after_scoring(
     passages: list[RetrievedChunk] | None = None, **overrides: object
 ) -> dict:
     """State as it stands when the faithfulness gate gives up on the QA branch."""
@@ -40,7 +40,7 @@ def state_after_ragas(
         | {
             "qa_answer": UNFAITHFUL_ANSWER,
             "retrieved_context": PASSAGES if passages is None else passages,
-            "ragas_score": 0.25,
+            "faithfulness_score": 0.25,
             "qa_retry_count": 3,
         }
         | overrides
@@ -79,7 +79,7 @@ def test_the_message_always_closes_with_a_way_forward() -> None:
 
 async def test_the_fallback_message_ends_the_run() -> None:
     """The node's whole job: the user hears why, in the transcript and as the final word."""
-    update = await qa_fallback(state_after_ragas())
+    update = await qa_fallback(state_after_scoring())
 
     expected = build_qa_fallback_message(PASSAGES)
     assert update["final_message"] == expected
@@ -89,13 +89,13 @@ async def test_the_fallback_message_ends_the_run() -> None:
 async def test_the_rejected_answer_is_not_left_behind() -> None:
     """Ending with `final_message` refusing and `qa_answer` still holding the answer the
     gate rejected is exactly how untrusted output reaches a caller that reads state."""
-    update = await qa_fallback(state_after_ragas())
+    update = await qa_fallback(state_after_scoring())
 
     assert update["qa_answer"] is None
 
 
 async def test_an_empty_retrieval_is_reported_as_nothing_found() -> None:
     """The QA agent is told to say so rather than answer; the run has to end saying so too."""
-    update = await qa_fallback(state_after_ragas(passages=[]))
+    update = await qa_fallback(state_after_scoring(passages=[]))
 
     assert update["final_message"].startswith(QA_FALLBACK_NO_CONTEXT)

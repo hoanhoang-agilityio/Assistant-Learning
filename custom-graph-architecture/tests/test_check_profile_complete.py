@@ -10,11 +10,11 @@ from src.core.langgraph.nodes.context import (
 )
 from src.schemas import initial_state
 from src.services.profile import REQUIRED_PROFILE_FIELDS
-from tests.test_load_context import COMPLETE_PROFILE, USER_ID
+from tests.test_load_user_context import COMPLETE_PROFILE, USER_ID
 
 
 def _state(profile: dict | None, revision_fields: list[str] | None = None) -> dict:
-    """A state as it stands after ``extract_user_info`` merged the current message in."""
+    """A state as it stands after ``merge_profile`` merged the current message in."""
     return initial_state("build me a plan", USER_ID) | {
         "profile": profile,
         "revision_fields": revision_fields or [],
@@ -46,7 +46,9 @@ async def test_only_the_absent_fields_are_named() -> None:
 @pytest.mark.parametrize("blank", [None, "", "   "])
 async def test_a_blank_stored_value_is_still_missing(blank: object) -> None:
     """A field saved as an empty string is an unanswered question, not an answer."""
-    actual_update = await check_profile_complete(_state(COMPLETE_PROFILE | {"goal": blank}))
+    actual_update = await check_profile_complete(
+        _state(COMPLETE_PROFILE | {"goal": blank})
+    )
 
     assert actual_update["missing_fields"] == ["goal"]
 
@@ -64,7 +66,9 @@ async def test_a_complete_profile_is_marked_complete_and_resets_the_ask_state() 
     }
 
 
-async def test_a_revision_flagged_field_is_treated_as_missing_even_if_optional() -> None:
+async def test_a_revision_flagged_field_is_treated_as_missing_even_if_optional() -> (
+    None
+):
     """target_weight_kg is not required, but a flagged-and-cleared one must still be asked for."""
     profile = COMPLETE_PROFILE | {"target_weight_kg": None}
 
@@ -76,7 +80,9 @@ async def test_a_revision_flagged_field_is_treated_as_missing_even_if_optional()
     assert actual_update["missing_fields"] == ["target_weight_kg"]
 
 
-async def test_a_revision_field_already_satisfied_by_a_required_field_is_not_duplicated() -> None:
+async def test_a_revision_field_already_satisfied_by_a_required_field_is_not_duplicated() -> (
+    None
+):
     """A required field that is also flagged for revision must only be asked for once."""
     actual_update = await check_profile_complete(_state(None, revision_fields=["goal"]))
 
@@ -86,7 +92,7 @@ async def test_a_revision_field_already_satisfied_by_a_required_field_is_not_dup
 async def test_the_node_reads_state_and_not_the_store(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``extract_user_info`` already merged in the store's data; a second read could disagree."""
+    """``merge_profile`` already merged in the store's data; a second read could disagree."""
 
     async def fail(*args: object, **kwargs: object) -> None:
         raise AssertionError("check_profile_complete must not touch long-term memory")
@@ -106,7 +112,9 @@ async def test_the_node_reads_state_and_not_the_store(
 
 
 @pytest.mark.parametrize("attempts_made", [0, 1, 2])
-async def test_the_user_is_asked_again_while_attempts_remain(attempts_made: int) -> None:
+async def test_the_user_is_asked_again_while_attempts_remain(
+    attempts_made: int,
+) -> None:
     """Three questions are allowed before the run gives up on collecting the profile."""
     state = _state(None) | {"user_info_retry_count": attempts_made}
 

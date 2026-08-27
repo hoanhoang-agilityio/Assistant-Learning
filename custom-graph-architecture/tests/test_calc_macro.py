@@ -18,7 +18,7 @@ from src.schemas import (
     UserProfile,
 )
 from src.services import nutrition
-from tests.test_load_context import COMPLETE_PROFILE
+from tests.test_load_user_context import COMPLETE_PROFILE
 
 # A 34-year-old man, 178 cm and 82.5 kg: Mifflin-St Jeor puts him at 1771.5 kcal at rest.
 EXPECTED_BMR = 10 * 82.5 + 6.25 * 178.0 - 5 * 34 + 5

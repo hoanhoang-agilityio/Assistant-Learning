@@ -1,16 +1,15 @@
-"""The context nodes: ``load_context`` loads the user's data, ``check_profile_complete`` gates it."""
+"""The context nodes: ``load_user_context`` loads the user's data, ``check_profile_complete`` gates it."""
 
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 from src.core.configs.config import settings
-from src.schemas import GraphState
-from src.services.profile import load_user_context, missing_profile_fields
-
-ProfileRoute = Literal["complete", "ask", "exhausted"]
+from src.schemas import GraphState, Intent, ProfileRoute
+from src.services.profile import load_user_context as read_user_context
+from src.services.profile import missing_profile_fields
 
 
 class ContextUpdate(TypedDict):
-    """The state ``load_context`` writes."""
+    """The state ``load_user_context`` writes."""
 
     profile: dict | None
     plan: dict | None
@@ -24,11 +23,19 @@ class ProfileCompleteUpdate(TypedDict):
     user_info_retry_count: int
 
 
-async def load_context(state: GraphState) -> ContextUpdate:
+async def load_user_context(state: GraphState) -> ContextUpdate:
     """Load the user's persisted profile and plan into runtime state, once per run."""
 
-    context = await load_user_context(state["user_id"])
+    context = await read_user_context(state["user_id"])
     return {"profile": context.profile, "plan": context.plan}
+
+
+def route_after_context(state: GraphState) -> Intent:
+    """Route on the intent parsed before the context was loaded, without asking again."""
+
+    if state.get("intent") == Intent.COACHING:
+        return Intent.COACHING
+    return Intent.QA
 
 
 async def check_profile_complete(state: GraphState) -> ProfileCompleteUpdate:
@@ -37,13 +44,19 @@ async def check_profile_complete(state: GraphState) -> ProfileCompleteUpdate:
     profile = state.get("profile")
     required_missing = missing_profile_fields(profile)
     revision_missing = [
-        name for name in state.get("revision_fields", []) if name not in required_missing
+        name
+        for name in state.get("revision_fields", [])
+        if name not in required_missing
     ]
     missing = required_missing + revision_missing
     retry_count = state.get("user_info_retry_count", 0)
 
     if not missing:
-        return {"context_complete": True, "missing_fields": [], "user_info_retry_count": 0}
+        return {
+            "context_complete": True,
+            "missing_fields": [],
+            "user_info_retry_count": 0,
+        }
 
     return {
         "context_complete": False,
@@ -56,7 +69,7 @@ def route_after_profile_check(state: GraphState) -> ProfileRoute:
     """Route on completeness, then on whether the collection loop still has room to ask."""
 
     if state.get("context_complete"):
-        return "complete"
+        return ProfileRoute.COMPLETE
     if state.get("user_info_retry_count", 0) >= settings.USER_INFO_MAX_RETRIES:
-        return "exhausted"
-    return "ask"
+        return ProfileRoute.EXHAUSTED
+    return ProfileRoute.ASK

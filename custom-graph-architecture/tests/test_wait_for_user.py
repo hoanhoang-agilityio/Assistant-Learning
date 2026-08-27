@@ -7,14 +7,14 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
-from src.core.langgraph.nodes.request_missing_info import (
+from src.core.langgraph.nodes.request_missing_profile_fields import (
     build_missing_info_request,
-    request_missing_info,
+    request_missing_profile_fields,
 )
 from src.core.langgraph.nodes.wait_for_user import MISSING_INFO_INTERRUPT, wait_for_user
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import GraphState, initial_state
-from tests.test_load_context import USER_ID
+from tests.test_load_user_context import USER_ID
 
 MISSING = ["goal", "training_days_per_week"]
 
@@ -24,10 +24,10 @@ async def graph():
     """The ask-and-wait pair, compiled on a checkpointer that can hold a suspended run."""
     runtime = InMemoryRuntime()
     builder = StateGraph(GraphState)
-    builder.add_node("request_missing_info", request_missing_info)
+    builder.add_node("request_missing_profile_fields", request_missing_profile_fields)
     builder.add_node("wait_for_user", wait_for_user)
-    builder.add_edge(START, "request_missing_info")
-    builder.add_edge("request_missing_info", "wait_for_user")
+    builder.add_edge(START, "request_missing_profile_fields")
+    builder.add_edge("request_missing_profile_fields", "wait_for_user")
     builder.add_edge("wait_for_user", END)
 
     yield builder.compile(
@@ -76,7 +76,7 @@ async def test_the_interrupt_is_labelled_for_its_gate(graph) -> None:
 
 
 async def test_the_answer_becomes_the_next_turn_of_the_conversation(graph) -> None:
-    """``extract_user_info`` reads the reply off the end of ``messages``."""
+    """``merge_profile`` reads the reply off the end of ``messages``."""
     config = _config("resume")
     await graph.ainvoke(_start(), config)
 

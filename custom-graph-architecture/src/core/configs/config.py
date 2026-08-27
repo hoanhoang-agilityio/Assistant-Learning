@@ -24,7 +24,7 @@ class Environment(StrEnum):
 
 
 class GuardScanner(StrEnum):
-    """Input scanners the ``llm_guard`` node may run."""
+    """Input scanners the ``guard_input`` node may run."""
 
     INVISIBLE_TEXT = "invisible_text"
     BAN_SUBSTRINGS = "ban_substrings"
@@ -180,7 +180,7 @@ class Settings(BaseSettings):
     MAX_LLM_CALL_RETRIES: int = 3
     LLM_TOTAL_TIMEOUT: int = 60
 
-    # --- Input guard (spec §1 `llm_guard`, §9 "Guard failure → Block request") --------
+    # --- Input guard (spec §1 `guard_input`, §9 "Guard failure → Block request") --------
     GUARD_ENABLED: bool = True
     GUARD_SCANNERS: Annotated[list[GuardScanner], NoDecode] = Field(
         default_factory=lambda: list(GuardScanner)
@@ -195,11 +195,9 @@ class Settings(BaseSettings):
     GUARD_BANNED_SUBSTRINGS: Annotated[list[str], NoDecode] = Field(
         default_factory=list
     )
-    GUARD_BANNED_PATTERNS: Annotated[list[str],
-                                     NoDecode] = Field(default_factory=list)
+    GUARD_BANNED_PATTERNS: Annotated[list[str], NoDecode] = Field(default_factory=list)
     GUARD_BANNED_TOPICS: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["violence",
-                                 "self-harm", "weapons", "illegal drugs"]
+        default_factory=lambda: ["violence", "self-harm", "weapons", "illegal drugs"]
     )
     GUARD_PROMPT_INJECTION_THRESHOLD: float = 0.92
     GUARD_TOXICITY_THRESHOLD: float = 0.5
@@ -217,7 +215,7 @@ class Settings(BaseSettings):
     KNOWLEDGE_TOP_K: int = 4
     KNOWLEDGE_MIN_SCORE: float = 0.3
     KNOWLEDGE_MAX_OVERLAP: float = 0.8
-    RAGAS_FAITHFULNESS_THRESHOLD: float = 0.9
+    FAITHFULNESS_THRESHOLD: float = 0.9
     # RAGAS defaults to 1024, which a reasoning model spends on reasoning tokens before
     # it emits the structured verdict, and a truncated verdict scores nothing.
     RAGAS_MAX_TOKENS: int = 4096

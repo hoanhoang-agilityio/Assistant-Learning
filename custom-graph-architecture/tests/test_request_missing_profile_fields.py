@@ -1,18 +1,18 @@
-"""Tests for the ``request_missing_info`` node."""
+"""Tests for the ``request_missing_profile_fields`` node."""
 
 import pytest
 from langchain_core.messages import AIMessage
 
-from src.core.langgraph.nodes.request_missing_info import (
+from src.core.langgraph.nodes.request_missing_profile_fields import (
     FIELD_PROMPTS,
     REQUEST_INTRO,
     REQUEST_OUTRO,
     build_missing_info_request,
-    request_missing_info,
+    request_missing_profile_fields,
 )
 from src.schemas import initial_state
 from src.services.profile import REQUIRED_PROFILE_FIELDS
-from tests.test_load_context import USER_ID
+from tests.test_load_user_context import USER_ID
 
 
 def _state(missing_fields: list[str]) -> dict:
@@ -76,12 +76,13 @@ def test_the_request_is_framed_for_the_user(missing_fields: list[str]) -> None:
     assert request.endswith(REQUEST_OUTRO)
 
 
-async def test_the_node_returns_the_request_as_output_and_transcript() -> None:
-    """The suspended turn shows the question, and the conversation records having asked."""
-    actual_update = await request_missing_info(_state(["age", "goal"]))
+async def test_the_node_records_the_question_in_the_transcript() -> None:
+    """The conversation records having asked; the question is not a final message, though —
+    the run continues after the answer arrives, and ``finalize_turn`` owns the last word."""
+    actual_update = await request_missing_profile_fields(_state(["age", "goal"]))
 
     expected = build_missing_info_request(["age", "goal"])
-    assert actual_update["final_message"] == expected
+    assert "final_message" not in actual_update
     assert [message.content for message in actual_update["messages"]] == [expected]
     assert isinstance(actual_update["messages"][0], AIMessage)
 
@@ -91,9 +92,9 @@ async def test_the_node_survives_a_state_with_no_missing_fields_key() -> None:
     state = initial_state("build me a plan", USER_ID)
     del state["missing_fields"]
 
-    actual_update = await request_missing_info(state)
+    actual_update = await request_missing_profile_fields(state)
 
-    assert actual_update["final_message"] == build_missing_info_request([])
+    assert actual_update["messages"][0].content == build_missing_info_request([])
 
 
 @pytest.mark.parametrize(("asked_before", "expected"), [(0, 1), (1, 2), (2, 3)])
@@ -103,7 +104,7 @@ async def test_each_question_spends_one_attempt(
     """The limit counts questions put to the user, not replies received."""
     state = _state(["age"]) | {"user_info_retry_count": asked_before}
 
-    actual_update = await request_missing_info(state)
+    actual_update = await request_missing_profile_fields(state)
 
     assert actual_update["user_info_retry_count"] == expected
 
@@ -113,6 +114,6 @@ async def test_a_state_with_no_counter_starts_it_at_one() -> None:
     state = _state(["age"])
     del state["user_info_retry_count"]
 
-    actual_update = await request_missing_info(state)
+    actual_update = await request_missing_profile_fields(state)
 
     assert actual_update["user_info_retry_count"] == 1

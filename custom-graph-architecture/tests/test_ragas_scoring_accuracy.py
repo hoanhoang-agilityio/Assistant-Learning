@@ -46,7 +46,7 @@ async def test_an_answer_the_passages_carry_clears_the_threshold(
     )
 
     assert score is not None
-    assert score >= settings.RAGAS_FAITHFULNESS_THRESHOLD
+    assert score >= settings.FAITHFULNESS_THRESHOLD
 
 
 @pytest.mark.integration
@@ -59,4 +59,4 @@ async def test_an_answer_the_passages_do_not_carry_fails_the_threshold(
     )
 
     assert score is not None
-    assert score < settings.RAGAS_FAITHFULNESS_THRESHOLD
+    assert score < settings.FAITHFULNESS_THRESHOLD

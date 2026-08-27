@@ -30,7 +30,7 @@ SPEC_FIELDS = {
     "hitl_retry_count",
     "qa_answer",
     "retrieved_context",
-    "ragas_score",
+    "faithfulness_score",
     "qa_retry_count",
     "final_message",
 }
@@ -116,7 +116,7 @@ async def test_state_round_trips_through_a_checkpointer() -> None:
                 "intent": "qa",
                 "qa_answer": "1.6 g/kg",
                 "retrieved_context": [chunk],
-                "ragas_score": 0.93,
+                "faithfulness_score": 0.93,
                 "qa_retry_count": 1,
                 "verification_result": {"passed": True, "errors": []},
                 "final_message": "1.6 g/kg",
@@ -137,7 +137,7 @@ async def test_state_round_trips_through_a_checkpointer() -> None:
 
     assert restored["intent"] == "qa"
     assert restored["retrieved_context"] == [chunk]
-    assert restored["ragas_score"] == pytest.approx(0.93)
+    assert restored["faithfulness_score"] == pytest.approx(0.93)
     assert restored["qa_retry_count"] == 1
     assert restored["verification_result"] == {"passed": True, "errors": []}
     assert restored["final_message"] == "1.6 g/kg"

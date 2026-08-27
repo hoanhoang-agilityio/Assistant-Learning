@@ -5,64 +5,83 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.core.langgraph.agents import coach_agent, qa_agent
 from src.core.langgraph.nodes import (
-    bg_save_profile,
     blocked,
     check_profile_complete,
-    classify_intent,
     deterministic_verification,
-    extract_user_info,
+    finalize_turn,
+    guard_input,
     hitl_exhausted,
     hitl_rejected_no_feedback,
     hitl_review,
-    llm_guard,
-    load_context,
+    load_user_context,
+    merge_profile,
     notify_fail,
     off_topic,
+    parse_turn,
+    persist_profile,
+    profile_collection_exhausted,
     qa_fallback,
-    ragas_verification,
-    request_missing_info,
+    request_missing_profile_fields,
+    route_after_context,
+    route_after_faithfulness,
     route_after_guard,
     route_after_hitl_review,
-    route_after_intent,
+    route_after_parse,
     route_after_profile_check,
-    route_after_ragas,
     route_after_verification,
-    user_info_exhausted,
+    verify_faithfulness,
     wait_for_user,
 )
-from src.schemas import GraphState
+from src.schemas import (
+    FaithfulnessRoute,
+    GraphState,
+    GuardRoute,
+    HitlRoute,
+    Intent,
+    Node,
+    ProfileRoute,
+    VerificationRoute,
+)
 
-GUARD_ROUTES: dict[str, str] = {"blocked": "blocked", "pass": "classify_intent"}
+GUARD_ROUTES: dict[str, str] = {
+    GuardRoute.BLOCKED: Node.BLOCKED,
+    GuardRoute.PASS: Node.PARSE_TURN,
+}
 
-INTENT_ROUTES: dict[str, str] = {
-    "coaching": "load_context",
-    "qa": "qa_agent",
-    "off_topic": "off_topic",
+PARSE_ROUTES: dict[str, str] = {
+    Intent.COACHING: Node.LOAD_USER_CONTEXT,
+    Intent.QA: Node.LOAD_USER_CONTEXT,
+    Intent.OFF_TOPIC: Node.OFF_TOPIC,
+}
+
+CONTEXT_ROUTES: dict[str, str] = {
+    Intent.COACHING: Node.CHECK_PROFILE_COMPLETE,
+    Intent.QA: Node.QA_AGENT,
 }
 
 PROFILE_ROUTES: dict[str, str] = {
-    "complete": "bg_save_profile",
-    "ask": "request_missing_info",
-    "exhausted": "user_info_exhausted",
+    ProfileRoute.COMPLETE: Node.COACH_AGENT,
+    ProfileRoute.ASK: Node.REQUEST_MISSING_PROFILE_FIELDS,
+    ProfileRoute.EXHAUSTED: Node.PROFILE_COLLECTION_EXHAUSTED,
 }
 
 VERIFICATION_ROUTES: dict[str, str] = {
-    "pass": "hitl_review",
-    "retry": "coach_agent",
-    "exhausted": "notify_fail",
+    VerificationRoute.PASS: Node.HITL_REVIEW,
+    VerificationRoute.RETRY: Node.COACH_AGENT,
+    VerificationRoute.EXHAUSTED: Node.NOTIFY_FAIL,
 }
 
-RAGAS_ROUTES: dict[str, str] = {
-    "pass": END,
-    "retry": "qa_agent",
-    "fallback": "qa_fallback",
+FAITHFULNESS_ROUTES: dict[str, str] = {
+    FaithfulnessRoute.PASS: Node.FINALIZE_TURN,
+    FaithfulnessRoute.RETRY: Node.QA_AGENT,
+    FaithfulnessRoute.FALLBACK: Node.QA_FALLBACK,
 }
 
 HITL_ROUTES: dict[str, str] = {
-    "approve": END,
-    "revise": "coach_agent",
-    "no_feedback": "hitl_rejected_no_feedback",
-    "exhausted": "hitl_exhausted",
+    HitlRoute.APPROVE: Node.FINALIZE_TURN,
+    HitlRoute.REVISE: Node.COACH_AGENT,
+    HitlRoute.NO_FEEDBACK: Node.HITL_REJECTED_NO_FEEDBACK,
+    HitlRoute.EXHAUSTED: Node.HITL_EXHAUSTED,
 }
 
 
@@ -70,52 +89,62 @@ def build_graph() -> StateGraph:
     """The workflow graph."""
     builder = StateGraph(GraphState)
 
-    builder.add_node("llm_guard", llm_guard)
-    builder.add_node("blocked", blocked)
-    builder.add_node("classify_intent", classify_intent)
-    builder.add_node("off_topic", off_topic)
-    builder.add_node("load_context", load_context)
-    builder.add_node("extract_user_info", extract_user_info)
-    builder.add_node("check_profile_complete", check_profile_complete)
-    builder.add_node("request_missing_info", request_missing_info)
-    builder.add_node("wait_for_user", wait_for_user)
-    builder.add_node("bg_save_profile", bg_save_profile)
-    builder.add_node("user_info_exhausted", user_info_exhausted)
-    builder.add_node("coach_agent", coach_agent)
-    builder.add_node("deterministic_verification", deterministic_verification)
-    builder.add_node("notify_fail", notify_fail)
-    builder.add_node("hitl_review", hitl_review)
-    builder.add_node("hitl_rejected_no_feedback", hitl_rejected_no_feedback)
-    builder.add_node("hitl_exhausted", hitl_exhausted)
-    builder.add_node("qa_agent", qa_agent)
-    builder.add_node("ragas_verification", ragas_verification)
-    builder.add_node("qa_fallback", qa_fallback)
+    builder.add_node(Node.GUARD_INPUT, guard_input)
+    builder.add_node(Node.BLOCKED, blocked)
+    builder.add_node(Node.PARSE_TURN, parse_turn)
+    builder.add_node(Node.OFF_TOPIC, off_topic)
+    builder.add_node(Node.LOAD_USER_CONTEXT, load_user_context)
+    builder.add_node(Node.MERGE_PROFILE, merge_profile)
+    builder.add_node(Node.PERSIST_PROFILE, persist_profile)
+    builder.add_node(Node.CHECK_PROFILE_COMPLETE, check_profile_complete)
+    builder.add_node(
+        Node.REQUEST_MISSING_PROFILE_FIELDS, request_missing_profile_fields
+    )
+    builder.add_node(Node.WAIT_FOR_USER, wait_for_user)
+    builder.add_node(Node.PROFILE_COLLECTION_EXHAUSTED, profile_collection_exhausted)
+    builder.add_node(Node.COACH_AGENT, coach_agent)
+    builder.add_node(Node.DETERMINISTIC_VERIFICATION, deterministic_verification)
+    builder.add_node(Node.NOTIFY_FAIL, notify_fail)
+    builder.add_node(Node.HITL_REVIEW, hitl_review)
+    builder.add_node(Node.HITL_REJECTED_NO_FEEDBACK, hitl_rejected_no_feedback)
+    builder.add_node(Node.HITL_EXHAUSTED, hitl_exhausted)
+    builder.add_node(Node.QA_AGENT, qa_agent)
+    builder.add_node(Node.VERIFY_FAITHFULNESS, verify_faithfulness)
+    builder.add_node(Node.QA_FALLBACK, qa_fallback)
+    builder.add_node(Node.FINALIZE_TURN, finalize_turn)
 
-    builder.add_edge(START, "llm_guard")
-    builder.add_conditional_edges("llm_guard", route_after_guard, GUARD_ROUTES)
-    builder.add_conditional_edges("classify_intent", route_after_intent, INTENT_ROUTES)
-    builder.add_edge("load_context", "extract_user_info")
-    builder.add_edge("extract_user_info", "check_profile_complete")
+    builder.add_edge(START, Node.GUARD_INPUT)
+    builder.add_conditional_edges(Node.GUARD_INPUT, route_after_guard, GUARD_ROUTES)
+    builder.add_edge(Node.BLOCKED, END)
+    builder.add_conditional_edges(Node.PARSE_TURN, route_after_parse, PARSE_ROUTES)
+    builder.add_edge(Node.OFF_TOPIC, END)
+    builder.add_edge(Node.LOAD_USER_CONTEXT, Node.MERGE_PROFILE)
+    builder.add_edge(Node.MERGE_PROFILE, Node.PERSIST_PROFILE)
     builder.add_conditional_edges(
-        "check_profile_complete", route_after_profile_check, PROFILE_ROUTES
+        Node.PERSIST_PROFILE, route_after_context, CONTEXT_ROUTES
     )
-    builder.add_edge("request_missing_info", "wait_for_user")
-    builder.add_edge("wait_for_user", "extract_user_info")
-    builder.add_edge("bg_save_profile", "coach_agent")
-    builder.add_edge("blocked", END)
-    builder.add_edge("off_topic", END)
-    builder.add_edge("user_info_exhausted", END)
-    builder.add_edge("notify_fail", END)
-    builder.add_edge("coach_agent", "deterministic_verification")
     builder.add_conditional_edges(
-        "deterministic_verification", route_after_verification, VERIFICATION_ROUTES
+        Node.CHECK_PROFILE_COMPLETE, route_after_profile_check, PROFILE_ROUTES
     )
-    builder.add_conditional_edges("hitl_review", route_after_hitl_review, HITL_ROUTES)
-    builder.add_edge("hitl_rejected_no_feedback", END)
-    builder.add_edge("hitl_exhausted", END)
-    builder.add_edge("qa_agent", "ragas_verification")
-    builder.add_conditional_edges("ragas_verification", route_after_ragas, RAGAS_ROUTES)
-    builder.add_edge("qa_fallback", END)
+    builder.add_edge(Node.REQUEST_MISSING_PROFILE_FIELDS, Node.WAIT_FOR_USER)
+    builder.add_edge(Node.WAIT_FOR_USER, Node.PARSE_TURN)
+    builder.add_edge(Node.PROFILE_COLLECTION_EXHAUSTED, Node.FINALIZE_TURN)
+    builder.add_edge(Node.COACH_AGENT, Node.DETERMINISTIC_VERIFICATION)
+    builder.add_conditional_edges(
+        Node.DETERMINISTIC_VERIFICATION, route_after_verification, VERIFICATION_ROUTES
+    )
+    builder.add_edge(Node.NOTIFY_FAIL, Node.FINALIZE_TURN)
+    builder.add_conditional_edges(
+        Node.HITL_REVIEW, route_after_hitl_review, HITL_ROUTES
+    )
+    builder.add_edge(Node.HITL_REJECTED_NO_FEEDBACK, Node.FINALIZE_TURN)
+    builder.add_edge(Node.HITL_EXHAUSTED, Node.FINALIZE_TURN)
+    builder.add_edge(Node.QA_AGENT, Node.VERIFY_FAITHFULNESS)
+    builder.add_conditional_edges(
+        Node.VERIFY_FAITHFULNESS, route_after_faithfulness, FAITHFULNESS_ROUTES
+    )
+    builder.add_edge(Node.QA_FALLBACK, Node.FINALIZE_TURN)
+    builder.add_edge(Node.FINALIZE_TURN, END)
 
     return builder
 

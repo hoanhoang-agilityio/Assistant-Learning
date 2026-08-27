@@ -11,19 +11,23 @@ Engineering conventions for `src/` come from the `langgraph-agent-arch` skill
 
 ## 1. Node design
 
+Node names and branch labels are each defined once — `Node` in `src/schemas/domain/enums/graph.py`,
+the routers' answers in `src/schemas/domain/enums/routes.py` — and referenced from `graph.py`, the
+route functions and the tests rather than repeated as strings.
+
 | Node | Purpose |
 |---|---|
-| `llm_guard` | Scan input |
+| `guard_input` | Scan input (llm-guard scanners, run locally — no LLM call) |
 | `blocked` | Return message for user and stop immediately |
-| `classify_intent` | Classify user into three main intents: `coaching`, `qa`, `off_topic` |
+| `parse_turn` | One LLM call: classify intent **and** extract the profile facts the message states |
 | `off_topic` | Return reject message for off topic |
-| `load_context` | Load profile and plan of user |
-| `determine_context` | Identify missing fields required to create a plan |
-| `request_missing_info` | Ask user to provide missing fields |
+| `load_user_context` | Load profile and plan of user from long-term memory |
+| `merge_profile` | Deterministic: merge stated fields, upsert injuries by body part — the only writer of `profile` |
+| `persist_profile` | Write the merged profile to the store before either branch reads it back |
+| `check_profile_complete` | Identify missing fields required to create a plan |
+| `request_missing_profile_fields` | Ask user to provide missing fields |
 | `wait_for_user` | `interrupt()` — pause graph and wait for user to provide data |
-| `save_user_data` | Save user info after the reply arrives |
-| `user_info_exhausted` | Stop and tell the user no plan can be built without their details |
-| `write_todo` | Write a todo list for the coach agent |
+| `profile_collection_exhausted` | Stop and tell the user no plan can be built without their details |
 | `coach_agent` | Agent that creates the plan |
 | `deterministic_verification` | Check schema / macro / volume / safety by fixed rule, no LLM |
 | `notify_fail` | Notify user when verification fails more than 3 times |
@@ -31,41 +35,70 @@ Engineering conventions for `src/` come from the `langgraph-agent-arch` skill
 | `hitl_rejected_no_feedback` | Handle reject-with-no-feedback case, stop immediately |
 | `hitl_exhausted` | Reject with feedback but attempted over 3 times — inform and stop |
 | `qa_agent` | Agent that answers knowledge questions |
-| `ragas_verification` | Validate faithfulness >= 90% |
+| `verify_faithfulness` | Validate faithfulness >= 0.9 (RAGAS is the implementation, not the contract) |
 | `qa_fallback` | Fallback when faithfulness fails 3 times — tell user the data is untrusted |
+| `finalize_turn` | The single convergence point: persist an approved plan, settle `final_message` |
+
+### Deviations from the PDF spec, and why
+
+| Spec | Built | Reason |
+|---|---|---|
+| `llm_guard` | `guard_input` | The library is `llm-guard`; the node makes no LLM call, and the old name said it did |
+| `classify_intent` + `determine_context` + `save_user_data` | `parse_turn` + `merge_profile` + `persist_profile` | Classification and extraction are one structured read of one message, so they are one call. Merging is deterministic and belongs in its own testable node; the write is a third, separate concern |
+| `load_context` | `load_user_context` | It reads user-scoped long-term memory, not thread state — thread state is the checkpointer |
+| `request_missing_info` / `user_info_exhausted` | `request_missing_profile_fields` / `profile_collection_exhausted` | Say which data |
+| `ragas_verification` | `verify_faithfulness` | Do not name a node after the library that happens to implement it |
+| `write_todo` | *(removed)* | Never wired into the graph, and `GraphState` had no `todo` key, so every write was silently dropped. The coach agent's own prompt already sequences the work |
+| `hitl_review` approve → `END` | approve → `finalize_turn` → `END` | The spec has no node that persists an approved plan, so `recall_plan` had no writer and `load_user_context` always returned `plan: None` |
 
 ## 2. Edge / routing design
 
 | From | Condition | To |
 |---|---|---|
-| `llm_guard` | blocked | `blocked` |
-| `llm_guard` | pass | `classify_intent` |
-| `classify_intent` | qa | `qa_agent` |
-| `classify_intent` | coaching | `load_context` |
-| `classify_intent` | off_topic | `off_topic` |
-| `load_context` | context complete | `write_todo` |
-| `load_context` | missing fields | `determine_context` |
-| `determine_context` | missing fields exist & retry < 3 | `request_missing_info` |
-| `determine_context` | retry >= 3 | `user_info_exhausted` |
-| `save_user_data` | data updated | `load_context` |
-| `write_todo` | — | `coach_agent` |
+| `guard_input` | blocked | `blocked` |
+| `guard_input` | pass | `parse_turn` |
+| `parse_turn` | coaching | `load_user_context` |
+| `parse_turn` | qa | `load_user_context` |
+| `parse_turn` | off_topic | `off_topic` |
+| `load_user_context` | — | `merge_profile` |
+| `merge_profile` | — | `persist_profile` |
+| `persist_profile` | coaching | `check_profile_complete` |
+| `persist_profile` | qa | `qa_agent` |
+| `check_profile_complete` | context complete | `coach_agent` |
+| `check_profile_complete` | missing fields & retry < 3 | `request_missing_profile_fields` |
+| `check_profile_complete` | retry >= 3 | `profile_collection_exhausted` |
+| `request_missing_profile_fields` | — | `wait_for_user` |
+| `wait_for_user` | user replied | `parse_turn` |
 | `coach_agent` | success | `deterministic_verification` |
 | `deterministic_verification` | pass | `hitl_review` |
 | `deterministic_verification` | fail & retry < 3 | `coach_agent` |
 | `deterministic_verification` | fail & retry >= 3 | `notify_fail` |
-| `hitl_review` | approve | `END` |
+| `hitl_review` | approve | `finalize_turn` |
 | `hitl_review` | reject + feedback | `coach_agent` |
 | `hitl_review` | reject + no feedback | `hitl_rejected_no_feedback` |
 | `hitl_review` | reject + retry >= 3 | `hitl_exhausted` |
-| `qa_agent` | answer generated | `ragas_verification` |
-| `ragas_verification` | >= 0.9 faithfulness | `END` |
-| `ragas_verification` | < 0.9 & retry < 3 | `qa_agent` |
-| `ragas_verification` | < 0.9 & retry >= 3 | `qa_fallback` |
+| `qa_agent` | answer generated | `verify_faithfulness` |
+| `verify_faithfulness` | >= 0.9 faithfulness | `finalize_turn` |
+| `verify_faithfulness` | < 0.9 & retry < 3 | `qa_agent` |
+| `verify_faithfulness` | < 0.9 & retry >= 3 | `qa_fallback` |
+| `blocked`, `off_topic` | — | `END` |
+| `profile_collection_exhausted`, `notify_fail`, `hitl_rejected_no_feedback`, `hitl_exhausted`, `qa_fallback` | — | `finalize_turn` |
+| `finalize_turn` | — | `END` |
 
-`request_missing_info → wait_for_user → save_user_data` is the interrupt loop; `save_user_data`
-persists to the database **before** routing back to `load_context`. The loop is bounded by
-`user_info_retry_count`: after `USER_INFO_MAX_RETRIES` questions the profile is still incomplete,
-the run stops at `user_info_exhausted` rather than asking forever.
+`request_missing_profile_fields → wait_for_user → parse_turn` is the interrupt loop. The resume
+routes back through `parse_turn` rather than into the completeness check, because that is where
+the reply is read: routing it anywhere later leaves the answer unparsed and the loop asks the same
+question until it exhausts. Re-entering `parse_turn` also lets the user change the subject
+mid-collection — bounded by *sticky intent*: while `missing_fields` is non-empty, a message that
+states at least one profile field keeps the intent that opened the loop, so `"34, male, 4 days"` is
+never reclassified as a new question.
+
+The loop is bounded by `user_info_retry_count`: after `USER_INFO_MAX_RETRIES` questions with the
+profile still incomplete, the run stops at `profile_collection_exhausted`.
+
+Both working branches share `load_user_context → merge_profile → persist_profile`. The QA branch
+gets the fresh profile and the current plan for free — the extraction it rides on is the same call
+that routed it, so the shared path costs the QA turn nothing.
 
 ### Coaching flow
 
@@ -86,7 +119,7 @@ See [`state-design.md`](state-design.md) for the literal schema from the spec.
 Generate or modify a personalized training plan based on the user's profile, goal, constraints and
 todo list.
 
-Input: `user_query`, `profile`, `plan` (if an existing plan is available), `todo`, `messages`.
+Input: `user_query`, `profile`, `plan` (if an existing plan is available), `messages`.
 Output: training plan — goal, calories, macro, training days, exercises.
 
 | Tool | Purpose |
@@ -143,14 +176,14 @@ Deterministic Verification
 ┌────┴────┐
 approve   reject
    ↓         ↓
-  end    feedback?
-          /     \
-        yes      no
-         ↓        ↓
-    coach_agent  stop
+finalize   feedback?
+_turn       /     \
+   ↓      yes      no
+  end      ↓        ↓
+      coach_agent  stop
 ```
 
-- **Approve** — return the approved plan to the user.
+- **Approve** — `finalize_turn` writes the plan to the `plan` namespace and confirms it to the user.
 - **Reject with feedback** — pass `hitl_feedback` to `coach_agent`, regenerate/revise the plan,
   increment `hitl_retry_count`.
 - **Reject without feedback** — route to `hitl_rejected_no_feedback` and stop.
@@ -183,7 +216,7 @@ Short-term memory is for the **current workflow execution**, not persistent user
 - *Facts*: name, age, weight, sex, activity level, goal, equipment, injury.
 
 All three are addressed as `("users", user_id, scope)` and reached through `src/services/memory.py`
-— the one gateway to the store. Facts are what `load_context` reads and the profile loop writes;
+— the one gateway to the store. Facts are what `load_user_context` reads and `persist_profile` writes;
 preferences and accumulated knowledge reach the coach agent through the `recall_memory` tool.
 
 ## 8. RAG design

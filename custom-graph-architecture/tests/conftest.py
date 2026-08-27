@@ -5,8 +5,8 @@ import pytest
 from openai import AuthenticationError
 
 from src.core.configs.config import settings
-from src.core.langgraph.prompts import build_intent_classifier_messages
-from src.services.intent import IntentDecision, _build_classifier
+from src.core.langgraph.prompts import build_turn_parser_messages
+from src.services.turn import TurnParse, _build_parser
 
 
 @pytest.fixture(autouse=True)
@@ -34,13 +34,13 @@ def require_postgres() -> None:
 
 @pytest.fixture(scope="session")
 async def require_openai_key() -> None:
-    """Skip LLM integration tests when no working classifier credentials are configured."""
+    """Skip LLM integration tests when no working parser credentials are configured."""
     if not settings.OPENAI_API_KEY:
         pytest.skip("OPENAI_API_KEY missing: skipping LLM integration tests")
     try:
-        classifier = _build_classifier().with_structured_output(IntentDecision)
-        await classifier.ainvoke(
-            build_intent_classifier_messages("How much protein should I eat?")
+        parser = _build_parser().with_structured_output(TurnParse)
+        await parser.ainvoke(
+            build_turn_parser_messages("How much protein should I eat?")
         )
     except AuthenticationError as exc:
         pytest.skip(f"OpenAI credentials rejected for integration tests: {exc}")

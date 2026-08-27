@@ -92,3 +92,12 @@ async def recall_plan(user_id: str) -> dict | None:
     item = await store.aget(plan_namespace(user_id), CURRENT_PLAN_KEY)
 
     return dict(item.value) if item is not None else None
+
+
+async def save_plan(user_id: str, plan: dict[str, Any]) -> dict[str, Any]:
+    """Write the user's current training plan to long-term memory."""
+
+    store = await graph_runtime.store()
+    await store.aput(plan_namespace(user_id), CURRENT_PLAN_KEY, plan)
+
+    return plan

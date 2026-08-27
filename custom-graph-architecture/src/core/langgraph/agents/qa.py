@@ -12,7 +12,6 @@ from src.core.configs.config import settings
 from src.core.langgraph.prompts import QA_AGENT_SYSTEM, as_prompt_json, build_qa_context
 from src.core.langgraph.tools import QA_TOOLS, search_knowledge
 from src.schemas import GraphState, QaContext, RetrievedChunk
-from src.services.profile import load_profile
 from src.utils.logging import logger
 
 QA_AGENT_NAME = "qa_agent"
@@ -22,7 +21,6 @@ NO_PROFILE = "none on record"
 class QaUpdate(TypedDict):
     """The state ``qa_agent`` writes."""
 
-    profile: dict | None
     qa_answer: str | None
     retrieved_context: list[RetrievedChunk]
     messages: list[AnyMessage]
@@ -47,22 +45,6 @@ def build_qa_agent() -> CompiledStateGraph:
     )
 
 
-async def qa_profile(state: GraphState) -> dict | None:
-    """The user's stored profile, read here rather than gated behind a tool call."""
-
-    profile = state.get("profile")
-    if profile is not None:
-        return profile
-
-    try:
-        return await load_profile(state["user_id"])
-    except Exception as error:
-        logger.exception(
-            "qa_profile_load_failed", user_id=state["user_id"], error=str(error)
-        )
-        return None
-
-
 def build_qa_input(state: GraphState) -> list[AnyMessage]:
     """Assemble what the agent sees: the conversation so far plus this turn's context."""
 
@@ -70,7 +52,7 @@ def build_qa_input(state: GraphState) -> list[AnyMessage]:
         user_query=state["user_query"],
         profile=as_prompt_json(state.get("profile")) or NO_PROFILE,
         previous_answer=state.get("qa_answer"),
-        faithfulness_score=state.get("ragas_score"),
+        faithfulness_score=state.get("faithfulness_score"),
     )
     return [*state["messages"], HumanMessage(content=context)]
 
@@ -111,36 +93,25 @@ def retrieved_passages(messages: list[AnyMessage]) -> list[RetrievedChunk]:
 async def qa_agent(state: GraphState) -> QaUpdate:
     """Answer the user's knowledge question from the knowledge base."""
 
-    profile = await qa_profile(state)
+    profile = state.get("profile")
 
     try:
         result = await build_qa_agent().ainvoke(
-            {"messages": build_qa_input(state | {"profile": profile})},
+            {"messages": build_qa_input(state)},
             context=QaContext(user_id=state["user_id"], profile=profile),
         )
     except Exception as error:
         logger.exception("qa_agent_failed", user_id=state["user_id"], error=str(error))
-        return {
-            "profile": profile,
-            "qa_answer": None,
-            "retrieved_context": [],
-            "messages": [],
-        }
+        return {"qa_answer": None, "retrieved_context": [], "messages": []}
 
     messages = result.get("messages", [])
     passages = retrieved_passages(messages)
 
     answer = answer_text(messages)
     if answer is None:
-        return {
-            "profile": profile,
-            "qa_answer": None,
-            "retrieved_context": passages,
-            "messages": [],
-        }
+        return {"qa_answer": None, "retrieved_context": passages, "messages": []}
 
     return {
-        "profile": profile,
         "qa_answer": answer,
         "retrieved_context": passages,
         "messages": [AIMessage(content=answer)],

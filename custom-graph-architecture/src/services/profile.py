@@ -1,17 +1,11 @@
-"""The user's stored profile and training plan: loading it, extracting it, saving it."""
+"""The user's stored profile and training plan: loading it, merging it, saving it."""
 
 import asyncio
 from dataclasses import dataclass
-from functools import lru_cache
-from typing import Any, Literal, get_args
+from typing import Any
 
-from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field
-
-from src.core.configs.config import settings
-from src.core.langgraph.prompts import build_profile_extractor_messages
 from src.core.langgraph.runtime import MemoryScope
-from src.schemas import ActivityLevel, FitnessGoal, Sex, UserProfile
+from src.schemas import UserProfile
 from src.schemas.domain.profile import (
     MAX_AGE,
     MAX_TRAINING_DAYS,
@@ -19,7 +13,7 @@ from src.schemas.domain.profile import (
     MIN_TRAINING_DAYS,
 )
 from src.services.memory import recall, recall_plan, save
-from src.utils.logging import logger
+from src.services.turn import EXTRACTABLE_FIELDS, InjuryStatement, ProfileStatement
 
 PROFILE_KEY = "profile"
 
@@ -38,39 +32,6 @@ POSITIVE_PROFILE_FIELDS: tuple[str, ...] = (
     "current_weight_kg",
     "target_weight_kg",
 )
-
-_EXTRACTOR_TOKEN_LIMIT = 256
-
-FieldName = Literal[
-    "age",
-    "sex",
-    "height_cm",
-    "current_weight_kg",
-    "target_weight_kg",
-    "activity_level",
-    "goal",
-    "training_days_per_week",
-]
-EXTRACTABLE_FIELDS: tuple[str, ...] = get_args(FieldName)
-
-
-class ProfileExtraction(BaseModel):
-    """Structured output for the profile extractor."""
-
-    age: int | None = Field(default=None, description="Age in years.")
-    sex: Sex | None = Field(default=None)
-    height_cm: float | None = Field(default=None, description="Height in centimetres.")
-    current_weight_kg: float | None = Field(default=None, description="Weight in kg.")
-    target_weight_kg: float | None = Field(
-        default=None, description="Goal weight in kg."
-    )
-    activity_level: ActivityLevel | None = Field(default=None)
-    goal: FitnessGoal | None = Field(default=None)
-    training_days_per_week: int | None = Field(default=None)
-    fields_to_revise: list[FieldName] = Field(
-        default_factory=list,
-        description="Fields the user wants changed but did not restate a value for.",
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,17 +89,8 @@ async def load_user_context(user_id: str) -> UserContext:
     return UserContext(profile=profile, plan=plan)
 
 
-@lru_cache
-def _build_extractor() -> ChatOpenAI:
-    """Build the shared extraction model from application settings."""
-    return ChatOpenAI(
-        api_key=settings.OPENAI_API_KEY,
-        model=settings.DEFAULT_LLM_MODEL,
-    )
-
-
 def _is_in_range(name: str, value: Any) -> bool:
-    """Report whether an extracted value is plausible enough to store."""
+    """Report whether a stated value is plausible enough to store."""
 
     if name in PROFILE_BOUNDS:
         low, high = PROFILE_BOUNDS[name]
@@ -148,11 +100,11 @@ def _is_in_range(name: str, value: Any) -> bool:
     return True
 
 
-def usable_profile_fields(extraction: ProfileExtraction) -> dict[str, Any]:
-    """Keep the extracted scalar fields that were stated and are within range."""
+def usable_profile_fields(statement: ProfileStatement) -> dict[str, Any]:
+    """Keep the stated scalar fields that carry a value and are within range."""
 
     # JSON mode so enum members reach the store as the plain strings they read back as.
-    dumped = extraction.model_dump(mode="json")
+    dumped = statement.model_dump(mode="json")
     usable: dict[str, Any] = {}
     for name in EXTRACTABLE_FIELDS:
         value = dumped[name]
@@ -164,38 +116,52 @@ def usable_profile_fields(extraction: ProfileExtraction) -> dict[str, Any]:
     return usable
 
 
-async def extract_profile_fields(
-    user_reply: str, fields_in_focus: list[str] | None = None
-) -> ProfileExtraction:
-    """Read the profile facts and revision requests the user stated in one reply."""
+def _body_part_key(body_part: object) -> str:
+    """The identity an injury is matched on across turns."""
 
-    if not user_reply.strip():
-        return ProfileExtraction()
+    return str(body_part).strip().lower()
 
-    try:
-        extractor = _build_extractor().with_structured_output(ProfileExtraction)
-        extraction = await extractor.ainvoke(
-            build_profile_extractor_messages(user_reply, fields_in_focus)
-        )
-    except Exception as error:
-        # The collection loop asks again, and its retry counter bounds that — so a failed
-        # extraction costs one more question rather than the whole run.
-        logger.exception("profile_extraction_failed", error=str(error))
-        return ProfileExtraction()
 
-    return extraction
+def merge_injuries(
+    stored: list[dict] | None, stated: list[InjuryStatement]
+) -> list[dict]:
+    """Upsert each reported injury onto the stored list, matched by body part."""
+
+    merged = [dict(injury) for injury in stored or []]
+    positions = {
+        _body_part_key(injury.get("body_part")): position
+        for position, injury in enumerate(merged)
+    }
+
+    for statement in stated:
+        update = {
+            name: value
+            for name, value in statement.model_dump(mode="json").items()
+            if value is not None
+        }
+        position = positions.get(_body_part_key(statement.body_part))
+        if position is None:
+            positions[_body_part_key(statement.body_part)] = len(merged)
+            merged.append(update)
+        else:
+            merged[position] = merged[position] | update
+
+    return merged
 
 
 def merge_profile_updates(
-    profile: dict | None, extraction: ProfileExtraction
+    profile: dict | None, statement: ProfileStatement
 ) -> dict[str, Any]:
-    """Fold one reply's stated values and revision flags into a runtime profile."""
+    """Fold one turn's stated values, injuries and revision flags into a runtime profile."""
 
     merged = dict(profile or {})
-    updates = usable_profile_fields(extraction)
+    updates = usable_profile_fields(statement)
     merged.update(updates)
 
-    for name in extraction.fields_to_revise:
+    if statement.injuries:
+        merged["injuries"] = merge_injuries(merged.get("injuries"), statement.injuries)
+
+    for name in statement.fields_to_revise:
         if name not in updates:
             merged[name] = None
 
@@ -214,34 +180,3 @@ async def save_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
     """Merge new fields into the user's stored profile and persist the result."""
 
     return await save(user_id, MemoryScope.FACTS, PROFILE_KEY, updates)
-
-
-_pending_saves: set[asyncio.Task] = set()
-
-
-def save_profile_in_background(user_id: str, profile: dict[str, Any]) -> asyncio.Task:
-    """Persist the profile without blocking the caller."""
-
-    task = asyncio.create_task(save_profile(user_id, profile))
-    _pending_saves.add(task)
-    task.add_done_callback(_forget_and_log)
-    return task
-
-
-def _forget_and_log(task: asyncio.Task) -> None:
-    """Drop a finished background save from the registry, logging any failure."""
-
-    _pending_saves.discard(task)
-    if task.cancelled():
-        return
-    error = task.exception()
-    if error is not None:
-        logger.exception("background_profile_save_failed", error=str(error))
-
-
-async def flush_pending_saves() -> None:
-    """Wait for every in-flight background save — call before asserting persisted state."""
-
-    pending = list(_pending_saves)
-    if pending:
-        await asyncio.gather(*pending, return_exceptions=True)

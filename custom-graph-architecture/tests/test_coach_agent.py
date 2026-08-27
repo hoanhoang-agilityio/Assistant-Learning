@@ -32,7 +32,7 @@ from src.schemas import (
 )
 from src.services.nutrition import calc_macros
 from tests.test_coach_tools import COACH_TOOL_NAMES
-from tests.test_load_context import COMPLETE_PROFILE, PLAN, USER_ID
+from tests.test_load_user_context import COMPLETE_PROFILE, PLAN, USER_ID
 
 coach_module = sys.modules[coach_agent.__module__]
 exercise_tool_module = sys.modules["src.core.langgraph.tools.load_exercise"]
@@ -121,11 +121,9 @@ def test_an_existing_plan_is_shown_for_revision() -> None:
 
 def test_verification_errors_reach_the_next_attempt() -> None:
     """A retry that is not told why it failed produces the same plan again."""
-    state = _state(verification_result={"errors": [
-                   "macros do not match calories"]})
+    state = _state(verification_result={"errors": ["macros do not match calories"]})
 
-    assert "macros do not match calories" in build_coach_input(
-        state)[-1].content
+    assert "macros do not match calories" in build_coach_input(state)[-1].content
 
 
 def test_reviewer_feedback_reaches_the_next_attempt() -> None:
@@ -266,8 +264,7 @@ async def test_a_generated_plan_is_written_to_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The plan is what the verification gate reads next."""
-    monkeypatch.setattr(coach_module, "build_coach_agent",
-                        _agent_returns(VALID_PLAN))
+    monkeypatch.setattr(coach_module, "build_coach_agent", _agent_returns(VALID_PLAN))
 
     actual_update = await coach_agent(_state())
 
@@ -296,8 +293,7 @@ async def test_a_plan_with_no_summary_still_reads_as_an_answer(
 ) -> None:
     """`summary` is optional on the schema, so the transcript needs a fallback."""
     plan = VALID_PLAN.model_copy(update={"summary": None})
-    monkeypatch.setattr(coach_module, "build_coach_agent",
-                        _agent_returns(plan))
+    monkeypatch.setattr(coach_module, "build_coach_agent", _agent_returns(plan))
 
     actual_update = await coach_agent(_state())
 
@@ -324,8 +320,7 @@ async def test_an_agent_that_produced_no_plan_writes_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A missing structured response is a failed attempt, not a plan of `None` fields."""
-    monkeypatch.setattr(coach_module, "build_coach_agent",
-                        _agent_returns(None))
+    monkeypatch.setattr(coach_module, "build_coach_agent", _agent_returns(None))
 
     assert (await coach_agent(_state()))["plan"] is None
 
@@ -334,8 +329,7 @@ async def test_a_failed_attempt_does_not_overwrite_the_stored_plan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """State keeps `plan=None` so the gate fails the attempt; long-term memory is untouched."""
-    monkeypatch.setattr(coach_module, "build_coach_agent",
-                        _agent_returns(None))
+    monkeypatch.setattr(coach_module, "build_coach_agent", _agent_returns(None))
 
     actual_update = await coach_agent(_state(plan=PLAN))
 
@@ -372,8 +366,7 @@ class _ScriptedModel(FakeMessagesListChatModel):
     prompts: list[list[AnyMessage]] = Field(default_factory=list)
 
     def bind_tools(self, tools: list[Any], **kwargs: Any) -> "_ScriptedModel":
-        self.bound = [getattr(tool, "name", type(tool).__name__)
-                      for tool in tools]
+        self.bound = [getattr(tool, "name", type(tool).__name__) for tool in tools]
         return self
 
     def _generate(
@@ -490,8 +483,7 @@ async def test_a_plan_the_model_returns_arrives_as_the_structured_response(
 
 async def test_the_node_writes_the_plan_the_real_agent_produced(compiled) -> None:
     """The stubbed-agent tests fix the node's contract; this one holds it to the wiring."""
-    compiled(_tool_call(TrainingPlan.__name__, **
-             VALID_PLAN.model_dump(mode="json")))
+    compiled(_tool_call(TrainingPlan.__name__, **VALID_PLAN.model_dump(mode="json")))
 
     actual_update = await coach_agent(_state())
 

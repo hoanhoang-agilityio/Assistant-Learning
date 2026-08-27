@@ -1,6 +1,6 @@
 """The ``deterministic_verification`` node: run the rules, count the retries, route."""
 
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 from pydantic import ValidationError
 
@@ -13,9 +13,8 @@ from src.schemas import (
     UserProfile,
     VerificationIssue,
     VerificationResult,
+    VerificationRoute,
 )
-
-VerificationRoute = Literal["pass", "retry", "exhausted"]
 
 NO_PLAN_MESSAGE = (
     "No plan was returned. Produce the complete training plan using the structured "
@@ -88,7 +87,7 @@ def route_after_verification(state: GraphState) -> VerificationRoute:
     """Send a good plan on to review, a bad one back to the coach, or give up."""
 
     if not state.get("verification_result"):
-        return "pass"
+        return VerificationRoute.PASS
     if state.get("coach_retry_count", 0) >= settings.COACH_MAX_RETRIES:
-        return "exhausted"
-    return "retry"
+        return VerificationRoute.EXHAUSTED
+    return VerificationRoute.RETRY

@@ -5,7 +5,8 @@ from typing import Literal, NotRequired, TypedDict
 
 from langgraph.prebuilt.chat_agent_executor import AgentState
 
-Intent = Literal["coaching", "qa", "off_topic"]
+from src.schemas.domain.enums.routes import Intent
+
 HitlDecision = Literal["approve", "reject"]
 
 
@@ -42,6 +43,7 @@ class GraphState(AgentState):
 
     # --- Intent & guard ----------------------------------------------------------------
     intent: NotRequired[Intent | None]
+    extracted_facts: NotRequired[dict | None]
     guard_blocked: NotRequired[bool]
     block_reason: NotRequired[str | None]
 
@@ -65,7 +67,7 @@ class GraphState(AgentState):
     # --- QA / RAG ----------------------------------------------------------------------
     qa_answer: NotRequired[str | None]
     retrieved_context: NotRequired[list[RetrievedChunk] | None]
-    ragas_score: NotRequired[float | None]
+    faithfulness_score: NotRequired[float | None]
     qa_retry_count: NotRequired[int]
 
     # --- Final output ------------------------------------------------------------------
@@ -83,6 +85,7 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         user_query=user_query,
         user_id=user_id,
         intent=None,
+        extracted_facts=None,
         guard_blocked=False,
         block_reason=None,
         profile=None,
@@ -98,7 +101,7 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         hitl_retry_count=0,
         qa_answer=None,
         retrieved_context=None,
-        ragas_score=None,
+        faithfulness_score=None,
         qa_retry_count=0,
         final_message=None,
     )

@@ -1,16 +1,16 @@
-"""Tests for the ``user_info_exhausted`` node."""
+"""Tests for the ``profile_collection_exhausted`` node."""
 
 from langchain_core.messages import AIMessage
 
-from src.core.langgraph.nodes.request_missing_info import FIELD_PROMPTS
-from src.core.langgraph.nodes.user_info_exhausted import (
+from src.core.langgraph.nodes.profile_collection_exhausted import (
     EXHAUSTED_INTRO,
     EXHAUSTED_OUTRO,
     build_exhausted_message,
-    user_info_exhausted,
+    profile_collection_exhausted,
 )
+from src.core.langgraph.nodes.request_missing_profile_fields import FIELD_PROMPTS
 from src.schemas import initial_state
-from tests.test_load_context import USER_ID
+from tests.test_load_user_context import USER_ID
 
 
 def _state(missing_fields: list[str]) -> dict:
@@ -51,7 +51,7 @@ def test_no_named_fields_still_produces_a_readable_refusal() -> None:
 
 async def test_the_node_ends_the_run_with_the_refusal() -> None:
     """A terminal node, so what it writes is what the caller shows."""
-    actual_update = await user_info_exhausted(_state(["goal"]))
+    actual_update = await profile_collection_exhausted(_state(["goal"]))
 
     expected = build_exhausted_message(["goal"])
     assert actual_update["final_message"] == expected

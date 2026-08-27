@@ -1,7 +1,9 @@
 # State design
 
-Literal `GraphState` schema from the implementation-detail spec (PDF pp. 4–5). The runtime
-definition lives in `src/schemas/graph.py`; this file is the spec it must match.
+`GraphState` as built, from the implementation-detail spec (PDF pp. 4–5). The runtime definition
+lives in `src/schemas/graph.py`; this file is the spec it must match. Three fields differ from the
+PDF, each flagged inline: `todo` is gone with the `write_todo` node, `extracted_facts` and
+`revision_fields` are added, and `ragas_score` is named for the metric rather than the library.
 
 ```python
 class GraphState(AgentState):
@@ -16,6 +18,7 @@ class GraphState(AgentState):
     # Intent & Guard
     # =========================
     intent: Optional[Literal["coaching", "qa", "off_topic"]]
+    extracted_facts: Optional[dict]   # what parse_turn read, before merge_profile folds it in
     guard_blocked: bool
     block_reason: Optional[str]
 
@@ -26,12 +29,12 @@ class GraphState(AgentState):
     plan: Optional[dict]
     context_complete: bool
     missing_fields: list[str]
+    revision_fields: list[str]        # flagged for change but not restated, so still pending
     user_info_retry_count: int
 
     # =========================
     # Coaching
     # =========================
-    todo: Optional[list[dict]]
     coach_retry_count: int
     verification_result: Optional[dict]
 
@@ -47,7 +50,7 @@ class GraphState(AgentState):
     # =========================
     qa_answer: Optional[str]
     retrieved_context: Optional[list[dict]]
-    ragas_score: Optional[float]
+    faithfulness_score: Optional[float]
     qa_retry_count: int
 
     # =========================

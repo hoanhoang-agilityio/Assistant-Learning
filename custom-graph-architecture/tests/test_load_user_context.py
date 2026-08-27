@@ -1,10 +1,10 @@
-"""Tests for the ``load_context`` node and the profile/plan reads behind it."""
+"""Tests for the ``load_user_context`` node and the profile/plan reads behind it."""
 
 import pytest
 
 import src.core.langgraph.nodes.context as context_node
 import src.services.memory as memory_service
-from src.core.langgraph.nodes.context import load_context
+from src.core.langgraph.nodes.context import load_user_context as load_user_context_node
 from src.core.langgraph.runtime import MemoryScope, namespace_for, plan_namespace
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import initial_state
@@ -89,7 +89,7 @@ def test_zero_is_a_value_and_not_a_missing_field() -> None:
 
 
 def test_missing_fields_keep_the_declared_ask_order() -> None:
-    """``request_missing_info`` asks in this order, so it must not vary between runs."""
+    """``request_missing_profile_fields`` asks in this order, so it must not vary between runs."""
     sparse = {"height_cm": 178.0}
     assert missing_profile_fields(sparse) == [
         name for name in REQUIRED_PROFILE_FIELDS if name != "height_cm"
@@ -156,10 +156,10 @@ async def test_an_empty_user_id_is_rejected(store, load) -> None:
 
 # --- The node ----------------------------------------------------------------------------
 #
-# ``load_context`` only loads now — it makes no completeness decision, because the current
+# ``load_user_context`` only loads now — it makes no completeness decision, because the current
 # message may still fill a gap this baseline has. That decision belongs to
 # ``check_profile_complete`` in ``test_check_profile_complete.py``, run after
-# ``extract_user_info`` has had a chance to merge the message in.
+# ``merge_profile`` has had a chance to merge the message in.
 
 
 async def test_node_writes_only_profile_and_plan(
@@ -171,9 +171,11 @@ async def test_node_writes_only_profile_and_plan(
         assert user_id == USER_ID
         return UserContext(profile=COMPLETE_PROFILE, plan=PLAN)
 
-    monkeypatch.setattr(context_node, "load_user_context", loaded)
+    monkeypatch.setattr(context_node, "read_user_context", loaded)
 
-    actual_update = await load_context(initial_state("adjust my plan", USER_ID))
+    actual_update = await load_user_context_node(
+        initial_state("adjust my plan", USER_ID)
+    )
 
     assert actual_update == {"profile": COMPLETE_PROFILE, "plan": PLAN}
 
@@ -186,9 +188,11 @@ async def test_node_loads_a_partial_profile_unchanged(
     async def loaded(_: str) -> UserContext:
         return UserContext(profile={"age": 34}, plan=None)
 
-    monkeypatch.setattr(context_node, "load_user_context", loaded)
+    monkeypatch.setattr(context_node, "read_user_context", loaded)
 
-    actual_update = await load_context(initial_state("build me a plan", USER_ID))
+    actual_update = await load_user_context_node(
+        initial_state("build me a plan", USER_ID)
+    )
 
     assert actual_update == {"profile": {"age": 34}, "plan": None}
 
@@ -197,6 +201,8 @@ async def test_node_reads_the_store_through_the_service(store) -> None:
     """End to end against a real store: seeded data reaches state unchanged."""
     await _seed(store, profile=COMPLETE_PROFILE, plan=PLAN)
 
-    actual_update = await load_context(initial_state("build me a plan", USER_ID))
+    actual_update = await load_user_context_node(
+        initial_state("build me a plan", USER_ID)
+    )
 
     assert actual_update == {"profile": COMPLETE_PROFILE, "plan": PLAN}

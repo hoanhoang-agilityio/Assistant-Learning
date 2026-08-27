@@ -19,7 +19,7 @@ from src.schemas import (
     UserProfile,
 )
 from src.services import catalogue
-from tests.test_load_context import COMPLETE_PROFILE
+from tests.test_load_user_context import COMPLETE_PROFILE
 
 DATA_DIR = Path("data")
 

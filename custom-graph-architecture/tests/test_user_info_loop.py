@@ -5,19 +5,18 @@ import sys
 import pytest
 from langgraph.types import Command
 
-import src.core.langgraph.nodes.intent as intent_node
 import src.services.memory as memory_service
 from src.core.configs.config import settings
 from src.core.langgraph.graph import build_graph
-from src.core.langgraph.nodes.extract_user_info import extract_user_info
-from src.core.langgraph.nodes.user_info_exhausted import EXHAUSTED_INTRO
+from src.core.langgraph.nodes.parse_turn import parse_turn
+from src.core.langgraph.nodes.profile_collection_exhausted import EXHAUSTED_INTRO
 from src.core.langgraph.nodes.wait_for_user import MISSING_INFO_INTERRUPT
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import initial_state
-from src.services.profile import ProfileExtraction, flush_pending_saves
-from tests.test_load_context import COMPLETE_PROFILE, USER_ID
+from src.services.turn import TurnParse
+from tests.test_load_user_context import COMPLETE_PROFILE, USER_ID
 
-extract_node = sys.modules[extract_user_info.__module__]
+parse_node = sys.modules[parse_turn.__module__]
 
 CONFIG = {"configurable": {"thread_id": "collection-loop"}}
 
@@ -26,12 +25,8 @@ CONFIG = {"configurable": {"thread_id": "collection-loop"}}
 async def loop(monkeypatch: pytest.MonkeyPatch):
     """The real graph, on an in-process store and checkpointer, routed to coaching."""
 
-    async def classify_as_coaching(_: str) -> str:
-        return "coaching"
-
     runtime = InMemoryRuntime()
     monkeypatch.setattr(memory_service, "graph_runtime", runtime)
-    monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_coaching)
 
     yield build_graph().compile(
         checkpointer=await runtime.checkpointer(), name="collection_loop_test"
@@ -39,13 +34,13 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
     await runtime.close()
 
 
-def _extracts(fields: dict):
-    """Stand in for the LLM extractor with a fixed reading of the user's reply."""
+def _parses(fields: dict, intent: str = "coaching"):
+    """Stand in for the LLM turn parser with a fixed reading of the user's message."""
 
-    async def extract(_: str, fields_in_focus: list[str] | None = None) -> ProfileExtraction:
-        return ProfileExtraction(**fields)
+    async def parse(*_: object, **__: object) -> TurnParse:
+        return TurnParse(intent=intent, **fields)
 
-    return extract
+    return parse
 
 
 def _asked_for_missing_info(result: dict) -> bool:
@@ -61,14 +56,14 @@ def _asked_for_missing_info(result: dict) -> bool:
     )
 
 
-@pytest.mark.skip(reason="slow: a complete profile runs the real coach_agent LLM call (~80s)")
+@pytest.mark.skip(
+    reason="slow: a complete profile runs the real coach_agent LLM call (~80s)"
+)
 async def test_an_answered_question_completes_the_context(
     loop, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """One good reply and the branch exits to planning instead of asking again."""
-    monkeypatch.setattr(
-        extract_node, "extract_profile_fields", _extracts(COMPLETE_PROFILE)
-    )
+    monkeypatch.setattr(parse_node, "parse_user_turn", _parses(COMPLETE_PROFILE))
 
     suspended = await loop.ainvoke(initial_state("build me a plan", USER_ID), CONFIG)
     assert "__interrupt__" in suspended
@@ -85,12 +80,9 @@ async def test_an_answer_persists_beyond_the_thread_it_was_given_in(
     loop, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The reply goes to long-term memory, so a new conversation never re-asks."""
-    monkeypatch.setattr(
-        extract_node, "extract_profile_fields", _extracts(COMPLETE_PROFILE)
-    )
+    monkeypatch.setattr(parse_node, "parse_user_turn", _parses(COMPLETE_PROFILE))
     await loop.ainvoke(initial_state("build me a plan", USER_ID), CONFIG)
     await loop.ainvoke(Command(resume="34, male, 178cm, 82kg, 4 days"), CONFIG)
-    await flush_pending_saves()
 
     fresh = await loop.ainvoke(
         initial_state("build me a plan", USER_ID),
@@ -105,7 +97,7 @@ async def test_a_partial_answer_only_asks_for_what_is_still_missing(
     loop, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Collection accumulates across rounds rather than restarting each time."""
-    monkeypatch.setattr(extract_node, "extract_profile_fields", _extracts({"age": 34}))
+    monkeypatch.setattr(parse_node, "parse_user_turn", _parses({"age": 34}))
     await loop.ainvoke(initial_state("build me a plan", USER_ID), CONFIG)
 
     result = await loop.ainvoke(Command(resume="I'm 34"), CONFIG)
@@ -118,7 +110,7 @@ async def test_an_unhelpful_user_is_asked_a_bounded_number_of_times(
     loop, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Without the counter this loop never terminates: ask, wait, extract, check, ask again."""
-    monkeypatch.setattr(extract_node, "extract_profile_fields", _extracts({}))
+    monkeypatch.setattr(parse_node, "parse_user_turn", _parses({}))
 
     result = await loop.ainvoke(initial_state("build me a plan", USER_ID), CONFIG)
     asks = 1

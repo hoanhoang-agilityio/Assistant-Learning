@@ -1,91 +1,94 @@
-"""The graph's shape, checked against the edge table in the implementation spec."""
+"""The graph's shape: every edge the workflow is allowed to take, and no others."""
 
 import pytest
 from langgraph.graph import END, START
 
 from src.core.langgraph.graph import build_graph
+from src.schemas import Node
 
-# Nodes implemented so far. The rest of the spec's table arrives with later milestones.
-EXPECTED_NODES = {
-    "llm_guard",
-    "blocked",
-    "classify_intent",
-    "off_topic",
-    "load_context",
-    "extract_user_info",
-    "check_profile_complete",
-    "request_missing_info",
-    "wait_for_user",
-    "bg_save_profile",
-    "user_info_exhausted",
-    "coach_agent",
-    "deterministic_verification",
-    "notify_fail",
-    "hitl_review",
-    "hitl_rejected_no_feedback",
-    "hitl_exhausted",
-    "qa_agent",
-    "ragas_verification",
-    "qa_fallback",
-}
+EXPECTED_NODES = {node.value for node in Node}
 
-# (from, condition, to) — ``None`` where the edge is unconditional.
+# (from, condition, to) — ``None`` where the edge is unconditional. Two branch labels that
+# lead to the same node are drawn as one edge, so the label set of each router is asserted
+# against ``branches`` instead, in ``test_each_router_answers_exactly_the_ways_named``.
 EXPECTED_EDGES = {
-    (START, None, "llm_guard"),
-    ("llm_guard", "blocked", "blocked"),
-    ("llm_guard", "pass", "classify_intent"),
-    ("classify_intent", "coaching", "load_context"),
-    ("classify_intent", "off_topic", "off_topic"),
-    ("load_context", None, "extract_user_info"),
-    ("extract_user_info", None, "check_profile_complete"),
-    ("check_profile_complete", "ask", "request_missing_info"),
-    ("check_profile_complete", "exhausted", "user_info_exhausted"),
-    ("check_profile_complete", "complete", "bg_save_profile"),
-    ("request_missing_info", None, "wait_for_user"),
-    ("wait_for_user", None, "extract_user_info"),
-    ("bg_save_profile", None, "coach_agent"),
-    ("blocked", None, END),
-    ("off_topic", None, END),
-    ("user_info_exhausted", None, END),
-    ("coach_agent", None, "deterministic_verification"),
-    ("deterministic_verification", "pass", "hitl_review"),
-    ("deterministic_verification", "retry", "coach_agent"),
-    ("deterministic_verification", "exhausted", "notify_fail"),
-    ("notify_fail", None, END),
-    ("hitl_review", "approve", END),
-    ("hitl_review", "revise", "coach_agent"),
-    ("hitl_review", "no_feedback", "hitl_rejected_no_feedback"),
-    ("hitl_review", "exhausted", "hitl_exhausted"),
-    ("hitl_rejected_no_feedback", None, END),
-    ("hitl_exhausted", None, END),
-    ("classify_intent", "qa", "qa_agent"),
-    ("qa_agent", None, "ragas_verification"),
-    ("ragas_verification", "pass", END),
-    ("ragas_verification", "retry", "qa_agent"),
-    ("ragas_verification", "fallback", "qa_fallback"),
-    ("qa_fallback", None, END),
+    (START, None, Node.GUARD_INPUT),
+    (Node.GUARD_INPUT, "blocked", Node.BLOCKED),
+    (Node.GUARD_INPUT, "pass", Node.PARSE_TURN),
+    (Node.BLOCKED, None, END),
+    (Node.PARSE_TURN, "coaching", Node.LOAD_USER_CONTEXT),
+    (Node.PARSE_TURN, "off_topic", Node.OFF_TOPIC),
+    (Node.OFF_TOPIC, None, END),
+    (Node.LOAD_USER_CONTEXT, None, Node.MERGE_PROFILE),
+    (Node.MERGE_PROFILE, None, Node.PERSIST_PROFILE),
+    (Node.PERSIST_PROFILE, "coaching", Node.CHECK_PROFILE_COMPLETE),
+    (Node.PERSIST_PROFILE, "qa", Node.QA_AGENT),
+    (Node.CHECK_PROFILE_COMPLETE, "ask", Node.REQUEST_MISSING_PROFILE_FIELDS),
+    (Node.CHECK_PROFILE_COMPLETE, "exhausted", Node.PROFILE_COLLECTION_EXHAUSTED),
+    (Node.CHECK_PROFILE_COMPLETE, "complete", Node.COACH_AGENT),
+    (Node.REQUEST_MISSING_PROFILE_FIELDS, None, Node.WAIT_FOR_USER),
+    (Node.WAIT_FOR_USER, None, Node.PARSE_TURN),
+    (Node.PROFILE_COLLECTION_EXHAUSTED, None, Node.FINALIZE_TURN),
+    (Node.COACH_AGENT, None, Node.DETERMINISTIC_VERIFICATION),
+    (Node.DETERMINISTIC_VERIFICATION, "pass", Node.HITL_REVIEW),
+    (Node.DETERMINISTIC_VERIFICATION, "retry", Node.COACH_AGENT),
+    (Node.DETERMINISTIC_VERIFICATION, "exhausted", Node.NOTIFY_FAIL),
+    (Node.NOTIFY_FAIL, None, Node.FINALIZE_TURN),
+    (Node.HITL_REVIEW, "approve", Node.FINALIZE_TURN),
+    (Node.HITL_REVIEW, "revise", Node.COACH_AGENT),
+    (Node.HITL_REVIEW, "no_feedback", Node.HITL_REJECTED_NO_FEEDBACK),
+    (Node.HITL_REVIEW, "exhausted", Node.HITL_EXHAUSTED),
+    (Node.HITL_REJECTED_NO_FEEDBACK, None, Node.FINALIZE_TURN),
+    (Node.HITL_EXHAUSTED, None, Node.FINALIZE_TURN),
+    (Node.QA_AGENT, None, Node.VERIFY_FAITHFULNESS),
+    (Node.VERIFY_FAITHFULNESS, "pass", Node.FINALIZE_TURN),
+    (Node.VERIFY_FAITHFULNESS, "retry", Node.QA_AGENT),
+    (Node.VERIFY_FAITHFULNESS, "fallback", Node.QA_FALLBACK),
+    (Node.QA_FALLBACK, None, Node.FINALIZE_TURN),
+    (Node.FINALIZE_TURN, None, END),
 }
 
-# What ``route_after_verification`` may return, and where each answer goes.
-EXPECTED_VERIFICATION_ROUTES = {
-    "pass": "hitl_review",
-    "retry": "coach_agent",
-    "exhausted": "notify_fail",
+# What each router may answer, and where each answer goes.
+EXPECTED_ROUTES: dict[Node, dict[str, str]] = {
+    Node.PARSE_TURN: {
+        "coaching": Node.LOAD_USER_CONTEXT,
+        "qa": Node.LOAD_USER_CONTEXT,
+        "off_topic": Node.OFF_TOPIC,
+    },
+    Node.PERSIST_PROFILE: {
+        "coaching": Node.CHECK_PROFILE_COMPLETE,
+        "qa": Node.QA_AGENT,
+    },
+    Node.CHECK_PROFILE_COMPLETE: {
+        "complete": Node.COACH_AGENT,
+        "ask": Node.REQUEST_MISSING_PROFILE_FIELDS,
+        "exhausted": Node.PROFILE_COLLECTION_EXHAUSTED,
+    },
+    Node.DETERMINISTIC_VERIFICATION: {
+        "pass": Node.HITL_REVIEW,
+        "retry": Node.COACH_AGENT,
+        "exhausted": Node.NOTIFY_FAIL,
+    },
+    Node.HITL_REVIEW: {
+        "approve": Node.FINALIZE_TURN,
+        "revise": Node.COACH_AGENT,
+        "no_feedback": Node.HITL_REJECTED_NO_FEEDBACK,
+        "exhausted": Node.HITL_EXHAUSTED,
+    },
+    Node.VERIFY_FAITHFULNESS: {
+        "pass": Node.FINALIZE_TURN,
+        "retry": Node.QA_AGENT,
+        "fallback": Node.QA_FALLBACK,
+    },
 }
 
-# What ``route_after_ragas`` may return, and where each answer goes.
-EXPECTED_RAGAS_ROUTES = {
-    "pass": END,
-    "retry": "qa_agent",
-    "fallback": "qa_fallback",
-}
-
-# What ``route_after_hitl_review`` may return, and where each answer goes.
-EXPECTED_HITL_ROUTES = {
-    "approve": END,
-    "revise": "coach_agent",
-    "no_feedback": "hitl_rejected_no_feedback",
-    "exhausted": "hitl_exhausted",
+# Every way a run can stop producing work. All but the two refusals converge on one node.
+TERMINAL_SOURCES = {
+    Node.PROFILE_COLLECTION_EXHAUSTED,
+    Node.NOTIFY_FAIL,
+    Node.HITL_REJECTED_NO_FEEDBACK,
+    Node.HITL_EXHAUSTED,
+    Node.QA_FALLBACK,
 }
 
 
@@ -112,119 +115,109 @@ def edges(graph) -> set[tuple[str, str | None, str]]:
     }
 
 
-def test_every_implemented_node_is_in_the_graph(graph) -> None:
+def test_every_named_node_is_in_the_graph(graph) -> None:
     """A node that exists but is never added is dead code the tests would still pass."""
-    assert EXPECTED_NODES <= set(graph.nodes)
+    assert EXPECTED_NODES == set(graph.nodes) - {START, END}
 
 
 @pytest.mark.parametrize("edge", sorted(EXPECTED_EDGES, key=str))
-def test_the_spec_edge_exists(edges, edge: tuple[str, str | None, str]) -> None:
-    """Each row of the spec's edge table, for the nodes built so far."""
+def test_the_expected_edge_exists(edges, edge: tuple[str, str | None, str]) -> None:
+    """Each edge of the workflow, one test each."""
     assert edge in edges
 
 
-def test_the_context_branch_has_no_edges_beyond_the_spec(edges) -> None:
-    """An extra route out of the collection loop would be a way to skip the profile gate."""
-    context_nodes = EXPECTED_NODES - {
-        "llm_guard",
-        "blocked",
-        "classify_intent",
-        "off_topic",
-    }
-    actual = {edge for edge in edges if edge[0] in context_nodes}
-
-    assert actual == {edge for edge in EXPECTED_EDGES if edge[0] in context_nodes}
+def test_the_graph_has_no_edges_beyond_these(edges) -> None:
+    """An extra route is a way past a gate; the set is closed, not a lower bound."""
+    assert edges == EXPECTED_EDGES
 
 
-def test_the_collection_loop_returns_to_extraction_not_the_reload(edges) -> None:
-    """A reload here would race the background save with a stale read; extraction skips it."""
-    assert ("wait_for_user", None, "extract_user_info") in edges
+@pytest.mark.parametrize("node", sorted(EXPECTED_ROUTES, key=str))
+def test_each_router_answers_exactly_the_ways_named(node: Node) -> None:
+    """One more branch out of a router would be one more way past what it guards."""
+    [branch] = build_graph().branches[node].values()
+
+    assert branch.ends == EXPECTED_ROUTES[node]
+
+
+# --- The invariants the shape exists to hold ----------------------------------------------
+
+
+def test_the_turn_is_parsed_once_and_the_router_never_classifies_again(edges) -> None:
+    """Intent is decided in ``parse_turn``; ``route_after_context`` only reads it back."""
+    assert (Node.GUARD_INPUT, "pass", Node.PARSE_TURN) in edges
     assert not [
         edge
         for edge in edges
-        if edge[0] == "wait_for_user" and edge[2] != "extract_user_info"
+        if edge[2] == Node.PARSE_TURN
+        and edge[0] != Node.WAIT_FOR_USER
+        and edge[0] != Node.GUARD_INPUT
     ]
 
 
-def test_a_complete_profile_goes_to_a_background_save_then_planning(edges) -> None:
-    """The profile gate's whole purpose: a complete profile is what opens the coach branch."""
-    assert ("check_profile_complete", "complete", "bg_save_profile") in edges
-    assert ("bg_save_profile", None, "coach_agent") in edges
+def test_both_working_branches_load_the_user_the_same_way(edges) -> None:
+    """QA answers off the same profile and plan coaching plans from, loaded once."""
+    [branch] = build_graph().branches[Node.PARSE_TURN].values()
+
+    assert branch.ends["coaching"] == Node.LOAD_USER_CONTEXT
+    assert branch.ends["qa"] == Node.LOAD_USER_CONTEXT
+    assert not [
+        edge
+        for edge in edges
+        if edge[0] == Node.PARSE_TURN and edge[2] == Node.QA_AGENT
+    ]
+
+
+def test_the_profile_is_merged_and_persisted_before_either_branch_runs(edges) -> None:
+    """One writer, one write, both ahead of the fork — so no branch reads a stale profile."""
+    assert (Node.LOAD_USER_CONTEXT, None, Node.MERGE_PROFILE) in edges
+    assert (Node.MERGE_PROFILE, None, Node.PERSIST_PROFILE) in edges
+    assert not [
+        edge
+        for edge in edges
+        if edge[0] == Node.MERGE_PROFILE and edge[2] != Node.PERSIST_PROFILE
+    ]
+
+
+def test_the_collection_loop_reparses_the_answer_it_waited_for(edges) -> None:
+    """Routing the resume anywhere past ``parse_turn`` leaves the reply unread forever."""
+    assert (Node.WAIT_FOR_USER, None, Node.PARSE_TURN) in edges
+    assert not [
+        edge
+        for edge in edges
+        if edge[0] == Node.WAIT_FOR_USER and edge[2] != Node.PARSE_TURN
+    ]
 
 
 def test_a_generated_plan_is_verified_before_anything_else(edges) -> None:
-    """The gate is the only thing between the agent's plan and the user."""
-    assert ("coach_agent", None, "deterministic_verification") in edges
+    """The gate is the only thing between the agent's plan and the reviewer."""
+    assert (Node.COACH_AGENT, None, Node.DETERMINISTIC_VERIFICATION) in edges
     assert not [
         edge
         for edge in edges
-        if edge[0] == "coach_agent" and edge[2] != "deterministic_verification"
+        if edge[0] == Node.COACH_AGENT and edge[2] != Node.DETERMINISTIC_VERIFICATION
     ]
-
-
-def test_a_plan_that_never_verifies_ends_at_the_notification(edges) -> None:
-    """The run has to say it gave up; ending silently reads as a plan that never came."""
-    assert ("deterministic_verification", "exhausted", "notify_fail") in edges
-    assert ("notify_fail", None, END) in edges
-
-
-def test_the_gate_routes_exactly_the_three_ways_the_spec_names() -> None:
-    """Pass, send back, give up: a fourth way out would be a way past the gate."""
-    [branch] = build_graph().branches["deterministic_verification"].values()
-
-    assert branch.ends == EXPECTED_VERIFICATION_ROUTES
-
-
-def test_a_verified_plan_goes_to_the_reviewer(edges) -> None:
-    """The gate no longer hands the plan straight to the user; review comes first."""
-    assert ("deterministic_verification", "pass", "hitl_review") in edges
-
-
-def test_the_reviewer_routes_exactly_the_four_ways_the_spec_names() -> None:
-    """Approve, revise, no feedback, exhausted: nothing else gets past the reviewer."""
-    [branch] = build_graph().branches["hitl_review"].values()
-
-    assert branch.ends == EXPECTED_HITL_ROUTES
-
-
-def test_a_rejection_with_no_feedback_stops_without_looping(edges) -> None:
-    """No feedback means nothing to revise with, so the run ends rather than retrying."""
-    assert ("hitl_review", "no_feedback", "hitl_rejected_no_feedback") in edges
-    assert ("hitl_rejected_no_feedback", None, END) in edges
-
-
-def test_a_reviewer_exhausted_by_retries_stops_too(edges) -> None:
-    """The revision loop is bounded, just like the verification loop is."""
-    assert ("hitl_review", "exhausted", "hitl_exhausted") in edges
-    assert ("hitl_exhausted", None, END) in edges
 
 
 def test_an_answer_is_scored_before_it_reaches_the_user(edges) -> None:
     """The faithfulness gate is the only thing between the agent's answer and the user."""
-    assert ("qa_agent", None, "ragas_verification") in edges
+    assert (Node.QA_AGENT, None, Node.VERIFY_FAITHFULNESS) in edges
     assert not [
         edge
         for edge in edges
-        if edge[0] == "qa_agent" and edge[2] != "ragas_verification"
+        if edge[0] == Node.QA_AGENT and edge[2] != Node.VERIFY_FAITHFULNESS
     ]
 
 
-def test_the_faithfulness_gate_routes_exactly_the_three_ways_the_spec_names() -> None:
-    """Return it, retry it, give up: a fourth way out would be a way past the gate."""
-    [branch] = build_graph().branches["ragas_verification"].values()
-
-    assert branch.ends == EXPECTED_RAGAS_ROUTES
-
-
-def test_an_answer_that_never_scores_ends_at_the_fallback(edges) -> None:
-    """The run has to say the data is untrusted; ending silently reads as no answer at all."""
-    assert ("ragas_verification", "fallback", "qa_fallback") in edges
-    assert ("qa_fallback", None, END) in edges
+@pytest.mark.parametrize("node", sorted(TERMINAL_SOURCES, key=str))
+def test_every_finished_branch_converges_on_one_node(edges, node: Node) -> None:
+    """``finalize_turn`` is where a turn persists and settles its reply — no branch skips it."""
+    assert (node, None, Node.FINALIZE_TURN) in edges
 
 
-def test_the_qa_branch_has_no_edges_beyond_the_spec(edges) -> None:
-    """A second way out of the QA loop would be a way to return an unscored answer."""
-    qa_nodes = {"qa_agent", "ragas_verification", "qa_fallback"}
-    actual = {edge for edge in edges if edge[0] in qa_nodes}
-
-    assert actual == {edge for edge in EXPECTED_EDGES if edge[0] in qa_nodes}
+def test_only_the_two_refusals_end_without_finalizing(edges) -> None:
+    """A blocked or off-topic turn produced nothing to persist and nothing to settle."""
+    assert {edge[0] for edge in edges if edge[2] == END} == {
+        Node.BLOCKED,
+        Node.OFF_TOPIC,
+        Node.FINALIZE_TURN,
+    }

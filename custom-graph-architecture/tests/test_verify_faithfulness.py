@@ -1,4 +1,4 @@
-"""Tests for the ``ragas_verification`` node: the score, the counter, the route.
+"""Tests for the ``verify_faithfulness`` node: the score, the counter, the route.
 
 The metric itself is RAGAS'; what matters here is what the node does with the score it
 returns. A QA answer only reaches the user once the passages it was written from carry it,
@@ -8,12 +8,12 @@ a judge that found no statement to judge — has to fail the gate rather than pa
 
 import pytest
 
-import src.core.langgraph.nodes.ragas as ragas_node
+import src.core.langgraph.nodes.faithfulness as faithfulness_node
 from src.core.configs.config import settings
-from src.core.langgraph.nodes.ragas import (
+from src.core.langgraph.nodes.faithfulness import (
     is_faithful,
-    ragas_verification,
-    route_after_ragas,
+    route_after_faithfulness,
+    verify_faithfulness,
 )
 from src.core.langgraph.verification import faithfulness
 from src.schemas import RetrievedChunk, initial_state
@@ -30,7 +30,7 @@ PASSAGES: list[RetrievedChunk] = [
     }
 ]
 
-BELOW_THRESHOLD = settings.RAGAS_FAITHFULNESS_THRESHOLD - 0.2
+BELOW_THRESHOLD = settings.FAITHFULNESS_THRESHOLD - 0.2
 
 
 def state_after_qa(
@@ -57,7 +57,7 @@ def scored(monkeypatch: pytest.MonkeyPatch):
         async def score_faithfulness(**kwargs: object) -> float | None:
             return score
 
-        monkeypatch.setattr(ragas_node, "score_faithfulness", score_faithfulness)
+        monkeypatch.setattr(faithfulness_node, "score_faithfulness", score_faithfulness)
 
     return use
 
@@ -69,16 +69,16 @@ async def test_a_faithful_answer_clears_the_gate(scored) -> None:
     """The only way a QA answer reaches the user."""
     scored(0.95)
 
-    update = await ragas_verification(state_after_qa())
+    update = await verify_faithfulness(state_after_qa())
 
-    assert update == {"ragas_score": 0.95, "qa_retry_count": 0}
+    assert update == {"faithfulness_score": 0.95, "qa_retry_count": 0}
 
 
 async def test_the_threshold_itself_passes(scored) -> None:
     """The spec is `>= 0.9`; scoring exactly the threshold is a pass, not a retry."""
-    scored(settings.RAGAS_FAITHFULNESS_THRESHOLD)
+    scored(settings.FAITHFULNESS_THRESHOLD)
 
-    update = await ragas_verification(state_after_qa())
+    update = await verify_faithfulness(state_after_qa())
 
     assert update["qa_retry_count"] == 0
 
@@ -87,9 +87,9 @@ async def test_an_unfaithful_answer_is_kept_with_its_score(scored) -> None:
     """The retry prompt shows the agent the rejected answer and what it scored."""
     scored(BELOW_THRESHOLD)
 
-    update = await ragas_verification(state_after_qa())
+    update = await verify_faithfulness(state_after_qa())
 
-    assert update == {"ragas_score": BELOW_THRESHOLD, "qa_retry_count": 1}
+    assert update == {"faithfulness_score": BELOW_THRESHOLD, "qa_retry_count": 1}
 
 
 async def test_the_gate_scores_the_question_answer_and_passages(
@@ -102,9 +102,9 @@ async def test_the_gate_scores_the_question_answer_and_passages(
         seen.update(kwargs)
         return 1.0
 
-    monkeypatch.setattr(ragas_node, "score_faithfulness", score_faithfulness)
+    monkeypatch.setattr(faithfulness_node, "score_faithfulness", score_faithfulness)
 
-    await ragas_verification(state_after_qa())
+    await verify_faithfulness(state_after_qa())
 
     assert seen == {"question": QUESTION, "answer": ANSWER, "passages": PASSAGES}
 
@@ -114,25 +114,25 @@ async def test_the_gate_scores_the_question_answer_and_passages(
 
 async def test_no_answer_at_all_fails_the_gate() -> None:
     """``qa_agent`` returns no answer when it fails; nothing may pass on an empty answer."""
-    update = await ragas_verification(state_after_qa(answer=None))
+    update = await verify_faithfulness(state_after_qa(answer=None))
 
-    assert update == {"ragas_score": None, "qa_retry_count": 1}
+    assert update == {"faithfulness_score": None, "qa_retry_count": 1}
 
 
 async def test_an_answer_with_no_retrieved_passages_fails_the_gate() -> None:
     """With nothing retrieved there is nothing the answer could be faithful to."""
-    update = await ragas_verification(state_after_qa(passages=[]))
+    update = await verify_faithfulness(state_after_qa(passages=[]))
 
-    assert update == {"ragas_score": None, "qa_retry_count": 1}
+    assert update == {"faithfulness_score": None, "qa_retry_count": 1}
 
 
 async def test_a_missing_score_fails_the_gate(scored) -> None:
     """A judge that raised or found no statement to judge has not cleared the answer."""
     scored(None)
 
-    update = await ragas_verification(state_after_qa())
+    update = await verify_faithfulness(state_after_qa())
 
-    assert update == {"ragas_score": None, "qa_retry_count": 1}
+    assert update == {"faithfulness_score": None, "qa_retry_count": 1}
 
 
 # --- The retry counter --------------------------------------------------------------------
@@ -142,7 +142,7 @@ async def test_each_unfaithful_attempt_is_counted(scored) -> None:
     """The counter is what bounds the loop; a failure that does not count never ends it."""
     scored(BELOW_THRESHOLD)
 
-    update = await ragas_verification(state_after_qa(qa_retry_count=1))
+    update = await verify_faithfulness(state_after_qa(qa_retry_count=1))
 
     assert update["qa_retry_count"] == 2
 
@@ -151,7 +151,7 @@ async def test_a_pass_clears_the_count(scored) -> None:
     """A later turn on the same thread starts fresh rather than one failure from fallback."""
     scored(0.95)
 
-    update = await ragas_verification(state_after_qa(qa_retry_count=2))
+    update = await verify_faithfulness(state_after_qa(qa_retry_count=2))
 
     assert update["qa_retry_count"] == 0
 
@@ -165,7 +165,7 @@ async def test_a_pass_clears_the_count(scored) -> None:
         (None, False),
         (0.0, False),
         (BELOW_THRESHOLD, False),
-        (settings.RAGAS_FAITHFULNESS_THRESHOLD, True),
+        (settings.FAITHFULNESS_THRESHOLD, True),
         (1.0, True),
     ],
 )
@@ -178,9 +178,11 @@ def test_the_threshold_decides_what_counts_as_faithful(
 
 def test_a_faithful_answer_routes_past_the_gate() -> None:
     """The only way out of the QA branch with an answer."""
-    state = state_after_qa(ragas_score=1.0, qa_retry_count=settings.QA_MAX_RETRIES)
+    state = state_after_qa(
+        faithfulness_score=1.0, qa_retry_count=settings.QA_MAX_RETRIES
+    )
 
-    assert route_after_ragas(state) == "pass"
+    assert route_after_faithfulness(state) == "pass"
 
 
 @pytest.mark.parametrize(
@@ -196,9 +198,11 @@ def test_an_unfaithful_answer_routes_on_the_budget(
     retry_count: int, expected: str
 ) -> None:
     """Back to the agent while there are attempts left, and to the fallback after."""
-    state = state_after_qa(ragas_score=BELOW_THRESHOLD, qa_retry_count=retry_count)
+    state = state_after_qa(
+        faithfulness_score=BELOW_THRESHOLD, qa_retry_count=retry_count
+    )
 
-    assert route_after_ragas(state) == expected
+    assert route_after_faithfulness(state) == expected
 
 
 async def test_the_agent_is_sent_back_a_bounded_number_of_times(scored) -> None:
@@ -208,8 +212,8 @@ async def test_the_agent_is_sent_back_a_bounded_number_of_times(scored) -> None:
     routes = []
 
     for _ in range(settings.QA_MAX_RETRIES):
-        state |= await ragas_verification(state)
-        routes.append(route_after_ragas(state))
+        state |= await verify_faithfulness(state)
+        routes.append(route_after_faithfulness(state))
 
     assert routes == ["retry"] * (settings.QA_MAX_RETRIES - 1) + ["fallback"]
 

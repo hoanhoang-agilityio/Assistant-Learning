@@ -1,21 +1,19 @@
-"""The ``llm_guard`` node: scan the incoming query and record the verdict."""
+"""The ``guard_input`` node: scan the incoming query and record the verdict."""
 
-from typing import Literal, TypedDict
+from typing import TypedDict
 
-from src.schemas import GraphState
+from src.schemas import GraphState, GuardRoute
 from src.services.guard import scan_input
-
-GuardRoute = Literal["blocked", "pass"]
 
 
 class GuardUpdate(TypedDict):
-    """The state ``llm_guard`` writes."""
+    """The state ``guard_input`` writes."""
 
     guard_blocked: bool
     block_reason: str | None
 
 
-async def llm_guard(state: GraphState) -> GuardUpdate:
+async def guard_input(state: GraphState) -> GuardUpdate:
     """Scan the user's query and record whether it may proceed."""
 
     verdict = await scan_input(state["user_query"])
@@ -26,5 +24,5 @@ def route_after_guard(state: GraphState) -> GuardRoute:
     """Route on the guard verdict."""
 
     if state["guard_blocked"]:
-        return "blocked"
-    return "pass"
+        return GuardRoute.BLOCKED
+    return GuardRoute.PASS

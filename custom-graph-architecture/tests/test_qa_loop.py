@@ -1,11 +1,13 @@
 """The QA branch end to end: answer, score, retry, and fall back when nothing scores.
 
-Runs the real compiled graph from a QA question through ``ragas_verification``. The QA agent
+Runs the real compiled graph from a QA question through ``verify_faithfulness``. The QA agent
 is stubbed — its own contract is covered in ``test_qa_agent.py`` — and so is the faithfulness
-judge, whose contract is covered in ``test_ragas_verification.py``. What is under test here is
+judge, whose contract is covered in ``test_verify_faithfulness.py``. What is under test here is
 the loop they sit in: that no answer reaches the end of a run unscored, that a rejected one
 goes back to the agent with the reason, and that the loop stops instead of running forever.
 """
+
+import sys
 
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
@@ -14,8 +16,8 @@ import src.services.memory as memory_service
 from src.core.configs.config import settings
 from src.core.langgraph.agents import qa as qa_module
 from src.core.langgraph.graph import build_graph
-from src.core.langgraph.nodes import intent as intent_node
-from src.core.langgraph.nodes import ragas as ragas_node
+from src.core.langgraph.nodes import faithfulness as faithfulness_node
+from src.core.langgraph.nodes.parse_turn import parse_turn
 from src.core.langgraph.nodes.qa_fallback import (
     QA_FALLBACK_NO_CONTEXT,
     QA_FALLBACK_UNSUPPORTED,
@@ -25,7 +27,10 @@ from src.core.langgraph.runtime import MemoryScope, namespace_for
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import RetrievedChunk, initial_state
 from src.services.profile import PROFILE_KEY
+from src.services.turn import TurnParse
 from tests.test_verification_gate import PROFILE
+
+parse_node = sys.modules[parse_turn.__module__]
 
 USER_ID = "user-qa-loop"
 CONFIG = {"configurable": {"thread_id": "qa-loop"}}
@@ -41,7 +46,7 @@ PASSAGES: list[RetrievedChunk] = [
     }
 ]
 
-BELOW_THRESHOLD = settings.RAGAS_FAITHFULNESS_THRESHOLD - 0.4
+BELOW_THRESHOLD = settings.FAITHFULNESS_THRESHOLD - 0.4
 
 
 class _StubAgent:
@@ -62,16 +67,18 @@ class _StubAgent:
         return {"messages": [retrieval, AIMessage(content=ANSWER)]}
 
 
+async def parse_as_qa(*_: object, **__: object) -> TurnParse:
+    """Stand in for the turn parser: this branch is QA, and the message states no facts."""
+    return TurnParse(intent="qa")
+
+
 @pytest.fixture
 async def loop(monkeypatch: pytest.MonkeyPatch):
     """The real graph on the QA branch, with the agent and the judge under test control."""
 
-    async def classify_as_qa(_: str) -> str:
-        return "qa"
-
     runtime = InMemoryRuntime()
     monkeypatch.setattr(memory_service, "graph_runtime", runtime)
-    monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_qa)
+    monkeypatch.setattr(parse_node, "parse_user_turn", parse_as_qa)
 
     store = await runtime.store()
     await store.aput(
@@ -98,7 +105,7 @@ async def loop(monkeypatch: pytest.MonkeyPatch):
             graph.scored.append(kwargs)
             return remaining.pop(0) if remaining else BELOW_THRESHOLD
 
-        monkeypatch.setattr(ragas_node, "score_faithfulness", score_faithfulness)
+        monkeypatch.setattr(faithfulness_node, "score_faithfulness", score_faithfulness)
         graph.agent = agent
         return graph
 
@@ -123,7 +130,7 @@ async def test_a_faithful_answer_ends_the_run(loop) -> None:
     result = await _ask(graph)
 
     assert result["qa_answer"] == ANSWER
-    assert result["ragas_score"] == 1.0
+    assert result["faithfulness_score"] == 1.0
     assert result["qa_retry_count"] == 0
     assert (await graph.aget_state(CONFIG)).next == ()
 
@@ -158,7 +165,7 @@ async def test_an_unfaithful_answer_goes_back_to_the_agent(loop) -> None:
     result = await _ask(graph)
 
     assert len(graph.agent.calls) == 2
-    assert result["ragas_score"] == 1.0
+    assert result["faithfulness_score"] == 1.0
     assert result["qa_retry_count"] == 0
 
 

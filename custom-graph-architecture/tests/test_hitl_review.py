@@ -16,7 +16,7 @@ from src.core.langgraph.nodes.hitl_review import (
 )
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import GraphState, initial_state
-from tests.test_load_context import USER_ID
+from tests.test_load_user_context import USER_ID
 from tests.test_verification_completeness import complete_plan
 
 hitl_review_module = sys.modules[hitl_review.__module__]
@@ -31,7 +31,9 @@ def _stub_plan_markdown(monkeypatch: pytest.MonkeyPatch) -> None:
     async def render_plan_markdown(plan: Any) -> str:
         return "PLAN_MARKDOWN"
 
-    monkeypatch.setattr(hitl_review_module, "render_plan_markdown", render_plan_markdown)
+    monkeypatch.setattr(
+        hitl_review_module, "render_plan_markdown", render_plan_markdown
+    )
 
 
 @pytest.fixture

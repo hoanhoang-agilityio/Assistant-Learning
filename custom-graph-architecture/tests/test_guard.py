@@ -9,16 +9,21 @@ Only the test that constructs real scanners is marked ``integration`` — that o
 model weights.
 """
 
+import sys
+
 import pytest
 from langchain_core.messages import AIMessage
 
-import src.core.langgraph.nodes.intent as intent_node
 from src.core.configs.config import GuardScanner, settings
 from src.core.langgraph.graph import build_graph
 from src.core.langgraph.nodes.guard import route_after_guard
+from src.core.langgraph.nodes.parse_turn import parse_turn
 from src.schemas import initial_state
 from src.services import guard as guard_service
 from src.services.guard import BLOCK_REASONS, GUARD_FAILURE_REASON, scan_input
+from src.services.turn import TurnParse
+
+parse_node = sys.modules[parse_turn.__module__]
 
 
 class _FakeScanner:
@@ -191,10 +196,10 @@ async def test_the_graph_carries_a_clean_query_past_the_guard(
     """A passing query must not be given a final message — a later node owns the answer."""
     use_scanners(PromptInjection(is_valid=True))
 
-    async def classify_as_qa(_: str) -> str:
-        return "qa"
+    async def classify_as_qa(*_: object, **__: object) -> TurnParse:
+        return TurnParse(intent="qa")
 
-    monkeypatch.setattr(intent_node, "classify_user_intent", classify_as_qa)
+    monkeypatch.setattr(parse_node, "parse_user_turn", classify_as_qa)
 
     result = (
         await build_graph()
