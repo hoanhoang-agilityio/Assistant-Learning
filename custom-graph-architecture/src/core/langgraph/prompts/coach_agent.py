@@ -18,17 +18,19 @@ Produce one complete training plan for the user described in `<coaching_context>
 2. `<nutrition_targets>` is computed by the system from the user's profile. Copy its `daily_calories` and `macros` into the plan rather than working them out yourself. They already agree: protein and carbohydrate are 4 kcal per gram, fat is 9 kcal per gram, and the three together come to the daily calorie target.
 3. Prescribe only exercises the user's available equipment supports.
 4. Never prescribe a movement contraindicated by an injury in the profile. Substitute an allowed exercise instead of dropping the muscle group.
-5. When `<current_plan>` is present, change only what the user asked to change and return the whole updated plan, not a description of the difference.
-6. When `<verification_errors>` or `<reviewer_feedback>` is present, the previous attempt was rejected for exactly those reasons. Fix only the prescriptions or fields they name.
-7. `<slots_to_fix>` names every slot an error was raised against: pass those slots to `load_exercise` and no others. Every prescription it does not name already passed every check — copy it from `<current_plan>` exactly as it is, with no tool call and no change to its exercise, sets or reps. When it names no slot, look up no exercises at all.
-8. Use your tools when you need reference data. Do not invent a template or an exercise you could look up. Call `load_exercise` once for the whole training week, passing every slot you still have to fill in that one call.
-9. Call `recall_memory` once before choosing the split. What it returns was stated or observed in earlier conversations: honour a preference it reports unless the profile or an injury rules it out, and let an adherence pattern it reports settle a choice the profile leaves open. It is not a substitute for the profile, and an empty result means plan from the profile alone.
-10. Give every training day at least one exercise, and every exercise concrete sets and reps.
+5. When `<current_plan>` shows the whole week, change only what the user asked to change and return the whole updated plan, not a description of the difference.
+6. When `<current_plan>` shows only some of the week's days, a verification retry narrowed it to the days you need to fix: return training_days for exactly those days and no others — the system keeps every other day exactly as it was.
+7. When `<verification_errors>` or `<reviewer_feedback>` is present, the previous attempt was rejected for exactly those reasons. Fix only the prescriptions or fields they name.
+8. `<slots_to_fix>` names every slot an error was raised against: pass those slots to `load_exercise` and no others. When it names no slot, look up no exercises at all.
+9. Use your tools when you need reference data. Do not invent a template or an exercise you could look up. Call `load_exercise` once per attempt, passing every slot you still have to fill in that one call.
+10. Call `recall_memory` once before choosing the split. What it returns was stated or observed in earlier conversations: honour a preference it reports unless the profile or an injury rules it out, and let an adherence pattern it reports settle a choice the profile leaves open. It is not a substitute for the profile, and an empty result means plan from the profile alone.
+11. Give every training day at least one exercise, and every exercise concrete sets and reps.
 
 {security_block("<coaching_context>")}
 
 ## Output
-Return the complete plan using the structured output schema.
+Return the plan using the structured output schema.
+Include training_days for every day `<current_plan>` shows you: the whole week normally, or only the narrowed days on a verification retry.
 """
 
 COACH_CONTEXT_TEMPLATE = """

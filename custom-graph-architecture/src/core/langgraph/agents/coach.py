@@ -83,17 +83,63 @@ def _slots_to_fix_block(verification: dict | None) -> str | None:
     return as_prompt_json(_slots_to_fix(verification)) or NO_SLOTS_TO_FIX
 
 
+def _failing_day_numbers(state: GraphState) -> set[int]:
+    """The training days a fresh error was raised against on this attempt, or none."""
+
+    verification = state.get("verification_result")
+    if not verification:
+        return set()
+
+    return {
+        issue["day_number"]
+        for issue in verification.get("issues", [])
+        if issue.get("severity") == "error" and issue.get("day_number") is not None
+    }
+
+
+def _narrowed_plan(plan: dict | None, failing_days: set[int]) -> dict | None:
+    """The plan as shown to the agent: every day, or only the ones a retry has to fix."""
+
+    if not plan or not failing_days:
+        return plan
+
+    return {
+        **plan,
+        "training_days": [
+            day for day in plan["training_days"] if day["day_number"] in failing_days
+        ],
+    }
+
+
+def _merge_revised_days(plan: dict, revised: dict, failing_days: set[int]) -> dict:
+    """The plan to store: the agent's revision for the days it was asked to fix, every other day exactly as it was."""
+
+    revised_days = {day["day_number"]: day for day in revised["training_days"]}
+    return {
+        **revised,
+        "training_days": [
+            revised_days[day["day_number"]]
+            if day["day_number"] in failing_days and day["day_number"] in revised_days
+            else day
+            for day in plan["training_days"]
+        ],
+    }
+
+
 def build_coach_input(state: GraphState) -> list[AnyMessage]:
     """Assemble what the agent sees: the conversation so far plus this turn's context."""
 
+    verification = state.get("verification_result")
     context = build_coach_context(
         user_query=state["user_query"],
         profile=as_prompt_json(state.get("profile")) or NO_PROFILE,
         nutrition_targets=as_prompt_json(_nutrition_targets(state.get("profile"))),
-        plan=as_prompt_json(state.get("plan")),
-        verification_errors=as_prompt_json(state.get("verification_result")),
+        plan=as_prompt_json(
+            _narrowed_plan(state.get("plan"), _failing_day_numbers(state))
+        ),
+        verification_errors=as_prompt_json(verification),
         reviewer_feedback=state.get("hitl_feedback"),
-        slots_to_fix=_slots_to_fix_block(state.get("verification_result")),
+        slots_to_fix=_slots_to_fix_block(verification),
     )
     return [*trim_history(state["messages"]), HumanMessage(content=context)]
 
@@ -118,4 +164,11 @@ async def coach_agent(state: GraphState) -> CoachUpdate:
     if not isinstance(plan, TrainingPlan):
         return {"plan": None}
 
-    return {"plan": plan.model_dump()}
+    revised = plan.model_dump()
+    previous = state.get("plan")
+    failing_days = _failing_day_numbers(state)
+
+    if previous and failing_days:
+        revised = _merge_revised_days(previous, revised, failing_days)
+
+    return {"plan": revised}

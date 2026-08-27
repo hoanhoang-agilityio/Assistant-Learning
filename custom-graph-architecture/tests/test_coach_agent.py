@@ -141,6 +141,121 @@ def test_no_feedback_leaves_no_empty_sections() -> None:
     assert "slots_to_fix" not in context
 
 
+# --- What a verification retry narrows the current plan to -------------------------------
+
+
+TWO_DAY_PLAN = {
+    "template_id": "tpl-upper-lower-4",
+    "goal": "FAT_LOSS",
+    "daily_calories": 2200,
+    "macros": {"protein_g": 165.0, "carbs_g": 220.0, "fat_g": 61.0},
+    "training_days": [
+        {
+            "day_number": 1,
+            "name": "Upper",
+            "exercises": [
+                {
+                    "slot_id": "d1-s1",
+                    "exercise_id": "ex-bench-press",
+                    "sets": 4,
+                    "reps": "8-12",
+                }
+            ],
+        },
+        {
+            "day_number": 2,
+            "name": "Lower",
+            "exercises": [
+                {
+                    "slot_id": "d2-s1",
+                    "exercise_id": "ex-squat",
+                    "sets": 4,
+                    "reps": "6-8",
+                }
+            ],
+        },
+    ],
+    "summary": "plan",
+}
+
+
+def _day_error(day_number: int, **issue: object) -> dict:
+    """A verification result with one day-scoped error."""
+    return {
+        "issues": [
+            {
+                "check": "safety",
+                "message": "bad",
+                "severity": "error",
+                "day_number": day_number,
+                **issue,
+            }
+        ]
+    }
+
+
+def test_a_verification_retry_shows_only_the_failing_day() -> None:
+    """The other day already passed; re-sending it buys nothing but tokens."""
+    state = _state(
+        plan=TWO_DAY_PLAN, verification_result=_day_error(2, slot_id="d2-s1")
+    )
+
+    context = build_coach_input(state)[-1].content
+
+    assert "Lower" in context
+    assert "Upper" not in context
+
+
+def test_a_plan_level_error_still_shows_the_whole_plan() -> None:
+    """No day is named as broken, so there is no day to narrow to safely."""
+    verification = {
+        "issues": [
+            {
+                "check": "macros",
+                "message": "bad",
+                "severity": "error",
+                "field": "daily_calories",
+            }
+        ]
+    }
+    state = _state(plan=TWO_DAY_PLAN, verification_result=verification)
+
+    context = build_coach_input(state)[-1].content
+
+    assert "Upper" in context
+    assert "Lower" in context
+
+
+def test_a_warning_alone_does_not_narrow_the_plan() -> None:
+    """Only an error fails the gate; a warning-only result is not a retry."""
+    verification = {
+        "issues": [
+            {
+                "check": "safety",
+                "message": "fyi",
+                "severity": "warning",
+                "day_number": 2,
+            }
+        ]
+    }
+    state = _state(plan=TWO_DAY_PLAN, verification_result=verification)
+
+    context = build_coach_input(state)[-1].content
+
+    assert "Upper" in context
+    assert "Lower" in context
+
+
+def test_a_first_attempt_shows_the_whole_plan() -> None:
+    """No verification result yet means nothing to narrow against."""
+    state = _state(plan=TWO_DAY_PLAN)
+
+    context = build_coach_input(state)[-1].content
+
+    assert "Upper" in context
+    assert "Lower" in context
+
+
 # --- What a retry is told to look up again -----------------------------------------------
 
 
@@ -321,6 +436,87 @@ async def test_a_failed_attempt_does_not_overwrite_the_stored_plan(
     actual_update = await coach_agent(_state(plan=PLAN))
 
     assert actual_update["plan"] is None
+
+
+async def test_a_narrowed_retrys_revision_is_merged_over_the_untouched_days(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The agent was only shown day 2; day 1 has to come from the stored plan, not its guess."""
+    revised_plan = TrainingPlan.model_validate(
+        {
+            **TWO_DAY_PLAN,
+            "training_days": [
+                {
+                    "day_number": 2,
+                    "name": "Lower",
+                    "exercises": [
+                        {
+                            "slot_id": "d2-s1",
+                            "exercise_id": "ex-front-squat",
+                            "sets": 3,
+                            "reps": "5",
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    monkeypatch.setattr(coach_module, "build_coach_agent", _agent_returns(revised_plan))
+    state = _state(
+        plan=TWO_DAY_PLAN, verification_result=_day_error(2, slot_id="d2-s1")
+    )
+
+    actual_update = await coach_agent(state)
+
+    days = {day["day_number"]: day for day in actual_update["plan"]["training_days"]}
+    assert days[1] == TWO_DAY_PLAN["training_days"][0]
+    assert days[2]["exercises"][0]["exercise_id"] == "ex-front-squat"
+
+
+async def test_a_day_the_retry_was_not_asked_to_touch_is_ignored_even_if_returned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stray change to an untouched day is not a change the retry earned."""
+    revised_plan = TrainingPlan.model_validate(
+        {
+            **TWO_DAY_PLAN,
+            "training_days": [
+                {
+                    "day_number": 1,
+                    "name": "Upper",
+                    "exercises": [
+                        {
+                            "slot_id": "d1-s1",
+                            "exercise_id": "ex-overhead-press",
+                            "sets": 5,
+                            "reps": "5",
+                        }
+                    ],
+                },
+                {
+                    "day_number": 2,
+                    "name": "Lower",
+                    "exercises": [
+                        {
+                            "slot_id": "d2-s1",
+                            "exercise_id": "ex-front-squat",
+                            "sets": 3,
+                            "reps": "5",
+                        }
+                    ],
+                },
+            ],
+        }
+    )
+    monkeypatch.setattr(coach_module, "build_coach_agent", _agent_returns(revised_plan))
+    state = _state(
+        plan=TWO_DAY_PLAN, verification_result=_day_error(2, slot_id="d2-s1")
+    )
+
+    actual_update = await coach_agent(state)
+
+    days = {day["day_number"]: day for day in actual_update["plan"]["training_days"]}
+    assert days[1] == TWO_DAY_PLAN["training_days"][0]
 
 
 # --- Binding ------------------------------------------------------------------------------
