@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.enums import StreamEventType
+
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 MAX_MESSAGE_LENGTH = 8000
@@ -47,9 +49,24 @@ class ChatResponse(BaseModel):
 
 
 class StreamResponse(BaseModel):
-    """One server-sent event frame of a streamed answer."""
+    """One server-sent event frame of a streamed turn.
 
-    content: str = Field(default="", description="Incremental text chunk")
+    Three shapes behind one model: a ``step`` carries ``node`` and ``label`` and no text,
+    a ``message`` carries one complete reply, and ``done`` closes the stream. ``content``
+    and ``done`` keep the names and the meaning they had before steps existed, so a
+    client that only reads those two still works.
+    """
+
+    type: StreamEventType = Field(
+        default=StreamEventType.MESSAGE, description="What this frame carries"
+    )
+    content: str = Field(default="", description="Reply text, on a message frame")
+    node: str | None = Field(
+        default=None, description="Graph node reached, on a step frame"
+    )
+    label: str | None = Field(
+        default=None, description="What to call that node in the UI"
+    )
     done: bool = Field(
         default=False, description="True on the final frame, including errors"
     )

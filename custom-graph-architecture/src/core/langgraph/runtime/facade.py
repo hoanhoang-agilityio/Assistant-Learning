@@ -9,10 +9,12 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
+from src.constants import STEP_LABELS
 from src.core.langgraph.graph import build_graph
 from src.core.langgraph.runtime import graph_runtime
 from src.core.observability.tracing import build_run_config
-from src.schemas import Message, initial_state
+from src.enums import Node, StreamEventType
+from src.schemas import Message, StreamResponse, initial_state
 from src.utils.logging import bind_context, logger
 
 _EXPORTABLE_ROLES = {"user", "assistant", "system"}
@@ -67,13 +69,15 @@ class LangGraphRuntime:
 
     async def get_stream_response(
         self, messages: list[Message], session_id: str, user_id: str
-    ) -> AsyncGenerator[str]:
-        """Process one turn and yield the messages it produced, one frame per message."""
+    ) -> AsyncGenerator[StreamResponse]:
+        """Process one turn, reporting each step as it is reached and then the replies."""
         graph = await self._get_graph()
         config, started = self._start_turn(session_id, user_id)
         run_input, before = await self._graph_input(graph, config, messages, user_id)
         try:
-            await graph.ainvoke(run_input, config)
+            async for update in graph.astream(run_input, config, stream_mode="updates"):
+                for step in _step_events(update):
+                    yield step
         except Exception as error:
             logger.exception(
                 "graph_stream_failed",
@@ -83,7 +87,7 @@ class LangGraphRuntime:
             )
             raise
         for reply in await self._finish_turn(graph, config, before, started):
-            yield reply.content
+            yield StreamResponse(type=StreamEventType.MESSAGE, content=reply.content)
 
     async def get_chat_history(self, session_id: str) -> list[Message]:
         """Return the conversation recorded for a session."""
@@ -158,15 +162,37 @@ def _turn_reply(state: Any, before: int) -> list[Message]:
     the user's own message as part of its input, so it lands in
     ``messages[before:]`` too, alongside any ``HumanMessage`` a resumed
     interrupt records for the decision it just read.
+
+    The question a pause is asking is usually already one of those replies — the node
+    before the gate writes it into the conversation so it survives a reload — so it is
+    appended only when nothing already carries it.
     """
     new_messages = _to_chat_messages(state.values.get("messages", [])[before:])
     replies = [message for message in new_messages if message.role == "assistant"]
     pending = _pending_interrupt_value(state)
     if pending is not None:
         question = _interrupt_text(pending)
-        if not replies or replies[-1].content != question:
+        if question and not any(question in reply.content for reply in replies):
             replies.append(Message(role="assistant", content=question))
     return replies
+
+
+def _step_events(update: Any) -> list[StreamResponse]:
+    """Name the nodes one superstep finished, for the caller to show as progress."""
+    if not isinstance(update, dict):
+        return []
+
+    events: list[StreamResponse] = []
+    for name in update:
+        try:
+            label = STEP_LABELS.get(Node(name))
+        except ValueError:
+            continue
+        if label:
+            events.append(
+                StreamResponse(type=StreamEventType.STEP, node=name, label=label)
+            )
+    return events
 
 
 def _pending_interrupt_value(state: Any) -> object | None:

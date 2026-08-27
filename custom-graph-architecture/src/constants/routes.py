@@ -33,7 +33,7 @@ PROFILE_ROUTES: dict[str, str] = {
 }
 
 VERIFICATION_ROUTES: dict[str, str] = {
-    VerificationRoute.PASS: Node.HITL_REVIEW,
+    VerificationRoute.PASS: Node.PRESENT_PLAN,
     VerificationRoute.RETRY: Node.COACH_AGENT,
     VerificationRoute.EXHAUSTED: Node.NOTIFY_FAIL,
 }

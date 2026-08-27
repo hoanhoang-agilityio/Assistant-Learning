@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from src.api.v1.auth import get_current_session
 from src.core.configs.config import settings
 from src.core.langgraph.runtime.facade import langgraph_runtime
+from src.enums import StreamEventType
 from src.middlewares import limiter
 from src.models.session import Session
 from src.schemas import ChatRequest, ChatResponse, StreamResponse
@@ -43,18 +44,22 @@ async def chat_stream(
     chat_request: ChatRequest,
     session: Annotated[Session, Depends(get_current_session)],
 ) -> StreamingResponse:
-    """Stream one chat turn as server-sent events, one frame per message produced."""
+    """Stream one chat turn as server-sent events: a frame per step, then per reply."""
 
     async def event_source() -> AsyncGenerator[str]:
         try:
-            async for chunk in langgraph_runtime.get_stream_response(
+            async for event in langgraph_runtime.get_stream_response(
                 chat_request.messages, session.id, user_id=str(session.user_id)
             ):
-                yield _frame(StreamResponse(content=chunk))
-            yield _frame(StreamResponse(done=True))
+                yield _frame(event)
+            yield _frame(StreamResponse(type=StreamEventType.DONE, done=True))
         except Exception:
             yield _frame(
-                StreamResponse(content="\n\n[the response was cut short]", done=True)
+                StreamResponse(
+                    type=StreamEventType.DONE,
+                    content="\n\n[the response was cut short]",
+                    done=True,
+                )
             )
 
     return StreamingResponse(

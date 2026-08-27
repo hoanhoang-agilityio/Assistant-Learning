@@ -1,6 +1,5 @@
 """Tests for the ``hitl_review`` interrupt gate."""
 
-import sys
 from typing import Any
 
 import pytest
@@ -19,21 +18,7 @@ from src.schemas import GraphState, initial_state
 from tests.test_load_user_context import USER_ID
 from tests.test_verification_completeness import complete_plan
 
-hitl_review_module = sys.modules[hitl_review.__module__]
-
 PLAN = complete_plan().model_dump(mode="json")
-
-
-@pytest.fixture(autouse=True)
-def _stub_plan_markdown(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Render the plan is covered by ``plan_presentation``'s own tests; stub it out here."""
-
-    async def render_plan_markdown(plan: Any) -> str:
-        return "PLAN_MARKDOWN"
-
-    monkeypatch.setattr(
-        hitl_review_module, "render_plan_markdown", render_plan_markdown
-    )
 
 
 @pytest.fixture

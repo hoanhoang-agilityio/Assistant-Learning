@@ -40,6 +40,12 @@ CHAT_PLACEHOLDER = "Tell me about your goals… (reply “yes” to approve a pl
 
 THINKING_LABEL = "Thinking…"
 
+
+def thought_for(seconds: float) -> str:
+    """Label the settled step timeline with how long the turn took."""
+    return f"Thought for {max(round(seconds), 1)}s"
+
+
 TAGLINE = "Your training coach, built on a single LangGraph workflow"
 
 # Failure wording. Each one says what did not happen, so the user knows whether
@@ -76,5 +82,6 @@ __all__ = [
     "THINKING_LABEL",
     "WELCOME_BODY",
     "conversation_title",
+    "thought_for",
     "welcome_title",
 ]

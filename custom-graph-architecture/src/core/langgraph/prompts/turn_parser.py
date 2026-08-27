@@ -91,6 +91,19 @@ whether they are asking about it or reporting it.
 Do not infer which movements the injury rules out — record only what the user stated.
 Return an empty list when no injury is mentioned.
 
+## Preferences
+Record what the user says they would *rather*, separately from what they are. A preference
+is honoured when nothing rules it out; it is never a reason to stop and ask.
+
+- schedule: when or how they prefer to train, in their words. Not the number of days a
+  week — that is `training_days_per_week` above.
+- liked_exercises / disliked_exercises: movements they said they enjoy or want left out.
+- diet: a dietary preference, e.g. vegetarian, no dairy.
+- response_style: how they want to be answered, e.g. keep it brief.
+
+Leave every one of them empty unless the user actually stated it. A movement they cannot
+do because it hurts is an injury, not a dislike.
+
 ## Revisions
 If the user asks to change, correct, or update a field but does not restate a new value
 for it in this message (e.g. "my target weight is wrong", "update my profile"), add that

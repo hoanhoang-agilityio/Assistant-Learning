@@ -28,6 +28,8 @@ async def finalize_turn(state: GraphState) -> FinalizeTurnUpdate:
     if approved and plan:
         await save_plan(state["user_id"], plan)
 
+    # Every node that ends a run its own way has already written both, so re-writing
+    # either here is what would put the same paragraph in the conversation twice.
     final_message = state.get("final_message")
     if final_message:
         return {"final_message": final_message, "messages": []}
@@ -38,4 +40,8 @@ async def finalize_turn(state: GraphState) -> FinalizeTurnUpdate:
             "messages": [AIMessage(content=PLAN_SAVED_MESSAGE)],
         }
 
-    return {"final_message": state.get("qa_answer"), "messages": []}
+    answer = state.get("qa_answer")
+    if answer:
+        return {"final_message": answer, "messages": [AIMessage(content=answer)]}
+
+    return {"final_message": None, "messages": []}

@@ -29,7 +29,9 @@ from src.core.langgraph.nodes import (
     notify_fail,
     off_topic,
     parse_turn,
+    persist_preferences,
     persist_profile,
+    present_plan,
     profile_collection_exhausted,
     qa_fallback,
     request_missing_profile_fields,
@@ -58,12 +60,14 @@ NODES: tuple[tuple[Node, Callable], ...] = (
     (Node.LOAD_USER_CONTEXT, load_user_context),
     (Node.MERGE_PROFILE, merge_profile),
     (Node.PERSIST_PROFILE, persist_profile),
+    (Node.PERSIST_PREFERENCES, persist_preferences),
     (Node.CHECK_PROFILE_COMPLETE, check_profile_complete),
     (Node.REQUEST_MISSING_PROFILE_FIELDS, request_missing_profile_fields),
     (Node.WAIT_FOR_USER, wait_for_user),
     (Node.PROFILE_COLLECTION_EXHAUSTED, profile_collection_exhausted),
     (Node.COACH_AGENT, coach_agent),
     (Node.DETERMINISTIC_VERIFICATION, deterministic_verification),
+    (Node.PRESENT_PLAN, present_plan),
     (Node.NOTIFY_FAIL, notify_fail),
     (Node.HITL_REVIEW, hitl_review),
     (Node.HITL_REJECTED_NO_FEEDBACK, hitl_rejected_no_feedback),
@@ -89,8 +93,9 @@ def build_graph() -> StateGraph:
     builder.add_edge(Node.OFF_TOPIC, END)
     builder.add_edge(Node.LOAD_USER_CONTEXT, Node.MERGE_PROFILE)
     builder.add_edge(Node.MERGE_PROFILE, Node.PERSIST_PROFILE)
+    builder.add_edge(Node.PERSIST_PROFILE, Node.PERSIST_PREFERENCES)
     builder.add_conditional_edges(
-        Node.PERSIST_PROFILE, route_after_context, CONTEXT_ROUTES
+        Node.PERSIST_PREFERENCES, route_after_context, CONTEXT_ROUTES
     )
     builder.add_conditional_edges(
         Node.CHECK_PROFILE_COMPLETE, route_after_profile_check, PROFILE_ROUTES
@@ -102,6 +107,7 @@ def build_graph() -> StateGraph:
     builder.add_conditional_edges(
         Node.DETERMINISTIC_VERIFICATION, route_after_verification, VERIFICATION_ROUTES
     )
+    builder.add_edge(Node.PRESENT_PLAN, Node.HITL_REVIEW)
     builder.add_edge(Node.NOTIFY_FAIL, Node.FINALIZE_TURN)
     builder.add_conditional_edges(
         Node.HITL_REVIEW, route_after_hitl_review, HITL_ROUTES

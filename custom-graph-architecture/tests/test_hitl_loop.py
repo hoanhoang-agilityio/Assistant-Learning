@@ -9,6 +9,7 @@ including ``deterministic_verification``, runs for real against the fixture cata
 import sys
 
 import pytest
+from langchain_core.messages import AIMessage
 from langgraph.types import Command
 
 import src.core.langgraph.verification.deterministic.context as plan_context
@@ -21,6 +22,7 @@ from src.core.langgraph.nodes.hitl_rejected_no_feedback import (
     HITL_REJECTED_NO_FEEDBACK_MESSAGE,
 )
 from src.core.langgraph.nodes.parse_turn import parse_turn
+from src.core.langgraph.nodes.present_plan import PLAN_REVIEW_ASK
 from src.core.langgraph.runtime import MemoryScope, namespace_for
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
 from src.schemas import initial_state
@@ -47,6 +49,19 @@ class _StubAgent:
     async def ainvoke(self, inputs: dict, context: object) -> dict:
         self.seen_messages = inputs["messages"]
         return {"messages": [], "structured_response": passing_plan()}
+
+
+class _FlakyAgent(_StubAgent):
+    """Produces nothing on its first attempt, so the gate sends the turn back to the coach."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    async def ainvoke(self, inputs: dict, context: object) -> dict:
+        self.calls += 1
+        result = await super().ainvoke(inputs, context)
+        return result if self.calls > 1 else {**result, "structured_response": None}
 
 
 @pytest.fixture
@@ -158,3 +173,53 @@ async def test_the_revision_loop_is_bounded(loop) -> None:
     assert result["hitl_retry_count"] == settings.HITL_MAX_RETRIES
     assert result["final_message"] == HITL_EXHAUSTED_MESSAGE
     assert (await loop.aget_state(CONFIG)).next == ()
+
+
+# --- What the conversation is left holding -------------------------------------------
+
+
+def _replies(state: dict) -> list[str]:
+    """The assistant's side of the conversation, which is what ``GET /messages`` returns."""
+    return [
+        str(message.content)
+        for message in state["messages"]
+        if isinstance(message, AIMessage)
+    ]
+
+
+async def test_the_plan_is_in_the_conversation_and_not_only_in_the_interrupt(
+    loop,
+) -> None:
+    """The interrupt payload is not persisted, so a plan shown only there is lost on reload."""
+    suspended = await _start(loop)
+
+    written = _replies(suspended)
+    assert len(written) == 1
+    # The plan itself, resolved through the catalogue, not just a line about it.
+    assert "**Goal:**" in written[0]
+    assert "**Day 1" in written[0]
+    assert PLAN_REVIEW_ASK in written[0]
+
+
+async def test_a_verification_retry_leaves_one_reply_not_one_per_attempt(
+    loop, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every attempt used to write its own summary, and the UI ran them together verbatim."""
+    agent = _FlakyAgent()
+    monkeypatch.setattr(coach_module, "build_coach_agent", lambda: agent)
+
+    suspended = await _start(loop)
+
+    assert agent.calls == 2
+    assert len(_replies(suspended)) == 1
+
+
+async def test_each_revision_adds_exactly_one_reply(loop) -> None:
+    """The revise loop runs the coach again; the conversation must not gain two entries."""
+    await _start(loop)
+
+    resumed = await loop.ainvoke(
+        Command(resume={"decision": "reject", "feedback": "too much volume"}), CONFIG
+    )
+
+    assert len(_replies(resumed)) == 2

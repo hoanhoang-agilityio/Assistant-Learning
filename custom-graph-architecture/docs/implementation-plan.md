@@ -126,8 +126,9 @@ flowchart TD
     load_user_context --> merge_profile
     off_topic --> finish
     merge_profile --> persist_profile
-    persist_profile -->|coaching| check_profile_complete
-    persist_profile -->|qa| qa_agent
+    persist_profile --> persist_preferences
+    persist_preferences -->|coaching| check_profile_complete
+    persist_preferences -->|qa| qa_agent
     check_profile_complete -->|complete| coach_agent
     check_profile_complete -->|ask| request_missing_profile_fields
     check_profile_complete -->|exhausted| profile_collection_exhausted
@@ -138,17 +139,18 @@ flowchart TD
     verify_faithfulness -->|pass| finalize_turn
     verify_faithfulness -->|retry| qa_agent
     verify_faithfulness -->|fallback| qa_fallback
-    deterministic_verification -->|pass| hitl_review
+    deterministic_verification -->|pass| present_plan
     deterministic_verification -->|retry| coach_agent
     deterministic_verification -->|exhausted| notify_fail
     wait_for_user --> parse_turn
     finalize_turn --> finish
     qa_fallback --> finalize_turn
+    present_plan --> hitl_review
+    notify_fail --> finalize_turn
     hitl_review -->|approve| finalize_turn
     hitl_review -->|revise| coach_agent
     hitl_review -->|no_feedback| hitl_rejected_no_feedback
     hitl_review -->|exhausted| hitl_exhausted
-    notify_fail --> finalize_turn
     hitl_rejected_no_feedback --> finalize_turn
     hitl_exhausted --> finalize_turn
     classDef llm fill:#4a3b1f,stroke:#e0a44a,stroke-width:2px,color:#fff
@@ -183,23 +185,25 @@ flowchart TD
     load_user_context --> merge_profile
     off_topic --> finish
     merge_profile --> persist_profile
-    persist_profile -->|coaching| check_profile_complete
+    persist_profile --> persist_preferences
+    persist_preferences -->|coaching| check_profile_complete
     check_profile_complete -->|complete| coach_agent
     check_profile_complete -->|ask| request_missing_profile_fields
     check_profile_complete -->|exhausted| profile_collection_exhausted
     coach_agent --> deterministic_verification
     request_missing_profile_fields --> wait_for_user
     profile_collection_exhausted --> finalize_turn
-    deterministic_verification -->|pass| hitl_review
+    deterministic_verification -->|pass| present_plan
     deterministic_verification -->|retry| coach_agent
     deterministic_verification -->|exhausted| notify_fail
     wait_for_user --> parse_turn
     finalize_turn --> finish
+    present_plan --> hitl_review
+    notify_fail --> finalize_turn
     hitl_review -->|approve| finalize_turn
     hitl_review -->|revise| coach_agent
     hitl_review -->|no_feedback| hitl_rejected_no_feedback
     hitl_review -->|exhausted| hitl_exhausted
-    notify_fail --> finalize_turn
     hitl_rejected_no_feedback --> finalize_turn
     hitl_exhausted --> finalize_turn
     classDef llm fill:#4a3b1f,stroke:#e0a44a,stroke-width:2px,color:#fff
@@ -234,7 +238,8 @@ flowchart TD
     load_user_context --> merge_profile
     off_topic --> finish
     merge_profile --> persist_profile
-    persist_profile -->|qa| qa_agent
+    persist_profile --> persist_preferences
+    persist_preferences -->|qa| qa_agent
     qa_agent --> verify_faithfulness
     verify_faithfulness -->|pass| finalize_turn
     verify_faithfulness -->|retry| qa_agent

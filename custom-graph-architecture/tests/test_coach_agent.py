@@ -14,7 +14,6 @@ from src.core.configs.config import settings
 from src.core.langgraph.agents.coach import (
     COACH_AGENT_NAME,
     NO_PROFILE,
-    PLAN_READY_MESSAGE,
     build_coach_input,
     coach_agent,
 )
@@ -271,10 +270,14 @@ async def test_a_generated_plan_is_written_to_state(
     assert actual_update["plan"] == VALID_PLAN.model_dump()
 
 
-async def test_the_conversation_records_prose_and_not_the_serialised_plan(
+async def test_an_attempt_writes_no_message_of_its_own(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Structured output makes the agent's own last message a JSON blob, not an answer."""
+    """The agent runs once per attempt, so a message here would be one per retry.
+
+    ``present_plan`` writes the plan that passed the gate. Anything written here would
+    leave a rejected draft in the conversation for every attempt that failed it.
+    """
     monkeypatch.setattr(
         coach_module,
         "build_coach_agent",
@@ -283,23 +286,7 @@ async def test_the_conversation_records_prose_and_not_the_serialised_plan(
 
     actual_update = await coach_agent(_state())
 
-    assert [message.content for message in actual_update["messages"]] == [
-        "A four day fat loss plan."
-    ]
-
-
-async def test_a_plan_with_no_summary_still_reads_as_an_answer(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`summary` is optional on the schema, so the transcript needs a fallback."""
-    plan = VALID_PLAN.model_copy(update={"summary": None})
-    monkeypatch.setattr(coach_module, "build_coach_agent", _agent_returns(plan))
-
-    actual_update = await coach_agent(_state())
-
-    assert [message.content for message in actual_update["messages"]] == [
-        PLAN_READY_MESSAGE
-    ]
+    assert "messages" not in actual_update
 
 
 async def test_a_failed_agent_leaves_no_plan_rather_than_raising(
@@ -313,7 +300,7 @@ async def test_a_failed_agent_leaves_no_plan_rather_than_raising(
 
     monkeypatch.setattr(coach_module, "build_coach_agent", _Exploding)
 
-    assert await coach_agent(_state()) == {"plan": None, "messages": []}
+    assert await coach_agent(_state()) == {"plan": None}
 
 
 async def test_an_agent_that_produced_no_plan_writes_none(

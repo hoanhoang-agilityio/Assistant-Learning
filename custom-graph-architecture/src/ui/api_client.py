@@ -149,12 +149,13 @@ def send_message(
 
 def send_message_stream(
     client: httpx.Client, session_token: str, text: str
-) -> Iterator[str]:
-    """Send one turn and yield the graph's reply as text chunks.
+) -> Iterator[dict[str, Any]]:
+    """Send one turn and yield the frames it produces, in order.
 
-    Same payload as ``send_message``: only the new user message. If the run
-    parks on a HITL or missing-info interrupt, the question it is asking is
-    the last chunk.
+    Same payload as ``send_message``: only the new user message. A ``step`` frame names
+    a node the run has reached, a ``message`` frame carries one complete reply, and the
+    last frame is ``done``. If the run parks on a HITL or missing-info interrupt, the
+    question it is asking is the last message frame.
     """
     with client.stream(
         "POST",
@@ -166,18 +167,16 @@ def send_message_stream(
         if response.is_error:
             response.read()
         response.raise_for_status()
-        yield from _iter_sse_text(response)
+        yield from _iter_sse_frames(response)
 
 
-def _iter_sse_text(response: httpx.Response) -> Iterator[str]:
-    """Yield ``content`` fields from an SSE body until a ``done`` frame."""
+def _iter_sse_frames(response: httpx.Response) -> Iterator[dict[str, Any]]:
+    """Yield decoded frames from an SSE body until a ``done`` frame, inclusive."""
     for line in response.iter_lines():
         if not line.startswith("data:"):
             continue
         payload = json.loads(line[5:].strip())
-        content = payload.get("content") or ""
-        if content:
-            yield content
+        yield payload
         if payload.get("done"):
             return
 

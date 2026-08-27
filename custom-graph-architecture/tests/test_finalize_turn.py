@@ -64,11 +64,18 @@ async def test_an_approval_ends_the_run_saying_so(store) -> None:  # noqa: F811
 
 
 async def test_a_faithful_answer_becomes_the_final_message(store) -> None:  # noqa: F811
-    """The QA branch already said it; this only records what the run ended on."""
+    """The QA agent holds the answer back until it is scored, so this node writes it.
+
+    Written here rather than by the agent because the agent runs once per attempt: a
+    message written there would leave one unfaithful draft in the conversation for every
+    retry the faithfulness gate spent.
+    """
     actual_update = await finalize_turn(_state(qa_answer="creatine is well studied."))
 
     assert actual_update["final_message"] == "creatine is well studied."
-    assert actual_update["messages"] == []
+    assert [message.content for message in actual_update["messages"]] == [
+        "creatine is well studied."
+    ]
 
 
 async def test_a_branch_that_wrote_its_own_message_keeps_it(store) -> None:  # noqa: F811

@@ -12,13 +12,17 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Iterator
+from html import escape
+from itertools import chain
+from time import perf_counter
 from typing import Any
 
 import httpx
 import streamlit as st
 
+from src.enums import StreamEventType
 from src.ui import api_client, state
-from src.ui.wording import ERROR_COPY, THINKING_LABEL
+from src.ui.wording import ERROR_COPY, THINKING_LABEL, thought_for
 
 _AVATARS = {"user": "👤", "assistant": "🏋️"}
 _FALLBACK_REPLY = "I didn't manage to put a reply together. Try rephrasing that?"
@@ -90,14 +94,39 @@ def _token_for(session_id: str) -> str:
     raise KeyError("that conversation no longer exists")
 
 
-def thinking_html(label: str = THINKING_LABEL) -> str:
-    """Build the pulsing "Thinking…" row shown until the first token arrives."""
+def timeline_html(
+    steps: list[str], *, running: bool, elapsed_seconds: float | None = None
+) -> str:
+    """Build the step timeline: a header, then one row per step the run has reached.
+
+    Rendered whole on every update into a single placeholder, so a settled row keeps its
+    checkmark without any DOM bookkeeping. Only the newest row is given the enter
+    animation — the rest would replay their fade-in on every subsequent step.
+    """
+    header = THINKING_LABEL if running else thought_for(elapsed_seconds or 0)
+    dot = "pt-timeline__header-dot"
+    if running:
+        dot += " pt-timeline__header-dot--active"
+
+    rows = []
+    newest = len(steps) - 1
+    for index, label in enumerate(steps):
+        if running and index == newest:
+            icon = '<span class="pt-timeline__icon pt-timeline__icon--active"></span>'
+        else:
+            icon = '<span class="pt-timeline__icon pt-timeline__icon--done">✓</span>'
+        enter = " pt-timeline__row--enter" if index == newest else ""
+        rows.append(
+            f'<div class="pt-timeline__row{enter}">{icon}'
+            f'<span class="pt-timeline__text">{escape(label)}</span></div>'
+        )
+
     return (
         '<div class="pt-timeline">'
         '<div class="pt-timeline__header">'
-        '<span class="pt-timeline__header-dot pt-timeline__header-dot--active"></span>'
-        f'<span class="pt-timeline__header-text">{label}</span>'
-        "</div></div>"
+        f'<span class="{dot}"></span>'
+        f'<span class="pt-timeline__header-text">{escape(header)}</span>'
+        "</div>" + "".join(rows) + "</div>"
     )
 
 
@@ -110,6 +139,11 @@ def render_messages(messages: list[dict[str, Any]]) -> None:
         if role == "system":
             continue
         with st.chat_message(role, avatar=_AVATARS.get(role)):
+            # Only a turn taken in this browser session carries its steps; history
+            # reloaded from the API is the conversation, not how it was produced.
+            timeline = message.get("timeline")
+            if timeline:
+                st.markdown(timeline, unsafe_allow_html=True)
             st.markdown(message["content"])
 
 
@@ -135,77 +169,120 @@ def load_conversation(client: httpx.Client, session_id: str) -> None:
 
 
 def send_turn(client: httpx.Client, session_id: str, text: str) -> None:
-    """Send one message and stream the graph's reply into the chat window.
+    """Send one message and draw the turn: its steps as they happen, then its replies.
 
-    The reply may be an answer, a request for the profile fields still missing,
-    or the HITL review question — all of which arrive as text chunks, so this
+    The reply may be an answer, a request for the profile fields still missing, or the
+    plan and its review question — all of which arrive as message frames, so this
     function does not need to know which branch ran.
 
-    The user's own message is appended by the caller, which renders it before
-    calling in so it is on screen for the length of the turn.
+    The user's own message is appended by the caller, which renders it before calling in
+    so it is on screen for the length of the turn.
     """
-    thinking = st.empty()
-    thinking.markdown(thinking_html(), unsafe_allow_html=True)
-    chunks: list[str] = []
+    started = perf_counter()
+    steps: list[str] = []
+    parts: list[str] = []
+
+    # Opened before the assistant bubble: a stream that turns out to be a 401 is retried
+    # by ``with_session_retry``, and an empty bubble would already be on screen.
+    opening = st.empty()
+    opening.markdown(timeline_html(steps, running=True), unsafe_allow_html=True)
     try:
-        reply = _consume_stream(client, session_id, text, thinking, chunks)
+        frames = _open_chat_stream(client, session_id, text)
     except httpx.TimeoutException:
-        _finish_failed_turn(chunks, ERROR_COPY["chat_timeout"])
+        opening.empty()
+        _finish_failed_turn(parts, ERROR_COPY["chat_timeout"])
         return
     except (httpx.HTTPError, json.JSONDecodeError, KeyError) as exc:
-        _finish_failed_turn(chunks, f"⚠️ {ERROR_COPY['chat_failed']}: {_detail(exc)}")
+        opening.empty()
+        _finish_failed_turn(parts, f"⚠️ {ERROR_COPY['chat_failed']}: {_detail(exc)}")
         return
-    finally:
-        thinking.empty()
-    if not reply:
-        reply = _FALLBACK_REPLY
-        with st.chat_message("assistant", avatar=_AVATARS["assistant"]):
-            st.markdown(reply)
-    st.session_state.messages.append({"role": "assistant", "content": reply})
-    _refresh_conversation_names(client)
+    opening.empty()
+
+    with st.chat_message("assistant", avatar=_AVATARS["assistant"]):
+        timeline = st.empty()
+        body = st.empty()
+        timeline.markdown(timeline_html(steps, running=True), unsafe_allow_html=True)
+
+        failure: str | None = None
+        try:
+            _consume_stream(frames, steps, parts, timeline, body)
+        except httpx.TimeoutException:
+            failure = ERROR_COPY["chat_timeout"]
+        except (httpx.HTTPError, json.JSONDecodeError, KeyError) as exc:
+            failure = f"⚠️ {ERROR_COPY['chat_failed']}: {_detail(exc)}"
+
+        if failure:
+            parts.append(failure)
+        settled = timeline_html(
+            steps, running=False, elapsed_seconds=perf_counter() - started
+        )
+        timeline.markdown(settled, unsafe_allow_html=True)
+
+        reply = _joined(parts) or _FALLBACK_REPLY
+        body.markdown(reply)
+
+    st.session_state.messages.append(
+        {"role": "assistant", "content": reply, "timeline": settled}
+    )
+    if failure is None:
+        _refresh_conversation_names(client)
+
+
+def _joined(parts: list[str]) -> str:
+    """Join a turn's replies into the one message the transcript keeps.
+
+    Blank-line separated rather than concatenated: the frames are whole messages, and
+    running them together turns a plan and the question about it into one paragraph.
+    """
+    return "\n\n".join(part for part in parts if part)
 
 
 def _open_chat_stream(
     client: httpx.Client, session_id: str, text: str
-) -> tuple[str | None, Iterator[str]]:
-    """Start a streamed turn, reminting the session token once on 401."""
+) -> Iterator[dict[str, Any]]:
+    """Start a streamed turn, reminting the session token once on 401.
 
-    def call(token: str) -> tuple[str | None, Iterator[str]]:
+    The first frame is pulled here because that is what makes the request happen: an
+    expired token is a 401 on the response, not on building the generator.
+    """
+
+    def call(token: str) -> Iterator[dict[str, Any]]:
         stream = api_client.send_message_stream(client, token, text)
-        return next(stream, None), stream
+        first = next(stream, None)
+        return stream if first is None else chain([first], stream)
 
     return with_session_retry(client, call, session_id=session_id)
 
 
 def _consume_stream(
-    client: httpx.Client,
-    session_id: str,
-    text: str,
-    thinking: Any,
-    chunks: list[str],
-) -> str:
-    """Read one streamed turn into the chat window."""
-    first, rest = _open_chat_stream(client, session_id, text)
-    if first is None:
-        return ""
-    thinking.empty()
-    chunks.append(first)
+    frames: Iterator[dict[str, Any]],
+    steps: list[str],
+    parts: list[str],
+    timeline: Any,
+    body: Any,
+) -> None:
+    """Read one streamed turn, growing the timeline and the reply as frames arrive."""
+    for frame in frames:
+        if frame.get("type") == StreamEventType.STEP:
+            label = frame.get("label")
+            if label:
+                steps.append(label)
+                timeline.markdown(
+                    timeline_html(steps, running=True), unsafe_allow_html=True
+                )
+            continue
 
-    def tokens() -> Iterator[str]:
-        yield first
-        for chunk in rest:
-            chunks.append(chunk)
-            yield chunk
-
-    with st.chat_message("assistant", avatar=_AVATARS["assistant"]):
-        return str(st.write_stream(tokens()) or "")
+        content = frame.get("content")
+        if content:
+            parts.append(content)
+            body.markdown(_joined(parts))
 
 
-def _finish_failed_turn(chunks: list[str], error_text: str) -> None:
+def _finish_failed_turn(parts: list[str], error_text: str) -> None:
     """Keep any partial answer, then show the error as its own message."""
-    if chunks:
+    if parts:
         st.session_state.messages.append(
-            {"role": "assistant", "content": "".join(chunks)}
+            {"role": "assistant", "content": _joined(parts)}
         )
     st.session_state.messages.append({"role": "assistant", "content": error_text})
     with st.chat_message("assistant", avatar=_AVATARS["assistant"]):
@@ -231,6 +308,6 @@ __all__ = [
     "render_messages",
     "run_guarded_backend_action",
     "send_turn",
-    "thinking_html",
+    "timeline_html",
     "with_session_retry",
 ]

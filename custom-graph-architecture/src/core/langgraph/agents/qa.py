@@ -23,7 +23,6 @@ class QaUpdate(TypedDict):
 
     qa_answer: str | None
     retrieved_context: list[RetrievedChunk]
-    messages: list[AnyMessage]
 
 
 @lru_cache
@@ -97,17 +96,11 @@ async def qa_agent(state: GraphState) -> QaUpdate:
         )
     except Exception as error:
         logger.exception("qa_agent_failed", user_id=state["user_id"], error=str(error))
-        return {"qa_answer": None, "retrieved_context": [], "messages": []}
+        return {"qa_answer": None, "retrieved_context": []}
 
     messages = result.get("messages", [])
     passages = retrieved_passages(messages)
 
     answer = answer_text(messages)
-    if answer is None:
-        return {"qa_answer": None, "retrieved_context": passages, "messages": []}
 
-    return {
-        "qa_answer": answer,
-        "retrieved_context": passages,
-        "messages": [AIMessage(content=answer)],
-    }
+    return {"qa_answer": answer, "retrieved_context": passages}

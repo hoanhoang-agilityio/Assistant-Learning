@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import TypedDict
 
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
+from langchain_core.messages import AnyMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 
@@ -23,14 +23,12 @@ from src.utils.logging import logger
 
 COACH_AGENT_NAME = "coach_agent"
 NO_PROFILE = "none on record"
-PLAN_READY_MESSAGE = "I've put your training plan together."
 
 
 class CoachUpdate(TypedDict):
     """The state ``coach_agent`` writes."""
 
     plan: dict | None
-    messages: list[AnyMessage]
 
 
 @lru_cache
@@ -113,13 +111,10 @@ async def coach_agent(state: GraphState) -> CoachUpdate:
         logger.exception(
             "coach_agent_failed", user_id=state["user_id"], error=str(error)
         )
-        return {"plan": None, "messages": []}
+        return {"plan": None}
 
     plan = result.get("structured_response")
     if not isinstance(plan, TrainingPlan):
-        return {"plan": None, "messages": []}
+        return {"plan": None}
 
-    return {
-        "plan": plan.model_dump(),
-        "messages": [AIMessage(content=plan.summary or PLAN_READY_MESSAGE)],
-    }
+    return {"plan": plan.model_dump()}

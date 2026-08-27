@@ -9,6 +9,7 @@ from src.constants.routes import (
     PROFILE_ROUTES,
     VERIFICATION_ROUTES,
 )
+from src.constants.steps import STEP_LABELS
 
 __all__ = [
     "CONTEXT_ROUTES",
@@ -17,5 +18,6 @@ __all__ = [
     "HITL_ROUTES",
     "PARSE_ROUTES",
     "PROFILE_ROUTES",
+    "STEP_LABELS",
     "VERIFICATION_ROUTES",
 ]

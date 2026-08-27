@@ -46,7 +46,14 @@ from src.core.langgraph.nodes.parse_turn import (
     route_after_parse,
     sticky_intent,
 )
+from src.core.langgraph.nodes.persist_preferences import persist_preferences
 from src.core.langgraph.nodes.persist_profile import persist_profile
+from src.core.langgraph.nodes.present_plan import (
+    PLAN_READY_MESSAGE,
+    PLAN_REVIEW_ASK,
+    build_plan_message,
+    present_plan,
+)
 from src.core.langgraph.nodes.profile_collection_exhausted import (
     build_exhausted_message,
     profile_collection_exhausted,
@@ -84,6 +91,8 @@ __all__ = [
     "NOTIFY_FAIL_OUTRO",
     "NO_PLAN_MESSAGE",
     "OFF_TOPIC_MESSAGE",
+    "PLAN_READY_MESSAGE",
+    "PLAN_REVIEW_ASK",
     "PLAN_SAVED_MESSAGE",
     "QA_FALLBACK_NO_CONTEXT",
     "QA_FALLBACK_OUTRO",
@@ -94,6 +103,7 @@ __all__ = [
     "build_exhausted_message",
     "build_missing_info_request",
     "build_notify_fail_message",
+    "build_plan_message",
     "build_qa_fallback_message",
     "check_profile_complete",
     "deterministic_verification",
@@ -110,7 +120,9 @@ __all__ = [
     "notify_fail",
     "off_topic",
     "parse_turn",
+    "persist_preferences",
     "persist_profile",
+    "present_plan",
     "profile_collection_exhausted",
     "qa_fallback",
     "request_missing_profile_fields",

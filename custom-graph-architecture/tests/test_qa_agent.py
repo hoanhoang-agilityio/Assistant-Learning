@@ -184,7 +184,10 @@ async def test_the_conversation_records_the_answer_once(
 
     actual_update = await qa_agent(_state())
 
-    assert [message.content for message in actual_update["messages"]] == [ANSWER]
+    # No message of its own: an answer still has to clear the faithfulness gate, and one
+    # written here would leave every unfaithful attempt in the conversation.
+    assert actual_update["qa_answer"] == ANSWER
+    assert "messages" not in actual_update
 
 
 async def test_an_agent_that_said_nothing_writes_no_answer(
@@ -195,11 +198,7 @@ async def test_an_agent_that_said_nothing_writes_no_answer(
         qa_module, "build_qa_agent", _agent_returns(AIMessage(content="   "))
     )
 
-    assert await qa_agent(_state()) == {
-        "qa_answer": None,
-        "retrieved_context": [],
-        "messages": [],
-    }
+    assert await qa_agent(_state()) == {"qa_answer": None, "retrieved_context": []}
 
 
 async def test_a_failed_agent_leaves_no_answer_rather_than_raising(
@@ -213,11 +212,7 @@ async def test_a_failed_agent_leaves_no_answer_rather_than_raising(
 
     monkeypatch.setattr(qa_module, "build_qa_agent", _Exploding)
 
-    assert await qa_agent(_state()) == {
-        "qa_answer": None,
-        "retrieved_context": [],
-        "messages": [],
-    }
+    assert await qa_agent(_state()) == {"qa_answer": None, "retrieved_context": []}
 
 
 async def test_a_failed_attempt_does_not_keep_the_rejected_answer(

@@ -11,7 +11,8 @@ flowchart TD
     load_user_context --> merge_profile
     off_topic --> finish
     merge_profile --> persist_profile
-    persist_profile -->|qa| qa_agent
+    persist_profile --> persist_preferences
+    persist_preferences -->|qa| qa_agent
     qa_agent --> verify_faithfulness
     verify_faithfulness -->|pass| finalize_turn
     verify_faithfulness -->|retry| qa_agent

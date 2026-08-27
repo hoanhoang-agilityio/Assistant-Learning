@@ -6,20 +6,14 @@ from langchain_core.messages import AnyMessage, HumanMessage
 from langgraph.types import interrupt
 
 from src.core.configs.config import settings
+from src.core.langgraph.nodes.present_plan import PLAN_REVIEW_ASK
 from src.enums import HitlRoute
 from src.schemas import (
     GraphState,
     HitlDecision,
-    TrainingPlan,
 )
-from src.services.plan_presentation import render_plan_markdown
 
 HITL_REVIEW_INTERRUPT = "hitl_review"
-
-HITL_REVIEW_MESSAGE = (
-    "Here's your plan! Take a look and let me know what you think. "
-    "If you'd like anything changed, just tell me and I'll adjust it for you."
-)
 
 
 class HitlReviewInterrupt(TypedDict):
@@ -37,15 +31,6 @@ class HitlReviewUpdate(TypedDict):
     hitl_feedback: str | None
     hitl_retry_count: int
     messages: list[AnyMessage]
-
-
-async def _review_message(plan: dict | None) -> str:
-    """The review prompt, with the plan itself rendered ahead of it when there is one."""
-
-    if not plan:
-        return HITL_REVIEW_MESSAGE
-    markdown = await render_plan_markdown(TrainingPlan.model_validate(plan))
-    return f"{markdown}\n\n{HITL_REVIEW_MESSAGE}"
 
 
 def _parse_decision(reply: Any) -> tuple[HitlDecision, str | None]:
@@ -71,7 +56,7 @@ async def hitl_review(state: GraphState) -> HitlReviewUpdate:
         HitlReviewInterrupt(
             type=HITL_REVIEW_INTERRUPT,
             plan=plan,
-            message=await _review_message(plan),
+            message=PLAN_REVIEW_ASK,
         )
     )
 

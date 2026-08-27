@@ -133,3 +133,44 @@ classifier accuracy checks are all passing.
 | 27/08 | Make `persist_profile` synchronous and unconditional | 0.5 | 0.5 | Done |
 | 27/08 | Add `finalize_turn`: persist the approved plan, settle `final_message` | 1 | 1 | Done |
 | 27/08 | Remove `write_todo` and the todo service/prompt | 0.5 | 0.5 | Done |
+
+## Milestone 12 — Post-test bug fixing (20h)
+
+Group A — turn output pipeline (`facade` seam: one reply per turn, persisted, streamed).
+
+| Date | Task | Est | Actual | Status |
+|---|---|---|---|---|
+| 28/08 | Stop every retry attempt leaving its own reply; one answer per turn | 1.5 | 1.5 | Done |
+| 28/08 | Add `present_plan`: persist the rendered plan and the review ask as a message | 1.5 | 1.5 | Done |
+| 28/08 | Dedupe the interrupt question against the replies that already carry it | 0.5 | 0.5 | Done |
+| 28/08 | Stream the run with `astream`; typed SSE frames (`step` / `message` / `done`) | 2 | 2 | Done |
+| 28/08 | Node → user-facing step labels, internal nodes withheld | 0.5 | 0.5 | Done |
+| 28/08 | Render the live step timeline in the UI against the existing styles | 1.5 | 1.5 | Done |
+| 28/08 | Tests for the facade turn-reply and streaming seam | 1 | 1 | Done |
+
+Group B — context & state size.
+
+| Date | Task | Est | Actual | Status |
+|---|---|---|---|---|
+| 29/08 | Trim conversation history before it reaches the coach and QA agents | 1.5 | | Todo |
+| 29/08 | Shrink `load_exercise` and `load_template` payloads | 1 | | Todo |
+| 29/08 | Send only the failing days back on a verification retry | 1 | | Todo |
+| 29/08 | Record per-node and per-turn token usage in Langfuse | 0.5 | | Todo |
+| 29/08 | Slim `GraphState`: stop rewriting `plan` per attempt, drop derivable keys | 1.5 | | Todo |
+| 29/08 | Rewrite the three prompts: one instruction per line, shared security block | 1 | | Todo |
+
+Group C — session & input handling.
+
+| Date | Task | Est | Actual | Status |
+|---|---|---|---|---|
+| 29/08 | Name a conversation from its first turn instead of "New chat" | 1.5 | | Todo |
+| 29/08 | Cap the chat input and align it with `GUARD_MAX_INPUT_TOKENS` | 0.5 | | Todo |
+
+Group D — long-term memory. `recall_memory` reads two scopes; nothing has ever written
+either, so it answers "nothing recorded" for every user.
+
+| Date | Task | Est | Actual | Status |
+|---|---|---|---|---|
+| 29/08 | Record the preferences a turn states, in the parse call that already runs | 2 | 2 | Done |
+| 29/08 | Narrow `recall_memory` to the one scope something writes | 0.5 | | Todo |
+| 29/08 | Name the writer of every memory scope in the plan doc | 0.5 | | Todo |

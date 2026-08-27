@@ -21,6 +21,7 @@ from src.enums.routes import (
     ProfileRoute,
     VerificationRoute,
 )
+from src.enums.stream import StreamEventType
 
 __all__ = [
     "ActivityLevel",
@@ -39,5 +40,6 @@ __all__ = [
     "ProfileRoute",
     "RestrictionAction",
     "Sex",
+    "StreamEventType",
     "VerificationRoute",
 ]
