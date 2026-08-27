@@ -177,7 +177,16 @@ class Settings(BaseSettings):
     MAX_TOKENS: int = 2000
     COACH_MAX_TOKENS: int = 8000
     QA_MAX_TOKENS: int = 2000
+    # Attempts, not retries: 3 means one call and two more if the first two fail with
+    # something transient. The agent middleware takes retries-after-the-first, so it is
+    # handed this minus one.
     MAX_LLM_CALL_RETRIES: int = 3
+    # Retries after the first tool call. A tool failure is handed back to the model as a
+    # tool message once the budget is spent, so the agent can recover rather than die.
+    TOOL_MAX_RETRIES: int = 2
+    # A bound on the agent's own tool loop, so a model that keeps calling tools without
+    # answering costs a finite number of inferences rather than the whole rate limit.
+    AGENT_MAX_MODEL_CALLS: int = 25
     LLM_TOTAL_TIMEOUT: int = 60
 
     # --- Input guard (spec §1 `guard_input`, §9 "Guard failure → Block request") --------

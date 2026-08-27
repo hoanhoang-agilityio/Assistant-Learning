@@ -402,7 +402,7 @@ def compiled(monkeypatch: pytest.MonkeyPatch):
 
     def _build(*script: AIMessage):
         model = _ScriptedModel(responses=list(script))
-        monkeypatch.setattr(coach_module, "ChatOpenAI", lambda **kwargs: model)
+        monkeypatch.setattr(coach_module, "chat_model", lambda **kwargs: model)
         return coach_module.build_coach_agent(), model
 
     return _build
@@ -497,17 +497,17 @@ def test_the_agent_is_built_once_rather_than_per_turn(compiled) -> None:
     assert coach_module.build_coach_agent() is agent
 
 
-def test_the_configured_model_and_token_ceiling_are_the_ones_built(
+def test_the_token_ceiling_is_the_configured_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A hardcoded model is a deployment setting nobody can turn."""
+    """The coach's token ceiling is a deployment setting, not a number baked into the agent."""
     captured: dict = {}
 
     def _record(**kwargs: Any) -> _ScriptedModel:
         captured.update(kwargs)
         return _ScriptedModel(responses=[AIMessage(content="done")])
 
-    monkeypatch.setattr(coach_module, "ChatOpenAI", _record)
+    monkeypatch.setattr(coach_module, "chat_model", _record)
     coach_module.build_coach_agent()
 
-    assert captured["model"] == settings.DEFAULT_LLM_MODEL
+    assert captured["max_tokens"] == settings.COACH_MAX_TOKENS

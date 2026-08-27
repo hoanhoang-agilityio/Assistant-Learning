@@ -5,7 +5,6 @@ from typing import TypedDict
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
-from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 
@@ -17,6 +16,7 @@ from src.core.langgraph.prompts import (
 )
 from src.core.langgraph.prompts.coach_agent import NO_SLOTS_TO_FIX
 from src.core.langgraph.tools import COACH_TOOLS
+from src.core.llm import agent_middleware, chat_model
 from src.schemas import CoachContext, GraphState, TrainingPlan, UserProfile
 from src.services.nutrition import calc_macros
 from src.utils.logging import logger
@@ -37,15 +37,10 @@ class CoachUpdate(TypedDict):
 def build_coach_agent() -> CompiledStateGraph:
     """Build the coach agent once, with its tools and its plan schema bound."""
 
-    model = ChatOpenAI(
-        api_key=settings.OPENAI_API_KEY,
-        model=settings.DEFAULT_LLM_MODEL,
-        max_completion_tokens=settings.COACH_MAX_TOKENS,
-    )
-
     return create_agent(
-        model=model,
+        model=chat_model(max_tokens=settings.COACH_MAX_TOKENS),
         tools=COACH_TOOLS,
+        middleware=agent_middleware(),
         system_prompt=COACH_AGENT_SYSTEM,
         response_format=TrainingPlan,
         context_schema=CoachContext,

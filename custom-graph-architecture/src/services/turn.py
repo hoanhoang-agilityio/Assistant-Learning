@@ -3,11 +3,11 @@
 from functools import lru_cache
 from typing import Literal, get_args
 
-from langchain_openai import ChatOpenAI
+from langchain_core.runnables import Runnable
 from pydantic import BaseModel, Field
 
-from src.core.configs.config import settings
 from src.core.langgraph.prompts import build_turn_parser_messages
+from src.core.llm import chat_model, with_retry_policy
 from src.enums import (
     ActivityLevel,
     FitnessGoal,
@@ -80,12 +80,9 @@ class TurnParse(ProfileStatement):
 
 
 @lru_cache
-def _build_parser() -> ChatOpenAI:
-    """Build the shared turn-parser model from application settings."""
-    return ChatOpenAI(
-        api_key=settings.OPENAI_API_KEY,
-        model=settings.DEFAULT_LLM_MODEL,
-    )
+def _build_parser() -> Runnable:
+    """The shared turn parser: the structured-output model under the shared retry policy."""
+    return with_retry_policy(chat_model().with_structured_output(TurnParse))
 
 
 async def parse_user_turn(
@@ -97,8 +94,7 @@ async def parse_user_turn(
         return TurnParse(intent=DEFAULT_INTENT)
 
     try:
-        parser = _build_parser().with_structured_output(TurnParse)
-        return await parser.ainvoke(
+        return await _build_parser().ainvoke(
             build_turn_parser_messages(user_message, fields_in_focus)
         )
     except Exception as error:

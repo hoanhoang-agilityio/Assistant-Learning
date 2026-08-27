@@ -6,7 +6,7 @@ from openai import AuthenticationError
 
 from src.core.configs.config import settings
 from src.core.langgraph.prompts import build_turn_parser_messages
-from src.services.turn import TurnParse, _build_parser
+from src.services.turn import _build_parser
 
 
 @pytest.fixture(autouse=True)
@@ -38,8 +38,7 @@ async def require_openai_key() -> None:
     if not settings.OPENAI_API_KEY:
         pytest.skip("OPENAI_API_KEY missing: skipping LLM integration tests")
     try:
-        parser = _build_parser().with_structured_output(TurnParse)
-        await parser.ainvoke(
+        await _build_parser().ainvoke(
             build_turn_parser_messages("How much protein should I eat?")
         )
     except AuthenticationError as exc:

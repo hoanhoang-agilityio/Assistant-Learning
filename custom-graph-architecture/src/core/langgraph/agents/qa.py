@@ -5,12 +5,12 @@ from typing import TypedDict
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
-from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
 
 from src.core.configs.config import settings
 from src.core.langgraph.prompts import QA_AGENT_SYSTEM, as_prompt_json, build_qa_context
 from src.core.langgraph.tools import QA_TOOLS, search_knowledge
+from src.core.llm import agent_middleware, chat_model
 from src.schemas import GraphState, QaContext, RetrievedChunk
 from src.utils.logging import logger
 
@@ -30,15 +30,10 @@ class QaUpdate(TypedDict):
 def build_qa_agent() -> CompiledStateGraph:
     """Build the QA agent once, with its knowledge tools bound."""
 
-    model = ChatOpenAI(
-        api_key=settings.OPENAI_API_KEY,
-        model=settings.DEFAULT_LLM_MODEL,
-        max_completion_tokens=settings.QA_MAX_TOKENS,
-    )
-
     return create_agent(
-        model=model,
+        model=chat_model(max_tokens=settings.QA_MAX_TOKENS),
         tools=QA_TOOLS,
+        middleware=agent_middleware(),
         system_prompt=QA_AGENT_SYSTEM,
         context_schema=QaContext,
         name=QA_AGENT_NAME,

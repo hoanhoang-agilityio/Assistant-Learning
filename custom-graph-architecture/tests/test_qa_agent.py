@@ -307,7 +307,7 @@ def compiled(monkeypatch: pytest.MonkeyPatch):
 
     def _build(*script: AIMessage):
         model = _ScriptedModel(responses=list(script))
-        monkeypatch.setattr(qa_module, "ChatOpenAI", lambda **kwargs: model)
+        monkeypatch.setattr(qa_module, "chat_model", lambda **kwargs: model)
         return qa_module.build_qa_agent(), model
 
     return _build
@@ -367,21 +367,20 @@ def test_the_agent_is_built_once_rather_than_per_turn(compiled) -> None:
     assert qa_module.build_qa_agent() is agent
 
 
-def test_the_configured_model_and_token_ceiling_are_the_ones_built(
+def test_the_token_ceiling_is_the_configured_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A hardcoded model is a deployment setting nobody can turn."""
+    """The QA agent's token ceiling is a deployment setting, not a number baked into the agent."""
     captured: dict = {}
 
     def _record(**kwargs: Any) -> _ScriptedModel:
         captured.update(kwargs)
         return _ScriptedModel(responses=[AIMessage(content=ANSWER)])
 
-    monkeypatch.setattr(qa_module, "ChatOpenAI", _record)
+    monkeypatch.setattr(qa_module, "chat_model", _record)
     qa_module.build_qa_agent()
 
-    assert captured["model"] == settings.DEFAULT_LLM_MODEL
-    assert captured["max_completion_tokens"] == settings.QA_MAX_TOKENS
+    assert captured["max_tokens"] == settings.QA_MAX_TOKENS
 
 
 async def test_the_retrieved_passages_are_written_to_state(

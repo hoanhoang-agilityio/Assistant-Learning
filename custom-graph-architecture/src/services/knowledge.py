@@ -2,17 +2,16 @@
 
 import hashlib
 import re
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from docx import Document
-from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pydantic import BaseModel
 from sqlmodel import select
 
 from src.core.configs.config import settings
+from src.core.llm import embedding_model as embedder
 from src.models.knowledge import KnowledgeChunk
 from src.schemas import RetrievedChunk
 from src.services.database import session_factory
@@ -61,7 +60,7 @@ def _slug(value: str) -> str:
 
 
 def _title(value: str) -> str:
-    """Tidy a document title into the citation the user sees. """
+    """Tidy a document title into the citation the user sees."""
 
     return " ".join(value.replace("_", " ").split())
 
@@ -165,17 +164,6 @@ def chunk_directory(directory: Path = KNOWLEDGE_DIR) -> list[Chunk]:
     return chunks
 
 
-@lru_cache
-def embedder() -> OpenAIEmbeddings:
-    """The embedding client, shared by the seeder and by retrieval."""
-
-    return OpenAIEmbeddings(
-        model=settings.KNOWLEDGE_EMBEDDER_MODEL,
-        api_key=settings.OPENAI_API_KEY,
-        dimensions=settings.KNOWLEDGE_EMBEDDING_DIM,
-    )
-
-
 async def embed_chunks(chunks: list[Chunk]) -> list[dict[str, Any]]:
     """Embed the passages and return them shaped as ``knowledge_chunks`` rows."""
 
@@ -237,8 +225,7 @@ def deduplicate(passages: list[RetrievedChunk]) -> list[RetrievedChunk]:
 
     for passage in passages:
         if not any(
-            overlap(passage["text"], other["text"]
-                    ) >= settings.KNOWLEDGE_MAX_OVERLAP
+            overlap(passage["text"], other["text"]) >= settings.KNOWLEDGE_MAX_OVERLAP
             for other in kept
         ):
             kept.append(passage)
@@ -262,8 +249,7 @@ async def search(query: str, top_k: int | None = None) -> list[RetrievedChunk]:
         return []
 
     relevant = [
-        RetrievedChunk(text=chunk.text, source=chunk.source,
-                       score=round(score, 4))
+        RetrievedChunk(text=chunk.text, source=chunk.source, score=round(score, 4))
         for chunk, score in rows
         if score >= settings.KNOWLEDGE_MIN_SCORE
     ]
