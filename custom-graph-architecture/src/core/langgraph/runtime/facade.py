@@ -24,7 +24,7 @@ _EXPORTABLE_ROLES = {"user", "assistant", "system"}
 # than scattered across the node lines the turn happened to produce.
 _TURN_OUTCOME_FIELDS = (
     "intent",
-    "guard_blocked",
+    "block_reason",
     "faithfulness_score",
     "coach_retry_count",
     "qa_retry_count",

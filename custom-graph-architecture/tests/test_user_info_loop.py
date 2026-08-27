@@ -70,7 +70,7 @@ async def test_an_answered_question_completes_the_context(
 
     result = await loop.ainvoke(Command(resume="34, male, 178cm, 82kg, 4 days"), CONFIG)
 
-    assert result["context_complete"] is True
+    assert result["missing_fields"] == []
     assert result["profile"] == COMPLETE_PROFILE
     assert not _asked_for_missing_info(result)
 
@@ -89,7 +89,7 @@ async def test_an_answer_persists_beyond_the_thread_it_was_given_in(
         {"configurable": {"thread_id": "second-conversation"}},
     )
 
-    assert fresh["context_complete"] is True
+    assert fresh["missing_fields"] == []
     assert not _asked_for_missing_info(fresh)
 
 

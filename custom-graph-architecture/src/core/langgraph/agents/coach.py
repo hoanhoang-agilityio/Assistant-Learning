@@ -112,11 +112,11 @@ def _narrowed_plan(plan: dict | None, failing_days: set[int]) -> dict | None:
 
 
 def _merge_revised_days(plan: dict, revised: dict, failing_days: set[int]) -> dict:
-    """The plan to store: the agent's revision for the days it was asked to fix, every other day exactly as it was."""
+    """The plan to store: the agent's revision for the days it was asked to fix, every other day and every top-level field exactly as it was."""
 
     revised_days = {day["day_number"]: day for day in revised["training_days"]}
     return {
-        **revised,
+        **plan,
         "training_days": [
             revised_days[day["day_number"]]
             if day["day_number"] in failing_days and day["day_number"] in revised_days

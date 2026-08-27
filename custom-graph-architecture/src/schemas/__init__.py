@@ -38,6 +38,8 @@ from src.schemas.graph import (
     QaContext,
     RetrievedChunk,
     initial_state,
+    is_blocked,
+    is_context_complete,
 )
 from src.schemas.health import HealthResponse
 
@@ -79,4 +81,6 @@ __all__ = [
     "WorkoutDayTemplate",
     "WorkoutTemplate",
     "initial_state",
+    "is_blocked",
+    "is_context_complete",
 ]

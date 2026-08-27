@@ -44,13 +44,11 @@ class GraphState(AgentState):
     # --- Intent & guard ----------------------------------------------------------------
     intent: NotRequired[Intent | None]
     extracted_facts: NotRequired[dict | None]
-    guard_blocked: NotRequired[bool]
     block_reason: NotRequired[str | None]
 
     # --- User context ------------------------------------------------------------------
     profile: NotRequired[dict | None]
     plan: NotRequired[dict | None]
-    context_complete: NotRequired[bool]
     missing_fields: NotRequired[list[str]]
     revision_fields: NotRequired[list[str]]
     user_info_retry_count: NotRequired[int]
@@ -86,11 +84,9 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         user_id=user_id,
         intent=None,
         extracted_facts=None,
-        guard_blocked=False,
         block_reason=None,
         profile=None,
         plan=None,
-        context_complete=False,
         missing_fields=[],
         revision_fields=[],
         user_info_retry_count=0,
@@ -105,3 +101,13 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         qa_retry_count=0,
         final_message=None,
     )
+
+
+def is_blocked(state: GraphState) -> bool:
+    """Whether the guard rejected this turn, read off the reason rather than a flag."""
+    return state.get("block_reason") is not None
+
+
+def is_context_complete(state: GraphState) -> bool:
+    """Whether the profile has everything the coach needs, read off what is still missing."""
+    return not state.get("missing_fields")

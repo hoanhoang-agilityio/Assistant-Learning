@@ -64,7 +64,7 @@ def _state(**overrides: object) -> GraphState:
     return initial_state("build me a 4 day plan", USER_ID) | {
         "profile": COMPLETE_PROFILE,
         "plan": None,
-        "context_complete": True,
+        "missing_fields": [],
         **overrides,
     }
 
@@ -517,6 +517,29 @@ async def test_a_day_the_retry_was_not_asked_to_touch_is_ignored_even_if_returne
 
     days = {day["day_number"]: day for day in actual_update["plan"]["training_days"]}
     assert days[1] == TWO_DAY_PLAN["training_days"][0]
+
+
+async def test_a_narrowed_retry_does_not_rewrite_the_stored_plan_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The agent only saw day 2; its restated `daily_calories` is a guess, not a source."""
+    revised_plan = TrainingPlan.model_validate(
+        {
+            **TWO_DAY_PLAN,
+            "daily_calories": 1800,
+            "macros": {"protein_g": 100.0, "carbs_g": 150.0, "fat_g": 40.0},
+            "training_days": [TWO_DAY_PLAN["training_days"][1]],
+        }
+    )
+    monkeypatch.setattr(coach_module, "build_coach_agent", _agent_returns(revised_plan))
+    state = _state(
+        plan=TWO_DAY_PLAN, verification_result=_day_error(2, slot_id="d2-s1")
+    )
+
+    actual_update = await coach_agent(state)
+
+    assert actual_update["plan"]["daily_calories"] == TWO_DAY_PLAN["daily_calories"]
+    assert actual_update["plan"]["macros"] == TWO_DAY_PLAN["macros"]
 
 
 # --- Binding ------------------------------------------------------------------------------

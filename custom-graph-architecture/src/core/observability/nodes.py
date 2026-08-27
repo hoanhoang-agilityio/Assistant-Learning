@@ -27,9 +27,7 @@ NodeFn = Callable[[GraphState], Awaitable[dict[str, Any]]]
 # run happened to be carrying when it ran.
 TRACKED_FIELDS: tuple[str, ...] = (
     "intent",
-    "guard_blocked",
     "block_reason",
-    "context_complete",
     "missing_fields",
     "user_info_retry_count",
     "coach_retry_count",

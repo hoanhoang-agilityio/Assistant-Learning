@@ -10,17 +10,21 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
-from src.schemas import GraphState, RetrievedChunk, initial_state
+from src.schemas import (
+    GraphState,
+    RetrievedChunk,
+    initial_state,
+    is_blocked,
+    is_context_complete,
+)
 
 SPEC_FIELDS = {
     "user_query",
     "user_id",
     "intent",
-    "guard_blocked",
     "block_reason",
     "profile",
     "plan",
-    "context_complete",
     "missing_fields",
     "revision_fields",
     "coach_retry_count",
@@ -141,6 +145,32 @@ async def test_state_round_trips_through_a_checkpointer() -> None:
     assert restored["qa_retry_count"] == 1
     assert restored["verification_result"] == {"passed": True, "errors": []}
     assert restored["final_message"] == "1.6 g/kg"
+
+
+@pytest.mark.parametrize(
+    ("block_reason", "expected"), [(None, False), ("banned topic", True)]
+)
+def test_is_blocked_reads_the_reason_not_a_flag(
+    block_reason: str | None, expected: bool
+) -> None:
+    """`guard_blocked` was dropped: the reason alone tells routing whether to stop."""
+    state = initial_state("hello", "user-1") | {"block_reason": block_reason}
+
+    assert is_blocked(state) is expected
+
+
+@pytest.mark.parametrize(
+    ("missing_fields", "expected"), [([], True), (["goal"], False)]
+)
+def test_is_context_complete_reads_missing_fields_not_a_flag(
+    missing_fields: list[str], expected: bool
+) -> None:
+    """`context_complete` was dropped: an empty missing-fields list is completeness."""
+    state = initial_state("build me a plan", "user-1") | {
+        "missing_fields": missing_fields
+    }
+
+    assert is_context_complete(state) is expected
 
 
 async def test_a_branch_update_leaves_other_branches_untouched() -> None:

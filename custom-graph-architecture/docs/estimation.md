@@ -156,7 +156,7 @@ Group B — context & state size.
 | 29/08 | Shrink `load_exercise` and `load_template` payloads | 1 | 0.75 | Done |
 | 29/08 | Send only the failing days back on a verification retry | 1 | 1 | Done |
 | 29/08 | Record per-node and per-turn token usage in Langfuse | 0.5 | | Todo |
-| 29/08 | Slim `GraphState`: stop rewriting `plan` per attempt, drop derivable keys | 1.5 | | Todo |
+| 29/08 | Slim `GraphState`: stop rewriting `plan` per attempt, drop derivable keys | 1.5 | 1 | Done |
 | 29/08 | Rewrite the three prompts: one instruction per line, shared security block | 1 | 1 | Done |
 
 Group C — session & input handling.
