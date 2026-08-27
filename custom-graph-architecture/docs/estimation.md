@@ -104,14 +104,15 @@ classifier accuracy checks are all passing.
 | 27/08 | Data migration scripts / seed nutrition & injury knowledge base | 1 | 1 | Done |
 | 27/08 | Integration test: short-term (checkpoint) vs long-term memory separation | 1 | 1 | Done |
 
-## Milestone 9 — Observability & error handling (4h)
+## Milestone 9 — Observability & error handling (4.5h)
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| 27/08 | Integrate Langfuse tracing across nodes, agents, and tool calls | 1 | | Todo |
-| 27/08 | Track `run_id`, `user_id`, `intent`, retry counts, verification & RAGAS results | 1 | | Todo |
-| 27/08 | Implement centralized error handling (LLM/tool failure retry policy) | 1 | | Todo |
-| 28/08 | Latency tracking & final result logging | 1 | | Todo |
+| 27/08 | Integrate Langfuse tracing across nodes, agents, and tool calls | 1 | 1 | Done |
+| 27/08 | Track `run_id`, `user_id`, `intent`, retry counts, verification & RAGAS results | 1 | 1 | Done |
+| 27/08 | Implement centralized error handling (LLM/tool failure retry policy) | 1 | 1.5 | Done |
+| 27/08 | Centralise model construction in `src/core/llm.py` (one factory, one retry policy) | 0.5 | 0.5 | Done |
+| 27/08 | Latency tracking & final result logging | 1 | 1 | Done |
 
 ## Milestone 10 — Integration testing, refactor & bug fixing (8h)
 

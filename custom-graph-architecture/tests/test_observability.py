@@ -5,17 +5,24 @@ unconfigured, bad credentials, an exception inside the SDK — must leave the ap
 tracing off, not raise.
 """
 
+from dataclasses import dataclass, field
+from time import perf_counter
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+import structlog
 
 from src.core.configs.config import settings
+from src.core.langgraph.runtime import facade
+from src.core.langgraph.runtime.facade import langgraph_runtime
 from src.core.observability import build_run_config, langfuse
 from src.core.observability.langfuse import (
     get_langfuse_callbacks,
     langfuse_init,
     langfuse_shutdown,
 )
+from src.core.observability.tracing import TURN_TRACE_NAME
 
 
 @pytest.fixture(autouse=True)
@@ -168,3 +175,105 @@ def test_run_config_has_no_callbacks_when_tracing_is_off() -> None:
     config = build_run_config(session_id="session-1", user_id="user-1")
 
     assert config["callbacks"] == []
+
+
+def test_the_trace_is_named_and_tagged_with_its_environment() -> None:
+    """Unnamed, every trace is titled after the compiled graph and none is findable."""
+    config = build_run_config(session_id="session-1", user_id="user-1")
+
+    assert config["run_name"] == TURN_TRACE_NAME
+    assert config["tags"] == [settings.ENVIRONMENT.value]
+
+
+# --- The turn's own line: latency and final result ----------------------------------------
+
+
+@dataclass
+class _FakeState:
+    """What ``aget_state`` returns, reduced to what the facade reads off it."""
+
+    values: dict[str, Any]
+    next: tuple = ()
+    tasks: tuple = ()
+
+
+@dataclass
+class _FakeGraph:
+    """A graph that has already run, parked at the state a turn settled on."""
+
+    values: dict[str, Any] = field(default_factory=dict)
+
+    async def aget_state(self, _config) -> _FakeState:
+        return _FakeState(values=self.values)
+
+
+@pytest.fixture
+def turn_log(monkeypatch: pytest.MonkeyPatch) -> dict:
+    """The keyword arguments of the ``turn_completed`` line, as the log store would see them.
+
+    The module logger is replaced rather than structlog reconfigured: the logger is cached
+    on first use, so a swapped processor chain never reaches the one the facade holds.
+    """
+    captured: dict = {}
+    recorder = MagicMock()
+    recorder.info.side_effect = lambda event, **fields: captured.update(
+        {"event": event, **fields}
+    )
+    monkeypatch.setattr(facade, "logger", recorder)
+    return captured
+
+
+async def _finish(values: dict[str, Any]) -> None:
+    """Run the facade's turn-completion path over a state a run has settled on."""
+    config = build_run_config("session-1", "user-1")
+    await langgraph_runtime._finish_turn(
+        _FakeGraph(values=values), config, before=0, started=perf_counter()
+    )
+
+
+async def test_a_finished_turn_reports_its_latency_and_what_the_user_saw(
+    turn_log,
+) -> None:
+    """Spec §10 asks for latency and the final result, which is one line per turn."""
+    await _finish({"messages": [], "final_message": "Your plan is saved."})
+
+    assert turn_log["event"] == "turn_completed"
+    assert turn_log["final_message"] == "Your plan is saved."
+    assert turn_log["duration_ms"] >= 0
+    assert turn_log["paused"] is False
+
+
+async def test_a_finished_turn_reports_the_counters_it_ended_on(turn_log) -> None:
+    """Retry counts on the turn line make a run comparable without reading its spans."""
+    await _finish(
+        {
+            "messages": [],
+            "intent": "coaching",
+            "coach_retry_count": 2,
+            "hitl_decision": "approve",
+        }
+    )
+
+    assert turn_log["intent"] == "coaching"
+    assert turn_log["coach_retry_count"] == 2
+    assert turn_log["hitl_decision"] == "approve"
+
+
+async def test_a_turn_that_never_reached_a_branch_reports_no_counters_for_it(
+    turn_log,
+) -> None:
+    """A QA turn logging ``hitl_decision=None`` invites a search that finds nothing."""
+    await _finish({"messages": [], "intent": "qa", "faithfulness_score": 0.94})
+
+    assert turn_log["faithfulness_score"] == 0.94
+    assert "hitl_decision" not in turn_log
+
+
+def test_the_turn_binds_its_run_id_to_every_line_it_produces() -> None:
+    """run_id is per turn, not per request: it is what stitches node lines to the trace."""
+    config, _started = langgraph_runtime._start_turn("session-1", "user-1")
+
+    assert (
+        structlog.contextvars.get_contextvars()["run_id"]
+        == config["metadata"]["run_id"]
+    )

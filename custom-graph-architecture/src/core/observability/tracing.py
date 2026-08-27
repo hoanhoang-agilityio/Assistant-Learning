@@ -8,6 +8,8 @@ from langchain_core.runnables import RunnableConfig
 from src.core.configs.config import settings
 from src.core.observability.langfuse import get_langfuse_callbacks
 
+TURN_TRACE_NAME = "chat_turn"
+
 
 def build_run_config(
     session_id: str,
@@ -29,6 +31,10 @@ def build_run_config(
     return {
         "configurable": {"thread_id": session_id},
         "callbacks": callbacks,
+        # Without a name every trace is titled after the compiled graph, so a list of
+        # runs reads as one repeated string and nothing is findable by what it was.
+        "run_name": TURN_TRACE_NAME,
+        "tags": [settings.ENVIRONMENT.value],
         "metadata": {
             # The langfuse_-prefixed keys are the only ones the LangChain integration
             # promotes to the trace's own session/user fields. Without them the values

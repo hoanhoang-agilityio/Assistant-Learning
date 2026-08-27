@@ -1,6 +1,7 @@
 """The public facade the chat API depends on: compile the graph once, run one turn at a time."""
 
 from collections.abc import AsyncGenerator
+from time import perf_counter
 from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage
@@ -12,9 +13,23 @@ from src.core.langgraph.graph import build_graph
 from src.core.langgraph.runtime import graph_runtime
 from src.core.observability.tracing import build_run_config
 from src.schemas import Message, initial_state
-from src.utils.logging import logger
+from src.utils.logging import bind_context, logger
 
 _EXPORTABLE_ROLES = {"user", "assistant", "system"}
+
+# What a finished turn reports about itself, read from the state the run settled on.
+# Every one of these is a number the run is judged by, so they belong on one line rather
+# than scattered across the node lines the turn happened to produce.
+_TURN_OUTCOME_FIELDS = (
+    "intent",
+    "guard_blocked",
+    "faithfulness_score",
+    "coach_retry_count",
+    "qa_retry_count",
+    "hitl_retry_count",
+    "user_info_retry_count",
+    "hitl_decision",
+)
 
 
 class LangGraphRuntime:
@@ -36,32 +51,38 @@ class LangGraphRuntime:
     ) -> list[Message]:
         """Process one turn and return the messages it produced."""
         graph = await self._get_graph()
-        config = build_run_config(session_id, user_id)
+        config, started = self._start_turn(session_id, user_id)
         run_input, before = await self._graph_input(graph, config, messages, user_id)
         try:
             await graph.ainvoke(run_input, config)
         except Exception as error:
             logger.exception(
-                "graph_invoke_failed", session_id=session_id, error=str(error)
+                "graph_invoke_failed",
+                session_id=session_id,
+                duration_ms=_elapsed_ms(started),
+                error=str(error),
             )
             raise
-        return await self._turn_reply(graph, config, before)
+        return await self._finish_turn(graph, config, before, started)
 
     async def get_stream_response(
         self, messages: list[Message], session_id: str, user_id: str
     ) -> AsyncGenerator[str]:
         """Process one turn and yield the messages it produced, one frame per message."""
         graph = await self._get_graph()
-        config = build_run_config(session_id, user_id)
+        config, started = self._start_turn(session_id, user_id)
         run_input, before = await self._graph_input(graph, config, messages, user_id)
         try:
             await graph.ainvoke(run_input, config)
         except Exception as error:
             logger.exception(
-                "graph_stream_failed", session_id=session_id, error=str(error)
+                "graph_stream_failed",
+                session_id=session_id,
+                duration_ms=_elapsed_ms(started),
+                error=str(error),
             )
             raise
-        for reply in await self._turn_reply(graph, config, before):
+        for reply in await self._finish_turn(graph, config, before, started):
             yield reply.content
 
     async def get_chat_history(self, session_id: str) -> list[Message]:
@@ -90,25 +111,62 @@ class LangGraphRuntime:
             return Command(resume=reply), before
         return initial_state(reply, user_id), before
 
-    async def _turn_reply(
-        self, graph: CompiledStateGraph, config: RunnableConfig, before: int
-    ) -> list[Message]:
-        """Read what the graph said back this turn, plus the question a fresh pause is asking.
+    def _start_turn(
+        self, session_id: str, user_id: str
+    ) -> tuple[RunnableConfig, float]:
+        """Open one turn: its run config, its log correlation and its latency clock."""
+        config = build_run_config(session_id, user_id)
+        # Bound here rather than in the middleware because run_id is per turn, not per
+        # request: it is what stitches a turn's node lines back to its trace.
+        bind_context(run_id=config["metadata"]["run_id"])
+        return config, perf_counter()
 
-        Only assistant-authored messages: a fresh top-level turn is invoked with
-        the user's own message as part of its input, so it lands in
-        ``messages[before:]`` too, alongside any ``HumanMessage`` a resumed
-        interrupt records for the decision it just read.
-        """
+    async def _finish_turn(
+        self,
+        graph: CompiledStateGraph,
+        config: RunnableConfig,
+        before: int,
+        started: float,
+    ) -> list[Message]:
+        """Read the turn's replies off the settled state, and log what it came to."""
         state = await graph.aget_state(config)
-        new_messages = _to_chat_messages(state.values.get("messages", [])[before:])
-        replies = [message for message in new_messages if message.role == "assistant"]
-        pending = _pending_interrupt_value(state)
-        if pending is not None:
-            question = _interrupt_text(pending)
-            if not replies or replies[-1].content != question:
-                replies.append(Message(role="assistant", content=question))
+        replies = _turn_reply(state, before)
+        logger.info(
+            "turn_completed",
+            duration_ms=_elapsed_ms(started),
+            paused=bool(state.next),
+            reply_count=len(replies),
+            final_message=state.values.get("final_message"),
+            **{
+                field: state.values.get(field)
+                for field in _TURN_OUTCOME_FIELDS
+                if state.values.get(field) is not None
+            },
+        )
         return replies
+
+
+def _elapsed_ms(started: float) -> float:
+    """Milliseconds since a ``perf_counter`` reading."""
+    return round((perf_counter() - started) * 1000, 2)
+
+
+def _turn_reply(state: Any, before: int) -> list[Message]:
+    """Read what the graph said back this turn, plus the question a fresh pause is asking.
+
+    Only assistant-authored messages: a fresh top-level turn is invoked with
+    the user's own message as part of its input, so it lands in
+    ``messages[before:]`` too, alongside any ``HumanMessage`` a resumed
+    interrupt records for the decision it just read.
+    """
+    new_messages = _to_chat_messages(state.values.get("messages", [])[before:])
+    replies = [message for message in new_messages if message.role == "assistant"]
+    pending = _pending_interrupt_value(state)
+    if pending is not None:
+        question = _interrupt_text(pending)
+        if not replies or replies[-1].content != question:
+            replies.append(Message(role="assistant", content=question))
+    return replies
 
 
 def _pending_interrupt_value(state: Any) -> object | None:
