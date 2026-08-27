@@ -73,6 +73,19 @@ def langfuse_shutdown() -> None:
         logger.warning("langfuse_flush_failed", error=str(e))
 
 
+def get_langfuse_client() -> Langfuse | None:
+    """Return the configured client, or nothing when tracing never came up.
+
+    What the node observer writes trace attributes and scores through. Returning ``None``
+    rather than a bare ``Langfuse()`` is deliberate: an unconfigured client accepts every
+    call and drops it, which reads as working tracing right up until the traces are empty.
+
+    Returns:
+        The configured client, or ``None`` when tracing is off.
+    """
+    return _client
+
+
 def get_langfuse_callbacks() -> list[BaseCallbackHandler]:
     """Return the callbacks to attach to the root graph config.
 
@@ -83,4 +96,9 @@ def get_langfuse_callbacks() -> list[BaseCallbackHandler]:
     return [_callback_handler] if _callback_handler is not None else []
 
 
-__all__ = ["get_langfuse_callbacks", "langfuse_init", "langfuse_shutdown"]
+__all__ = [
+    "get_langfuse_callbacks",
+    "get_langfuse_client",
+    "langfuse_init",
+    "langfuse_shutdown",
+]
