@@ -200,10 +200,10 @@ Only two edges in the whole graph reach `END`: `guard_input`'s block, and `super
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | `supervisor` node: structured-output router (`next: NextAgent`), plain prompt per §3. Replaces the current `agents/supervisor.py` stub (a copy of `coach.py`) entirely | 1.5 | | Todo |
-| — | `route_after_supervisor`: dispatch on `next` | 0.5 | | Todo |
-| — | `summarize` node: threshold check, safe-harbor split on a `HumanMessage` boundary, LLM summary call, `RemoveMessage` pruning, append to `summary` | 1.5 | | Todo |
-| — | `iteration_count` hard cap inside `supervisor` | 0.5 | | Todo |
+| 28/08 | `supervisor` node: structured-output router (`next: NextAgent`), plain prompt per §3. Replaces the current `agents/supervisor.py` stub (a copy of `coach.py`) entirely | 1.5 | 1 | Done |
+| 28/08 | `route_after_supervisor`: dispatch on `next` | 0.5 | 0.25 | Done |
+| 28/08 | `summarize` node: threshold check, safe-harbor split on a `HumanMessage` boundary, LLM summary call, `RemoveMessage` pruning, append to `summary` | 1.5 | 1.25 | Done |
+| 28/08 | `iteration_count` hard cap inside `supervisor` | 0.5 | 0.25 | Done |
 
 ### Milestone 7 — Graph assembly (2h)
 
