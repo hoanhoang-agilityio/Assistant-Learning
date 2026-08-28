@@ -15,8 +15,8 @@ from typing import Any
 
 from langgraph.errors import GraphInterrupt
 
-from src.core.observability.langfuse import get_langfuse_client
 from src.enums import Node
+from src.observability.langfuse import get_langfuse_client
 from src.schemas import GraphState
 from src.utils.logging import logger
 
@@ -26,13 +26,12 @@ NodeFn = Callable[[GraphState], Awaitable[dict[str, Any]]]
 # update rather than the state, so a line says what *this* node decided, not what the
 # run happened to be carrying when it ran.
 TRACKED_FIELDS: tuple[str, ...] = (
-    "intent",
+    "next",
     "block_reason",
-    "missing_fields",
-    "user_info_retry_count",
+    "iteration_count",
     "coach_retry_count",
-    "hitl_decision",
-    "hitl_retry_count",
+    "approval_decision",
+    "approval_retry_count",
     "faithfulness_score",
     "qa_retry_count",
 )
@@ -87,8 +86,6 @@ def observations(update: Mapping[str, Any]) -> dict[str, Any]:
         fields |= _retrieval_summary(update["retrieved_context"])
     if update.get("plan") is not None:
         fields["plan_generated"] = True
-    if update.get("final_message"):
-        fields["final_message"] = update["final_message"]
 
     return fields
 

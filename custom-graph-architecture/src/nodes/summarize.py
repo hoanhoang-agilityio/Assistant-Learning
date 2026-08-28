@@ -11,8 +11,8 @@ from langchain_core.messages import (
     trim_messages,
 )
 
-from src.core.llm import chat_model, with_retry_policy
 from src.schemas import GraphState
+from src.services.llm import chat_model, with_retry_policy
 
 SUMMARIZE_TOKEN_THRESHOLD = 6000
 SUMMARIZE_KEEP_TOKENS = 3000
@@ -88,7 +88,8 @@ async def summarize(state: GraphState) -> SummarizeUpdate:
     model = with_retry_policy(chat_model())
     try:
         response = await model.ainvoke(
-            [SystemMessage(content=SUMMARIZE_SYSTEM), HumanMessage(content=context)]
+            [SystemMessage(content=SUMMARIZE_SYSTEM),
+             HumanMessage(content=context)]
         )
     except Exception:
         return {}

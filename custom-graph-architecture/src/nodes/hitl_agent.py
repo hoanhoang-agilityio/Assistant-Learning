@@ -5,7 +5,7 @@ from typing import Any, TypedDict
 from langchain_core.messages import AnyMessage, HumanMessage
 from langgraph.types import interrupt
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.enums import HitlAgentRoute
 from src.schemas import ApprovalDecision, GraphState
 

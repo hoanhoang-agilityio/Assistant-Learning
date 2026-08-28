@@ -13,7 +13,6 @@ where it disagrees with what the template asked for.
 import re
 from collections import Counter
 
-from src.core.langgraph.verification.deterministic.context import PlanContext
 from src.enums import MuscleGroup
 from src.schemas import (
     CheckName,
@@ -26,6 +25,7 @@ from src.schemas import (
     VerificationIssue,
     WorkoutTemplate,
 )
+from src.verification.deterministic.context import PlanContext
 
 # Working sets per muscle per week. The productive band in the training literature sits
 # around 10-20 sets; this is the far edge of it. Sets are counted where a muscle is primary

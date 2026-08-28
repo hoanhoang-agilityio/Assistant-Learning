@@ -3,7 +3,7 @@
 import tiktoken
 from langchain_core.messages import AnyMessage, trim_messages
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 
 _ENCODING = tiktoken.get_encoding("cl100k_base")
 

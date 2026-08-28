@@ -15,10 +15,10 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from src.api.v1.api import api_router
-from src.core.configs.config import settings
-from src.core.langgraph.runtime import graph_runtime
-from src.core.observability import langfuse_init, langfuse_shutdown
+from src.configs.config import settings
 from src.middlewares import LoggingContextMiddleware, limiter
+from src.observability import langfuse_init, langfuse_shutdown
+from src.runtime import graph_runtime
 from src.services.database import close_engine
 from src.services.guard import warm_guard
 from src.utils.logging import logger

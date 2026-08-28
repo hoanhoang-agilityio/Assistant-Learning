@@ -7,10 +7,10 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, AnyMessage, ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 
-from src.core.llm import agent_middleware, chat_model
 from src.enums import UserAgentRoute
 from src.prompts import USER_AGENT_SYSTEM
 from src.schemas import GraphState, PendingApproval, UserAgentContext
+from src.services.llm import agent_middleware, chat_model
 from src.tools import USER_AGENT_TOOLS, get_user_profile, update_user_profile
 
 USER_AGENT_NAME = "user_agent"

@@ -15,7 +15,6 @@ the prescription names a slot the template has no record of; both are task 5.1's
 Equipment needs neither, and is checked either way.
 """
 
-from src.core.langgraph.verification.deterministic.context import PlanContext
 from src.enums import (
     EquipmentType,
     MuscleGroup,
@@ -31,6 +30,7 @@ from src.schemas import (
     VerificationIssue,
 )
 from src.services.catalogue import equipment_available
+from src.verification.deterministic.context import PlanContext
 
 _FROM_THE_TOOL = "Fill the slot from load_exercise, which only returns what fits it."
 

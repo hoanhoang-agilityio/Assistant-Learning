@@ -10,7 +10,6 @@ Prescriptions whose ``exercise_id`` resolves to nothing are skipped rather than 
 an invented exercise is task 5.1's finding, and there is no catalogue row here to judge.
 """
 
-from src.core.langgraph.verification.deterministic.context import PlanContext
 from src.enums import (
     MovementPattern,
     RestrictionAction,
@@ -25,6 +24,7 @@ from src.schemas import (
     Severity,
     VerificationIssue,
 )
+from src.verification.deterministic.context import PlanContext
 
 # Strictest first, so the worst restriction on a pattern is the one that gets reported.
 _ACTION_ORDER: dict[RestrictionAction, int] = {

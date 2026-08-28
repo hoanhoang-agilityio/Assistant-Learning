@@ -10,11 +10,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pydantic import BaseModel
 from sqlmodel import select
 
-from src.core.configs.config import settings
-from src.core.llm import embedding_model as embedder
+from src.configs.config import settings
 from src.models.knowledge import KnowledgeChunk
 from src.schemas import RetrievedChunk
 from src.services.database import session_factory
+from src.services.llm import embedding_model as embedder
 from src.utils.logging import logger
 
 KNOWLEDGE_DIR = Path("data/knowledge")

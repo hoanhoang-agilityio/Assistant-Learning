@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlmodel import SQLModel
 
 import src.models  # noqa: F401  — imported for its side effect: registers models on the metadata
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.models.table_ownership import include_object
 
 config = context.config

@@ -18,7 +18,7 @@ from openai import (
     RateLimitError,
 )
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 
 # Transient only: a later attempt against the same model can succeed. The rest of the
 # OpenAI hierarchy — 400 bad request, 401 auth, 404 — fails identically every time, so

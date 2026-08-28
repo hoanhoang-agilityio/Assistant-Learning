@@ -21,7 +21,7 @@ from typing import Any
 
 from jose import JWTError, jwt
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.schemas.auth import Token
 from src.utils.logging import logger
 

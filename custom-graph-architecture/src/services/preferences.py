@@ -8,7 +8,7 @@ reason to stop and ask.
 
 from typing import Any
 
-from src.core.langgraph.runtime import MemoryScope
+from src.runtime import MemoryScope
 from src.services.memory import recall, recall_scope, save
 from src.services.turn import PreferenceStatement
 

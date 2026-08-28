@@ -19,7 +19,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.middlewares import limiter
 from src.models.session import Session
 from src.models.user import User

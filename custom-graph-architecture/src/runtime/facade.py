@@ -10,10 +10,10 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
 from src.constants import STEP_LABELS
-from src.core.langgraph.graph import build_graph
-from src.core.langgraph.runtime import graph_runtime
-from src.core.observability.tracing import build_run_config
 from src.enums import Node, StreamEventType
+from src.graph import build_graph
+from src.observability.tracing import build_run_config
+from src.runtime import graph_runtime
 from src.schemas import Message, StreamResponse, initial_state
 from src.utils.logging import bind_context, logger
 
@@ -23,14 +23,13 @@ _EXPORTABLE_ROLES = {"user", "assistant", "system"}
 # Every one of these is a number the run is judged by, so they belong on one line rather
 # than scattered across the node lines the turn happened to produce.
 _TURN_OUTCOME_FIELDS = (
-    "intent",
+    "next",
     "block_reason",
     "faithfulness_score",
     "coach_retry_count",
     "qa_retry_count",
-    "hitl_retry_count",
-    "user_info_retry_count",
-    "hitl_decision",
+    "approval_retry_count",
+    "approval_decision",
 )
 
 
@@ -140,7 +139,6 @@ class LangGraphRuntime:
             duration_ms=_elapsed_ms(started),
             paused=bool(state.next),
             reply_count=len(replies),
-            final_message=state.values.get("final_message"),
             **{
                 field: state.values.get(field)
                 for field in _TURN_OUTCOME_FIELDS

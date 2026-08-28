@@ -8,7 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.utils.logging import bind_context, clear_context
 
 

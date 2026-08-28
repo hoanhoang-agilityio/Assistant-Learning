@@ -1,19 +1,12 @@
-"""The user's stored profile and training plan: loading it, merging it, saving it."""
+"""The user's stored profile and training plan: loading it, saving it."""
 
 import asyncio
 from dataclasses import dataclass
 from typing import Any
 
-from src.core.langgraph.runtime import MemoryScope
+from src.runtime import MemoryScope
 from src.schemas import UserProfile
-from src.schemas.domain.profile import (
-    MAX_AGE,
-    MAX_TRAINING_DAYS,
-    MIN_AGE,
-    MIN_TRAINING_DAYS,
-)
 from src.services.memory import recall, recall_plan, save
-from src.services.turn import EXTRACTABLE_FIELDS, InjuryStatement, ProfileStatement
 
 PROFILE_KEY = "profile"
 
@@ -21,16 +14,6 @@ PROFILE_KEY = "profile"
 # field on ``UserProfile`` with no default, and declaration order is the order to ask in.
 REQUIRED_PROFILE_FIELDS: tuple[str, ...] = tuple(
     name for name, field in UserProfile.model_fields.items() if field.is_required()
-)
-
-PROFILE_BOUNDS: dict[str, tuple[float, float]] = {
-    "age": (MIN_AGE, MAX_AGE),
-    "training_days_per_week": (MIN_TRAINING_DAYS, MAX_TRAINING_DAYS),
-}
-POSITIVE_PROFILE_FIELDS: tuple[str, ...] = (
-    "height_cm",
-    "current_weight_kg",
-    "target_weight_kg",
 )
 
 
@@ -87,93 +70,6 @@ async def load_user_context(user_id: str) -> UserContext:
     )
 
     return UserContext(profile=profile, plan=plan)
-
-
-def _is_in_range(name: str, value: Any) -> bool:
-    """Report whether a stated value is plausible enough to store."""
-
-    if name in PROFILE_BOUNDS:
-        low, high = PROFILE_BOUNDS[name]
-        return low <= value <= high
-    if name in POSITIVE_PROFILE_FIELDS:
-        return value > 0
-    return True
-
-
-def usable_profile_fields(statement: ProfileStatement) -> dict[str, Any]:
-    """Keep the stated scalar fields that carry a value and are within range."""
-
-    # JSON mode so enum members reach the store as the plain strings they read back as.
-    dumped = statement.model_dump(mode="json")
-    usable: dict[str, Any] = {}
-    for name in EXTRACTABLE_FIELDS:
-        value = dumped[name]
-        if value is None:
-            continue
-        if not _is_in_range(name, value):
-            continue
-        usable[name] = value
-    return usable
-
-
-def _body_part_key(body_part: object) -> str:
-    """The identity an injury is matched on across turns."""
-
-    return str(body_part).strip().lower()
-
-
-def merge_injuries(
-    stored: list[dict] | None, stated: list[InjuryStatement]
-) -> list[dict]:
-    """Upsert each reported injury onto the stored list, matched by body part."""
-
-    merged = [dict(injury) for injury in stored or []]
-    positions = {
-        _body_part_key(injury.get("body_part")): position
-        for position, injury in enumerate(merged)
-    }
-
-    for statement in stated:
-        update = {
-            name: value
-            for name, value in statement.model_dump(mode="json").items()
-            if value is not None
-        }
-        position = positions.get(_body_part_key(statement.body_part))
-        if position is None:
-            positions[_body_part_key(statement.body_part)] = len(merged)
-            merged.append(update)
-        else:
-            merged[position] = merged[position] | update
-
-    return merged
-
-
-def merge_profile_updates(
-    profile: dict | None, statement: ProfileStatement
-) -> dict[str, Any]:
-    """Fold one turn's stated values, injuries and revision flags into a runtime profile."""
-
-    merged = dict(profile or {})
-    updates = usable_profile_fields(statement)
-    merged.update(updates)
-
-    if statement.injuries:
-        merged["injuries"] = merge_injuries(merged.get("injuries"), statement.injuries)
-
-    for name in statement.fields_to_revise:
-        if name not in updates:
-            merged[name] = None
-
-    return merged
-
-
-def pending_revision_fields(
-    profile: dict | None, revision_fields: list[str]
-) -> list[str]:
-    """Revision-flagged fields, in the order given, that are still blank in ``profile``."""
-
-    return [name for name in revision_fields if _is_blank((profile or {}).get(name))]
 
 
 async def save_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]:

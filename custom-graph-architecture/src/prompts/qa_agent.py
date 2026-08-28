@@ -2,7 +2,7 @@
 
 from xml.sax.saxutils import escape
 
-from src.core.langgraph.prompts.security import security_block
+from src.prompts.security import security_block
 
 QA_AGENT_SYSTEM = f"""
 You are a fitness, nutrition and injury knowledge assistant answering the user's question.

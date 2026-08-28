@@ -4,8 +4,7 @@ from typing import TypedDict
 
 from pydantic import ValidationError
 
-from src.core.configs.config import settings
-from src.core.langgraph.verification import verify_plan
+from src.configs.config import settings
 from src.enums import VerificationRoute
 from src.schemas import (
     CheckName,
@@ -15,6 +14,7 @@ from src.schemas import (
     VerificationIssue,
     VerificationResult,
 )
+from src.verification import verify_plan
 
 NO_PLAN_MESSAGE = (
     "No plan was returned. Produce the complete training plan using the structured "

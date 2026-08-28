@@ -14,7 +14,6 @@ The tolerances are relative rather than absolute so they mean the same thing to 
 user and a 3200 kcal one.
 """
 
-from src.core.langgraph.verification.deterministic.context import PlanContext
 from src.schemas import (
     CheckName,
     NutritionTargets,
@@ -24,6 +23,7 @@ from src.schemas import (
     VerificationIssue,
 )
 from src.services.nutrition import CALORIE_FLOORS, calc_macros
+from src.verification.deterministic.context import PlanContext
 
 # Whole-gram rounding moves the sum by under 10 kcal, so anything past this is the agent
 # having added up wrong rather than having rounded.

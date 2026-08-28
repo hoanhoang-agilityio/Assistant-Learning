@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.schemas.health import HealthResponse
 
 router = APIRouter()

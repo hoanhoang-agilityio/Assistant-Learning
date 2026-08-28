@@ -5,8 +5,8 @@ from uuid import uuid4
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.runnables import RunnableConfig
 
-from src.core.configs.config import settings
-from src.core.observability.langfuse import get_langfuse_callbacks
+from src.configs.config import settings
+from src.observability.langfuse import get_langfuse_callbacks
 
 TURN_TRACE_NAME = "chat_turn"
 

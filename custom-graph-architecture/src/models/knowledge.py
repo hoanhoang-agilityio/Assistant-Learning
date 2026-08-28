@@ -4,7 +4,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, Text
 from sqlmodel import Field, SQLModel
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 
 
 class KnowledgeChunk(SQLModel, table=True):

@@ -15,8 +15,8 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from src.core.configs.config import settings
-from src.core.langgraph.runtime.base import GraphRuntime
+from src.configs.config import settings
+from src.runtime.base import GraphRuntime
 from src.utils.logging import logger
 
 _CONNECTION_KWARGS = {

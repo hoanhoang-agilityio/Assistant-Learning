@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from openai import AsyncOpenAI
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.schemas import RetrievedChunk
 from src.utils.logging import logger
 

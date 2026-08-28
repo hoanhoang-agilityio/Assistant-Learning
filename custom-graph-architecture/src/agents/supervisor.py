@@ -5,9 +5,9 @@ from typing import TypedDict
 from langchain_core.messages import SystemMessage
 from pydantic import BaseModel, Field
 
-from src.core.llm import chat_model, with_retry_policy
 from src.enums import SupervisorRoute
 from src.schemas import GraphState, NextAgent
+from src.services.llm import chat_model, with_retry_policy
 
 SUPERVISOR_MAX_ITERATIONS = 8
 

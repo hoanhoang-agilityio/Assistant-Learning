@@ -2,11 +2,11 @@
 
 import psycopg
 import pytest
+from langchain_core.messages import HumanMessage
 from openai import AuthenticationError
 
-from src.core.configs.config import settings
-from src.core.langgraph.prompts import build_turn_parser_messages
-from src.services.turn import _build_parser
+from src.configs.config import settings
+from src.services.llm import chat_model
 
 
 @pytest.fixture(autouse=True)
@@ -34,13 +34,11 @@ def require_postgres() -> None:
 
 @pytest.fixture(scope="session")
 async def require_openai_key() -> None:
-    """Skip LLM integration tests when no working parser credentials are configured."""
+    """Skip LLM integration tests when no working OpenAI credentials are configured."""
     if not settings.OPENAI_API_KEY:
         pytest.skip("OPENAI_API_KEY missing: skipping LLM integration tests")
     try:
-        await _build_parser().ainvoke(
-            build_turn_parser_messages("How much protein should I eat?")
-        )
+        await chat_model().ainvoke([HumanMessage(content="ping")])
     except AuthenticationError as exc:
         pytest.skip(f"OpenAI credentials rejected for integration tests: {exc}")
     except Exception as exc:

@@ -21,7 +21,6 @@ from src.constants.routes import (
     USER_AGENT_ROUTES,
     VERIFICATION_ROUTES,
 )
-from src.core.observability import observed
 from src.enums import Node
 from src.nodes import (
     blocked,
@@ -42,6 +41,7 @@ from src.nodes import (
     summarize,
     verify_faithfulness,
 )
+from src.observability import observed
 from src.schemas import GraphState
 
 # Every node the graph runs, paired with the name it is reached by. Listed rather than

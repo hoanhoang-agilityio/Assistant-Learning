@@ -8,16 +8,16 @@ from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 
-from src.core.configs.config import settings
-from src.core.langgraph.agents.history import trim_history
-from src.core.langgraph.prompts.coach_agent import NO_SLOTS_TO_FIX
-from src.core.langgraph.prompts.rendering import as_prompt_json
-from src.core.langgraph.tools import COACH_TOOLS
-from src.core.llm import agent_middleware, chat_model
+from src.agents.history import trim_history
+from src.configs.config import settings
 from src.prompts import COACH_AGENT_SYSTEM, build_coach_context
+from src.prompts.coach_agent import NO_SLOTS_TO_FIX
+from src.prompts.rendering import as_prompt_json
 from src.schemas import CoachContext, GraphState, TrainingPlan, UserProfile
+from src.services.llm import agent_middleware, chat_model
 from src.services.nutrition import calc_macros
 from src.services.profile import missing_profile_fields
+from src.tools import COACH_TOOLS
 
 COACH_AGENT_NAME = "coach_agent"
 NO_PROFILE = "none on record"

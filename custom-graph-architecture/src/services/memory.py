@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any
 
-from src.core.langgraph.runtime import (
+from src.runtime import (
     MemoryScope,
     graph_runtime,
     namespace_for,

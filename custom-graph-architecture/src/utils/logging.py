@@ -15,7 +15,7 @@ from typing import Any
 
 import structlog
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 
 
 def configure_logging() -> None:

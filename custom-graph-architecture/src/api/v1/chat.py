@@ -8,11 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from src.api.v1.auth import get_current_session
-from src.core.configs.config import settings
-from src.core.langgraph.runtime.facade import langgraph_runtime
+from src.configs.config import settings
 from src.enums import StreamEventType
 from src.middlewares import limiter
 from src.models.session import Session
+from src.runtime.facade import langgraph_runtime
 from src.schemas import ChatRequest, ChatResponse, StreamResponse
 
 router = APIRouter()

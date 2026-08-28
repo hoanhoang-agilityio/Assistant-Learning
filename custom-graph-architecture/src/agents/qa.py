@@ -7,13 +7,13 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 
-from src.core.configs.config import settings
-from src.core.langgraph.agents.history import trim_history
-from src.core.langgraph.prompts.rendering import as_prompt_json
-from src.core.langgraph.tools import QA_TOOLS, search_knowledge
-from src.core.llm import agent_middleware, chat_model
+from src.agents.history import trim_history
+from src.configs.config import settings
 from src.prompts import QA_AGENT_SYSTEM, build_qa_context
+from src.prompts.rendering import as_prompt_json
 from src.schemas import GraphState, QaContext, RetrievedChunk
+from src.services.llm import agent_middleware, chat_model
+from src.tools import QA_TOOLS, search_knowledge
 
 QA_AGENT_NAME = "qa_agent"
 NO_PROFILE = "none on record"

@@ -4,9 +4,9 @@ from typing import Any
 
 from langchain.tools import ToolRuntime, tool
 
-from src.core.langgraph.tools.context import context_user_id
 from src.schemas import CoachContext
 from src.services.memory import load_user_memory
+from src.tools.context import context_user_id
 
 NOTHING_RECORDED = (
     "nothing beyond the profile is on record for this user; plan from the profile alone"

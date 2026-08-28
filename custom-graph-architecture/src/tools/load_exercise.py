@@ -5,7 +5,6 @@ from typing import Any
 from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
 
-from src.core.langgraph.tools.context import context_profile
 from src.enums import (
     BodyRegion,
     MovementPattern,
@@ -13,6 +12,7 @@ from src.enums import (
 )
 from src.schemas import CoachContext
 from src.services.catalogue import as_candidate, find_exercises
+from src.tools.context import context_profile
 
 
 class SlotQuery(BaseModel):

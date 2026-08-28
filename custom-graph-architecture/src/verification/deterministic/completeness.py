@@ -12,13 +12,13 @@ reported and its slots left unchecked: there is nothing to check them against.
 
 from collections import Counter
 
-from src.core.langgraph.verification.deterministic.context import PlanContext
 from src.schemas import (
     CheckName,
     TrainingPlan,
     VerificationIssue,
     WorkoutTemplate,
 )
+from src.verification.deterministic.context import PlanContext
 
 
 def _issue(message: str, **location: object) -> VerificationIssue:

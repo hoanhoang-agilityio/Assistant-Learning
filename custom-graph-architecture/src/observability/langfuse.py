@@ -13,7 +13,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.utils.logging import logger
 
 _callback_handler: CallbackHandler | None = None

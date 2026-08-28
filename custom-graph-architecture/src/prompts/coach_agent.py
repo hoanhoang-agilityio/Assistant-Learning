@@ -2,7 +2,7 @@
 
 from xml.sax.saxutils import escape
 
-from src.core.langgraph.prompts.security import security_block
+from src.prompts.security import security_block
 
 COACH_AGENT_SYSTEM = f"""
 You are a strength and nutrition coach building personalized training plans.

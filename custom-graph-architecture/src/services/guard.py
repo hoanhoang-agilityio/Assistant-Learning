@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from src.core.configs.config import GuardScanner, settings
+from src.configs.config import GuardScanner, settings
 from src.utils.logging import logger
 
 if TYPE_CHECKING:

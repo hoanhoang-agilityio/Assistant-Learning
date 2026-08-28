@@ -4,10 +4,10 @@ from typing import TypedDict
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 
-from src.core.configs.config import settings
-from src.core.langgraph.verification import score_faithfulness
+from src.configs.config import settings
 from src.enums import FaithfulnessRoute
 from src.schemas import GraphState
+from src.verification import score_faithfulness
 
 
 class VerifyFaithfulnessUpdate(TypedDict):
