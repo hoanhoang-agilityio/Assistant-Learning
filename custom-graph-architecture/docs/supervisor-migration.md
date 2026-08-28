@@ -168,10 +168,10 @@ Only two edges in the whole graph reach `END`: `guard_input`'s block, and `super
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | `hitl_agent` node: generic `interrupt()`, reads `pending_approval.summary`, writes `approval_decision`/`approval_feedback`, increments `approval_retry_count` on reject + feedback | 1.5 | | Todo |
-| — | `route_after_hitl`: dispatch on `pending_approval.source` + `approval_decision` (+ retry cap) to the 6 destinations in §2 | 1 | | Todo |
-| — | `commit_plan` node: `save_plan(user_id, plan)`, compose confirmation message | 0.75 | | Todo |
-| — | `commit_profile_update` node: apply the field(s) from `pending_approval.payload`, `save_profile`, compose confirmation message | 0.75 | | Todo |
+| 28/08 | `hitl_agent` node: generic `interrupt()`, reads `pending_approval.summary`, writes `approval_decision`/`approval_feedback`, increments `approval_retry_count` on reject + feedback | 1.5 | 0.5 | Done |
+| 28/08 | `route_after_hitl`: dispatch on `pending_approval.source` + `approval_decision` (+ retry cap) to the 6 destinations in §2 | 1 | 0.25 | Done |
+| 28/08 | `commit_plan` node: `save_plan(user_id, plan)`, compose confirmation message | 0.75 | 0.25 | Done |
+| 28/08 | `commit_profile_update` node: apply the field(s) from `pending_approval.payload`, `save_profile`, compose confirmation message | 0.75 | 0.25 | Done |
 
 ### Milestone 3 — `user_agent` (3.5h)
 
