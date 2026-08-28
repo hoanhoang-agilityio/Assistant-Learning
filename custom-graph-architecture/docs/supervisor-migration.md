@@ -177,10 +177,10 @@ Only two edges in the whole graph reach `END`: `guard_input`'s block, and `super
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | `get_user_profile` tool (read-only, wraps `load_user_context`) | 0.5 | | Todo |
-| — | `update_user_profile` tool: write immediately when the field is blank; stage `pending_approval` (`kind="profile_update"`) when it would overwrite an existing value | 1.5 | | Todo |
-| — | `user_agent` node (`create_agent` + the two tools, `UserAgentContext`) and its system prompt | 1 | | Todo |
-| — | `route_after_user_agent`: `pending_approval` set → `hitl_agent`, else → `summarize` | 0.5 | | Todo |
+| 28/08 | `get_user_profile` tool (read-only, wraps `load_user_context`) | 0.5 | 0.25 | Done |
+| 28/08 | `update_user_profile` tool: write immediately when the field is blank; stage `pending_approval` (`kind="profile_update"`) when it would overwrite an existing value | 1.5 | 0.75 | Done |
+| 28/08 | `user_agent` node (`create_agent` + the two tools, `UserAgentContext`) and its system prompt | 1 | 0.75 | Done |
+| 28/08 | `route_after_user_agent`: `pending_approval` set → `hitl_agent`, else → `summarize` | 0.5 | 0.25 | Done |
 
 ### Milestone 4 — Coach branch rewire (2h)
 

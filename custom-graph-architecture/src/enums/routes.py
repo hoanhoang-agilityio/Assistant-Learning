@@ -51,6 +51,13 @@ class HitlRoute(StrEnum):
     EXHAUSTED = "exhausted"
 
 
+class UserAgentRoute(StrEnum):
+    """What ``route_after_user_agent`` may answer."""
+
+    PENDING_APPROVAL = "pending_approval"
+    DONE = "done"
+
+
 class SupervisorRoute(StrEnum):
     """What ``route_after_supervisor`` may answer — the supervisor's own ``next`` decision."""
 
@@ -79,5 +86,6 @@ __all__ = [
     "Intent",
     "ProfileRoute",
     "SupervisorRoute",
+    "UserAgentRoute",
     "VerificationRoute",
 ]

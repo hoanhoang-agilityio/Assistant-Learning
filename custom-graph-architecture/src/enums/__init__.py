@@ -21,6 +21,7 @@ from src.enums.routes import (
     Intent,
     ProfileRoute,
     SupervisorRoute,
+    UserAgentRoute,
     VerificationRoute,
 )
 from src.enums.stream import StreamEventType
@@ -45,5 +46,6 @@ __all__ = [
     "Sex",
     "StreamEventType",
     "SupervisorRoute",
+    "UserAgentRoute",
     "VerificationRoute",
 ]
