@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from jose import jwt
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.models.user import User
 from src.schemas.auth import UserCreate
 from src.utils.auth import (

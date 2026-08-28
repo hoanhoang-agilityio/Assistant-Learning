@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from src.core.langgraph.tools import COACH_TOOLS, load_template
-from src.core.langgraph.tools.load_template import NO_TEMPLATE, clamp_training_days
 from src.enums import FitnessGoal
 from src.schemas import WorkoutTemplate
 from src.services import catalogue
+from src.tools import COACH_TOOLS, load_template
+from src.tools.load_template import NO_TEMPLATE, clamp_training_days
 
 DATA_DIR = Path("data")
 

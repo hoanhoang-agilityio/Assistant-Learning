@@ -2,7 +2,7 @@
 
 import json
 
-from src.core.langgraph.prompts import as_prompt_json
+from src.prompts.rendering import as_prompt_json
 from tests.test_load_user_context import COMPLETE_PROFILE, PLAN
 
 

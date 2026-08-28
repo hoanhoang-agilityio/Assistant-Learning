@@ -11,253 +11,59 @@ Engineering conventions for `src/` come from the `langgraph-agent-arch` skill
 
 ## 1. Node design
 
-Node names and branch labels are each defined once, in `src/enums/` — `Node` in `graph.py`, the
-routers' answers in `routes.py` — and the route tables that map one to the other live in
-`src/constants/routes.py`. `graph.py`, the route functions and the tests reference those rather
-than repeating strings.
+**Superseded by the supervisor migration** (28/08) — see
+[`supervisor-migration.md`](supervisor-migration.md) §1 for the current node table and the
+reasoning behind each change. Node names and branch labels are still each defined once, in
+`src/enums/` — `Node` in `graph.py`, the routers' answers in `routes.py` — and the route tables
+that map one to the other live in `src/constants/routes.py`; `src/graph.py`, the route functions
+and the tests reference those rather than repeating strings.
 
-| Node | Purpose |
-|---|---|
-| `guard_input` | Scan input (llm-guard scanners, run locally — no LLM call) |
-| `blocked` | Return message for user and stop immediately |
-| `parse_turn` | One LLM call: classify intent **and** extract the profile facts the message states |
-| `off_topic` | Return reject message for off topic |
-| `load_user_context` | Load profile and plan of user from long-term memory |
-| `merge_profile` | Deterministic: merge stated fields, upsert injuries by body part — the only writer of `profile` |
-| `persist_profile` | Write the merged profile to the store before either branch reads it back |
-| `check_profile_complete` | Identify missing fields required to create a plan |
-| `request_missing_profile_fields` | Ask user to provide missing fields |
-| `wait_for_user` | `interrupt()` — pause graph and wait for user to provide data |
-| `profile_collection_exhausted` | Stop and tell the user no plan can be built without their details |
-| `coach_agent` | Agent that creates the plan |
-| `deterministic_verification` | Check schema / macro / volume / safety by fixed rule, no LLM |
-| `notify_fail` | Notify user when verification fails more than 3 times |
-| `hitl_review` | `interrupt()` — wait for approve/reject |
-| `hitl_rejected_no_feedback` | Handle reject-with-no-feedback case, stop immediately |
-| `hitl_exhausted` | Reject with feedback but attempted over 3 times — inform and stop |
-| `qa_agent` | Agent that answers knowledge questions |
-| `verify_faithfulness` | Validate faithfulness >= 0.9 (RAGAS is the implementation, not the contract) |
-| `qa_fallback` | Fallback when faithfulness fails 3 times — tell user the data is untrusted |
-| `finalize_turn` | The single convergence point: persist an approved plan, settle `final_message` |
+The fixed pipeline this section originally described (`parse_turn` classifying intent once up
+front, then branching for the rest of the turn) is gone. In its place, `supervisor` decides one
+agent at a time — `user_agent`, `coach_agent` or `qa_agent` — in a loop, until it decides
+`FINISH`; every branch returns to it through `summarize` rather than converging on a single
+`finalize_turn`. `src/core/langgraph/` ran this section's original pipeline unchanged until the
+Milestone 11 cutover (28/08) deleted it; the deviations table below is kept for the reasoning
+behind each name, even though the "old pipeline only" nodes it references no longer exist.
 
 ### Deviations from the PDF spec, and why
 
 | Spec | Built | Reason |
 |---|---|---|
 | `llm_guard` | `guard_input` | The library is `llm-guard`; the node makes no LLM call, and the old name said it did |
-| `classify_intent` + `determine_context` + `save_user_data` | `parse_turn` + `merge_profile` + `persist_profile` | Classification and extraction are one structured read of one message, so they are one call. Merging is deterministic and belongs in its own testable node; the write is a third, separate concern |
+| `classify_intent` + `determine_context` + `save_user_data` | `parse_turn` + `merge_profile` + `persist_profile` (old pipeline only — see above) | Classification and extraction are one structured read of one message, so they are one call. Merging is deterministic and belongs in its own testable node; the write is a third, separate concern |
 | `load_context` | `load_user_context` | It reads user-scoped long-term memory, not thread state — thread state is the checkpointer |
-| `request_missing_info` / `user_info_exhausted` | `request_missing_profile_fields` / `profile_collection_exhausted` | Say which data |
+| `request_missing_info` / `user_info_exhausted` | `request_missing_profile_fields` / `profile_collection_exhausted` (old pipeline only) | Say which data |
 | `ragas_verification` | `verify_faithfulness` | Do not name a node after the library that happens to implement it |
 | `write_todo` | *(removed)* | Never wired into the graph, and `GraphState` had no `todo` key, so every write was silently dropped. The coach agent's own prompt already sequences the work |
-| `hitl_review` approve → `END` | approve → `finalize_turn` → `END` | The spec has no node that persists an approved plan, so `recall_plan` had no writer and `load_user_context` always returned `plan: None` |
+| `hitl_review` approve → `END` | (old pipeline) approve → `finalize_turn` → `END`; (current) `hitl_agent` coach·approve → `commit_plan` → `summarize` | The spec has no node that persists an approved plan, so `recall_plan` had no writer and `load_user_context` always returned `plan: None` |
+| — | `user_agent`, `hitl_agent`, `commit_plan`, `commit_profile_update`, `summarize` | Not in the PDF spec at all — added by the supervisor migration; see `supervisor-migration.md` §1 for what each does |
 
 ## 2. Edge / routing design
 
-| From | Condition | To |
-|---|---|---|
-| `guard_input` | blocked | `blocked` |
-| `guard_input` | pass | `parse_turn` |
-| `parse_turn` | coaching | `load_user_context` |
-| `parse_turn` | qa | `load_user_context` |
-| `parse_turn` | off_topic | `off_topic` |
-| `load_user_context` | — | `merge_profile` |
-| `merge_profile` | — | `persist_profile` |
-| `persist_profile` | coaching | `check_profile_complete` |
-| `persist_profile` | qa | `qa_agent` |
-| `check_profile_complete` | context complete | `coach_agent` |
-| `check_profile_complete` | missing fields & retry < 3 | `request_missing_profile_fields` |
-| `check_profile_complete` | retry >= 3 | `profile_collection_exhausted` |
-| `request_missing_profile_fields` | — | `wait_for_user` |
-| `wait_for_user` | user replied | `parse_turn` |
-| `coach_agent` | success | `deterministic_verification` |
-| `deterministic_verification` | pass | `hitl_review` |
-| `deterministic_verification` | fail & retry < 3 | `coach_agent` |
-| `deterministic_verification` | fail & retry >= 3 | `notify_fail` |
-| `hitl_review` | approve | `finalize_turn` |
-| `hitl_review` | reject + feedback | `coach_agent` |
-| `hitl_review` | reject + no feedback | `hitl_rejected_no_feedback` |
-| `hitl_review` | reject + retry >= 3 | `hitl_exhausted` |
-| `qa_agent` | answer generated | `verify_faithfulness` |
-| `verify_faithfulness` | >= 0.9 faithfulness | `finalize_turn` |
-| `verify_faithfulness` | < 0.9 & retry < 3 | `qa_agent` |
-| `verify_faithfulness` | < 0.9 & retry >= 3 | `qa_fallback` |
-| `blocked`, `off_topic` | — | `END` |
-| `profile_collection_exhausted`, `notify_fail`, `hitl_rejected_no_feedback`, `hitl_exhausted`, `qa_fallback` | — | `finalize_turn` |
-| `finalize_turn` | — | `END` |
+**Superseded by the supervisor migration** — see [`supervisor-migration.md`](supervisor-migration.md)
+§2 for the current routing table. Only two edges in the current graph reach `END`: `guard_input`'s
+block, and `supervisor`'s own `FINISH` decision; every other node returns to `supervisor` through
+`summarize`, which replaces the fixed pipeline's single `finalize_turn` convergence point.
 
-`request_missing_profile_fields → wait_for_user → parse_turn` is the interrupt loop. The resume
-routes back through `parse_turn` rather than into the completeness check, because that is where
-the reply is read: routing it anywhere later leaves the answer unparsed and the loop asks the same
-question until it exhausts. Re-entering `parse_turn` also lets the user change the subject
-mid-collection — bounded by *sticky intent*: while `missing_fields` is non-empty, a message that
-states at least one profile field keeps the intent that opened the loop, so `"34, male, 4 days"` is
-never reclassified as a new question.
+The old pipeline's routing, until it was deleted at the Milestone 11 cutover (28/08), was
+unchanged from what this section originally described: `request_missing_profile_fields →
+wait_for_user → parse_turn` was its interrupt loop, resuming through `parse_turn` because that is
+where the reply was read; re-entering `parse_turn` let the user change the subject
+mid-collection, bounded by *sticky intent* — while `missing_fields` was non-empty, a message that
+stated at least one profile field kept the intent that opened the loop. That loop was bounded by
+`user_info_retry_count`, and both its branches shared `load_user_context → merge_profile →
+persist_profile`. None of that carried forward: the current pipeline has no upfront intent
+classification to stay sticky to, and `user_agent` asks for missing fields conversationally
+instead of through a template node — see `supervisor-migration.md` §1's "Removed" table and §4
+for what replaced it and what was deliberately dropped rather than ported.
 
-The loop is bounded by `user_info_retry_count`: after `USER_INFO_MAX_RETRIES` questions with the
-profile still incomplete, the run stops at `profile_collection_exhausted`.
-
-Both working branches share `load_user_context → merge_profile → persist_profile`. The QA branch
-gets the fresh profile and the current plan for free — the extraction it rides on is the same call
-that routed it, so the shared path costs the QA turn nothing.
-
-All three pictures below are generated from `build_graph()` by
-`scripts/export_graph_diagrams.py`, which also writes `docs/diagrams/*.mmd`; add `--format png`
-for `docs/diagrams/*.png`, rendered through `langchain_core`'s own `draw_mermaid_png`.
-Regenerate them rather than editing them — a hand-edited diagram is one that can disagree with
-the wiring, and `tests/test_graph_diagrams.py` fails when they do.
-
-### Whole workflow
-
-<!-- workflow:start -->
-
-```mermaid
-%% workflow — generated by scripts/export_graph_diagrams.py, do not edit by hand
-flowchart TD
-    start([START])
-    finish([END])
-    start --> guard_input
-    guard_input -->|blocked| blocked
-    guard_input -->|pass| parse_turn
-    blocked --> finish
-    parse_turn -->|coaching| load_user_context
-    parse_turn -->|qa| load_user_context
-    parse_turn -->|off_topic| off_topic
-    load_user_context --> merge_profile
-    off_topic --> finish
-    merge_profile --> persist_profile
-    persist_profile --> persist_preferences
-    persist_preferences -->|coaching| check_profile_complete
-    persist_preferences -->|qa| qa_agent
-    check_profile_complete -->|complete| coach_agent
-    check_profile_complete -->|ask| request_missing_profile_fields
-    check_profile_complete -->|exhausted| profile_collection_exhausted
-    qa_agent --> verify_faithfulness
-    coach_agent --> deterministic_verification
-    request_missing_profile_fields --> wait_for_user
-    profile_collection_exhausted --> finalize_turn
-    verify_faithfulness -->|pass| finalize_turn
-    verify_faithfulness -->|retry| qa_agent
-    verify_faithfulness -->|fallback| qa_fallback
-    deterministic_verification -->|pass| present_plan
-    deterministic_verification -->|retry| coach_agent
-    deterministic_verification -->|exhausted| notify_fail
-    wait_for_user --> parse_turn
-    finalize_turn --> finish
-    qa_fallback --> finalize_turn
-    present_plan --> hitl_review
-    notify_fail --> finalize_turn
-    hitl_review -->|approve| finalize_turn
-    hitl_review -->|revise| coach_agent
-    hitl_review -->|no_feedback| hitl_rejected_no_feedback
-    hitl_review -->|exhausted| hitl_exhausted
-    hitl_rejected_no_feedback --> finalize_turn
-    hitl_exhausted --> finalize_turn
-    classDef llm fill:#4a3b1f,stroke:#e0a44a,stroke-width:2px,color:#fff
-    classDef gate fill:#3d1f1f,stroke:#e05b5b,stroke-width:2px,color:#fff
-    classDef pause fill:#2d3b55,stroke:#5b8def,stroke-width:2px,color:#fff
-    classDef stop fill:#3a3a3a,stroke:#8a8a8a,stroke-width:1px,color:#fff
-    classDef finalize fill:#3d2d55,stroke:#a98fe8,stroke-width:2px,color:#fff
-    class coach_agent,parse_turn,qa_agent llm
-    class deterministic_verification,guard_input,verify_faithfulness gate
-    class hitl_review,wait_for_user pause
-    class blocked,hitl_exhausted,hitl_rejected_no_feedback,notify_fail,off_topic,profile_collection_exhausted,qa_fallback stop
-    class finalize_turn finalize
-```
-
-<!-- workflow:end -->
-
-### Coaching flow
-
-<!-- coaching-flow:start -->
-
-```mermaid
-%% coaching flow — generated by scripts/export_graph_diagrams.py, do not edit by hand
-flowchart TD
-    start([START])
-    finish([END])
-    start --> guard_input
-    guard_input -->|blocked| blocked
-    guard_input -->|pass| parse_turn
-    blocked --> finish
-    parse_turn -->|coaching| load_user_context
-    parse_turn -->|off_topic| off_topic
-    load_user_context --> merge_profile
-    off_topic --> finish
-    merge_profile --> persist_profile
-    persist_profile --> persist_preferences
-    persist_preferences -->|coaching| check_profile_complete
-    check_profile_complete -->|complete| coach_agent
-    check_profile_complete -->|ask| request_missing_profile_fields
-    check_profile_complete -->|exhausted| profile_collection_exhausted
-    coach_agent --> deterministic_verification
-    request_missing_profile_fields --> wait_for_user
-    profile_collection_exhausted --> finalize_turn
-    deterministic_verification -->|pass| present_plan
-    deterministic_verification -->|retry| coach_agent
-    deterministic_verification -->|exhausted| notify_fail
-    wait_for_user --> parse_turn
-    finalize_turn --> finish
-    present_plan --> hitl_review
-    notify_fail --> finalize_turn
-    hitl_review -->|approve| finalize_turn
-    hitl_review -->|revise| coach_agent
-    hitl_review -->|no_feedback| hitl_rejected_no_feedback
-    hitl_review -->|exhausted| hitl_exhausted
-    hitl_rejected_no_feedback --> finalize_turn
-    hitl_exhausted --> finalize_turn
-    classDef llm fill:#4a3b1f,stroke:#e0a44a,stroke-width:2px,color:#fff
-    classDef gate fill:#3d1f1f,stroke:#e05b5b,stroke-width:2px,color:#fff
-    classDef pause fill:#2d3b55,stroke:#5b8def,stroke-width:2px,color:#fff
-    classDef stop fill:#3a3a3a,stroke:#8a8a8a,stroke-width:1px,color:#fff
-    classDef finalize fill:#3d2d55,stroke:#a98fe8,stroke-width:2px,color:#fff
-    class coach_agent,parse_turn llm
-    class deterministic_verification,guard_input gate
-    class hitl_review,wait_for_user pause
-    class blocked,hitl_exhausted,hitl_rejected_no_feedback,notify_fail,off_topic,profile_collection_exhausted stop
-    class finalize_turn finalize
-```
-
-<!-- coaching-flow:end -->
-
-### QA flow
-
-<!-- qa-flow:start -->
-
-```mermaid
-%% qa flow — generated by scripts/export_graph_diagrams.py, do not edit by hand
-flowchart TD
-    start([START])
-    finish([END])
-    start --> guard_input
-    guard_input -->|blocked| blocked
-    guard_input -->|pass| parse_turn
-    blocked --> finish
-    parse_turn -->|qa| load_user_context
-    parse_turn -->|off_topic| off_topic
-    load_user_context --> merge_profile
-    off_topic --> finish
-    merge_profile --> persist_profile
-    persist_profile --> persist_preferences
-    persist_preferences -->|qa| qa_agent
-    qa_agent --> verify_faithfulness
-    verify_faithfulness -->|pass| finalize_turn
-    verify_faithfulness -->|retry| qa_agent
-    verify_faithfulness -->|fallback| qa_fallback
-    finalize_turn --> finish
-    qa_fallback --> finalize_turn
-    classDef llm fill:#4a3b1f,stroke:#e0a44a,stroke-width:2px,color:#fff
-    classDef gate fill:#3d1f1f,stroke:#e05b5b,stroke-width:2px,color:#fff
-    classDef pause fill:#2d3b55,stroke:#5b8def,stroke-width:2px,color:#fff
-    classDef stop fill:#3a3a3a,stroke:#8a8a8a,stroke-width:1px,color:#fff
-    classDef finalize fill:#3d2d55,stroke:#a98fe8,stroke-width:2px,color:#fff
-    class parse_turn,qa_agent llm
-    class guard_input,verify_faithfulness gate
-    class blocked,off_topic,qa_fallback stop
-    class finalize_turn finalize
-```
-
-<!-- qa-flow:end -->
+The three diagrams that used to render here (generated from the old pipeline's
+`build_graph()` by `scripts/export_graph_diagrams.py`) were removed at the Milestone 11
+cutover along with the code they depicted. [`supervisor-workflow.html`](supervisor-workflow.html)
+is the authoritative diagram for the current topology; regenerating an equivalent "one view
+per intent" set for the new graph is not planned, since a supervisor that can visit more
+than one agent per turn does not split into per-intent views the same way.
 
 ## 3. State design
 

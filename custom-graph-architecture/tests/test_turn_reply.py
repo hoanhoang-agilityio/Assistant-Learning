@@ -10,13 +10,13 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from src.core.langgraph.nodes.present_plan import (
+from src.enums import Node, StreamEventType
+from src.nodes.present_plan import (
     PLAN_READY_MESSAGE,
     PLAN_REVIEW_ASK,
     present_plan,
 )
-from src.core.langgraph.runtime.facade import _step_events, _turn_reply
-from src.enums import Node, StreamEventType
+from src.runtime.facade import _step_events, _turn_reply
 from src.schemas import GraphState
 from src.services import plan_presentation
 from tests.test_verification_completeness import CATALOGUE, complete_plan

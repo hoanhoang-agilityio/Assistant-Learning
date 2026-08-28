@@ -29,7 +29,7 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.main import app
 
 pytestmark = pytest.mark.integration

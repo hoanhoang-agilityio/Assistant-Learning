@@ -9,10 +9,10 @@ import json
 
 import pytest
 
-import src.core.langgraph.nodes.verification as verification_node
-import src.core.langgraph.verification.deterministic.context as plan_context
-from src.core.configs.config import settings
-from src.core.langgraph.nodes.verification import (
+import src.nodes.verification as verification_node
+import src.verification.deterministic.context as plan_context
+from src.configs.config import settings
+from src.nodes.verification import (
     NO_PLAN_MESSAGE,
     UNVERIFIABLE_PROFILE_MESSAGE,
     deterministic_verification,

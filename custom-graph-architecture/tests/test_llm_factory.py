@@ -23,8 +23,8 @@ from openai import (
     RateLimitError,
 )
 
-from src.core.configs.config import settings
-from src.core.llm import (
+from src.configs.config import settings
+from src.services.llm import (
     RETRYABLE_ERRORS,
     agent_middleware,
     chat_model,
@@ -33,7 +33,7 @@ from src.core.llm import (
 )
 
 SRC = Path(__file__).resolve().parent.parent / "src"
-FACTORY = SRC / "core" / "llm.py"
+FACTORY = SRC / "services" / "llm.py"
 
 REQUEST = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
 

@@ -1,7 +1,7 @@
 """Tests for the workflow state schema.
 
 The round-trip test is the important one: a state field that cannot be serialised breaks
-both ``interrupt()`` gates, and it breaks them at resume time rather than at write time.
+the ``hitl_agent`` interrupt gate, and it breaks it at resume time rather than at write time.
 """
 
 import pytest
@@ -9,34 +9,27 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
-from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
-from src.schemas import (
-    GraphState,
-    RetrievedChunk,
-    initial_state,
-    is_blocked,
-    is_context_complete,
-)
+from src.runtime.backends.memory import InMemoryRuntime
+from src.schemas import GraphState, RetrievedChunk, initial_state, is_blocked
 
 SPEC_FIELDS = {
-    "user_query",
     "user_id",
-    "intent",
     "block_reason",
+    "next",
+    "iteration_count",
+    "summary",
     "profile",
     "plan",
-    "missing_fields",
-    "revision_fields",
     "coach_retry_count",
     "verification_result",
-    "hitl_decision",
-    "hitl_feedback",
-    "hitl_retry_count",
+    "pending_approval",
+    "approval_decision",
+    "approval_feedback",
+    "approval_retry_count",
     "qa_answer",
     "retrieved_context",
     "faithfulness_score",
     "qa_retry_count",
-    "final_message",
 }
 
 
@@ -50,9 +43,7 @@ def test_state_declares_every_field_in_the_spec() -> None:
 
 def test_only_the_inputs_are_required() -> None:
     """Everything a later node writes is optional, so early reads cannot KeyError."""
-    assert GraphState.__required_keys__ == frozenset(
-        {"messages", "user_query", "user_id"}
-    )
+    assert GraphState.__required_keys__ == frozenset({"messages", "user_id"})
 
 
 def test_initial_state_populates_every_key() -> None:
@@ -60,7 +51,6 @@ def test_initial_state_populates_every_key() -> None:
     state = initial_state("build me a plan", "user-1")
 
     assert SPEC_FIELDS <= set(state)
-    assert state["user_query"] == "build me a plan"
     assert state["user_id"] == "user-1"
 
 
@@ -69,8 +59,9 @@ def test_initial_state_zeroes_the_retry_counters() -> None:
     state = initial_state("hello", "user-1")
 
     assert state["coach_retry_count"] == 0
-    assert state["hitl_retry_count"] == 0
+    assert state["approval_retry_count"] == 0
     assert state["qa_retry_count"] == 0
+    assert state["iteration_count"] == 0
 
 
 def test_initial_state_seeds_messages_with_the_query() -> None:
@@ -117,13 +108,18 @@ async def test_state_round_trips_through_a_checkpointer() -> None:
     async def populate(state: GraphState) -> Command:
         return Command(
             update={
-                "intent": "qa",
+                "next": "qa_agent",
                 "qa_answer": "1.6 g/kg",
                 "retrieved_context": [chunk],
                 "faithfulness_score": 0.93,
                 "qa_retry_count": 1,
                 "verification_result": {"passed": True, "errors": []},
-                "final_message": "1.6 g/kg",
+                "pending_approval": {
+                    "source": "coach_agent",
+                    "kind": "plan",
+                    "summary": "Approve this plan?",
+                    "payload": {},
+                },
             },
             goto=END,
         )
@@ -139,12 +135,12 @@ async def test_state_round_trips_through_a_checkpointer() -> None:
 
     restored = (await graph.aget_state(config)).values
 
-    assert restored["intent"] == "qa"
+    assert restored["next"] == "qa_agent"
     assert restored["retrieved_context"] == [chunk]
     assert restored["faithfulness_score"] == pytest.approx(0.93)
     assert restored["qa_retry_count"] == 1
     assert restored["verification_result"] == {"passed": True, "errors": []}
-    assert restored["final_message"] == "1.6 g/kg"
+    assert restored["pending_approval"]["source"] == "coach_agent"
 
 
 @pytest.mark.parametrize(
@@ -157,20 +153,6 @@ def test_is_blocked_reads_the_reason_not_a_flag(
     state = initial_state("hello", "user-1") | {"block_reason": block_reason}
 
     assert is_blocked(state) is expected
-
-
-@pytest.mark.parametrize(
-    ("missing_fields", "expected"), [([], True), (["goal"], False)]
-)
-def test_is_context_complete_reads_missing_fields_not_a_flag(
-    missing_fields: list[str], expected: bool
-) -> None:
-    """`context_complete` was dropped: an empty missing-fields list is completeness."""
-    state = initial_state("build me a plan", "user-1") | {
-        "missing_fields": missing_fields
-    }
-
-    assert is_context_complete(state) is expected
 
 
 async def test_a_branch_update_leaves_other_branches_untouched() -> None:

@@ -11,10 +11,10 @@ from unittest.mock import MagicMock
 import pytest
 from langgraph.errors import GraphInterrupt
 
-from src.core.langgraph.graph import NODES, build_graph
-from src.core.observability import nodes as observability
-from src.core.observability.nodes import observations, observed
 from src.enums import Node
+from src.graph import NODES, build_graph
+from src.observability import nodes as observability
+from src.observability.nodes import observations, observed
 from src.schemas import GraphState, initial_state
 
 STATE: GraphState = initial_state("build me a plan", "user-1")
@@ -69,15 +69,15 @@ def _failing_node(error: BaseException):
 
 
 def test_the_routing_label_and_retry_counters_are_recorded() -> None:
-    """Spec §10 names intent and the retry counts as what a trace must be searchable by."""
-    fields = observations({"intent": "coaching", "coach_retry_count": 2})
+    """Spec §10 names the routing decision and the retry counts as searchable trace fields."""
+    fields = observations({"next": "coach_agent", "coach_retry_count": 2})
 
-    assert fields == {"intent": "coaching", "coach_retry_count": 2}
+    assert fields == {"next": "coach_agent", "coach_retry_count": 2}
 
 
 def test_state_a_node_did_not_write_is_not_reported_as_its_decision() -> None:
     """Read off the update, not the state: a line says what *this* node decided."""
-    assert observations({"user_query": "hello"}) == {}
+    assert observations({"profile": {"age": 34}}) == {}
 
 
 def test_a_passing_verification_records_the_verdict() -> None:
@@ -119,26 +119,19 @@ def test_the_plan_is_recorded_as_generated_rather_than_in_full() -> None:
     assert fields == {"plan_generated": True}
 
 
-def test_the_final_message_is_recorded() -> None:
-    """Spec §10 asks for the final result, which is the one thing the user actually saw."""
-    fields = observations({"final_message": "Your plan is saved."})
-
-    assert fields == {"final_message": "Your plan is saved."}
-
-
 # --- Latency and outcome ------------------------------------------------------------------
 
 
 async def test_a_node_is_timed_and_its_update_passes_through_untouched(client) -> None:
     """Instrumentation observes; a node that returned something else would be a bug in it."""
-    update = {"intent": "qa"}
+    update = {"next": "qa_agent"}
 
-    assert await observed(Node.PARSE_TURN, _node(update))(STATE) == update
+    assert await observed(Node.SUPERVISOR, _node(update))(STATE) == update
 
     metadata = client.update_current_span.call_args.kwargs["metadata"]
-    assert metadata["node"] == Node.PARSE_TURN.value
+    assert metadata["node"] == Node.SUPERVISOR.value
     assert metadata["duration_ms"] >= 0
-    assert metadata["intent"] == "qa"
+    assert metadata["next"] == "qa_agent"
 
 
 async def test_a_failing_node_is_recorded_as_an_error_and_still_raises(client) -> None:
@@ -153,7 +146,7 @@ async def test_a_failing_node_is_recorded_as_an_error_and_still_raises(client) -
 async def test_a_pause_is_not_recorded_as_a_failure(client) -> None:
     """``interrupt()`` parks the run by raising; every HITL turn would read as an error."""
     with pytest.raises(GraphInterrupt):
-        await observed(Node.HITL_REVIEW, _failing_node(GraphInterrupt(())))(STATE)
+        await observed(Node.HITL_AGENT, _failing_node(GraphInterrupt(())))(STATE)
 
     client.update_current_span.assert_not_called()
 
@@ -197,8 +190,8 @@ async def test_the_verification_verdict_is_promoted_to_a_trace_score(client) -> 
 
 async def test_a_node_runs_normally_when_tracing_never_came_up(no_client) -> None:
     """No Langfuse keys is the default on a dev machine, and must cost nothing."""
-    assert await observed(Node.PARSE_TURN, _node({"intent": "qa"}))(STATE) == {
-        "intent": "qa"
+    assert await observed(Node.SUPERVISOR, _node({"next": "qa_agent"}))(STATE) == {
+        "next": "qa_agent"
     }
 
 

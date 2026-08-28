@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from docx import Document
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.models import KnowledgeChunk
 from src.services import knowledge
 

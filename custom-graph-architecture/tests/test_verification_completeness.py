@@ -1,9 +1,5 @@
 """Tests for the completeness rule: whether a plan actually fills the template it names."""
 
-from src.core.langgraph.verification.deterministic.completeness import (
-    check_completeness,
-)
-from src.core.langgraph.verification.deterministic.context import PlanContext
 from src.enums import (
     ActivityLevel,
     BodyRegion,
@@ -26,6 +22,10 @@ from src.schemas import (
     WorkoutDayTemplate,
     WorkoutTemplate,
 )
+from src.verification.deterministic.completeness import (
+    check_completeness,
+)
+from src.verification.deterministic.context import PlanContext
 
 BENCH_PRESS = Exercise(
     id="ex-bench-press",

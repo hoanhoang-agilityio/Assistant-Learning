@@ -2,8 +2,6 @@
 
 import pytest
 
-from src.core.langgraph.verification.deterministic.context import PlanContext
-from src.core.langgraph.verification.deterministic.macros import check_macros
 from src.enums import (
     ActivityLevel,
     FitnessGoal,
@@ -19,6 +17,8 @@ from src.schemas import (
     UserProfile,
 )
 from src.services.nutrition import calc_macros
+from src.verification.deterministic.context import PlanContext
+from src.verification.deterministic.macros import check_macros
 
 MALE = UserProfile(
     age=34,

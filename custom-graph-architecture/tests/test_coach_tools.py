@@ -5,7 +5,7 @@ import json
 import pytest
 from langchain_core.tools import BaseTool
 
-from src.core.langgraph.tools import (
+from src.tools import (
     COACH_TOOLS,
     calc_macro,
     load_exercise,

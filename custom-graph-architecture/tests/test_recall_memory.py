@@ -4,12 +4,12 @@ import pytest
 from langchain.tools import ToolRuntime
 
 import src.services.memory as memory_service
-from src.core.langgraph.runtime import MemoryScope
-from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
-from src.core.langgraph.tools.recall_memory import NOTHING_RECORDED, recall_memory
+from src.runtime import MemoryScope
+from src.runtime.backends.memory import InMemoryRuntime
 from src.schemas import CoachContext, QaContext
 from src.services.memory import save
 from src.services.profile import save_profile
+from src.tools.recall_memory import NOTHING_RECORDED, recall_memory
 
 USER_ID = "user-1"
 

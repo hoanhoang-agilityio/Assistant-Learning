@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.main import app
 
 

@@ -2,12 +2,9 @@
 
 import pytest
 
-import src.core.langgraph.nodes.context as context_node
 import src.services.memory as memory_service
-from src.core.langgraph.nodes.context import load_user_context as load_user_context_node
-from src.core.langgraph.runtime import MemoryScope, namespace_for, plan_namespace
-from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
-from src.schemas import initial_state
+from src.runtime import MemoryScope, namespace_for, plan_namespace
+from src.runtime.backends.memory import InMemoryRuntime
 from src.services.memory import CURRENT_PLAN_KEY
 from src.services.profile import (
     PROFILE_KEY,
@@ -152,57 +149,3 @@ async def test_an_empty_user_id_is_rejected(store, load) -> None:
     """An anonymous read would address a namespace every anonymous caller shares."""
     with pytest.raises(ValueError, match="user_id is required"):
         await load("")
-
-
-# --- The node ----------------------------------------------------------------------------
-#
-# ``load_user_context`` only loads now — it makes no completeness decision, because the current
-# message may still fill a gap this baseline has. That decision belongs to
-# ``check_profile_complete`` in ``test_check_profile_complete.py``, run after
-# ``merge_profile`` has had a chance to merge the message in.
-
-
-async def test_node_writes_only_profile_and_plan(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The node reports exactly what it loaded — nothing about whether it is enough."""
-
-    async def loaded(user_id: str) -> UserContext:
-        assert user_id == USER_ID
-        return UserContext(profile=COMPLETE_PROFILE, plan=PLAN)
-
-    monkeypatch.setattr(context_node, "read_user_context", loaded)
-
-    actual_update = await load_user_context_node(
-        initial_state("adjust my plan", USER_ID)
-    )
-
-    assert actual_update == {"profile": COMPLETE_PROFILE, "plan": PLAN}
-
-
-async def test_node_loads_a_partial_profile_unchanged(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A partial profile passes through as-is; completeness is not this node's call."""
-
-    async def loaded(_: str) -> UserContext:
-        return UserContext(profile={"age": 34}, plan=None)
-
-    monkeypatch.setattr(context_node, "read_user_context", loaded)
-
-    actual_update = await load_user_context_node(
-        initial_state("build me a plan", USER_ID)
-    )
-
-    assert actual_update == {"profile": {"age": 34}, "plan": None}
-
-
-async def test_node_reads_the_store_through_the_service(store) -> None:
-    """End to end against a real store: seeded data reaches state unchanged."""
-    await _seed(store, profile=COMPLETE_PROFILE, plan=PLAN)
-
-    actual_update = await load_user_context_node(
-        initial_state("build me a plan", USER_ID)
-    )
-
-    assert actual_update == {"profile": COMPLETE_PROFILE, "plan": PLAN}

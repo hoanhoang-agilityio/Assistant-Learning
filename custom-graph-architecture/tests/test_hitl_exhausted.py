@@ -2,8 +2,8 @@
 
 from langchain_core.messages import AIMessage
 
-from src.core.configs.config import settings
-from src.core.langgraph.nodes.hitl_exhausted import (
+from src.configs.config import settings
+from src.nodes.hitl_exhausted import (
     HITL_EXHAUSTED_MESSAGE,
     hitl_exhausted,
 )
@@ -27,7 +27,6 @@ async def test_the_node_ends_the_run_with_the_refusal() -> None:
     """A terminal node, so what it writes is what the caller shows."""
     update = await hitl_exhausted(_state())
 
-    assert update["final_message"] == HITL_EXHAUSTED_MESSAGE
     assert [message.content for message in update["messages"]] == [
         HITL_EXHAUSTED_MESSAGE
     ]

@@ -2,7 +2,7 @@
 
 from langchain_core.messages import AIMessage
 
-from src.core.langgraph.nodes.hitl_rejected_no_feedback import (
+from src.nodes.hitl_rejected_no_feedback import (
     HITL_REJECTED_NO_FEEDBACK_MESSAGE,
     hitl_rejected_no_feedback,
 )
@@ -25,7 +25,6 @@ async def test_the_node_ends_the_run_with_the_refusal() -> None:
     """A terminal node, so what it writes is what the caller shows."""
     update = await hitl_rejected_no_feedback(_state())
 
-    assert update["final_message"] == HITL_REJECTED_NO_FEEDBACK_MESSAGE
     assert [message.content for message in update["messages"]] == [
         HITL_REJECTED_NO_FEEDBACK_MESSAGE
     ]

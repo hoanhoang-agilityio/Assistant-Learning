@@ -7,16 +7,17 @@ a judge that found no statement to judge — has to fail the gate rather than pa
 """
 
 import pytest
+from langchain_core.messages import HumanMessage
 
-import src.core.langgraph.nodes.faithfulness as faithfulness_node
-from src.core.configs.config import settings
-from src.core.langgraph.nodes.faithfulness import (
+import src.nodes.faithfulness as faithfulness_node
+from src.configs.config import settings
+from src.nodes.faithfulness import (
     is_faithful,
     route_after_faithfulness,
     verify_faithfulness,
 )
-from src.core.langgraph.verification import faithfulness
 from src.schemas import RetrievedChunk, initial_state
+from src.verification import faithfulness
 
 USER_ID = "user-ragas"
 QUESTION = "How much protein should I eat?"
@@ -42,6 +43,7 @@ def state_after_qa(
     return (
         initial_state(QUESTION, USER_ID)
         | {
+            "messages": [HumanMessage(content=QUESTION)],
             "qa_answer": answer,
             "retrieved_context": PASSAGES if passages is None else passages,
         }
@@ -71,7 +73,9 @@ async def test_a_faithful_answer_clears_the_gate(scored) -> None:
 
     update = await verify_faithfulness(state_after_qa())
 
-    assert update == {"faithfulness_score": 0.95, "qa_retry_count": 0}
+    assert update["faithfulness_score"] == 0.95
+    assert update["qa_retry_count"] == 0
+    assert [message.content for message in update["messages"]] == [ANSWER]
 
 
 async def test_the_threshold_itself_passes(scored) -> None:
@@ -89,7 +93,11 @@ async def test_an_unfaithful_answer_is_kept_with_its_score(scored) -> None:
 
     update = await verify_faithfulness(state_after_qa())
 
-    assert update == {"faithfulness_score": BELOW_THRESHOLD, "qa_retry_count": 1}
+    assert update == {
+        "faithfulness_score": BELOW_THRESHOLD,
+        "qa_retry_count": 1,
+        "messages": [],
+    }
 
 
 async def test_the_gate_scores_the_question_answer_and_passages(
@@ -116,14 +124,14 @@ async def test_no_answer_at_all_fails_the_gate() -> None:
     """``qa_agent`` returns no answer when it fails; nothing may pass on an empty answer."""
     update = await verify_faithfulness(state_after_qa(answer=None))
 
-    assert update == {"faithfulness_score": None, "qa_retry_count": 1}
+    assert update == {"faithfulness_score": None, "qa_retry_count": 1, "messages": []}
 
 
 async def test_an_answer_with_no_retrieved_passages_fails_the_gate() -> None:
     """With nothing retrieved there is nothing the answer could be faithful to."""
     update = await verify_faithfulness(state_after_qa(passages=[]))
 
-    assert update == {"faithfulness_score": None, "qa_retry_count": 1}
+    assert update == {"faithfulness_score": None, "qa_retry_count": 1, "messages": []}
 
 
 async def test_a_missing_score_fails_the_gate(scored) -> None:
@@ -132,7 +140,7 @@ async def test_a_missing_score_fails_the_gate(scored) -> None:
 
     update = await verify_faithfulness(state_after_qa())
 
-    assert update == {"faithfulness_score": None, "qa_retry_count": 1}
+    assert update == {"faithfulness_score": None, "qa_retry_count": 1, "messages": []}
 
 
 # --- The retry counter --------------------------------------------------------------------

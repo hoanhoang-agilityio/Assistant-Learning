@@ -5,11 +5,11 @@ import sys
 
 import pytest
 
-from src.core.configs.config import settings
-from src.core.langgraph.tools import QA_TOOLS, search_knowledge
-from src.core.langgraph.tools.search_knowledge import NO_PASSAGES
+from src.configs.config import settings
 from src.models import KnowledgeChunk
 from src.services import knowledge
+from src.tools import QA_TOOLS, search_knowledge
+from src.tools.search_knowledge import NO_PASSAGES
 
 tool_module = sys.modules[search_knowledge.coroutine.__module__]
 

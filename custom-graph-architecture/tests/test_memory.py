@@ -3,8 +3,8 @@
 import pytest
 
 import src.services.memory as memory_service
-from src.core.langgraph.runtime import MemoryScope, namespace_for
-from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
+from src.runtime import MemoryScope, namespace_for
+from src.runtime.backends.memory import InMemoryRuntime
 from src.services.memory import (
     MAX_ENTRIES_PER_SCOPE,
     UserMemory,

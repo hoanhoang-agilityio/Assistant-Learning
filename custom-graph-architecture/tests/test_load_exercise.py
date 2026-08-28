@@ -6,9 +6,6 @@ from pathlib import Path
 import pytest
 from langchain.tools import ToolRuntime
 
-from src.core.langgraph.tools import COACH_TOOLS, load_exercise
-from src.core.langgraph.tools.context import context_profile
-from src.core.langgraph.tools.load_exercise import SlotQuery
 from src.enums import (
     BodyRegion,
     EquipmentType,
@@ -21,6 +18,9 @@ from src.schemas import (
     UserProfile,
 )
 from src.services import catalogue
+from src.tools import COACH_TOOLS, load_exercise
+from src.tools.context import context_profile
+from src.tools.load_exercise import SlotQuery
 from tests.test_load_user_context import COMPLETE_PROFILE
 
 DATA_DIR = Path("data")

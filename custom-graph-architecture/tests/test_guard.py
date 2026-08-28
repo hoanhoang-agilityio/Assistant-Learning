@@ -9,21 +9,15 @@ Only the test that constructs real scanners is marked ``integration`` — that o
 model weights.
 """
 
-import sys
-
 import pytest
 from langchain_core.messages import AIMessage
 
-from src.core.configs.config import GuardScanner, settings
-from src.core.langgraph.graph import build_graph
-from src.core.langgraph.nodes.guard import route_after_guard
-from src.core.langgraph.nodes.parse_turn import parse_turn
+from src.configs.config import GuardScanner, settings
+from src.graph import build_graph
+from src.nodes.guard import route_after_guard
 from src.schemas import initial_state
 from src.services import guard as guard_service
 from src.services.guard import BLOCK_REASONS, GUARD_FAILURE_REASON, scan_input
-from src.services.turn import TurnParse
-
-parse_node = sys.modules[parse_turn.__module__]
 
 
 class _FakeScanner:
@@ -184,31 +178,8 @@ async def test_the_graph_stops_at_blocked_and_explains_why(use_scanners) -> None
     )
 
     assert result["block_reason"] == BLOCK_REASONS["PromptInjection"]
-    assert result["final_message"] == BLOCK_REASONS["PromptInjection"]
     assert isinstance(result["messages"][-1], AIMessage)
     assert result["messages"][-1].content == BLOCK_REASONS["PromptInjection"]
-
-
-@pytest.mark.skip(reason="slow: routes into the real qa_agent LLM call (~25s)")
-async def test_the_graph_carries_a_clean_query_past_the_guard(
-    use_scanners, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A passing query must not be given a final message — a later node owns the answer."""
-    use_scanners(PromptInjection(is_valid=True))
-
-    async def classify_as_qa(*_: object, **__: object) -> TurnParse:
-        return TurnParse(intent="qa")
-
-    monkeypatch.setattr(parse_node, "parse_user_turn", classify_as_qa)
-
-    result = (
-        await build_graph()
-        .compile(name="guard_test")
-        .ainvoke(initial_state("how much protein should I eat?", "user-1"))
-    )
-
-    assert result["block_reason"] is None
-    assert result["final_message"] is None
 
 
 @pytest.mark.integration

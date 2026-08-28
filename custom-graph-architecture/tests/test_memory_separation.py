@@ -18,10 +18,10 @@ from langgraph.types import Command, interrupt
 from typing_extensions import TypedDict
 
 import src.services.memory as memory_service
-from src.core.configs.config import PersistenceBackend
-from src.core.langgraph.runtime import MemoryScope, namespace_for
-from src.core.langgraph.runtime.backends import RUNTIMES, build_runtime
-from src.core.langgraph.runtime.base import GraphRuntime
+from src.configs.config import PersistenceBackend
+from src.runtime import MemoryScope, namespace_for
+from src.runtime.backends import RUNTIMES, build_runtime
+from src.runtime.base import GraphRuntime
 from src.services.memory import delete, load_user_memory, recall, save
 from src.services.profile import load_profile, save_profile
 

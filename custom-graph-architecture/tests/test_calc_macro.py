@@ -5,8 +5,6 @@ import json
 import pytest
 from langchain.tools import ToolRuntime
 
-from src.core.langgraph.tools import COACH_TOOLS, calc_macro
-from src.core.langgraph.tools.calc_macro import NO_PROFILE
 from src.enums import (
     ActivityLevel,
     FitnessGoal,
@@ -20,6 +18,8 @@ from src.schemas import (
     UserProfile,
 )
 from src.services import nutrition
+from src.tools import COACH_TOOLS, calc_macro
+from src.tools.calc_macro import NO_PROFILE
 from tests.test_load_user_context import COMPLETE_PROFILE
 
 # A 34-year-old man, 178 cm and 82.5 kg: Mifflin-St Jeor puts him at 1771.5 kcal at rest.

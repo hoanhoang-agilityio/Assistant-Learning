@@ -13,16 +13,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 import structlog
 
-from src.core.configs.config import settings
-from src.core.langgraph.runtime import facade
-from src.core.langgraph.runtime.facade import langgraph_runtime
-from src.core.observability import build_run_config, langfuse
-from src.core.observability.langfuse import (
+from src.configs.config import settings
+from src.observability import build_run_config, langfuse
+from src.observability.langfuse import (
     get_langfuse_callbacks,
     langfuse_init,
     langfuse_shutdown,
 )
-from src.core.observability.tracing import TURN_TRACE_NAME
+from src.observability.tracing import TURN_TRACE_NAME
+from src.runtime import facade
+from src.runtime.facade import langgraph_runtime
 
 
 @pytest.fixture(autouse=True)
@@ -231,14 +231,11 @@ async def _finish(values: dict[str, Any]) -> None:
     )
 
 
-async def test_a_finished_turn_reports_its_latency_and_what_the_user_saw(
-    turn_log,
-) -> None:
-    """Spec §10 asks for latency and the final result, which is one line per turn."""
-    await _finish({"messages": [], "final_message": "Your plan is saved."})
+async def test_a_finished_turn_reports_its_latency(turn_log) -> None:
+    """Spec §10 asks for latency, which is one line per turn."""
+    await _finish({"messages": []})
 
     assert turn_log["event"] == "turn_completed"
-    assert turn_log["final_message"] == "Your plan is saved."
     assert turn_log["duration_ms"] >= 0
     assert turn_log["paused"] is False
 
@@ -248,25 +245,25 @@ async def test_a_finished_turn_reports_the_counters_it_ended_on(turn_log) -> Non
     await _finish(
         {
             "messages": [],
-            "intent": "coaching",
+            "next": "coach_agent",
             "coach_retry_count": 2,
-            "hitl_decision": "approve",
+            "approval_decision": "approve",
         }
     )
 
-    assert turn_log["intent"] == "coaching"
+    assert turn_log["next"] == "coach_agent"
     assert turn_log["coach_retry_count"] == 2
-    assert turn_log["hitl_decision"] == "approve"
+    assert turn_log["approval_decision"] == "approve"
 
 
 async def test_a_turn_that_never_reached_a_branch_reports_no_counters_for_it(
     turn_log,
 ) -> None:
-    """A QA turn logging ``hitl_decision=None`` invites a search that finds nothing."""
-    await _finish({"messages": [], "intent": "qa", "faithfulness_score": 0.94})
+    """A QA turn logging ``approval_decision=None`` invites a search that finds nothing."""
+    await _finish({"messages": [], "next": "qa_agent", "faithfulness_score": 0.94})
 
     assert turn_log["faithfulness_score"] == 0.94
-    assert "hitl_decision" not in turn_log
+    assert "approval_decision" not in turn_log
 
 
 def test_the_turn_binds_its_run_id_to_every_line_it_produces() -> None:

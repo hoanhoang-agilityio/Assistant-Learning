@@ -2,8 +2,6 @@
 
 import pytest
 
-from src.core.langgraph.verification.deterministic.context import PlanContext
-from src.core.langgraph.verification.deterministic.safety import check_safety
 from src.enums import (
     ActivityLevel,
     BodyRegion,
@@ -27,6 +25,8 @@ from src.schemas import (
     TrainingPlan,
     UserProfile,
 )
+from src.verification.deterministic.context import PlanContext
+from src.verification.deterministic.safety import check_safety
 
 BENCH_PRESS = Exercise(
     id="ex-bench-press",

@@ -3,7 +3,7 @@
 import pytest
 from langchain_core.messages import AIMessage
 
-from src.core.langgraph.nodes.notify_fail import (
+from src.nodes.notify_fail import (
     CHECK_SUMMARIES,
     NOTIFY_FAIL_INTRO,
     NOTIFY_FAIL_OUTRO,
@@ -110,7 +110,6 @@ async def test_the_node_ends_the_run_with_the_notification() -> None:
     update = await notify_fail(state_after_the_gate(result))
 
     expected = build_notify_fail_message(result)
-    assert update["final_message"] == expected
     assert [message.content for message in update["messages"]] == [expected]
     assert isinstance(update["messages"][0], AIMessage)
 

@@ -3,8 +3,8 @@
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from src.core.configs.config import settings
-from src.core.langgraph.agents.history import trim_history
+from src.agents.history import trim_history
+from src.configs.config import settings
 
 
 def test_a_short_conversation_is_kept_whole() -> None:

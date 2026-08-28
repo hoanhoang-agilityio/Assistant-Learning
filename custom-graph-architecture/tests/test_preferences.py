@@ -8,10 +8,8 @@ that was missing.
 import pytest
 
 import src.services.memory as memory_service
-from src.core.langgraph.nodes.persist_preferences import persist_preferences
-from src.core.langgraph.runtime import MemoryScope
-from src.core.langgraph.runtime.backends.memory import InMemoryRuntime
-from src.schemas import GraphState
+from src.runtime import MemoryScope
+from src.runtime.backends.memory import InMemoryRuntime
 from src.services.memory import recall
 from src.services.preferences import (
     EXERCISES_KEY,
@@ -33,13 +31,6 @@ async def store(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(memory_service, "graph_runtime", runtime)
     yield await runtime.store()
     await runtime.close()
-
-
-def _state(**extracted: object) -> GraphState:
-    """A run's state carrying what ``parse_turn`` read from this turn."""
-    return GraphState(
-        messages=[], user_query="", user_id=USER_ID, extracted_facts=extracted or None
-    )
 
 
 # --- Reading one turn ----------------------------------------------------------------
@@ -76,14 +67,14 @@ def test_stated_exercises_are_normalised() -> None:
 
 
 def test_a_further_dislike_is_added_rather_than_replacing() -> None:
-    """"I also hate lunges" adds to what they have already said."""
+    """ "I also hate lunges" adds to what they have already said."""
     merged = merge_entry({"disliked": ["burpees"]}, {"disliked": ["lunges"]})
 
     assert merged == {"disliked": ["burpees", "lunges"]}
 
 
 def test_a_restated_scalar_replaces() -> None:
-    """"Actually, make it evenings" corrects what they said, it does not add to it."""
+    """ "Actually, make it evenings" corrects what they said, it does not add to it."""
     merged = merge_entry({"preferred": "mornings"}, {"preferred": "evenings"})
 
     assert merged == {"preferred": "evenings"}
@@ -114,25 +105,3 @@ async def test_two_turns_accumulate(store) -> None:
     assert await recall(USER_ID, MemoryScope.PREFERENCES, EXERCISES_KEY) == {
         "disliked": ["burpees", "lunges"]
     }
-
-
-# --- The node ------------------------------------------------------------------------
-
-
-async def test_the_node_writes_what_the_turn_stated(store) -> None:
-    """``parse_turn`` reads it in the same call as the profile; this is what stores it."""
-    await persist_preferences(_state(preferences={"schedule": "mornings"}))
-
-    assert await load_preferences(USER_ID) == {SCHEDULE_KEY: {"preferred": "mornings"}}
-
-
-async def test_the_node_writes_nothing_for_a_turn_that_stated_nothing(store) -> None:
-    """Most turns state no preference, and each write is a round trip."""
-    await persist_preferences(_state(age=27))
-
-    assert await load_preferences(USER_ID) == {}
-
-
-async def test_the_node_survives_a_turn_it_could_not_parse(store) -> None:
-    """A failed parse leaves no facts at all; the node runs unconditionally regardless."""
-    assert await persist_preferences(_state()) == {}

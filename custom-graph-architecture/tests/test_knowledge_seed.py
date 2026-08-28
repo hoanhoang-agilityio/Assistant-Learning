@@ -9,7 +9,7 @@ import pytest
 from sqlmodel import func, select
 
 import scripts.seed_knowledge as seeder
-from src.core.configs.config import settings
+from src.configs.config import settings
 from src.models.knowledge import KnowledgeChunk
 from src.services.database import session_factory
 from src.services.knowledge import Chunk, chunk_directory

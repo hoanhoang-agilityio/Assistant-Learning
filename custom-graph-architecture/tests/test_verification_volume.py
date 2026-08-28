@@ -2,13 +2,6 @@
 
 import pytest
 
-from src.core.langgraph.verification.deterministic.context import PlanContext
-from src.core.langgraph.verification.deterministic.volume import (
-    MAX_SETS_PER_DAY,
-    MAX_SETS_PER_EXERCISE,
-    MAX_WEEKLY_SETS_PER_MUSCLE,
-    check_volume,
-)
 from src.enums import (
     ActivityLevel,
     BodyRegion,
@@ -30,6 +23,13 @@ from src.schemas import (
     UserProfile,
     WorkoutDayTemplate,
     WorkoutTemplate,
+)
+from src.verification.deterministic.context import PlanContext
+from src.verification.deterministic.volume import (
+    MAX_SETS_PER_DAY,
+    MAX_SETS_PER_EXERCISE,
+    MAX_WEEKLY_SETS_PER_MUSCLE,
+    check_volume,
 )
 
 

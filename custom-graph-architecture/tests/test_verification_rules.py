@@ -8,14 +8,7 @@ that the verdict routing depends on means what it says.
 
 import pytest
 
-import src.core.langgraph.verification.deterministic.context as plan_context
-from src.core.langgraph.verification import verify_plan
-from src.core.langgraph.verification.deterministic import (
-    RULES,
-    PlanContext,
-    build_plan_context,
-    run_rules,
-)
+import src.verification.deterministic.context as plan_context
 from src.enums import (
     MovementPattern,
     RestrictionAction,
@@ -31,6 +24,13 @@ from src.schemas import (
     VerificationIssue,
     VerificationResult,
     WorkoutTemplate,
+)
+from src.verification import verify_plan
+from src.verification.deterministic import (
+    RULES,
+    PlanContext,
+    build_plan_context,
+    run_rules,
 )
 from tests.test_verification_completeness import (
     CATALOGUE,

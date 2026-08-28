@@ -4,7 +4,7 @@ Replaces the intent-routed fixed pipeline (`parse_turn` → branch on `Intent`) 
 router that decides one agent at a time, in a loop, until it decides `FINISH`. The two existing
 sub-pipelines — coaching and QA — are **not rewritten**; only how they're entered and exited
 changes. Design discussion and the diagram this doc implements:
-[`docs/diagrams/supervisor-workflow.html`](diagrams/supervisor-workflow.html). The target state
+[`docs/supervisor-workflow.html`](supervisor-workflow.html). The target state
 shape is already committed in [`src/schemas/graph.py`](../src/schemas/graph.py).
 
 Status values: `Todo` · `In progress` · `Done`. Update `Actual` and `Status` as each task lands.
@@ -215,35 +215,90 @@ Only two edges in the whole graph reach `END`: `guard_input`'s block, and `super
 
 ### Milestone 8 — Dead code audit (1.5h)
 
+Audited both files against the new pipeline (`src/agents/`, `src/nodes/`, `src/tools/`):
+none of the four functions below, nor `parse_user_turn`/`ProfileStatement`/`TurnParse`/
+`EXTRACTABLE_FIELDS`/`InjuryStatement`, have a caller there — `user_agent`'s
+`update_user_profile` tool takes `field`/`value` straight from the LLM's tool call, one
+field at a time, and never runs a turn-parsing or batch-merge step.
+
+They are **not dead today**, though: this session found `src/core/langgraph/graph.py`
+(and 10 of its node files) broken — deleted or import-broken by Milestone 7's commit
+even though §0 requires `src/core/` to stay untouched and running until cutover. Restoring
+that (see git history around 28/08 for the fix) means `parse_turn.py` and `merge_profile.py`
+under `src/core/langgraph/nodes/` are live again, and they import exactly the symbols this
+milestone targets (`parse_user_turn`, `TurnParse`, `DEFAULT_INTENT`, `ProfileStatement`,
+`merge_profile_updates`, `pending_revision_fields`; `merge_injuries` and
+`usable_profile_fields` are pulled in transitively through `merge_profile_updates`).
+Removing them now reproduces the same breakage. Deferred to Milestone 11: they go with
+the rest of `src/core/` in that cutover's delete, at which point this audit's conclusion
+— dead to the new pipeline — becomes safe to act on without a compensating deletion.
+
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | Audit `src/services/turn.py` (`parse_user_turn`, `ProfileStatement`, `EXTRACTABLE_FIELDS`) for continued use; remove if dead | 0.5 | | Todo |
-| — | Audit `src/services/profile.py` (`merge_profile_updates`, `merge_injuries`, `usable_profile_fields`, `pending_revision_fields`) for continued use; remove or fold into `update_user_profile` | 1 | | Todo |
+| 28/08 | Audit `src/services/turn.py` (`parse_user_turn`, `ProfileStatement`, `EXTRACTABLE_FIELDS`) for continued use; remove if dead | 0.5 | 0.5 | Done — removed at the Milestone 11 cutover once `src/core/langgraph/nodes/parse_turn.py` was actually deleted; `turn.py` now holds only `PreferenceStatement` |
+| 28/08 | Audit `src/services/profile.py` (`merge_profile_updates`, `merge_injuries`, `usable_profile_fields`, `pending_revision_fields`) for continued use; remove or fold into `update_user_profile` | 1 | 1 | Done — removed at the Milestone 11 cutover; no fold target existed since `update_user_profile` writes one field at a time, never a batch `ProfileStatement` |
 
 ### Milestone 9 — Docs (1.5h)
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | Update `docs/state-design.md` to match the `GraphState` in §5 M1 | 0.5 | | Todo |
-| — | Update `docs/implementation-plan.md` §1/§2 tables for the new topology | 0.75 | | Todo |
-| — | Regenerate `docs/diagrams/*.mmd`/`.png`, or note in `implementation-plan.md` that `supervisor-workflow.html` is now authoritative | 0.25 | | Todo |
+| 28/08 | Update `docs/state-design.md` to match the `GraphState` in §5 M1 | 0.5 | 0.5 | Done |
+| 28/08 | Update `docs/implementation-plan.md` §1/§2 tables for the new topology | 0.75 | 0.5 | Done |
+| 28/08 | Regenerate `docs/diagrams/*.mmd`/`.png`, or note in `implementation-plan.md` that `supervisor-workflow.html` is now authoritative | 0.25 | 0.25 | Done — noted; the three generated diagrams stay pinned to the old pipeline (`tests/test_graph_diagrams.py`) and retire with `src/core/` at cutover rather than being redrawn for the new loop topology |
 
 ### Milestone 10 — Testing (4h)
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | Unit test `hitl_agent` + `route_after_hitl` for all 6 outcomes | 1 | | Todo |
-| — | Unit test `update_user_profile`: blank-field direct write vs. overwrite staging | 1 | | Todo |
-| — | Unit test `supervisor` routing decision + `iteration_count` cap | 1 | | Todo |
-| — | Integration test: a compound query (QA + build plan) resolves both, QA first | 1 | | Todo |
+| 28/08 | Unit test `hitl_agent` + `route_after_hitl` for all 6 outcomes | 1 | 0.75 | Done — `tests/test_hitl_agent.py` |
+| 28/08 | Unit test `update_user_profile`: blank-field direct write vs. overwrite staging | 1 | 0.5 | Done — `tests/test_update_user_profile.py` |
+| 28/08 | Unit test `supervisor` routing decision + `iteration_count` cap | 1 | 0.75 | Done — `tests/test_supervisor.py` |
+| 28/08 | Integration test: a compound query (QA + build plan) resolves both, QA first | 1 | 1 | Done — `tests/test_supervisor_loop.py`; profile seeded directly in state (see its `_ask` docstring — nothing between `supervisor`/`qa_agent`/`coach_agent` loads it on a fresh thread, only `user_agent`'s tools do) |
 
 ### Milestone 11 — Cutover: delete `src/core/` (1h)
 
-Only after every task above is `Done`.
+Turned out much bigger than the estimate: the Milestone 0 folder restructure had only ever
+moved the files each new-pipeline node/agent needed rewritten (`agents/`, most of `nodes/`,
+`graph.py`). Everything those still depended on — `configs/config.py`, `observability/*`,
+`llm.py`, `agents/history.py`, `prompts/{rendering,security}.py`, all of `runtime/` (incl.
+`backends/`), all of `tools/` bar `profile.py`, all of `verification/` (incl.
+`deterministic/`) — was still being imported live from `src/core/langgraph/` by files
+already in the new tree. So this cutover also finished that restructure: moved those eight
+subtrees with `git mv`, rebuilt every destination `__init__.py`, and repointed every
+`src.core.*` import across the app (`api/`, `main.py`, `middlewares/*`, `models/knowledge.py`,
+`alembic/env.py`, several `services/*`) and the test suite.
+
+`src/runtime/facade.py` (moved from `src/core/langgraph/runtime/facade.py`) is the actual
+cutover switch: it now imports `build_graph` from `src/graph.py` instead of
+`src/core/langgraph/graph.py`, and `langgraph.json`'s `coaching_graph` entry points at
+`src/graph.py:build_compiled_graph` — this is what makes the chat API and `langgraph dev`
+run the new supervisor pipeline instead of the old fixed one. `src/observability/nodes.py`'s
+`TRACKED_FIELDS` (what a trace records off each node's update) was still keyed on the old
+schema's field names (`intent`, `hitl_decision`, `final_message`, …) and would have recorded
+nothing useful for the new pipeline; updated to `next`/`approval_decision`/`approval_retry_count`
+and dropped `final_message` (nothing produces an equivalent single field now — the reply is
+the last `AIMessage`).
+
+~30 test files that exercised old-pipeline-only nodes (`parse_turn`, `merge_profile`,
+`hitl_review`, `finalize_turn`, `check_profile_complete`, `request_missing_profile_fields`,
+`wait_for_user`, `profile_collection_exhausted`, `persist_profile`, the old `coach`/`qa`
+agents, the old `graph.py` wiring/diagram tests) were deleted outright — their subject no
+longer exists. A handful of mixed files (`test_guard.py`, `test_preferences.py`,
+`test_load_user_context.py`, `test_security_block.py`, `test_node_observability.py`,
+`test_graph_state.py`) had their old-pipeline-only tests removed and the rest repointed —
+most of what they cover (`route_after_guard`, `stated_preferences`/`merge_entry`,
+`missing_profile_fields`/`load_user_context` the service function, `security_block`, node
+instrumentation, `GraphState` itself) is still very much alive.
+
+`docs/diagrams/{workflow,coaching-flow,qa-flow}.{mmd,png}` and
+`scripts/export_graph_diagrams.py` were deleted per Milestone 9's decision — they rendered
+the old graph, and no equivalent exists for the new loop topology (see `implementation-plan.md`
+§2). `docs/diagrams/rag-flow.png` is unrelated and stays.
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | Repoint every `src.core.configs` / `src.core.observability` / `src.core.llm` / `src.core.langgraph.*` import (see §0's list — `api/`, `main.py`, `middlewares/*`, `models/knowledge.py`, several `services/*`) to the new top-level paths | 0.5 | | Todo |
-| — | Delete `src/core/` entirely; run the full test suite | 0.5 | | Todo |
+| 28/08 | Repoint every `src.core.configs` / `src.core.observability` / `src.core.llm` / `src.core.langgraph.*` import (see §0's list — `api/`, `main.py`, `middlewares/*`, `models/knowledge.py`, `alembic/env.py`, several `services/*`) to the new top-level paths | 0.5 | ~2.5 (incl. finishing the Milestone 0 restructure — see above) | Done |
+| 28/08 | Delete `src/core/` entirely (incl. `src/core/langgraph/routes.py`); strip the old `Node`/`STEP_LABELS`/schema entries; remove the now-dead symbols in `src/services/turn.py` and `src/services/profile.py` per Milestone 8; run the full test suite | 0.5 | ~2 (incl. ~30 obsolete test files removed, ~6 test files partially rewritten) | Done — 702 tests collect, 641 pass (`-m "not integration"`), 61 deselected |
 
-**Total: ~27.75h.**
+**Total: ~27.75h estimated; Milestone 11 ran well over its 1h line once the unfinished
+restructure surfaced — see its actuals above.**

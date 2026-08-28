@@ -8,9 +8,9 @@ catches that, so it calls the model for real.
 
 import pytest
 
-from src.core.configs.config import settings
-from src.core.langgraph.verification import score_faithfulness
+from src.configs.config import settings
 from src.schemas import RetrievedChunk
+from src.verification import score_faithfulness
 
 QUESTION = "How much protein maximises training adaptation?"
 

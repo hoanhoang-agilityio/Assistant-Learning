@@ -9,7 +9,7 @@ knowledge base was silent when it was the grounding that failed.
 import pytest
 from langchain_core.messages import AIMessage
 
-from src.core.langgraph.nodes.qa_fallback import (
+from src.nodes.qa_fallback import (
     QA_FALLBACK_NO_CONTEXT,
     QA_FALLBACK_OUTRO,
     QA_FALLBACK_UNSUPPORTED,
@@ -82,12 +82,11 @@ async def test_the_fallback_message_ends_the_run() -> None:
     update = await qa_fallback(state_after_scoring())
 
     expected = build_qa_fallback_message(PASSAGES)
-    assert update["final_message"] == expected
     assert update["messages"] == [AIMessage(content=expected)]
 
 
 async def test_the_rejected_answer_is_not_left_behind() -> None:
-    """Ending with `final_message` refusing and `qa_answer` still holding the answer the
+    """Ending with the refusal in `messages` and `qa_answer` still holding the answer the
     gate rejected is exactly how untrusted output reaches a caller that reads state."""
     update = await qa_fallback(state_after_scoring())
 
@@ -98,4 +97,4 @@ async def test_an_empty_retrieval_is_reported_as_nothing_found() -> None:
     """The QA agent is told to say so rather than answer; the run has to end saying so too."""
     update = await qa_fallback(state_after_scoring(passages=[]))
 
-    assert update["final_message"].startswith(QA_FALLBACK_NO_CONTEXT)
+    assert update["messages"][0].content.startswith(QA_FALLBACK_NO_CONTEXT)

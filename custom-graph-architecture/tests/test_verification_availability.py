@@ -1,9 +1,5 @@
 """Tests for the availability rule: whether the user can train the plan, slot by slot."""
 
-from src.core.langgraph.verification.deterministic.availability import (
-    check_availability,
-)
-from src.core.langgraph.verification.deterministic.context import PlanContext
 from src.enums import (
     ActivityLevel,
     BodyRegion,
@@ -28,6 +24,10 @@ from src.schemas import (
     WorkoutDayTemplate,
     WorkoutTemplate,
 )
+from src.verification.deterministic.availability import (
+    check_availability,
+)
+from src.verification.deterministic.context import PlanContext
 
 BENCH_PRESS = Exercise(
     id="ex-bench-press",
