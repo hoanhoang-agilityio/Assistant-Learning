@@ -209,9 +209,9 @@ Only two edges in the whole graph reach `END`: `guard_input`'s block, and `super
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | Rewrite `src/core/langgraph/graph.py`: new `NODES` tuple, new edges per §2 | 1 | | Todo |
-| — | Rewrite `src/constants/routes.py` route tables for the new edges | 0.5 | | Todo |
-| — | Delete the node/agent files §1 removes | 0.5 | | Todo |
+| 28/08 | Rewrite `src/core/langgraph/graph.py`: new `NODES` tuple, new edges per §2 | 1 | 1 | Done |
+| 28/08 | Rewrite `src/constants/routes.py` route tables for the new edges | 0.5 | 0.5 | Done |
+| 28/08 | Delete the node/agent files §1 removes | 0.5 | 0.5 | Done |
 
 ### Milestone 8 — Dead code audit (1.5h)
 

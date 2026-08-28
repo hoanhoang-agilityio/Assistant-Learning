@@ -1,5 +1,6 @@
 """Graph node implementations, one module per node of the workflow."""
 
+from src.nodes.blocked import blocked
 from src.nodes.commit_plan import PLAN_SAVED_MESSAGE, commit_plan
 from src.nodes.commit_profile_update import (
     PROFILE_UPDATED_MESSAGE,
@@ -10,6 +11,7 @@ from src.nodes.faithfulness import (
     route_after_faithfulness,
     verify_faithfulness,
 )
+from src.nodes.guard import guard_input, route_after_guard
 from src.nodes.hitl_agent import (
     HITL_AGENT_INTERRUPT,
     HitlAgentInterrupt,
@@ -46,6 +48,11 @@ from src.nodes.summarize import (
     SUMMARIZE_TOKEN_THRESHOLD,
     summarize,
 )
+from src.nodes.verification import (
+    NO_PLAN_MESSAGE,
+    deterministic_verification,
+    route_after_verification,
+)
 
 __all__ = [
     "HITL_AGENT_INTERRUPT",
@@ -53,6 +60,7 @@ __all__ = [
     "HITL_REJECTED_NO_FEEDBACK_MESSAGE",
     "NOTIFY_FAIL_INTRO",
     "NOTIFY_FAIL_OUTRO",
+    "NO_PLAN_MESSAGE",
     "PLAN_READY_MESSAGE",
     "PLAN_REVIEW_ASK",
     "PLAN_SAVED_MESSAGE",
@@ -63,12 +71,15 @@ __all__ = [
     "SUMMARIZE_KEEP_TOKENS",
     "SUMMARIZE_TOKEN_THRESHOLD",
     "HitlAgentInterrupt",
+    "blocked",
     "build_notify_fail_message",
     "build_plan_message",
     "build_qa_fallback_message",
     "commit_plan",
     "commit_profile_update",
+    "deterministic_verification",
     "failed_checks",
+    "guard_input",
     "hitl_agent",
     "hitl_exhausted",
     "hitl_rejected_no_feedback",
@@ -77,7 +88,9 @@ __all__ = [
     "present_plan",
     "qa_fallback",
     "route_after_faithfulness",
+    "route_after_guard",
     "route_after_hitl",
+    "route_after_verification",
     "summarize",
     "verify_faithfulness",
 ]

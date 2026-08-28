@@ -1,35 +1,32 @@
 """Where each router's answer leads: one table per conditional edge in the graph."""
 
+from langgraph.graph import END
+
 from src.enums import (
     FaithfulnessRoute,
     GuardRoute,
-    HitlRoute,
-    Intent,
+    HitlAgentRoute,
     Node,
-    ProfileRoute,
+    SupervisorRoute,
+    UserAgentRoute,
     VerificationRoute,
 )
 
 GUARD_ROUTES: dict[str, str] = {
     GuardRoute.BLOCKED: Node.BLOCKED,
-    GuardRoute.PASS: Node.PARSE_TURN,
+    GuardRoute.PASS: Node.SUPERVISOR,
 }
 
-PARSE_ROUTES: dict[str, str] = {
-    Intent.COACHING: Node.LOAD_USER_CONTEXT,
-    Intent.QA: Node.LOAD_USER_CONTEXT,
-    Intent.OFF_TOPIC: Node.OFF_TOPIC,
+SUPERVISOR_ROUTES: dict[str, str] = {
+    SupervisorRoute.USER_AGENT: Node.USER_AGENT,
+    SupervisorRoute.COACH_AGENT: Node.COACH_AGENT,
+    SupervisorRoute.QA_AGENT: Node.QA_AGENT,
+    SupervisorRoute.FINISH: END,
 }
 
-CONTEXT_ROUTES: dict[str, str] = {
-    Intent.COACHING: Node.CHECK_PROFILE_COMPLETE,
-    Intent.QA: Node.QA_AGENT,
-}
-
-PROFILE_ROUTES: dict[str, str] = {
-    ProfileRoute.COMPLETE: Node.COACH_AGENT,
-    ProfileRoute.ASK: Node.REQUEST_MISSING_PROFILE_FIELDS,
-    ProfileRoute.EXHAUSTED: Node.PROFILE_COLLECTION_EXHAUSTED,
+USER_AGENT_ROUTES: dict[str, str] = {
+    UserAgentRoute.PENDING_APPROVAL: Node.HITL_AGENT,
+    UserAgentRoute.DONE: Node.SUMMARIZE,
 }
 
 VERIFICATION_ROUTES: dict[str, str] = {
@@ -38,25 +35,26 @@ VERIFICATION_ROUTES: dict[str, str] = {
     VerificationRoute.EXHAUSTED: Node.NOTIFY_FAIL,
 }
 
+HITL_AGENT_ROUTES: dict[str, str] = {
+    HitlAgentRoute.COACH_APPROVE: Node.COMMIT_PLAN,
+    HitlAgentRoute.COACH_REVISE: Node.COACH_AGENT,
+    HitlAgentRoute.COACH_NO_FEEDBACK: Node.HITL_REJECTED_NO_FEEDBACK,
+    HitlAgentRoute.COACH_EXHAUSTED: Node.HITL_EXHAUSTED,
+    HitlAgentRoute.USER_APPROVE: Node.COMMIT_PROFILE_UPDATE,
+    HitlAgentRoute.USER_REJECT: Node.USER_AGENT,
+}
+
 FAITHFULNESS_ROUTES: dict[str, str] = {
-    FaithfulnessRoute.PASS: Node.FINALIZE_TURN,
+    FaithfulnessRoute.PASS: Node.SUMMARIZE,
     FaithfulnessRoute.RETRY: Node.QA_AGENT,
     FaithfulnessRoute.FALLBACK: Node.QA_FALLBACK,
 }
 
-HITL_ROUTES: dict[str, str] = {
-    HitlRoute.APPROVE: Node.FINALIZE_TURN,
-    HitlRoute.REVISE: Node.COACH_AGENT,
-    HitlRoute.NO_FEEDBACK: Node.HITL_REJECTED_NO_FEEDBACK,
-    HitlRoute.EXHAUSTED: Node.HITL_EXHAUSTED,
-}
-
 __all__ = [
-    "CONTEXT_ROUTES",
     "FAITHFULNESS_ROUTES",
     "GUARD_ROUTES",
-    "HITL_ROUTES",
-    "PARSE_ROUTES",
-    "PROFILE_ROUTES",
+    "HITL_AGENT_ROUTES",
+    "SUPERVISOR_ROUTES",
+    "USER_AGENT_ROUTES",
     "VERIFICATION_ROUTES",
 ]
