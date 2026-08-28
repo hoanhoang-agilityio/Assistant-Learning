@@ -46,6 +46,13 @@ the folder rather than merging it.
 (`database`, `guard`, `knowledge`, `memory`, `preferences`, `profile`, `turn`) already import from
 `src.core.*` today — every one of those import lines is what Milestone 11 repoints.
 
+A milestone task that says "re-point" or "edit" a node (present in `core/langgraph/` already,
+unchanged in this migration — e.g. `coach_agent`, `qa_agent`, `deterministic_verification`,
+`present_plan`, `notify_fail`, `hitl_rejected_no_feedback`, `hitl_exhausted`, `qa_fallback`,
+`verify_faithfulness`, everything under `prompts/`, `tools/`, `verification/deterministic/`,
+`runtime/`) means: copy it to its new path first, then edit the copy. The old one stays in
+`core/langgraph/` untouched, same as everything else in §0, until Milestone 11.
+
 ## 1. Node design
 
 | Node | Purpose |
@@ -146,7 +153,7 @@ Only two edges in the whole graph reach `END`: `guard_input`'s block, and `super
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | Create the 9 new top-level packages listed in §0 (`__init__.py` only, empty) — `src/core/` untouched | 0.5 | | Todo |
+| 28/08 | Create the 9 new top-level packages listed in §0 (`__init__.py` only, empty) — `src/core/` untouched | 0.5 | 0.25 | Done |
 
 ### Milestone 1 — Foundation: state & enums (2.25h)
 
