@@ -12,7 +12,6 @@ from src.enums import UserAgentRoute
 from src.prompts import USER_AGENT_SYSTEM
 from src.schemas import GraphState, PendingApproval, UserAgentContext
 from src.tools import USER_AGENT_TOOLS, get_user_profile, update_user_profile
-from src.utils.logging import logger
 
 USER_AGENT_NAME = "user_agent"
 
@@ -97,10 +96,7 @@ async def user_agent(state: GraphState) -> UserAgentUpdate:
             {"messages": state["messages"]},
             context=UserAgentContext(user_id=state["user_id"]),
         )
-    except Exception as error:
-        logger.exception(
-            "user_agent_failed", user_id=state["user_id"], error=str(error)
-        )
+    except Exception:
         return {
             "profile": state.get("profile"),
             "pending_approval": None,

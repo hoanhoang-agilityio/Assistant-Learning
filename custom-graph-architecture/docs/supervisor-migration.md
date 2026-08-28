@@ -186,9 +186,9 @@ Only two edges in the whole graph reach `END`: `guard_input`'s block, and `super
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | Add a profile-completeness precondition to `coach_agent` (reuse `missing_profile_fields`): skip the model call and return a "needs" note when required fields are missing | 1 | | Todo |
-| — | `present_plan`: stage `pending_approval` (`kind="plan"`, rendered markdown as `summary`) before routing to `hitl_agent` | 0.5 | | Todo |
-| — | Re-point `notify_fail`, `hitl_rejected_no_feedback`, `hitl_exhausted` from `finalize_turn` to `summarize` | 0.5 | | Todo |
+| 28/08 | Add a profile-completeness precondition to `coach_agent` (reuse `missing_profile_fields`): skip the model call and return a "needs" note when required fields are missing | 1 | 1 | Done |
+| 28/08 | `present_plan`: stage `pending_approval` (`kind="plan"`, rendered markdown as `summary`) before routing to `hitl_agent` | 0.5 | 0.5 | Done |
+| 28/08 | Re-point `notify_fail`, `hitl_rejected_no_feedback`, `hitl_exhausted` from `finalize_turn` to `summarize` | 0.5 | 0.25 | Done |
 
 ### Milestone 5 — QA branch rewire (1h)
 
