@@ -5,6 +5,11 @@ from src.nodes.commit_profile_update import (
     PROFILE_UPDATED_MESSAGE,
     commit_profile_update,
 )
+from src.nodes.faithfulness import (
+    is_faithful,
+    route_after_faithfulness,
+    verify_faithfulness,
+)
 from src.nodes.hitl_agent import (
     HITL_AGENT_INTERRUPT,
     HitlAgentInterrupt,
@@ -29,6 +34,13 @@ from src.nodes.present_plan import (
     build_plan_message,
     present_plan,
 )
+from src.nodes.qa_fallback import (
+    QA_FALLBACK_NO_CONTEXT,
+    QA_FALLBACK_OUTRO,
+    QA_FALLBACK_UNSUPPORTED,
+    build_qa_fallback_message,
+    qa_fallback,
+)
 
 __all__ = [
     "HITL_AGENT_INTERRUPT",
@@ -40,16 +52,24 @@ __all__ = [
     "PLAN_REVIEW_ASK",
     "PLAN_SAVED_MESSAGE",
     "PROFILE_UPDATED_MESSAGE",
+    "QA_FALLBACK_NO_CONTEXT",
+    "QA_FALLBACK_OUTRO",
+    "QA_FALLBACK_UNSUPPORTED",
     "HitlAgentInterrupt",
     "build_notify_fail_message",
     "build_plan_message",
+    "build_qa_fallback_message",
     "commit_plan",
     "commit_profile_update",
     "failed_checks",
     "hitl_agent",
     "hitl_exhausted",
     "hitl_rejected_no_feedback",
+    "is_faithful",
     "notify_fail",
     "present_plan",
+    "qa_fallback",
+    "route_after_faithfulness",
     "route_after_hitl",
+    "verify_faithfulness",
 ]

@@ -194,7 +194,7 @@ Only two edges in the whole graph reach `END`: `guard_input`'s block, and `super
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| — | Re-point `verify_faithfulness` (pass) and `qa_fallback` from `finalize_turn`/`END` to `summarize` | 1 | | Todo |
+| 28/08 | Re-point `verify_faithfulness` (pass) and `qa_fallback` from `finalize_turn`/`END` to `summarize` | 1 | 0.75 | Done |
 
 ### Milestone 6 — `supervisor` & `summarize` (4h)
 
