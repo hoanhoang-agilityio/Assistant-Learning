@@ -161,8 +161,8 @@ Only two edges in the whole graph reach `END`: `guard_input`'s block, and `super
 |---|---|---|---|---|
 | 28/08 | Define new `GraphState`, `PendingApproval`, `ApprovalDecision`/`ApprovalSource`/`ApprovalKind`, `NextAgent`, `UserAgentContext` in `src/schemas/graph.py` | 1 | 1 | Done |
 | 28/08 | Update `src/schemas/__init__.py` exports | 0.25 | 0.25 | Done |
-| — | Add `Node` enum members: `SUPERVISOR`, `USER_AGENT`, `HITL_AGENT`, `COMMIT_PLAN`, `COMMIT_PROFILE_UPDATE`, `SUMMARIZE`; remove the ones §1 drops | 0.5 | | Todo |
-| — | Add route literals for `supervisor`'s `next` and `hitl_agent`'s six outcomes in `src/enums/routes.py` | 0.5 | | Todo |
+| 28/08 | Add `Node` enum members: `SUPERVISOR`, `USER_AGENT`, `HITL_AGENT`, `COMMIT_PLAN`, `COMMIT_PROFILE_UPDATE`, `SUMMARIZE`; remove the ones §1 drops | 0.5 | 0.25 | Done |
+| 28/08 | Add route literals for `supervisor`'s `next` and `hitl_agent`'s six outcomes in `src/enums/routes.py` | 0.5 | 0.25 | Done |
 
 ### Milestone 2 — Shared approval: `hitl_agent`, `commit_*` (4h)
 

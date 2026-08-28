@@ -16,9 +16,11 @@ from src.enums.graph import Node
 from src.enums.routes import (
     FaithfulnessRoute,
     GuardRoute,
+    HitlAgentRoute,
     HitlRoute,
     Intent,
     ProfileRoute,
+    SupervisorRoute,
     VerificationRoute,
 )
 from src.enums.stream import StreamEventType
@@ -31,6 +33,7 @@ __all__ = [
     "FaithfulnessRoute",
     "FitnessGoal",
     "GuardRoute",
+    "HitlAgentRoute",
     "HitlRoute",
     "InjuryStatus",
     "Intent",
@@ -41,5 +44,6 @@ __all__ = [
     "RestrictionAction",
     "Sex",
     "StreamEventType",
+    "SupervisorRoute",
     "VerificationRoute",
 ]
