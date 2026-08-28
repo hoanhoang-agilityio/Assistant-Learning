@@ -1,13 +1,14 @@
-"""Graph state for the coaching and QA workflow."""
+"""Graph state for the supervisor-orchestrated coaching and QA workflow."""
 
 from dataclasses import dataclass
 from typing import Literal, NotRequired, TypedDict
 
 from langgraph.prebuilt.chat_agent_executor import AgentState
 
-from src.enums.routes import Intent
-
-HitlDecision = Literal["approve", "reject"]
+ApprovalDecision = Literal["approve", "reject"]
+ApprovalSource = Literal["coach_agent", "user_agent"]
+ApprovalKind = Literal["plan", "profile_update"]
+NextAgent = Literal["user_agent", "coach_agent", "qa_agent", "FINISH"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +27,13 @@ class QaContext:
     profile: dict | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class UserAgentContext:
+    """What the user agent's tools read for themselves rather than being told."""
+
+    user_id: str
+
+
 class RetrievedChunk(TypedDict):
     """One passage returned by knowledge retrieval."""
 
@@ -34,42 +42,48 @@ class RetrievedChunk(TypedDict):
     score: float
 
 
-class GraphState(AgentState):
-    """State for the whole workflow: guard, intent, coaching branch, HITL and QA branch."""
+class PendingApproval(TypedDict):
+    """What ``hitl_agent`` shows, and which caller the decision goes back to."""
 
-    # --- Input -------------------------------------------------------------------------
-    user_query: str
+    source: ApprovalSource
+    kind: ApprovalKind
+    summary: str
+    payload: dict
+
+
+class GraphState(AgentState):
+    """State for the whole workflow: supervisor routing, coaching branch, QA branch, shared approval."""
+
+    # --- Input ---------------------------------------------------------------------
     user_id: str
 
-    # --- Intent & guard ----------------------------------------------------------------
-    intent: NotRequired[Intent | None]
-    extracted_facts: NotRequired[dict | None]
+    # --- Guard -----------------------------------------------------------------------
     block_reason: NotRequired[str | None]
+
+    # --- Supervisor loop ---------------------------------------------------------------
+    next: NotRequired[NextAgent | None]
+    iteration_count: NotRequired[int]
+    summary: NotRequired[str]
 
     # --- User context ------------------------------------------------------------------
     profile: NotRequired[dict | None]
     plan: NotRequired[dict | None]
-    missing_fields: NotRequired[list[str]]
-    revision_fields: NotRequired[list[str]]
-    user_info_retry_count: NotRequired[int]
 
     # --- Coaching ----------------------------------------------------------------------
     coach_retry_count: NotRequired[int]
     verification_result: NotRequired[dict | None]
 
-    # --- HITL --------------------------------------------------------------------------
-    hitl_decision: NotRequired[HitlDecision | None]
-    hitl_feedback: NotRequired[str | None]
-    hitl_retry_count: NotRequired[int]
+    # --- Shared approval: coach's plan, or user_agent's profile overwrite ---------------
+    pending_approval: NotRequired[PendingApproval | None]
+    approval_decision: NotRequired[ApprovalDecision | None]
+    approval_feedback: NotRequired[str | None]
+    approval_retry_count: NotRequired[int]
 
     # --- QA / RAG ----------------------------------------------------------------------
     qa_answer: NotRequired[str | None]
     retrieved_context: NotRequired[list[RetrievedChunk] | None]
     faithfulness_score: NotRequired[float | None]
     qa_retry_count: NotRequired[int]
-
-    # --- Final output ------------------------------------------------------------------
-    final_message: NotRequired[str | None]
 
 
 def initial_state(user_query: str, user_id: str) -> GraphState:
@@ -80,34 +94,26 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
 
     return GraphState(
         messages=[{"role": "user", "content": user_query}],
-        user_query=user_query,
         user_id=user_id,
-        intent=None,
-        extracted_facts=None,
         block_reason=None,
+        next=None,
+        iteration_count=0,
+        summary="",
         profile=None,
         plan=None,
-        missing_fields=[],
-        revision_fields=[],
-        user_info_retry_count=0,
         coach_retry_count=0,
         verification_result=None,
-        hitl_decision=None,
-        hitl_feedback=None,
-        hitl_retry_count=0,
+        pending_approval=None,
+        approval_decision=None,
+        approval_feedback=None,
+        approval_retry_count=0,
         qa_answer=None,
         retrieved_context=None,
         faithfulness_score=None,
         qa_retry_count=0,
-        final_message=None,
     )
 
 
 def is_blocked(state: GraphState) -> bool:
     """Whether the guard rejected this turn, read off the reason rather than a flag."""
     return state.get("block_reason") is not None
-
-
-def is_context_complete(state: GraphState) -> bool:
-    """Whether the profile has everything the coach needs, read off what is still missing."""
-    return not state.get("missing_fields")

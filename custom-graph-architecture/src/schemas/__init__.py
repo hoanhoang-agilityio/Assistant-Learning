@@ -32,18 +32,25 @@ from src.schemas.domain import (
     WorkoutTemplate,
 )
 from src.schemas.graph import (
+    ApprovalDecision,
+    ApprovalKind,
+    ApprovalSource,
     CoachContext,
     GraphState,
-    HitlDecision,
+    NextAgent,
+    PendingApproval,
     QaContext,
     RetrievedChunk,
+    UserAgentContext,
     initial_state,
     is_blocked,
-    is_context_complete,
 )
 from src.schemas.health import HealthResponse
 
 __all__ = [
+    "ApprovalDecision",
+    "ApprovalKind",
+    "ApprovalSource",
     "BaseResponse",
     "ChatRequest",
     "ChatResponse",
@@ -55,13 +62,14 @@ __all__ = [
     "ExerciseSlot",
     "GraphState",
     "HealthResponse",
-    "HitlDecision",
     "Injury",
     "MacroTargets",
     "Message",
     "MovementRestriction",
     "MusclePriority",
+    "NextAgent",
     "NutritionTargets",
+    "PendingApproval",
     "PlanDay",
     "PlannedExercise",
     "QaContext",
@@ -72,6 +80,7 @@ __all__ = [
     "Token",
     "TokenResponse",
     "TrainingPlan",
+    "UserAgentContext",
     "UserCreate",
     "UserEquipment",
     "UserProfile",
@@ -82,5 +91,4 @@ __all__ = [
     "WorkoutTemplate",
     "initial_state",
     "is_blocked",
-    "is_context_complete",
 ]
