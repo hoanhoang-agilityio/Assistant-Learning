@@ -31,9 +31,10 @@ from src.ui.components.chat import (
     run_guarded_backend_action,
     send_turn,
 )
+from src.ui.components.profile_form import pending_form, render_profile_form
 from src.ui.components.sidebar import render_sidebar
 from src.ui.components.welcome import render_welcome
-from src.ui.wording import CHAT_PLACEHOLDER, ERROR_COPY
+from src.ui.wording import CHAT_PLACEHOLDER, ERROR_COPY, PROFILE_FORM_SENT
 
 st.set_page_config(page_title="Coach AI", page_icon="🏋️", layout="wide")
 
@@ -90,6 +91,20 @@ def _ensure_conversation(client: httpx.Client) -> str | None:
     return created.get("session_id")
 
 
+def _submit_form(client: httpx.Client, form: dict[str, Any]) -> None:
+    """Draw the pending form, and send it as a turn once the user submits it."""
+    filled = render_profile_form(form)
+    if filled is None:
+        return
+
+    session_id = st.session_state.active_session_id
+    if session_id is not None:
+        st.session_state.messages.append({"role": "user", "content": PROFILE_FORM_SENT})
+        render_messages([{"role": "user", "content": PROFILE_FORM_SENT}])
+        send_turn(client, session_id, PROFILE_FORM_SENT, form_data=filled)
+    st.rerun()
+
+
 def main() -> None:
     """Draw one pass of the app."""
     state.init()
@@ -107,6 +122,14 @@ def main() -> None:
 
         messages: list[dict[str, Any]] = st.session_state.messages
         render_messages(messages)
+
+        # A run suspended on the profile form takes its answer from the form, not from
+        # the chat box: the graph is waiting for fields, and a sentence typed at it
+        # would be read as an empty submission and re-open the same form.
+        form = pending_form()
+        if form is not None:
+            _submit_form(client, form)
+            return
 
         query = st.chat_input(CHAT_PLACEHOLDER)
         active_query = query or st.session_state.pending_query

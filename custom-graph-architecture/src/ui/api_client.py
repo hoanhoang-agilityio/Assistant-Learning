@@ -148,19 +148,26 @@ def send_message(
 
 
 def send_message_stream(
-    client: httpx.Client, session_token: str, text: str
+    client: httpx.Client,
+    session_token: str,
+    text: str,
+    form_data: dict[str, Any] | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Send one turn and yield the frames it produces, in order.
 
-    Same payload as ``send_message``: only the new user message. A ``step`` frame names
-    a node the run has reached, a ``message`` frame carries one complete reply, and the
-    last frame is ``done``. If the run parks on a HITL or missing-info interrupt, the
-    question it is asking is the last message frame.
+    Same payload as ``send_message``: only the new user message, plus the filled-in
+    fields when this turn is answering a form. A ``step`` frame names a node the run has
+    reached, a ``message`` frame carries one complete reply, a ``form`` frame carries
+    fields the run is now waiting on, and the last frame is ``done``. If the run parks on
+    a HITL interrupt, the question it is asking is the last message frame.
     """
     with client.stream(
         "POST",
         "/chat/stream",
-        json={"messages": [{"role": "user", "content": text}]},
+        json={
+            "messages": [{"role": "user", "content": text}],
+            "form_data": form_data,
+        },
         headers=_bearer(session_token),
         timeout=CHAT_TIMEOUT,
     ) as response:

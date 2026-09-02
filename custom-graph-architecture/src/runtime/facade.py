@@ -12,6 +12,7 @@ from langgraph.types import Command
 from src.constants import STEP_LABELS
 from src.enums import Node, StreamEventType
 from src.graph import build_graph
+from src.nodes import PROFILE_FORM_INTERRUPT
 from src.observability.tracing import build_run_config
 from src.runtime import graph_runtime
 from src.schemas import Message, StreamResponse, initial_state
@@ -48,12 +49,18 @@ class LangGraphRuntime:
         return self._graph
 
     async def get_response(
-        self, messages: list[Message], session_id: str, user_id: str
-    ) -> list[Message]:
-        """Process one turn and return the messages it produced."""
+        self,
+        messages: list[Message],
+        session_id: str,
+        user_id: str,
+        form_data: dict | None = None,
+    ) -> tuple[list[Message], dict | None]:
+        """Process one turn and return the messages it produced, and any form it now waits on."""
         graph = await self._get_graph()
         config, started = self._start_turn(session_id, user_id)
-        run_input, before = await self._graph_input(graph, config, messages, user_id)
+        run_input, before = await self._graph_input(
+            graph, config, messages, user_id, form_data
+        )
         try:
             await graph.ainvoke(run_input, config)
         except Exception as error:
@@ -67,12 +74,18 @@ class LangGraphRuntime:
         return await self._finish_turn(graph, config, before, started)
 
     async def get_stream_response(
-        self, messages: list[Message], session_id: str, user_id: str
+        self,
+        messages: list[Message],
+        session_id: str,
+        user_id: str,
+        form_data: dict | None = None,
     ) -> AsyncGenerator[StreamResponse]:
         """Process one turn, reporting each step as it is reached and then the replies."""
         graph = await self._get_graph()
         config, started = self._start_turn(session_id, user_id)
-        run_input, before = await self._graph_input(graph, config, messages, user_id)
+        run_input, before = await self._graph_input(
+            graph, config, messages, user_id, form_data
+        )
         try:
             async for update in graph.astream(run_input, config, stream_mode="updates"):
                 for step in _step_events(update):
@@ -85,8 +98,11 @@ class LangGraphRuntime:
                 error=str(error),
             )
             raise
-        for reply in await self._finish_turn(graph, config, before, started):
+        replies, form = await self._finish_turn(graph, config, before, started)
+        for reply in replies:
             yield StreamResponse(type=StreamEventType.MESSAGE, content=reply.content)
+        if form is not None:
+            yield StreamResponse(type=StreamEventType.FORM, form=form)
 
     async def get_chat_history(self, session_id: str) -> list[Message]:
         """Return the conversation recorded for a session."""
@@ -105,13 +121,14 @@ class LangGraphRuntime:
         config: RunnableConfig,
         messages: list[Message],
         user_id: str,
+        form_data: dict | None = None,
     ) -> tuple[Any, int]:
-        """Decide whether this turn starts a run or resumes a paused one."""
+        """Decide whether this turn starts a run or resumes a paused one, and with what."""
         state = await graph.aget_state(config)
         reply = _latest_user_text(messages)
         before = len(state.values.get("messages", []))
         if state.next:
-            return Command(resume=reply), before
+            return Command(resume=_resume_value(state, reply, form_data)), before
         return initial_state(reply, user_id), before
 
     def _start_turn(
@@ -130,22 +147,24 @@ class LangGraphRuntime:
         config: RunnableConfig,
         before: int,
         started: float,
-    ) -> list[Message]:
+    ) -> tuple[list[Message], dict | None]:
         """Read the turn's replies off the settled state, and log what it came to."""
         state = await graph.aget_state(config)
         replies = _turn_reply(state, before)
+        form = _pending_form(state)
         logger.info(
             "turn_completed",
             duration_ms=_elapsed_ms(started),
             paused=bool(state.next),
             reply_count=len(replies),
+            awaiting_form=form is not None,
             **{
                 field: state.values.get(field)
                 for field in _TURN_OUTCOME_FIELDS
                 if state.values.get(field) is not None
             },
         )
-        return replies
+        return replies, form
 
 
 def _elapsed_ms(started: float) -> float:
@@ -188,7 +207,8 @@ def _step_events(update: Any) -> list[StreamResponse]:
             continue
         if label:
             events.append(
-                StreamResponse(type=StreamEventType.STEP, node=name, label=label)
+                StreamResponse(type=StreamEventType.STEP,
+                               node=name, label=label)
             )
     return events
 
@@ -203,11 +223,52 @@ def _pending_interrupt_value(state: Any) -> object | None:
     return None
 
 
+def _is_hitl_request(value: object) -> bool:
+    """Whether an interrupt payload is a ``HumanInTheLoopMiddleware`` request rather than one of ours."""
+    return (
+        isinstance(value, dict)
+        and "action_requests" in value
+        and "review_configs" in value
+    )
+
+
 def _interrupt_text(value: object) -> str:
     """Render an interrupt payload as the question to show the user."""
+    if _is_hitl_request(value):
+        return "\n\n".join(
+            request.get("description", "") for request in value["action_requests"]
+        ).strip()
     if isinstance(value, dict):
-        return str(value.get("message", ""))
+        return str(value.get("summary", ""))
     return str(value)
+
+
+def _hitl_decision(reply: str) -> dict:
+    """Read a free-text reply as one ``HumanInTheLoopMiddleware`` decision."""
+    text = reply.strip()
+    if text.lower() in {"approve", "approved", "yes"}:
+        return {"type": "approve"}
+    return {"type": "reject", "message": text} if text else {"type": "reject"}
+
+
+def _resume_value(state: Any, reply: str, form_data: dict | None) -> Any:
+    """What to resume a paused run with: the submitted form, a HITL decision, or the reply as-is."""
+    if form_data is not None:
+        return form_data
+    pending = _pending_interrupt_value(state)
+    if _is_hitl_request(pending):
+        return {
+            "decisions": [_hitl_decision(reply) for _ in pending["action_requests"]]
+        }
+    return reply
+
+
+def _pending_form(state: Any) -> dict | None:
+    """The form the run is suspended on, when it is suspended on one at all."""
+    value = _pending_interrupt_value(state)
+    if isinstance(value, dict) and value.get("type") == PROFILE_FORM_INTERRUPT:
+        return dict(value)
+    return None
 
 
 def _latest_user_text(messages: list[Message]) -> str:

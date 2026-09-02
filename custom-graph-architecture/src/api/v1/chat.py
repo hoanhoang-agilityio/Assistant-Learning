@@ -27,10 +27,13 @@ async def chat(
 ) -> ChatResponse:
     """Process one chat turn and return the graph's reply."""
     try:
-        result = await langgraph_runtime.get_response(
-            chat_request.messages, session.id, user_id=str(session.user_id)
+        messages, form = await langgraph_runtime.get_response(
+            chat_request.messages,
+            session.id,
+            user_id=str(session.user_id),
+            form_data=chat_request.form_data,
         )
-        return ChatResponse(messages=result)
+        return ChatResponse(messages=messages, form=form)
     except Exception as e:
         raise HTTPException(
             status_code=500, detail="Failed to process chat request"
@@ -49,7 +52,10 @@ async def chat_stream(
     async def event_source() -> AsyncGenerator[str]:
         try:
             async for event in langgraph_runtime.get_stream_response(
-                chat_request.messages, session.id, user_id=str(session.user_id)
+                chat_request.messages,
+                session.id,
+                user_id=str(session.user_id),
+                form_data=chat_request.form_data,
             ):
                 yield _frame(event)
             yield _frame(StreamResponse(type=StreamEventType.DONE, done=True))

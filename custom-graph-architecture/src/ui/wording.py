@@ -40,6 +40,12 @@ CHAT_PLACEHOLDER = "Tell me about your goals… (reply “yes” to approve a pl
 
 THINKING_LABEL = "Thinking…"
 
+PROFILE_FORM_TITLE = "A few details before I plan"
+PROFILE_FORM_SUBMIT = "Save and build my plan"
+# What a form submission is called in the transcript. The graph resumes from the
+# fields, not from this text, but the turn still has to read as something the user said.
+PROFILE_FORM_SENT = "Here are my details."
+
 
 def thought_for(seconds: float) -> str:
     """Label the settled step timeline with how long the turn took."""
@@ -77,6 +83,9 @@ __all__ = [
     "CHAT_PLACEHOLDER",
     "ERROR_COPY",
     "NEW_CONVERSATION_NAME",
+    "PROFILE_FORM_SENT",
+    "PROFILE_FORM_SUBMIT",
+    "PROFILE_FORM_TITLE",
     "SUGGESTIONS",
     "TAGLINE",
     "THINKING_LABEL",

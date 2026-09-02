@@ -38,6 +38,9 @@ def init() -> None:
         "active_session_id": None,
         "messages": [],
         "pending_query": None,
+        # The form the graph is suspended on, held between reruns so the next pass
+        # can draw it in place of the chat input.
+        "pending_form": None,
         "is_processing": False,
         "auth_error": None,
         # "New chat" is a local state, not a row in the database. The session is
@@ -82,6 +85,7 @@ def sign_out() -> None:
     st.session_state.active_session_id = None
     st.session_state.messages = []
     st.session_state.pending_query = None
+    st.session_state.pending_form = None
     st.session_state.is_processing = False
     st.session_state.composing_new = False
 
@@ -169,6 +173,7 @@ def open_conversation(session_id: str, messages: list[dict[str, Any]]) -> None:
     st.session_state.active_session_id = session_id
     st.session_state.messages = messages
     st.session_state.pending_query = None
+    st.session_state.pending_form = None
     st.session_state.composing_new = False
 
 
@@ -181,6 +186,7 @@ def start_new_conversation() -> None:
     st.session_state.active_session_id = None
     st.session_state.messages = []
     st.session_state.pending_query = None
+    st.session_state.pending_form = None
     st.session_state.composing_new = True
 
 

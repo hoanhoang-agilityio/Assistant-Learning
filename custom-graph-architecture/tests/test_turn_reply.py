@@ -16,7 +16,13 @@ from src.nodes.present_plan import (
     PLAN_REVIEW_ASK,
     present_plan,
 )
-from src.runtime.facade import _step_events, _turn_reply
+from src.runtime.facade import (
+    _interrupt_text,
+    _pending_interrupt_value,
+    _resume_value,
+    _step_events,
+    _turn_reply,
+)
 from src.schemas import GraphState
 from src.services import plan_presentation
 from tests.test_verification_completeness import CATALOGUE, complete_plan
@@ -44,7 +50,7 @@ def _state(messages: list, *, interrupt: str | None = None) -> SimpleNamespace:
     """A settled or suspended graph state, as ``aget_state`` returns one."""
     if interrupt is None:
         return SimpleNamespace(values={"messages": messages}, next=(), tasks=())
-    task = SimpleNamespace(interrupts=(SimpleNamespace(value={"message": interrupt}),))
+    task = SimpleNamespace(interrupts=(SimpleNamespace(value={"summary": interrupt}),))
     return SimpleNamespace(
         values={"messages": messages}, next=("hitl_review",), tasks=(task,)
     )
@@ -164,3 +170,63 @@ async def test_a_missing_plan_still_asks_for_a_decision(plan: dict | None) -> No
     )
 
     assert update["messages"][0].content == f"{PLAN_READY_MESSAGE}\n\n{PLAN_REVIEW_ASK}"
+
+
+# --- Resuming a HumanInTheLoopMiddleware pause ----------------------------------------
+
+
+def _hitl_state(*, description: str = "Tool: update_user_profile") -> SimpleNamespace:
+    """A run suspended on ``update_user_profile``'s overwrite approval."""
+    payload = {
+        "action_requests": [
+            {"name": "update_user_profile", "args": {}, "description": description}
+        ],
+        "review_configs": [
+            {
+                "action_name": "update_user_profile",
+                "allowed_decisions": ["approve", "reject"],
+            }
+        ],
+    }
+    task = SimpleNamespace(interrupts=(SimpleNamespace(value=payload),))
+    return SimpleNamespace(values={"messages": []}, next=("user_agent",), tasks=(task,))
+
+
+def test_a_hitl_requests_description_is_the_question() -> None:
+    """The middleware's own action description is what the user is shown."""
+    state = _hitl_state(description="age is already 30. Update it to 34?")
+
+    assert (
+        _interrupt_text(_pending_interrupt_value(state))
+        == "age is already 30. Update it to 34?"
+    )
+
+
+def test_approving_a_hitl_pause_resumes_with_an_approve_decision() -> None:
+    """A plain 'approve' reply becomes the middleware's own decision shape."""
+    state = _hitl_state()
+
+    assert _resume_value(state, "approve", None) == {"decisions": [{"type": "approve"}]}
+
+
+def test_rejecting_a_hitl_pause_carries_the_free_text_as_the_message() -> None:
+    """Anything else is a rejection, with the reviewer's own words attached."""
+    state = _hitl_state()
+
+    assert _resume_value(state, "no, leave it", None) == {
+        "decisions": [{"type": "reject", "message": "no, leave it"}]
+    }
+
+
+def test_a_submitted_form_still_wins_over_a_hitl_pause() -> None:
+    """Form submission is a distinct resume channel and must not be reinterpreted as text."""
+    state = _hitl_state()
+
+    assert _resume_value(state, "approve", {"age": 34}) == {"age": 34}
+
+
+def test_a_plain_pause_still_resumes_with_the_reply_as_is() -> None:
+    """The plan-approval gate reads a raw string, not a ``HumanInTheLoopMiddleware`` decision."""
+    state = _state([AIMessage(content="the plan")], interrupt="Approve this?")
+
+    assert _resume_value(state, "approve", None) == "approve"

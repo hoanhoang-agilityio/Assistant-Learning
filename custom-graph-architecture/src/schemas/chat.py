@@ -1,7 +1,7 @@
 """Request and response schemas for the chat endpoints."""
 
 import re
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -38,6 +38,10 @@ class ChatRequest(BaseModel):
     messages: list[Message] = Field(
         min_length=1, description="Turn to process, newest message last"
     )
+    form_data: dict[str, Any] | None = Field(
+        default=None,
+        description="Filled-in fields answering a form the run is suspended on",
+    )
 
 
 class ChatResponse(BaseModel):
@@ -46,15 +50,20 @@ class ChatResponse(BaseModel):
     messages: list[Message] = Field(
         description="Messages produced by the graph this turn"
     )
+    form: dict[str, Any] | None = Field(
+        default=None,
+        description="Form the run is now suspended on, if it is waiting for one",
+    )
 
 
 class StreamResponse(BaseModel):
     """One server-sent event frame of a streamed turn.
 
-    Three shapes behind one model: a ``step`` carries ``node`` and ``label`` and no text,
-    a ``message`` carries one complete reply, and ``done`` closes the stream. ``content``
-    and ``done`` keep the names and the meaning they had before steps existed, so a
-    client that only reads those two still works.
+    Four shapes behind one model: a ``step`` carries ``node`` and ``label`` and no text,
+    a ``message`` carries one complete reply, a ``form`` carries the fields the run is
+    waiting on, and ``done`` closes the stream. ``content`` and ``done`` keep the names
+    and the meaning they had before steps existed, so a client that only reads those two
+    still works.
     """
 
     type: StreamEventType = Field(
@@ -66,6 +75,9 @@ class StreamResponse(BaseModel):
     )
     label: str | None = Field(
         default=None, description="What to call that node in the UI"
+    )
+    form: dict[str, Any] | None = Field(
+        default=None, description="Fields to collect, on a form frame"
     )
     done: bool = Field(
         default=False, description="True on the final frame, including errors"

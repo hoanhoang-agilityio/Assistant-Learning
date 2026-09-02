@@ -168,12 +168,18 @@ def load_conversation(client: httpx.Client, session_id: str) -> None:
     )
 
 
-def send_turn(client: httpx.Client, session_id: str, text: str) -> None:
+def send_turn(
+    client: httpx.Client,
+    session_id: str,
+    text: str,
+    form_data: dict[str, Any] | None = None,
+) -> None:
     """Send one message and draw the turn: its steps as they happen, then its replies.
 
-    The reply may be an answer, a request for the profile fields still missing, or the
-    plan and its review question — all of which arrive as message frames, so this
-    function does not need to know which branch ran.
+    The reply may be an answer, or the plan and its review question — both of which
+    arrive as message frames, so this function does not need to know which branch ran.
+    A run that stops to collect the profile also sends a form frame, which is held in
+    session state for the next pass to render rather than drawn here.
 
     The user's own message is appended by the caller, which renders it before calling in
     so it is on screen for the length of the turn.
@@ -181,13 +187,14 @@ def send_turn(client: httpx.Client, session_id: str, text: str) -> None:
     started = perf_counter()
     steps: list[str] = []
     parts: list[str] = []
+    st.session_state.pending_form = None
 
     # Opened before the assistant bubble: a stream that turns out to be a 401 is retried
     # by ``with_session_retry``, and an empty bubble would already be on screen.
     opening = st.empty()
     opening.markdown(timeline_html(steps, running=True), unsafe_allow_html=True)
     try:
-        frames = _open_chat_stream(client, session_id, text)
+        frames = _open_chat_stream(client, session_id, text, form_data)
     except httpx.TimeoutException:
         opening.empty()
         _finish_failed_turn(parts, ERROR_COPY["chat_timeout"])
@@ -238,7 +245,10 @@ def _joined(parts: list[str]) -> str:
 
 
 def _open_chat_stream(
-    client: httpx.Client, session_id: str, text: str
+    client: httpx.Client,
+    session_id: str,
+    text: str,
+    form_data: dict[str, Any] | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Start a streamed turn, reminting the session token once on 401.
 
@@ -247,7 +257,7 @@ def _open_chat_stream(
     """
 
     def call(token: str) -> Iterator[dict[str, Any]]:
-        stream = api_client.send_message_stream(client, token, text)
+        stream = api_client.send_message_stream(client, token, text, form_data)
         first = next(stream, None)
         return stream if first is None else chain([first], stream)
 
@@ -270,6 +280,10 @@ def _consume_stream(
                 timeline.markdown(
                     timeline_html(steps, running=True), unsafe_allow_html=True
                 )
+            continue
+
+        if frame.get("type") == StreamEventType.FORM:
+            st.session_state.pending_form = frame.get("form")
             continue
 
         content = frame.get("content")

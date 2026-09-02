@@ -9,11 +9,13 @@ class StreamEventType(StrEnum):
     Attributes:
         STEP: A node the run has reached, named for the user rather than for the graph.
         MESSAGE: One complete reply the turn produced.
+        FORM: Fields the run is suspended waiting for, for the client to render.
         DONE: The run has settled; no further frames follow.
     """
 
     STEP = "step"
     MESSAGE = "message"
+    FORM = "form"
     DONE = "done"
 
 
