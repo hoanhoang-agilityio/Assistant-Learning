@@ -119,3 +119,13 @@ async def test_the_rejected_plan_is_left_alone() -> None:
     update = await notify_fail(state_after_the_gate(verdict(error(CheckName.MACROS))))
 
     assert "plan" not in update
+
+
+async def test_the_failed_attempt_does_not_outlive_the_turn_it_failed_on() -> None:
+    """Left standing, its errors reach the coach as `<verification_errors>` on every later
+    turn of the thread, and its spent budget sends the next attempt's first failure
+    straight back here."""
+    update = await notify_fail(state_after_the_gate(verdict(error(CheckName.MACROS))))
+
+    assert update["verification_result"] is None
+    assert update["coach_retry_count"] == 0

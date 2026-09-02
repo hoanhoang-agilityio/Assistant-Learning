@@ -1,19 +1,30 @@
-"""The ``coach_agent`` node: a tool-using agent that writes the user's training plan."""
+"""The ``coach_agent`` node: a tool-using agent that reads, writes and revises the user's training plan."""
 
 from functools import lru_cache
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from langchain.agents import create_agent
+from langchain.agents.structured_output import ToolStrategy
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 
 from src.agents.history import trim_history
 from src.configs.config import settings
+from src.enums import CoachRoute
 from src.prompts import COACH_AGENT_SYSTEM, build_coach_context
-from src.prompts.coach_agent import NO_SLOTS_TO_FIX
+from src.prompts.coach_agent import NO_SLOTS_TO_FIX, REVIEWER_SLOTS_TO_FIX
 from src.prompts.rendering import as_prompt_json
-from src.schemas import CoachContext, GraphState, TrainingPlan, UserProfile
+from src.schemas import (
+    CoachContext,
+    CoachOutcome,
+    GraphState,
+    PlanAnswer,
+    ProfileRequiredFor,
+    ProfileStatus,
+    TrainingPlan,
+    UserProfile,
+)
 from src.services.llm import agent_middleware, chat_model
 from src.services.nutrition import calc_macros
 from src.services.profile import missing_profile_fields
@@ -26,32 +37,25 @@ NO_PROFILE = "none on record"
 class CoachUpdate(TypedDict):
     """The state ``coach_agent`` writes."""
 
-    plan: dict | None
+    plan: NotRequired[dict | None]
+    coach_outcome: CoachOutcome | None
+    profile_required_for: NotRequired[ProfileRequiredFor | None]
+    profile_status: NotRequired[ProfileStatus | None]
     messages: list[AnyMessage]
 
 
 @lru_cache
 def build_coach_agent() -> CompiledStateGraph:
-    """Build the coach agent once, with its tools and its plan schema bound."""
+    """Build the coach agent once, with its tools and both shapes of answer bound."""
 
     return create_agent(
         model=chat_model(max_tokens=settings.COACH_MAX_TOKENS),
         tools=COACH_TOOLS,
         middleware=agent_middleware(),
         system_prompt=COACH_AGENT_SYSTEM,
-        response_format=TrainingPlan,
+        response_format=ToolStrategy(TrainingPlan | PlanAnswer),
         context_schema=CoachContext,
         name=COACH_AGENT_NAME,
-    )
-
-
-def _needs_note(missing: list[str]) -> str:
-    """The note left in place of a plan when the profile isn't complete enough to build one."""
-
-    fields = ", ".join(missing)
-    return (
-        f"I can't put a plan together yet — I still need {fields} from your profile "
-        "before I can prescribe anything safely."
     )
 
 
@@ -82,13 +86,14 @@ def _slots_to_fix(verification: dict) -> list[dict]:
     ]
 
 
-def _slots_to_fix_block(verification: dict | None) -> str | None:
-    """What the retry has to look up again, or None when this is not a verification retry."""
+def _slots_to_fix_block(verification: dict | None, feedback: str | None) -> str | None:
+    """What the retry has to look up again, or None when this is a first attempt."""
 
-    if not verification:
-        return None
-
-    return as_prompt_json(_slots_to_fix(verification)) or NO_SLOTS_TO_FIX
+    if verification:
+        return as_prompt_json(_slots_to_fix(verification)) or NO_SLOTS_TO_FIX
+    if feedback:
+        return REVIEWER_SLOTS_TO_FIX
+    return None
 
 
 def _failing_day_numbers(state: GraphState) -> set[int]:
@@ -138,25 +143,32 @@ def build_coach_input(state: GraphState) -> list[AnyMessage]:
     """Assemble what the agent sees: the conversation so far plus this turn's context."""
 
     verification = state.get("verification_result")
+    feedback = state.get("approval_feedback")
     context = build_coach_context(
         profile=as_prompt_json(state.get("profile")) or NO_PROFILE,
-        nutrition_targets=as_prompt_json(_nutrition_targets(state.get("profile"))),
+        nutrition_targets=as_prompt_json(
+            _nutrition_targets(state.get("profile"))),
         plan=as_prompt_json(
             _narrowed_plan(state.get("plan"), _failing_day_numbers(state))
         ),
         verification_errors=as_prompt_json(verification),
-        reviewer_feedback=state.get("approval_feedback"),
-        slots_to_fix=_slots_to_fix_block(verification),
+        reviewer_feedback=feedback,
+        slots_to_fix=_slots_to_fix_block(verification, feedback),
     )
     return [*trim_history(state["messages"]), HumanMessage(content=context)]
 
 
 async def coach_agent(state: GraphState) -> CoachUpdate:
-    """Generate or revise the user's training plan."""
+    """Answer from the plan on record, or generate or revise the user's training plan."""
 
-    missing = missing_profile_fields(state.get("profile"))
-    if missing:
-        return {"plan": None, "messages": [AIMessage(content=_needs_note(missing))]}
+    if missing_profile_fields(state.get("profile")):
+        return {
+            "plan": None,
+            "coach_outcome": None,
+            "profile_required_for": "plan",
+            "profile_status": "need_input",
+            "messages": [],
+        }
 
     try:
         result = await build_coach_agent().ainvoke(
@@ -166,17 +178,36 @@ async def coach_agent(state: GraphState) -> CoachUpdate:
             ),
         )
     except Exception:
-        return {"plan": None, "messages": []}
+        return {"plan": None, "coach_outcome": "drafted", "messages": []}
 
-    plan = result.get("structured_response")
-    if not isinstance(plan, TrainingPlan):
-        return {"plan": None, "messages": []}
+    response = result.get("structured_response")
 
-    revised = plan.model_dump()
+    # An answer leaves ``plan`` alone: the draft this conversation was holding, if any, is
+    # not something a question about the stored plan revises or discards.
+    if isinstance(response, PlanAnswer) and response.answer.strip():
+        return {
+            "coach_outcome": "answered",
+            "messages": [AIMessage(content=response.answer)],
+        }
+
+    if not isinstance(response, TrainingPlan):
+        return {"plan": None, "coach_outcome": "drafted", "messages": []}
+
+    revised = response.model_dump()
     previous = state.get("plan")
     failing_days = _failing_day_numbers(state)
 
     if previous and failing_days:
         revised = _merge_revised_days(previous, revised, failing_days)
 
-    return {"plan": revised, "messages": []}
+    return {"plan": revised, "coach_outcome": "drafted", "messages": []}
+
+
+def route_after_coach(state: GraphState) -> CoachRoute:
+    """Send a plan attempt on to verification, an answer straight back, or bounce to the supervisor for the profile it cannot plan without."""
+
+    if missing_profile_fields(state.get("profile")):
+        return CoachRoute.NEEDS_PROFILE
+    if state.get("coach_outcome") == "answered":
+        return CoachRoute.ANSWERED
+    return CoachRoute.READY

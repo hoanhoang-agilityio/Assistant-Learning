@@ -1,11 +1,15 @@
 """The ``notify_fail`` node: tell the user no plan passed verification, and stop."""
 
-from typing import TypedDict
-
 from langchain_core.messages import AIMessage, AnyMessage
 from pydantic import ValidationError
 
-from src.schemas import CheckName, GraphState, VerificationResult
+from src.schemas import (
+    CheckName,
+    GraphState,
+    VerificationCycleReset,
+    VerificationResult,
+    cleared_verification,
+)
 
 NOTIFY_FAIL_INTRO = (
     "I put together a plan for you, but it didn't pass all of my safety and "
@@ -30,7 +34,7 @@ CHECK_SUMMARIES: dict[CheckName, str] = {
 }
 
 
-class NotifyFailUpdate(TypedDict):
+class NotifyFailUpdate(VerificationCycleReset):
     """The state ``notify_fail`` writes."""
 
     messages: list[AnyMessage]
@@ -75,4 +79,4 @@ async def notify_fail(state: GraphState) -> NotifyFailUpdate:
 
     message = build_notify_fail_message(state.get("verification_result"))
 
-    return {"messages": [AIMessage(content=message)]}
+    return {**cleared_verification(), "messages": [AIMessage(content=message)]}

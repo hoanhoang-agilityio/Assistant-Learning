@@ -101,3 +101,19 @@ class TrainingPlan(BaseModel):
     def filled_slot_ids(self) -> list[str]:
         """The slot each prescription claims to fill, duplicates included."""
         return [exercise.slot_id for exercise in self.planned_exercises()]
+
+
+class PlanAnswer(BaseModel):
+    """The coach's other shape of answer: a reply about the plan on record, not a new one.
+
+    A turn that only asks what the stored plan holds has nothing for the verification gate
+    to check and nothing for the user to approve. Returning this instead of a
+    ``TrainingPlan`` is what tells the graph so.
+    """
+
+    answer: str = Field(
+        description=(
+            "The reply to show the user, drawn from what `get_plan` returned and "
+            "nothing else."
+        )
+    )

@@ -8,6 +8,7 @@ from langchain_core.tools import BaseTool
 from src.tools import (
     COACH_TOOLS,
     calc_macro,
+    get_plan,
     load_exercise,
     load_template,
     recall_memory,
@@ -16,7 +17,7 @@ from src.tools import (
 # Renaming a tool changes the agent's interface rather than its implementation: the names
 # reach the model, and traces are read by them. A rename should fail here and be a
 # decision, not a silent edit.
-COACH_TOOL_NAMES = {"load_template", "load_exercise", "recall_memory"}
+COACH_TOOL_NAMES = {"get_plan", "load_template", "load_exercise", "recall_memory"}
 
 # What the user told the collection loop. A tool that took any of these as an argument
 # would let the model supply them, and a supplied profile field is an invented one.
@@ -105,3 +106,9 @@ def test_the_memory_lookup_is_scoped_to_the_runtimes_user() -> None:
 def test_the_template_lookup_asks_for_nothing_it_does_not_use() -> None:
     """A template is chosen by goal and by week alone; the profile would not narrow it."""
     assert set(load_template.args) == {"goal", "days_per_week"}
+
+
+def test_the_stored_plan_is_read_for_the_runtimes_user_alone() -> None:
+    """Offered `user_id`, the model could read whichever user's plan it named."""
+    assert "runtime" in get_plan.args_schema.model_fields
+    assert not set(get_plan.args)
