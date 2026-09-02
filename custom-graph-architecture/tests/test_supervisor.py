@@ -24,12 +24,14 @@ class _FakeStructuredModel:
     def __init__(self, outcome: NextAgent | Exception) -> None:
         self.outcome = outcome
         self.calls = 0
+        self.received: list = []
 
     def with_retry(self, **_: object) -> "_FakeStructuredModel":
         return self
 
-    async def ainvoke(self, _messages: list) -> SupervisorDecision:
+    async def ainvoke(self, messages: list) -> SupervisorDecision:
         self.calls += 1
+        self.received = messages
         if isinstance(self.outcome, Exception):
             raise self.outcome
         return SupervisorDecision(next=self.outcome)
@@ -167,6 +169,33 @@ async def test_a_capped_hop_still_counts_itself(decides) -> None:
     result = await supervisor(_state(iteration_count=SUPERVISOR_MAX_ITERATIONS))
 
     assert result["iteration_count"] == SUPERVISOR_MAX_ITERATIONS + 1
+
+
+# --- The profile_status hint --------------------------------------------------------------
+
+
+async def test_profile_status_reaches_the_model_when_set(decides) -> None:
+    """The model routes on ``profile_status`` without the supervisor recomputing it."""
+    fake = decides("user_agent")
+
+    await supervisor(_state(profile_status="need_input"))
+
+    assert any(
+        getattr(message, "content", "") == "profile_status: need_input"
+        for message in fake.received
+    )
+
+
+async def test_no_profile_status_line_when_it_is_unset(decides) -> None:
+    """A turn with nothing profile-related going on must not fabricate a status."""
+    fake = decides("qa_agent")
+
+    await supervisor(_state())
+
+    assert not any(
+        getattr(message, "content", "").startswith("profile_status: ")
+        for message in fake.received
+    )
 
 
 # --- Routing on the decision -----------------------------------------------------------------

@@ -11,13 +11,6 @@ from src.services.profile import load_user_context, save_profile
 NO_PROFILE_RECORDED = "no profile is on record for this user yet"
 
 
-def _is_blank(value: object) -> bool:
-    """Report whether a stored field carries no usable value."""
-    if value is None:
-        return True
-    return isinstance(value, str) and not value.strip()
-
-
 @tool(response_format="content_and_artifact")
 async def get_user_profile(
     runtime: ToolRuntime[UserAgentContext, Any],
@@ -42,32 +35,16 @@ async def update_user_profile(
 ) -> tuple[str, dict]:
     """Write one field of the user's profile.
 
-    Pass the field's name exactly as it appears in the profile, and the new value. A
-    field with nothing on file yet is written immediately. A field that already carries
-    a value is an overwrite, and is staged for the user's confirmation instead — check
-    the result to see which one happened, and tell the user accordingly.
+    Pass the field's name exactly as it appears in the profile, and the new value. An
+    overwrite of a field that already carries a value pauses for the user's approval
+    before this tool runs at all, so by the time it runs the write is authorized.
     """
 
     if field not in UserProfile.model_fields:
         return f"'{field}' is not a profile field.", {"status": "invalid_field"}
 
-    user_id = runtime.context.user_id
-    profile = (await load_user_context(user_id)).profile or {}
-    previous = profile.get(field)
-
-    if _is_blank(previous):
-        updated = await save_profile(user_id, {field: value})
-        return (
-            f"Saved {field} = {value!r}.",
-            {"status": "written", "field": field, "profile": updated},
-        )
-
+    updated = await save_profile(runtime.context.user_id, {field: value})
     return (
-        f"{field} is already {previous!r}; that change needs the user's confirmation.",
-        {
-            "status": "pending_approval",
-            "field": field,
-            "previous": previous,
-            "value": value,
-        },
+        f"Saved {field} = {value!r}.",
+        {"status": "written", "field": field, "profile": updated},
     )

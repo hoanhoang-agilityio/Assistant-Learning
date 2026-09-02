@@ -206,7 +206,7 @@ async def test_the_run_suspends_at_the_plan_approval_rather_than_finishing(
     """A plan is never final on its own — the turn has to stop for the user's approval."""
     await _ask(loop)
 
-    assert (await loop.aget_state(CONFIG)).next == ("hitl_agent",)
+    assert (await loop.aget_state(CONFIG)).next == ("plan_approval",)
 
 
 async def test_the_answer_reaches_the_transcript_before_the_plan_is_presented(
