@@ -6,9 +6,12 @@ from typing import Literal, NotRequired, TypedDict
 from langgraph.prebuilt.chat_agent_executor import AgentState
 
 ApprovalDecision = Literal["approve", "reject"]
-ApprovalSource = Literal["coach_agent", "user_agent"]
-ApprovalKind = Literal["plan", "profile_update"]
+ApprovalSource = Literal["coach_agent"]
+ApprovalKind = Literal["plan"]
+CoachOutcome = Literal["answered", "drafted"]
 NextAgent = Literal["user_agent", "coach_agent", "qa_agent", "FINISH"]
+ProfileRequiredFor = Literal["plan"]
+ProfileStatus = Literal["ready", "need_input"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +35,7 @@ class UserAgentContext:
     """What the user agent's tools read for themselves rather than being told."""
 
     user_id: str
+    profile: dict | None = None
 
 
 class RetrievedChunk(TypedDict):
@@ -43,12 +47,58 @@ class RetrievedChunk(TypedDict):
 
 
 class PendingApproval(TypedDict):
-    """What ``hitl_agent`` shows, and which caller the decision goes back to."""
+    """What ``plan_approval`` shows the reviewer."""
 
     source: ApprovalSource
     kind: ApprovalKind
     summary: str
     payload: dict
+
+
+class VerificationCycleReset(TypedDict):
+    """The verification fields a finished plan attempt hands back cleared."""
+
+    verification_result: None
+    coach_retry_count: int
+
+
+def cleared_verification() -> VerificationCycleReset:
+    """The reset the end of a failed plan attempt writes.
+
+    Left standing, the last attempt's errors reach the coach as `<verification_errors>` on
+    every later turn of the same thread — including one that only asks what the stored plan
+    holds, which the coach would then answer with a plan revision — and the spent retry
+    budget sends the next attempt's first failure straight to `notify_fail`.
+    """
+
+    return {"verification_result": None, "coach_retry_count": 0}
+
+
+class ApprovalCycleReset(TypedDict):
+    """The approval fields a finished review cycle hands back cleared."""
+
+    pending_approval: None
+    approval_decision: None
+    approval_feedback: None
+    approval_retry_count: int
+
+
+def cleared_approval() -> ApprovalCycleReset:
+    """The reset every terminal outcome of a review writes.
+
+    State is checkpointed per conversation, so a decision left standing outlives the plan
+    it was about: the next plan the same thread asks for would be built against the last
+    one's rejection, as ``<reviewer_feedback>`` and as a retry budget already part spent.
+    Only the outcomes that end a cycle clear it — a revise hands the feedback to the coach
+    precisely so it can act on it.
+    """
+
+    return {
+        "pending_approval": None,
+        "approval_decision": None,
+        "approval_feedback": None,
+        "approval_retry_count": 0,
+    }
 
 
 class GraphState(AgentState):
@@ -67,13 +117,17 @@ class GraphState(AgentState):
 
     # --- User context ------------------------------------------------------------------
     profile: NotRequired[dict | None]
+    profile_draft: NotRequired[dict | None]
     plan: NotRequired[dict | None]
+    profile_required_for: NotRequired[ProfileRequiredFor | None]
+    profile_status: NotRequired[ProfileStatus | None]
 
     # --- Coaching ----------------------------------------------------------------------
+    coach_outcome: NotRequired[CoachOutcome | None]
     coach_retry_count: NotRequired[int]
     verification_result: NotRequired[dict | None]
 
-    # --- Shared approval: coach's plan, or user_agent's profile overwrite ---------------
+    # --- Shared approval: the coach's plan -----------------------------------------------
     pending_approval: NotRequired[PendingApproval | None]
     approval_decision: NotRequired[ApprovalDecision | None]
     approval_feedback: NotRequired[str | None]
@@ -100,7 +154,11 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         iteration_count=0,
         summary="",
         profile=None,
+        profile_draft=None,
         plan=None,
+        profile_required_for=None,
+        profile_status=None,
+        coach_outcome=None,
         coach_retry_count=0,
         verification_result=None,
         pending_approval=None,

@@ -1,7 +1,7 @@
 """Tests for the workflow state schema.
 
 The round-trip test is the important one: a state field that cannot be serialised breaks
-the ``hitl_agent`` interrupt gate, and it breaks it at resume time rather than at write time.
+the ``plan_approval`` interrupt gate, and it breaks it at resume time rather than at write time.
 """
 
 import pytest

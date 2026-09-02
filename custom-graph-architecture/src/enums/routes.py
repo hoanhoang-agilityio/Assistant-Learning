@@ -34,6 +34,14 @@ class VerificationRoute(StrEnum):
     EXHAUSTED = "exhausted"
 
 
+class CoachRoute(StrEnum):
+    """What ``route_after_coach`` may answer."""
+
+    NEEDS_PROFILE = "needs_profile"
+    ANSWERED = "answered"
+    READY = "ready"
+
+
 class FaithfulnessRoute(StrEnum):
     """What ``route_after_faithfulness`` may answer."""
 
@@ -54,7 +62,7 @@ class HitlRoute(StrEnum):
 class UserAgentRoute(StrEnum):
     """What ``route_after_user_agent`` may answer."""
 
-    PENDING_APPROVAL = "pending_approval"
+    NEEDS_MORE_INFO = "needs_more_info"
     DONE = "done"
 
 
@@ -67,23 +75,22 @@ class SupervisorRoute(StrEnum):
     FINISH = "FINISH"
 
 
-class HitlAgentRoute(StrEnum):
-    """What ``route_after_hitl`` may answer, across both ``hitl_agent`` sources."""
+class PlanApprovalRoute(StrEnum):
+    """What ``route_after_plan_approval`` may answer."""
 
     COACH_APPROVE = "coach_approve"
     COACH_REVISE = "coach_revise"
     COACH_NO_FEEDBACK = "coach_no_feedback"
     COACH_EXHAUSTED = "coach_exhausted"
-    USER_APPROVE = "user_approve"
-    USER_REJECT = "user_reject"
 
 
 __all__ = [
+    "CoachRoute",
     "FaithfulnessRoute",
     "GuardRoute",
-    "HitlAgentRoute",
     "HitlRoute",
     "Intent",
+    "PlanApprovalRoute",
     "ProfileRoute",
     "SupervisorRoute",
     "UserAgentRoute",

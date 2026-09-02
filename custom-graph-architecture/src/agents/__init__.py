@@ -5,6 +5,7 @@ from src.agents.coach import (
     build_coach_agent,
     build_coach_input,
     coach_agent,
+    route_after_coach,
 )
 from src.agents.history import trim_history
 from src.agents.qa import (
@@ -39,6 +40,7 @@ __all__ = [
     "build_user_agent",
     "coach_agent",
     "qa_agent",
+    "route_after_coach",
     "route_after_supervisor",
     "route_after_user_agent",
     "supervisor",

@@ -3,10 +3,11 @@
 from langgraph.graph import END
 
 from src.enums import (
+    CoachRoute,
     FaithfulnessRoute,
     GuardRoute,
-    HitlAgentRoute,
     Node,
+    PlanApprovalRoute,
     SupervisorRoute,
     UserAgentRoute,
     VerificationRoute,
@@ -25,7 +26,7 @@ SUPERVISOR_ROUTES: dict[str, str] = {
 }
 
 USER_AGENT_ROUTES: dict[str, str] = {
-    UserAgentRoute.PENDING_APPROVAL: Node.HITL_AGENT,
+    UserAgentRoute.NEEDS_MORE_INFO: Node.DRAFT_PROFILE,
     UserAgentRoute.DONE: Node.SUMMARIZE,
 }
 
@@ -35,13 +36,17 @@ VERIFICATION_ROUTES: dict[str, str] = {
     VerificationRoute.EXHAUSTED: Node.NOTIFY_FAIL,
 }
 
-HITL_AGENT_ROUTES: dict[str, str] = {
-    HitlAgentRoute.COACH_APPROVE: Node.COMMIT_PLAN,
-    HitlAgentRoute.COACH_REVISE: Node.COACH_AGENT,
-    HitlAgentRoute.COACH_NO_FEEDBACK: Node.HITL_REJECTED_NO_FEEDBACK,
-    HitlAgentRoute.COACH_EXHAUSTED: Node.HITL_EXHAUSTED,
-    HitlAgentRoute.USER_APPROVE: Node.COMMIT_PROFILE_UPDATE,
-    HitlAgentRoute.USER_REJECT: Node.USER_AGENT,
+COACH_ROUTES: dict[str, str] = {
+    CoachRoute.NEEDS_PROFILE: Node.SUMMARIZE,
+    CoachRoute.ANSWERED: Node.SUMMARIZE,
+    CoachRoute.READY: Node.DETERMINISTIC_VERIFICATION,
+}
+
+PLAN_APPROVAL_ROUTES: dict[str, str] = {
+    PlanApprovalRoute.COACH_APPROVE: Node.COMMIT_PLAN,
+    PlanApprovalRoute.COACH_REVISE: Node.COACH_AGENT,
+    PlanApprovalRoute.COACH_NO_FEEDBACK: Node.HITL_REJECTED_NO_FEEDBACK,
+    PlanApprovalRoute.COACH_EXHAUSTED: Node.HITL_EXHAUSTED,
 }
 
 FAITHFULNESS_ROUTES: dict[str, str] = {
@@ -51,9 +56,10 @@ FAITHFULNESS_ROUTES: dict[str, str] = {
 }
 
 __all__ = [
+    "COACH_ROUTES",
     "FAITHFULNESS_ROUTES",
     "GUARD_ROUTES",
-    "HITL_AGENT_ROUTES",
+    "PLAN_APPROVAL_ROUTES",
     "SUPERVISOR_ROUTES",
     "USER_AGENT_ROUTES",
     "VERIFICATION_ROUTES",

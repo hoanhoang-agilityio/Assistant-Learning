@@ -8,15 +8,17 @@ from langgraph.graph.state import CompiledStateGraph
 from src.agents import (
     coach_agent,
     qa_agent,
+    route_after_coach,
     route_after_supervisor,
     route_after_user_agent,
     supervisor,
     user_agent,
 )
 from src.constants.routes import (
+    COACH_ROUTES,
     FAITHFULNESS_ROUTES,
     GUARD_ROUTES,
-    HITL_AGENT_ROUTES,
+    PLAN_APPROVAL_ROUTES,
     SUPERVISOR_ROUTES,
     USER_AGENT_ROUTES,
     VERIFICATION_ROUTES,
@@ -24,19 +26,20 @@ from src.constants.routes import (
 from src.enums import Node
 from src.nodes import (
     blocked,
+    collect_profile,
     commit_plan,
-    commit_profile_update,
     deterministic_verification,
+    draft_profile,
     guard_input,
-    hitl_agent,
     hitl_exhausted,
     hitl_rejected_no_feedback,
     notify_fail,
+    plan_approval,
     present_plan,
     qa_fallback,
     route_after_faithfulness,
     route_after_guard,
-    route_after_hitl,
+    route_after_plan_approval,
     route_after_verification,
     summarize,
     verify_faithfulness,
@@ -53,14 +56,15 @@ NODES: tuple[tuple[Node, Callable], ...] = (
     (Node.SUPERVISOR, supervisor),
     (Node.USER_AGENT, user_agent),
     (Node.COACH_AGENT, coach_agent),
+    (Node.DRAFT_PROFILE, draft_profile),
+    (Node.COLLECT_PROFILE, collect_profile),
     (Node.DETERMINISTIC_VERIFICATION, deterministic_verification),
     (Node.PRESENT_PLAN, present_plan),
     (Node.NOTIFY_FAIL, notify_fail),
-    (Node.HITL_AGENT, hitl_agent),
+    (Node.PLAN_APPROVAL, plan_approval),
     (Node.HITL_REJECTED_NO_FEEDBACK, hitl_rejected_no_feedback),
     (Node.HITL_EXHAUSTED, hitl_exhausted),
     (Node.COMMIT_PLAN, commit_plan),
-    (Node.COMMIT_PROFILE_UPDATE, commit_profile_update),
     (Node.QA_AGENT, qa_agent),
     (Node.VERIFY_FAITHFULNESS, verify_faithfulness),
     (Node.QA_FALLBACK, qa_fallback),
@@ -76,7 +80,8 @@ def build_graph() -> StateGraph:
         builder.add_node(name, observed(name, node))
 
     builder.add_edge(START, Node.GUARD_INPUT)
-    builder.add_conditional_edges(Node.GUARD_INPUT, route_after_guard, GUARD_ROUTES)
+    builder.add_conditional_edges(
+        Node.GUARD_INPUT, route_after_guard, GUARD_ROUTES)
     builder.add_edge(Node.BLOCKED, END)
     builder.add_conditional_edges(
         Node.SUPERVISOR, route_after_supervisor, SUPERVISOR_ROUTES
@@ -84,17 +89,21 @@ def build_graph() -> StateGraph:
     builder.add_conditional_edges(
         Node.USER_AGENT, route_after_user_agent, USER_AGENT_ROUTES
     )
-    builder.add_edge(Node.COACH_AGENT, Node.DETERMINISTIC_VERIFICATION)
+    builder.add_conditional_edges(
+        Node.COACH_AGENT, route_after_coach, COACH_ROUTES)
+    builder.add_edge(Node.DRAFT_PROFILE, Node.COLLECT_PROFILE)
+    builder.add_edge(Node.COLLECT_PROFILE, Node.SUMMARIZE)
     builder.add_conditional_edges(
         Node.DETERMINISTIC_VERIFICATION, route_after_verification, VERIFICATION_ROUTES
     )
-    builder.add_edge(Node.PRESENT_PLAN, Node.HITL_AGENT)
+    builder.add_edge(Node.PRESENT_PLAN, Node.PLAN_APPROVAL)
     builder.add_edge(Node.NOTIFY_FAIL, Node.SUMMARIZE)
-    builder.add_conditional_edges(Node.HITL_AGENT, route_after_hitl, HITL_AGENT_ROUTES)
+    builder.add_conditional_edges(
+        Node.PLAN_APPROVAL, route_after_plan_approval, PLAN_APPROVAL_ROUTES
+    )
     builder.add_edge(Node.COMMIT_PLAN, Node.SUMMARIZE)
     builder.add_edge(Node.HITL_REJECTED_NO_FEEDBACK, Node.SUMMARIZE)
     builder.add_edge(Node.HITL_EXHAUSTED, Node.SUMMARIZE)
-    builder.add_edge(Node.COMMIT_PROFILE_UPDATE, Node.SUMMARIZE)
     builder.add_edge(Node.QA_AGENT, Node.VERIFY_FAITHFULNESS)
     builder.add_conditional_edges(
         Node.VERIFY_FAITHFULNESS, route_after_faithfulness, FAITHFULNESS_ROUTES

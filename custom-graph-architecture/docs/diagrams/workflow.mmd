@@ -10,38 +10,39 @@ graph TD;
 	supervisor(supervisor)
 	user_agent(user_agent)
 	coach_agent(coach_agent)
+	draft_profile(draft_profile)
+	collect_profile(collect_profile)
 	deterministic_verification(deterministic_verification)
 	present_plan(present_plan)
 	notify_fail(notify_fail)
-	hitl_agent(hitl_agent)
+	plan_approval(plan_approval)
 	hitl_rejected_no_feedback(hitl_rejected_no_feedback)
 	hitl_exhausted(hitl_exhausted)
 	commit_plan(commit_plan)
-	commit_profile_update(commit_profile_update)
 	qa_agent(qa_agent)
 	verify_faithfulness(verify_faithfulness)
 	qa_fallback(qa_fallback)
 	summarize(summarize)
 	__end__([<p>__end__</p>]):::last
 	__start__ --> guard_input;
-	coach_agent --> deterministic_verification;
+	coach_agent -. &nbsp;ready&nbsp; .-> deterministic_verification;
+	coach_agent -. &nbsp;answered&nbsp; .-> summarize;
+	collect_profile --> summarize;
 	commit_plan --> summarize;
-	commit_profile_update --> summarize;
 	deterministic_verification -. &nbsp;retry&nbsp; .-> coach_agent;
 	deterministic_verification -. &nbsp;exhausted&nbsp; .-> notify_fail;
 	deterministic_verification -. &nbsp;pass&nbsp; .-> present_plan;
+	draft_profile --> collect_profile;
 	guard_input -.-> blocked;
 	guard_input -. &nbsp;pass&nbsp; .-> supervisor;
-	hitl_agent -. &nbsp;coach_revise&nbsp; .-> coach_agent;
-	hitl_agent -. &nbsp;coach_approve&nbsp; .-> commit_plan;
-	hitl_agent -. &nbsp;user_approve&nbsp; .-> commit_profile_update;
-	hitl_agent -. &nbsp;coach_exhausted&nbsp; .-> hitl_exhausted;
-	hitl_agent -. &nbsp;coach_no_feedback&nbsp; .-> hitl_rejected_no_feedback;
-	hitl_agent -. &nbsp;user_reject&nbsp; .-> user_agent;
 	hitl_exhausted --> summarize;
 	hitl_rejected_no_feedback --> summarize;
 	notify_fail --> summarize;
-	present_plan --> hitl_agent;
+	plan_approval -. &nbsp;coach_revise&nbsp; .-> coach_agent;
+	plan_approval -. &nbsp;coach_approve&nbsp; .-> commit_plan;
+	plan_approval -. &nbsp;coach_exhausted&nbsp; .-> hitl_exhausted;
+	plan_approval -. &nbsp;coach_no_feedback&nbsp; .-> hitl_rejected_no_feedback;
+	present_plan --> plan_approval;
 	qa_agent --> verify_faithfulness;
 	qa_fallback --> summarize;
 	summarize --> supervisor;
@@ -49,7 +50,7 @@ graph TD;
 	supervisor -.-> coach_agent;
 	supervisor -.-> qa_agent;
 	supervisor -.-> user_agent;
-	user_agent -. &nbsp;pending_approval&nbsp; .-> hitl_agent;
+	user_agent -. &nbsp;needs_more_info&nbsp; .-> draft_profile;
 	user_agent -. &nbsp;done&nbsp; .-> summarize;
 	verify_faithfulness -. &nbsp;retry&nbsp; .-> qa_agent;
 	verify_faithfulness -. &nbsp;fallback&nbsp; .-> qa_fallback;

@@ -50,6 +50,7 @@ class GraphState(AgentState):
     # =========================
     # Coaching
     # =========================
+    coach_outcome: Optional[Literal["answered", "drafted"]]
     coach_retry_count: int
     verification_result: Optional[dict]
 
@@ -70,11 +71,18 @@ class GraphState(AgentState):
     qa_retry_count: int
 ```
 
-`PendingApproval` (`TypedDict`): `source: Literal["coach_agent", "user_agent"]`,
-`kind: Literal["plan", "profile_update"]`, `summary: str`, `payload: dict`. Staged by
-`present_plan` (`source="coach_agent"`) or `update_user_profile` (`source="user_agent"`) before
-routing to `hitl_agent`, and read back by `route_after_hitl` to decide which of the six outcomes
-applies.
+`PendingApproval` (`TypedDict`): `source: Literal["coach_agent"]`, `kind: Literal["plan"]`,
+`summary: str`, `payload: dict`. Staged by `present_plan` before routing to `plan_approval`, and
+read back by `route_after_plan_approval` to decide which of the four outcomes applies. A profile
+overwrite no longer goes through this gate at all: `update_user_profile` is wrapped in its own
+`HumanInTheLoopMiddleware`, which pauses `user_agent` directly before the tool runs.
+
+`coach_outcome` is which of its two response schemas `coach_agent` came back with, and the only
+thing `route_after_coach` branches on beyond profile completeness. A `TrainingPlan` (`"drafted"`)
+goes on to `deterministic_verification`; a `PlanAnswer` (`"answered"`) — the shape a turn that only
+asked what the stored plan holds is answered with — goes straight to `summarize`, since there is no
+draft for the gate to check and nothing for the user to approve. Every return of the node sets it,
+so an answer last turn cannot route this turn's plan past the gate.
 
 Agent context objects — `CoachContext`, `QaContext`, `UserAgentContext` — carry `user_id` (and,
 for the coach and QA agents, `profile`) into each agent's tools without putting them in

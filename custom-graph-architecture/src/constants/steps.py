@@ -11,6 +11,7 @@ from src.enums import Node
 STEP_LABELS: dict[Node, str] = {
     Node.GUARD_INPUT: "Checking your message",
     Node.COACH_AGENT: "Building your plan",
+    Node.DRAFT_PROFILE: "Reading what you've told me",
     Node.DETERMINISTIC_VERIFICATION: "Checking the plan against the safety and volume rules",
     Node.PRESENT_PLAN: "Writing your plan up",
     Node.QA_AGENT: "Searching the knowledge base",
