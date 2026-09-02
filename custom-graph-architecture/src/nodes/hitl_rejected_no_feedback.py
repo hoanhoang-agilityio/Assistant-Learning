@@ -1,10 +1,8 @@
 """The ``hitl_rejected_no_feedback`` node: stop when a rejection gives nothing to revise."""
 
-from typing import TypedDict
-
 from langchain_core.messages import AIMessage, AnyMessage
 
-from src.schemas import GraphState
+from src.schemas import ApprovalCycleReset, GraphState, cleared_approval
 
 HITL_REJECTED_NO_FEEDBACK_MESSAGE = (
     "Understood. This plan will not be saved. Without specific feedback, I don't "
@@ -14,7 +12,7 @@ HITL_REJECTED_NO_FEEDBACK_MESSAGE = (
 )
 
 
-class HitlRejectedNoFeedbackUpdate(TypedDict):
+class HitlRejectedNoFeedbackUpdate(ApprovalCycleReset):
     """The state ``hitl_rejected_no_feedback`` writes."""
 
     messages: list[AnyMessage]
@@ -23,4 +21,7 @@ class HitlRejectedNoFeedbackUpdate(TypedDict):
 async def hitl_rejected_no_feedback(state: GraphState) -> HitlRejectedNoFeedbackUpdate:
     """End the coaching branch after a rejection that came with no feedback to revise from."""
 
-    return {"messages": [AIMessage(content=HITL_REJECTED_NO_FEEDBACK_MESSAGE)]}
+    return {
+        **cleared_approval(),
+        "messages": [AIMessage(content=HITL_REJECTED_NO_FEEDBACK_MESSAGE)],
+    }

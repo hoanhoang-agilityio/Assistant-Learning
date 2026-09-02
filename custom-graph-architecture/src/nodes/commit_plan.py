@@ -1,10 +1,8 @@
 """The ``commit_plan`` node: the only place a coach agent's plan is persisted."""
 
-from typing import TypedDict
-
 from langchain_core.messages import AIMessage, AnyMessage
 
-from src.schemas import GraphState
+from src.schemas import ApprovalCycleReset, GraphState, cleared_approval
 from src.services.memory import save_plan
 
 PLAN_SAVED_MESSAGE = (
@@ -13,17 +11,20 @@ PLAN_SAVED_MESSAGE = (
 )
 
 
-class CommitPlanUpdate(TypedDict):
+class CommitPlanUpdate(ApprovalCycleReset):
     """The state ``commit_plan`` writes."""
 
     messages: list[AnyMessage]
 
 
 async def commit_plan(state: GraphState) -> CommitPlanUpdate:
-    """Persist the plan ``hitl_agent`` just approved, and confirm it to the user."""
+    """Persist the plan ``plan_approval`` just approved, confirm it, and close the review."""
 
     plan = state.get("plan")
     if plan:
         await save_plan(state["user_id"], plan)
 
-    return {"messages": [AIMessage(content=PLAN_SAVED_MESSAGE)]}
+    return {
+        **cleared_approval(),
+        "messages": [AIMessage(content=PLAN_SAVED_MESSAGE)],
+    }

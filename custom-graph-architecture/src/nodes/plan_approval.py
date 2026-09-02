@@ -1,4 +1,4 @@
-"""The ``hitl_agent`` node: pause for the caller's approve/reject decision on a pending approval."""
+"""The ``plan_approval`` node: pause for the coach's reviewer to approve or reject a plan."""
 
 from typing import Any, TypedDict
 
@@ -6,21 +6,21 @@ from langchain_core.messages import AnyMessage, HumanMessage
 from langgraph.types import interrupt
 
 from src.configs.config import settings
-from src.enums import HitlAgentRoute
+from src.enums import PlanApprovalRoute
 from src.schemas import ApprovalDecision, GraphState
 
-HITL_AGENT_INTERRUPT = "hitl_agent"
+PLAN_APPROVAL_INTERRUPT = "plan_approval"
 
 
-class HitlAgentInterrupt(TypedDict):
+class PlanApprovalInterrupt(TypedDict):
     """The payload the caller receives while the run is suspended here."""
 
     type: str
     summary: str
 
 
-class HitlAgentUpdate(TypedDict):
-    """The state ``hitl_agent`` writes once the caller responds."""
+class PlanApprovalUpdate(TypedDict):
+    """The state ``plan_approval`` writes once the caller responds."""
 
     approval_decision: ApprovalDecision
     approval_feedback: str | None
@@ -43,11 +43,13 @@ def _parse_decision(reply: Any) -> tuple[ApprovalDecision, str | None]:
     return "reject", text or None
 
 
-async def hitl_agent(state: GraphState) -> HitlAgentUpdate:
-    """Pause the graph and record the caller's approve/reject decision on the pending approval."""
+async def plan_approval(state: GraphState) -> PlanApprovalUpdate:
+    """Pause the graph and record the caller's approve/reject decision on the pending plan."""
 
     summary = state["pending_approval"]["summary"]
-    reply = interrupt(HitlAgentInterrupt(type=HITL_AGENT_INTERRUPT, summary=summary))
+    reply = interrupt(
+        PlanApprovalInterrupt(type=PLAN_APPROVAL_INTERRUPT, summary=summary)
+    )
 
     decision, feedback = _parse_decision(reply)
 
@@ -63,20 +65,15 @@ async def hitl_agent(state: GraphState) -> HitlAgentUpdate:
     }
 
 
-def route_after_hitl(state: GraphState) -> HitlAgentRoute:
-    """Dispatch on the pending approval's source and the caller's decision, to one of six outcomes."""
+def route_after_plan_approval(state: GraphState) -> PlanApprovalRoute:
+    """Dispatch on the reviewer's decision, to one of four outcomes."""
 
     decision = state.get("approval_decision")
 
-    if state["pending_approval"]["source"] == "user_agent":
-        if decision == "approve":
-            return HitlAgentRoute.USER_APPROVE
-        return HitlAgentRoute.USER_REJECT
-
     if decision != "reject":
-        return HitlAgentRoute.COACH_APPROVE
+        return PlanApprovalRoute.COACH_APPROVE
     if not state.get("approval_feedback"):
-        return HitlAgentRoute.COACH_NO_FEEDBACK
+        return PlanApprovalRoute.COACH_NO_FEEDBACK
     if state.get("approval_retry_count", 0) >= settings.HITL_MAX_RETRIES:
-        return HitlAgentRoute.COACH_EXHAUSTED
-    return HitlAgentRoute.COACH_REVISE
+        return PlanApprovalRoute.COACH_EXHAUSTED
+    return PlanApprovalRoute.COACH_REVISE

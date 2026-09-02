@@ -1,10 +1,8 @@
 """The ``hitl_exhausted`` node: stop once too many revisions still haven't been approved."""
 
-from typing import TypedDict
-
 from langchain_core.messages import AIMessage, AnyMessage
 
-from src.schemas import GraphState
+from src.schemas import ApprovalCycleReset, GraphState, cleared_approval
 
 HITL_EXHAUSTED_MESSAGE = (
     "I've tried revising your plan a few times based on your feedback, but I don't want "
@@ -14,7 +12,7 @@ HITL_EXHAUSTED_MESSAGE = (
 )
 
 
-class HitlExhaustedUpdate(TypedDict):
+class HitlExhaustedUpdate(ApprovalCycleReset):
     """The state ``hitl_exhausted`` writes."""
 
     messages: list[AnyMessage]
@@ -23,4 +21,7 @@ class HitlExhaustedUpdate(TypedDict):
 async def hitl_exhausted(state: GraphState) -> HitlExhaustedUpdate:
     """End the coaching branch after too many rejected revisions were sent back to the coach."""
 
-    return {"messages": [AIMessage(content=HITL_EXHAUSTED_MESSAGE)]}
+    return {
+        **cleared_approval(),
+        "messages": [AIMessage(content=HITL_EXHAUSTED_MESSAGE)],
+    }
