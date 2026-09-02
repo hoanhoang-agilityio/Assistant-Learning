@@ -41,6 +41,12 @@ def build_run_config(
             # are stored as plain metadata and the trace is not filterable by either.
             "langfuse_session_id": session_id,
             "langfuse_user_id": user_id,
+            # Read by the Langfuse callback handler itself (not just stored): a HITL
+            # turn pauses mid-trace on a GraphInterrupt, and the resume arrives as a
+            # brand-new root run. Without this key the handler can't tell it apart from
+            # an unrelated run on the same thread, and opens a second trace instead of
+            # reattaching to the one that paused.
+            "thread_id": session_id,
             "run_id": run_id or str(uuid4()),
             "user_id": user_id,
             "session_id": session_id,

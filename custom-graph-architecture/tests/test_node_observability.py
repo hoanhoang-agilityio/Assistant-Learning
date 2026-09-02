@@ -146,7 +146,7 @@ async def test_a_failing_node_is_recorded_as_an_error_and_still_raises(client) -
 async def test_a_pause_is_not_recorded_as_a_failure(client) -> None:
     """``interrupt()`` parks the run by raising; every HITL turn would read as an error."""
     with pytest.raises(GraphInterrupt):
-        await observed(Node.HITL_AGENT, _failing_node(GraphInterrupt(())))(STATE)
+        await observed(Node.PLAN_APPROVAL, _failing_node(GraphInterrupt(())))(STATE)
 
     client.update_current_span.assert_not_called()
 

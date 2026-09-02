@@ -106,7 +106,8 @@ def _record_span(
             status_message=error,
         )
     except Exception as trace_error:
-        logger.debug("trace_span_update_failed", node=node, error=str(trace_error))
+        logger.debug("trace_span_update_failed",
+                     node=node, error=str(trace_error))
 
 
 def _record_scores(update: Mapping[str, Any]) -> None:
@@ -158,9 +159,7 @@ def observed(name: Node, node: NodeFn) -> NodeFn:
 
         duration_ms = _elapsed_ms(started)
         fields = observations(update or {})
-        logger.info(
-            "node_completed", node=name.value, duration_ms=duration_ms, **fields
-        )
+
         _record_span(name.value, duration_ms, fields)
         _record_scores(update or {})
         return update

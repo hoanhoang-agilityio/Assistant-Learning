@@ -170,6 +170,13 @@ def test_run_id_is_generated_per_turn_unless_supplied() -> None:
     assert build_run_config("s", "u", run_id="fixed")["metadata"]["run_id"] == "fixed"
 
 
+def test_run_config_metadata_carries_the_langgraph_resume_key() -> None:
+    """The Langfuse handler keys a HITL resume's trace linkage off metadata.thread_id."""
+    config = build_run_config(session_id="session-1", user_id="user-1")
+
+    assert config["metadata"]["thread_id"] == "session-1"
+
+
 def test_run_config_has_no_callbacks_when_tracing_is_off() -> None:
     """The config is still valid to invoke with; it just carries no handler."""
     config = build_run_config(session_id="session-1", user_id="user-1")
