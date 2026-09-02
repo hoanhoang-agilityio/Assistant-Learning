@@ -251,6 +251,18 @@ def _slot(slot_id: str, patterns: list[MovementPattern], **overrides) -> dict:
     return {"slot_id": slot_id, "movement_patterns": patterns} | overrides
 
 
+async def _invoke(slots: list[dict], profile: dict | None):
+    """Call the tool as the agent's tool node would, so both content and artifact come back."""
+    return await load_exercise.ainvoke(
+        {
+            "type": "tool_call",
+            "name": load_exercise.name,
+            "args": {"slots": slots, "runtime": _runtime(profile)},
+            "id": "call_1",
+        }
+    )
+
+
 async def test_the_tool_returns_candidates_the_agent_can_choose_between(seeded) -> None:
     """The agent prescribes by id, so the id and the name have to be in the payload."""
     result = await load_exercise.ainvoke(
@@ -260,12 +272,14 @@ async def test_the_tool_returns_candidates_the_agent_can_choose_between(seeded) 
         }
     )
 
-    assert result["slots"]["d1_s1"]
-    assert all({"id", "name"} <= set(candidate) for candidate in result["exercises"])
+    assert result["d1_s1"]
+    assert all({"id", "name"} <= set(candidate) for candidate in result["d1_s1"])
 
 
 async def test_the_tool_leaves_out_what_the_agent_does_not_choose_on(seeded) -> None:
-    """Instructions for a hundred rows would cost more context than the plan itself."""
+    """Instructions for a hundred rows would cost more context than the plan itself, and
+    the fields the gate re-checks afterwards were already spent as the query that picked
+    these candidates — nothing left for the model to choose on but id and name."""
     result = await load_exercise.ainvoke(
         {
             "slots": [_slot("d1_s1", [MovementPattern.SQUAT])],
@@ -273,8 +287,28 @@ async def test_the_tool_leaves_out_what_the_agent_does_not_choose_on(seeded) -> 
         }
     )
 
-    assert set(result["exercises"][0]) == catalogue.CANDIDATE_FIELDS
+    assert set(result["d1_s1"][0]) == {"id", "name"}
     assert json.dumps(result)
+
+
+async def test_the_artifact_keeps_the_full_candidate_metadata(seeded) -> None:
+    """The gate re-checks pattern, region and muscles; that has to survive somewhere even
+    though the model itself never sees it."""
+    result = await _invoke([_slot("d1_s1", [MovementPattern.SQUAT])], COMPLETE_PROFILE)
+
+    assert set(result.artifact["exercises"][0]) == catalogue.CANDIDATE_FIELDS
+
+
+async def test_the_compact_payload_matches_the_artifacts_slot_assignment(
+    seeded,
+) -> None:
+    """The model has to be choosing from the same candidates the gate will check afterwards."""
+    result = await _invoke([_slot("d1_s1", [MovementPattern.SQUAT])], COMPLETE_PROFILE)
+    content = json.loads(result.content)
+
+    assert [candidate["id"] for candidate in content["d1_s1"]] == (
+        result.artifact["slots"]["d1_s1"]
+    )
 
 
 async def test_the_tool_filters_on_the_injury_the_model_never_passed(seeded) -> None:
@@ -286,23 +320,19 @@ async def test_the_tool_filters_on_the_injury_the_model_never_passed(seeded) -> 
         }
     )
 
-    assert result == {"exercises": [], "slots": {"d1_s1": []}}
+    assert result == {"d1_s1": []}
 
 
 async def test_the_tool_narrows_on_the_slot_it_was_given(seeded) -> None:
     """`required_body_region` is a slot constraint the gate re-checks afterwards."""
-    result = await load_exercise.ainvoke(
-        {
-            "slots": [
-                _slot("d1_s1", [MovementPattern.SQUAT], body_region=BodyRegion.LOWER)
-            ],
-            "runtime": _runtime(COMPLETE_PROFILE),
-        }
+    result = await _invoke(
+        [_slot("d1_s1", [MovementPattern.SQUAT], body_region=BodyRegion.LOWER)],
+        COMPLETE_PROFILE,
     )
 
     assert all(
         candidate["body_region"] == BodyRegion.LOWER
-        for candidate in result["exercises"]
+        for candidate in result.artifact["exercises"]
     )
 
 
@@ -321,45 +351,43 @@ async def test_every_slot_in_the_batch_gets_its_own_candidates(seeded) -> None:
         }
     )
 
-    assert set(result["slots"]) == {"d1_s1", "d2_s1"}
-    assert result["slots"]["d1_s1"] and result["slots"]["d2_s1"]
-    assert result["slots"]["d1_s1"] != result["slots"]["d2_s1"]
+    assert set(result) == {"d1_s1", "d2_s1"}
+    assert result["d1_s1"] and result["d2_s1"]
+    assert result["d1_s1"] != result["d2_s1"]
 
 
 async def test_an_exercise_two_slots_share_is_sent_once(seeded) -> None:
-    """Repeating the row per slot is what made a twenty-slot week cost what it did."""
-    result = await load_exercise.ainvoke(
-        {
-            "slots": [
-                _slot("d1_s1", [MovementPattern.SQUAT]),
-                _slot("d3_s1", [MovementPattern.SQUAT]),
-            ],
-            "runtime": _runtime(COMPLETE_PROFILE),
-        }
+    """Repeating the full candidate row per slot is what made a twenty-slot week cost what
+    it did; the artifact still dedupes it by id, even though the compact payload the model
+    reads is cheap enough per slot on its own."""
+    result = await _invoke(
+        [
+            _slot("d1_s1", [MovementPattern.SQUAT]),
+            _slot("d3_s1", [MovementPattern.SQUAT]),
+        ],
+        COMPLETE_PROFILE,
     )
 
-    sent = [candidate["id"] for candidate in result["exercises"]]
+    sent = [candidate["id"] for candidate in result.artifact["exercises"]]
 
-    assert result["slots"]["d1_s1"] == result["slots"]["d3_s1"]
+    assert result.artifact["slots"]["d1_s1"] == result.artifact["slots"]["d3_s1"]
     assert sent == list(dict.fromkeys(sent))
-    assert len(sent) == len(result["slots"]["d1_s1"])
+    assert len(sent) == len(result.artifact["slots"]["d1_s1"])
 
 
 async def test_the_ids_a_slot_lists_are_all_in_the_payload(seeded) -> None:
     """A slot pointing at an id the batch never sent leaves the agent nothing to prescribe."""
-    result = await load_exercise.ainvoke(
-        {
-            "slots": [
-                _slot("d1_s1", [MovementPattern.HORIZONTAL_PUSH]),
-                _slot("d2_s1", [MovementPattern.HINGE]),
-            ],
-            "runtime": _runtime(COMPLETE_PROFILE),
-        }
+    result = await _invoke(
+        [
+            _slot("d1_s1", [MovementPattern.HORIZONTAL_PUSH]),
+            _slot("d2_s1", [MovementPattern.HINGE]),
+        ],
+        COMPLETE_PROFILE,
     )
 
-    sent = {candidate["id"] for candidate in result["exercises"]}
+    sent = {candidate["id"] for candidate in result.artifact["exercises"]}
 
-    assert all(set(ids) <= sent for ids in result["slots"].values())
+    assert all(set(ids) <= sent for ids in result.artifact["slots"].values())
 
 
 # --- The context the tool reads -------------------------------------------------------------

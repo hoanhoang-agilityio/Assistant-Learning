@@ -33,10 +33,10 @@ class SlotQuery(BaseModel):
     )
 
 
-@tool
+@tool(response_format="content_and_artifact")
 async def load_exercise(
     slots: list[SlotQuery], runtime: ToolRuntime[CoachContext, Any]
-) -> dict:
+) -> tuple[dict, dict]:
     """Return the exercises that can fill each template slot, already filtered by the user's injuries and equipment."""
 
     profile = context_profile(runtime)
@@ -55,4 +55,14 @@ async def load_exercise(
             exercises.setdefault(exercise.id, as_candidate(exercise))
         by_slot[slot.slot_id] = [exercise.id for exercise in found]
 
-    return {"exercises": list(exercises.values()), "slots": by_slot}
+    # The model only ever prescribes by id, choosing on the name; the movement pattern,
+    # body region, muscles and equipment a candidate carries were already the query that
+    # selected it, so repeating them back per slot would be paid for and never read.
+    content = {
+        slot_id: [
+            {"id": exercise_id, "name": exercises[exercise_id]["name"]}
+            for exercise_id in exercise_ids
+        ]
+        for slot_id, exercise_ids in by_slot.items()
+    }
+    return content, {"exercises": list(exercises.values()), "slots": by_slot}
