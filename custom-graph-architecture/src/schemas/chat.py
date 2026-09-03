@@ -32,6 +32,25 @@ class Message(BaseModel):
         return cleaned
 
 
+class SessionTitle(BaseModel):
+    """The generated name for a conversation."""
+
+    title: str = Field(
+        min_length=1,
+        max_length=60,
+        description="Short conversation title, in the language the user wrote in",
+    )
+
+    @field_validator("title")
+    @classmethod
+    def normalize(cls, value: str) -> str:
+        """Collapse whitespace and drop wrapping quotes and trailing punctuation."""
+        cleaned = " ".join(value.split()).strip(" \"'`.,:;!?-")
+        if not cleaned:
+            raise ValueError("title must contain at least one printable character")
+        return cleaned
+
+
 class ChatRequest(BaseModel):
     """Body of ``POST /chat`` and ``/chat/stream``."""
 
@@ -89,5 +108,6 @@ __all__ = [
     "ChatRequest",
     "ChatResponse",
     "Message",
+    "SessionTitle",
     "StreamResponse",
 ]

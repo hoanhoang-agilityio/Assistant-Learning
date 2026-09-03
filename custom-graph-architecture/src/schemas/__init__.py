@@ -8,7 +8,13 @@ from src.schemas.auth import (
     UserResponse,
 )
 from src.schemas.base import BaseResponse
-from src.schemas.chat import ChatRequest, ChatResponse, Message, StreamResponse
+from src.schemas.chat import (
+    ChatRequest,
+    ChatResponse,
+    Message,
+    SessionTitle,
+    StreamResponse,
+)
 from src.schemas.domain import (
     CheckName,
     Exercise,
@@ -87,6 +93,7 @@ __all__ = [
     "QaOutcome",
     "RetrievedChunk",
     "SessionResponse",
+    "SessionTitle",
     "Severity",
     "StreamResponse",
     "Token",

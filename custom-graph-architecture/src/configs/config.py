@@ -150,10 +150,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: Environment = Field(default_factory=get_environment)
 
     # --- Application -----------------------------------------------------------------
-    PROJECT_NAME: str = "Fitness Coaching Graph"
+    PROJECT_NAME: str = "Fitness Coaching"
     VERSION: str = "0.1.0"
     DESCRIPTION: str = (
-        "Fitness coaching and knowledge QA assistant built on a LangGraph state graph."
+        "Fitness coaching AI."
     )
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
@@ -178,6 +178,8 @@ class Settings(BaseSettings):
     COACH_MAX_TOKENS: int = 8000
     QA_MAX_TOKENS: int = 2000
     HISTORY_MAX_TOKENS: int = 4000
+    SESSION_NAMING_ENABLED: bool = True
+    SESSION_TITLE_MAX_TOKENS: int = 512
     # Attempts, not retries: 3 means one call and two more if the first two fail with
     # something transient. The agent middleware takes retries-after-the-first, so it is
     # handed this minus one.

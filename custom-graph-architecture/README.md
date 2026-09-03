@@ -35,7 +35,7 @@ src/
   models/                    SQLModel ORM (Alembic owns migrations)
     catalogue.py             exercises + workout templates the coach may choose from
   schemas/                   graph state, API and domain models
-  services/                  database, auth, LLM, guard, profile, knowledge
+  services/                  database, auth, LLM, guard, profile, knowledge, session naming
   utils/                     JWT helpers, input sanitization, structlog
 tests/
 scripts/                    catalogue conversion + seeding
@@ -133,6 +133,13 @@ DELETE /api/v1/auth/session/{id}        -> 204                               (se
 Conversation endpoints depend on `get_current_session`, never `get_current_user`: the
 session id is the graph's `thread_id`, so that dependency is what decides who may resume a
 checkpointed run.
+
+A conversation names itself on its first turn (`services/session_naming.py`,
+`SESSION_NAMING_ENABLED`): the row is claimed with a placeholder cut from the user's own
+message, then a background LLM call summarises that message into a title and overwrites
+it. The name is stored on the `session` row, which is what `GET /auth/sessions` returns, so
+the sidebar shows it again after a reload or a fresh login. `PATCH .../name` still wins —
+a conversation that already has a name is never renamed automatically.
 
 `JWT_SECRET_KEY` is required and must be at least 32 characters — the app refuses to start
 without it. Generate one per environment:

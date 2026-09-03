@@ -9,7 +9,7 @@ the event loop while it checks the denylist.
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
-from sqlmodel import col, select
+from sqlmodel import col, select, update
 
 from src.models.session import Session as ChatSession
 from src.models.token import RefreshToken, RevokedToken
@@ -106,6 +106,22 @@ class AuthService:
             await session.refresh(chat_session)
             logger.info("session_name_updated", session_id=session_id)
             return chat_session
+
+    async def claim_unnamed_session(self, session_id: str, name: str) -> bool:
+        """Name a session only if it is still unnamed, and report whether this caller won.
+
+        The check and the write are one ``UPDATE`` because two callers naming the same
+        session concurrently is the normal case: a ``SELECT`` then an ``UPDATE`` would
+        let both of them through and spend two title calls on one conversation.
+        """
+        async with session_factory() as session:
+            result = await session.execute(
+                update(ChatSession)
+                .where(col(ChatSession.id) == session_id, col(ChatSession.name) == "")
+                .values(name=name)
+            )
+            await session.commit()
+            return (result.rowcount or 0) == 1
 
     async def delete_session(self, session_id: str) -> bool:
         """Delete a session. Returns False when no such session exists."""

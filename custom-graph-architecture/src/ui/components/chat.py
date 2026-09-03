@@ -306,6 +306,12 @@ def _finish_failed_turn(parts: list[str], error_text: str) -> None:
 def _refresh_conversation_names(client: httpx.Client) -> None:
     """Pull the sidebar's conversation list back in sync after a turn.
 
+    Naming is the server's job (``src.services.session_naming``): the first turn
+    claims the conversation, stores a placeholder cut from the message, then
+    overwrites it with a summarised title a moment later. The client must not
+    derive a label of its own — this runs after the turn, so a local guess would
+    always win that race and the generated title would never be seen.
+
     Failure is swallowed on purpose: a stale sidebar still works, and turning
     a cosmetic problem into an error message on a turn that just succeeded
     would be worse. The sidebar's refresh button and the next turn both try

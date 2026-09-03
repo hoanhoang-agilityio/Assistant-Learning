@@ -14,6 +14,7 @@ from src.middlewares import limiter
 from src.models.session import Session
 from src.runtime.facade import langgraph_runtime
 from src.schemas import ChatRequest, ChatResponse, StreamResponse
+from src.services.session_naming import name_session
 
 router = APIRouter()
 
@@ -26,6 +27,7 @@ async def chat(
     session: Annotated[Session, Depends(get_current_session)],
 ) -> ChatResponse:
     """Process one chat turn and return the graph's reply."""
+    await name_session(session.id, session.name, chat_request.messages)
     try:
         messages, form = await langgraph_runtime.get_response(
             chat_request.messages,
@@ -48,6 +50,7 @@ async def chat_stream(
     session: Annotated[Session, Depends(get_current_session)],
 ) -> StreamingResponse:
     """Stream one chat turn as server-sent events: a frame per step, then per reply."""
+    await name_session(session.id, session.name, chat_request.messages)
 
     async def event_source() -> AsyncGenerator[str]:
         try:
