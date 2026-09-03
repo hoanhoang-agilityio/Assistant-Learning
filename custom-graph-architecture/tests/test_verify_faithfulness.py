@@ -75,6 +75,7 @@ async def test_a_faithful_answer_clears_the_gate(scored) -> None:
 
     assert update["faithfulness_score"] == 0.95
     assert update["qa_retry_count"] == 0
+    assert update["qa_outcome"] == "answered"
     assert [message.content for message in update["messages"]] == [ANSWER]
 
 
@@ -98,6 +99,7 @@ async def test_an_unfaithful_answer_is_kept_with_its_score(scored) -> None:
         "qa_retry_count": 1,
         "messages": [],
     }
+    assert "qa_outcome" not in update
 
 
 async def test_the_gate_scores_the_question_answer_and_passages(

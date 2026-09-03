@@ -65,10 +65,16 @@ def test_initial_state_zeroes_the_retry_counters() -> None:
 
 
 def test_initial_state_seeds_messages_with_the_query() -> None:
-    """The turn's query enters the transcript so agent nodes see it."""
+    """The turn's query enters the transcript as a human turn so agent nodes see it.
+
+    A ``HumanMessage`` rather than a role dict: the supervisor decides what to route on by
+    which messages are the user's own, and it reads the state a node is handed, which the
+    reducer has already coerced.
+    """
+
     state = initial_state("how much protein?", "user-1")
 
-    assert state["messages"] == [{"role": "user", "content": "how much protein?"}]
+    assert state["messages"] == [HumanMessage(content="how much protein?")]
 
 
 def test_initial_state_rejects_an_empty_user_id() -> None:

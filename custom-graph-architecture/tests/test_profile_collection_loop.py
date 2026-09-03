@@ -104,9 +104,9 @@ class _StatusAwareSupervisor:
     async def ainvoke(self, messages: list) -> SupervisorDecision:
         for message in messages:
             content = getattr(message, "content", "")
-            if content == "profile_status: need_input":
+            if "profile_status: need_input" in content:
                 return SupervisorDecision(next="user_agent")
-            if content == "profile_status: ready":
+            if "profile_status: ready" in content:
                 return SupervisorDecision(next="coach_agent")
         return SupervisorDecision(next="coach_agent")
 

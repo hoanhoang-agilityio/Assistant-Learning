@@ -1,12 +1,12 @@
 """The ``verify_faithfulness`` node: score the answer's faithfulness, count the retries, route."""
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 
 from src.configs.config import settings
 from src.enums import FaithfulnessRoute
-from src.schemas import GraphState
+from src.schemas import GraphState, QaOutcome
 from src.verification import score_faithfulness
 
 
@@ -15,6 +15,7 @@ class VerifyFaithfulnessUpdate(TypedDict):
 
     faithfulness_score: float | None
     qa_retry_count: int
+    qa_outcome: NotRequired[QaOutcome]
     messages: list[AnyMessage]
 
 
@@ -54,6 +55,7 @@ async def verify_faithfulness(state: GraphState) -> VerifyFaithfulnessUpdate:
     return {
         "faithfulness_score": score,
         "qa_retry_count": 0,
+        "qa_outcome": "answered",
         "messages": [AIMessage(content=answer)] if answer else [],
     }
 

@@ -93,6 +93,13 @@ async def test_the_rejected_answer_is_not_left_behind() -> None:
     assert update["qa_answer"] is None
 
 
+async def test_giving_up_is_still_reported_as_the_question_handled() -> None:
+    """The supervisor never sees this refusal; without the signal it would ask again and get it again."""
+    update = await qa_fallback(state_after_scoring())
+
+    assert update["qa_outcome"] == "fallback"
+
+
 async def test_an_empty_retrieval_is_reported_as_nothing_found() -> None:
     """The QA agent is told to say so rather than answer; the run has to end saying so too."""
     update = await qa_fallback(state_after_scoring(passages=[]))

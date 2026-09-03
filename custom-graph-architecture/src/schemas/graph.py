@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal, NotRequired, TypedDict
 
+from langchain_core.messages import HumanMessage
 from langgraph.prebuilt.chat_agent_executor import AgentState
 
 ApprovalDecision = Literal["approve", "reject"]
@@ -11,6 +12,8 @@ ApprovalKind = Literal["plan"]
 CoachOutcome = Literal["answered", "drafted", "needs_profile"]
 NextAgent = Literal["user_agent", "coach_agent", "qa_agent", "FINISH"]
 ProfileStatus = Literal["ready", "need_input"]
+QaOutcome = Literal["answered", "fallback"]
+UserOutcome = Literal["answered", "needs_input"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +122,7 @@ class GraphState(AgentState):
     profile_draft: NotRequired[dict | None]
     plan: NotRequired[dict | None]
     profile_status: NotRequired[ProfileStatus | None]
+    user_outcome: NotRequired[UserOutcome | None]
 
     # --- Coaching ----------------------------------------------------------------------
     coach_outcome: NotRequired[CoachOutcome | None]
@@ -132,6 +136,7 @@ class GraphState(AgentState):
     approval_retry_count: NotRequired[int]
 
     # --- QA / RAG ----------------------------------------------------------------------
+    qa_outcome: NotRequired[QaOutcome | None]
     qa_answer: NotRequired[str | None]
     retrieved_context: NotRequired[list[RetrievedChunk] | None]
     faithfulness_score: NotRequired[float | None]
@@ -145,7 +150,7 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         raise ValueError("user_id is required to start a run")
 
     return GraphState(
-        messages=[{"role": "user", "content": user_query}],
+        messages=[HumanMessage(content=user_query)],
         user_id=user_id,
         block_reason=None,
         next=None,
@@ -155,6 +160,7 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         profile_draft=None,
         plan=None,
         profile_status=None,
+        user_outcome=None,
         coach_outcome=None,
         coach_retry_count=0,
         verification_result=None,
@@ -162,6 +168,7 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         approval_decision=None,
         approval_feedback=None,
         approval_retry_count=0,
+        qa_outcome=None,
         qa_answer=None,
         retrieved_context=None,
         faithfulness_score=None,

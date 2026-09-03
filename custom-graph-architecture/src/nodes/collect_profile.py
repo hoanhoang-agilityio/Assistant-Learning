@@ -5,7 +5,7 @@ from typing import TypedDict
 from langchain_core.messages import AIMessage, AnyMessage
 from langgraph.types import interrupt
 
-from src.schemas import GraphState, ProfileStatus
+from src.schemas import GraphState, ProfileStatus, UserOutcome
 from src.services.profile import save_profile
 from src.services.profile_form import (
     ProfileFormField,
@@ -42,6 +42,7 @@ class CollectProfileUpdate(TypedDict):
     profile: dict
     profile_draft: None
     profile_status: ProfileStatus
+    user_outcome: UserOutcome
     messages: list[AnyMessage]
 
 
@@ -74,5 +75,6 @@ async def collect_profile(state: GraphState) -> CollectProfileUpdate:
         "profile": saved,
         "profile_draft": None,
         "profile_status": "ready",
+        "user_outcome": "answered",
         "messages": [AIMessage(content=PROFILE_SAVED_MESSAGE)],
     }

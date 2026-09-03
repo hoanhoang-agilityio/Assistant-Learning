@@ -13,6 +13,7 @@ from langgraph.prebuilt.tool_node import ToolCallRequest, ToolRuntime
 from src.agents.user import (
     _overwrites_a_stored_value,
     _profile_completion_update,
+    _user_outcome,
     route_after_user_agent,
     user_agent,
 )
@@ -159,6 +160,20 @@ def test_a_plan_with_a_complete_profile_reports_ready() -> None:
 def test_no_profile_at_all_with_a_waiting_plan_reports_need_input() -> None:
     """A brand new user is exactly the ``need_input`` case, not an edge case of it."""
     assert _profile_completion_update(None, True) == {"profile_status": "need_input"}
+
+
+# --- What the supervisor is told the turn came to -------------------------------------------
+
+
+def test_a_handled_turn_reports_the_profile_part_answered() -> None:
+    """Without it the supervisor, which never sees the reply, would send the turn back here."""
+    assert _user_outcome(None) == "answered"
+    assert _user_outcome("ready") == "answered"
+
+
+def test_a_turn_still_owed_fields_reports_needs_input() -> None:
+    """The form has yet to run, so the profile part is not something the supervisor can call done."""
+    assert _user_outcome("need_input") == "needs_input"
 
 
 # --- Routing on profile_status ------------------------------------------------------------

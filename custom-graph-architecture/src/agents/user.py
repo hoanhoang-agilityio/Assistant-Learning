@@ -11,7 +11,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.enums import UserAgentRoute
 from src.prompts import USER_AGENT_SYSTEM
-from src.schemas import GraphState, ProfileStatus, UserAgentContext
+from src.schemas import GraphState, ProfileStatus, UserAgentContext, UserOutcome
 from src.services.llm import agent_middleware, chat_model
 from src.services.profile import load_profile, missing_profile_fields
 from src.tools import USER_AGENT_TOOLS, get_user_profile, update_user_profile
@@ -24,6 +24,7 @@ class UserAgentUpdate(TypedDict):
 
     profile: dict | None
     profile_status: NotRequired[ProfileStatus | None]
+    user_outcome: NotRequired[UserOutcome | None]
     messages: list[AnyMessage]
 
 
@@ -114,6 +115,12 @@ def _profile_completion_update(
     return {"profile_status": "ready"}
 
 
+def _user_outcome(profile_status: ProfileStatus | None) -> UserOutcome:
+    """What the supervisor reads off this turn """
+
+    return "needs_input" if profile_status == "need_input" else "answered"
+
+
 async def user_agent(state: GraphState) -> UserAgentUpdate:
     """Read or write the user's profile, pausing for the user's approval on an overwrite."""
 
@@ -136,11 +143,13 @@ async def user_agent(state: GraphState) -> UserAgentUpdate:
     messages = result.get("messages", [])
     reply = _final_reply(messages)
     updated_profile = _updated_profile(messages) or profile
+    completion = _profile_completion_update(updated_profile, plan_pending)
 
     return {
         "profile": updated_profile,
+        "user_outcome": _user_outcome(completion.get("profile_status")),
         "messages": [AIMessage(content=reply)] if reply else [],
-        **_profile_completion_update(updated_profile, plan_pending),
+        **completion,
     }
 
 

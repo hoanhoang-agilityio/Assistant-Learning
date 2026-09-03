@@ -4,7 +4,7 @@ from typing import TypedDict
 
 from langchain_core.messages import AIMessage, AnyMessage
 
-from src.schemas import GraphState, RetrievedChunk
+from src.schemas import GraphState, QaOutcome, RetrievedChunk
 
 QA_FALLBACK_NO_CONTEXT = (
     "I couldn't find enough reliable information in my knowledge base to answer this "
@@ -29,6 +29,7 @@ class QaFallbackUpdate(TypedDict):
     """The state ``qa_fallback`` writes."""
 
     qa_answer: None
+    qa_outcome: QaOutcome
     messages: list[AnyMessage]
 
 
@@ -45,4 +46,8 @@ async def qa_fallback(state: GraphState) -> QaFallbackUpdate:
 
     message = build_qa_fallback_message(state.get("retrieved_context"))
 
-    return {"qa_answer": None, "messages": [AIMessage(content=message)]}
+    return {
+        "qa_answer": None,
+        "qa_outcome": "fallback",
+        "messages": [AIMessage(content=message)],
+    }
