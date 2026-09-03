@@ -23,7 +23,6 @@ class Node(StrEnum):
     QA_AGENT = "qa_agent"
     VERIFY_FAITHFULNESS = "verify_faithfulness"
     QA_FALLBACK = "qa_fallback"
-    SUMMARIZE = "summarize"
 
 
 __all__ = ["Node"]

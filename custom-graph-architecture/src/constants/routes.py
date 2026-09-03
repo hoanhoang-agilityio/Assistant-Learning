@@ -27,7 +27,7 @@ SUPERVISOR_ROUTES: dict[str, str] = {
 
 USER_AGENT_ROUTES: dict[str, str] = {
     UserAgentRoute.NEEDS_MORE_INFO: Node.DRAFT_PROFILE,
-    UserAgentRoute.DONE: Node.SUMMARIZE,
+    UserAgentRoute.DONE: Node.SUPERVISOR,
 }
 
 VERIFICATION_ROUTES: dict[str, str] = {
@@ -37,8 +37,8 @@ VERIFICATION_ROUTES: dict[str, str] = {
 }
 
 COACH_ROUTES: dict[str, str] = {
-    CoachRoute.NEEDS_PROFILE: Node.SUMMARIZE,
-    CoachRoute.ANSWERED: Node.SUMMARIZE,
+    CoachRoute.NEEDS_PROFILE: Node.SUPERVISOR,
+    CoachRoute.ANSWERED: Node.SUPERVISOR,
     CoachRoute.READY: Node.DETERMINISTIC_VERIFICATION,
 }
 
@@ -50,7 +50,7 @@ PLAN_APPROVAL_ROUTES: dict[str, str] = {
 }
 
 FAITHFULNESS_ROUTES: dict[str, str] = {
-    FaithfulnessRoute.PASS: Node.SUMMARIZE,
+    FaithfulnessRoute.PASS: Node.SUPERVISOR,
     FaithfulnessRoute.RETRY: Node.QA_AGENT,
     FaithfulnessRoute.FALLBACK: Node.QA_FALLBACK,
 }

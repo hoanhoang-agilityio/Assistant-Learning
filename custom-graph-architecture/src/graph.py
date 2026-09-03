@@ -41,7 +41,6 @@ from src.nodes import (
     route_after_guard,
     route_after_plan_approval,
     route_after_verification,
-    summarize,
     verify_faithfulness,
 )
 from src.observability import observed
@@ -68,7 +67,6 @@ NODES: tuple[tuple[Node, Callable], ...] = (
     (Node.QA_AGENT, qa_agent),
     (Node.VERIFY_FAITHFULNESS, verify_faithfulness),
     (Node.QA_FALLBACK, qa_fallback),
-    (Node.SUMMARIZE, summarize),
 )
 
 
@@ -80,8 +78,7 @@ def build_graph() -> StateGraph:
         builder.add_node(name, observed(name, node))
 
     builder.add_edge(START, Node.GUARD_INPUT)
-    builder.add_conditional_edges(
-        Node.GUARD_INPUT, route_after_guard, GUARD_ROUTES)
+    builder.add_conditional_edges(Node.GUARD_INPUT, route_after_guard, GUARD_ROUTES)
     builder.add_edge(Node.BLOCKED, END)
     builder.add_conditional_edges(
         Node.SUPERVISOR, route_after_supervisor, SUPERVISOR_ROUTES
@@ -89,27 +86,25 @@ def build_graph() -> StateGraph:
     builder.add_conditional_edges(
         Node.USER_AGENT, route_after_user_agent, USER_AGENT_ROUTES
     )
-    builder.add_conditional_edges(
-        Node.COACH_AGENT, route_after_coach, COACH_ROUTES)
+    builder.add_conditional_edges(Node.COACH_AGENT, route_after_coach, COACH_ROUTES)
     builder.add_edge(Node.DRAFT_PROFILE, Node.COLLECT_PROFILE)
-    builder.add_edge(Node.COLLECT_PROFILE, Node.SUMMARIZE)
+    builder.add_edge(Node.COLLECT_PROFILE, Node.SUPERVISOR)
     builder.add_conditional_edges(
         Node.DETERMINISTIC_VERIFICATION, route_after_verification, VERIFICATION_ROUTES
     )
     builder.add_edge(Node.PRESENT_PLAN, Node.PLAN_APPROVAL)
-    builder.add_edge(Node.NOTIFY_FAIL, Node.SUMMARIZE)
+    builder.add_edge(Node.NOTIFY_FAIL, Node.SUPERVISOR)
     builder.add_conditional_edges(
         Node.PLAN_APPROVAL, route_after_plan_approval, PLAN_APPROVAL_ROUTES
     )
-    builder.add_edge(Node.COMMIT_PLAN, Node.SUMMARIZE)
-    builder.add_edge(Node.HITL_REJECTED_NO_FEEDBACK, Node.SUMMARIZE)
-    builder.add_edge(Node.HITL_EXHAUSTED, Node.SUMMARIZE)
+    builder.add_edge(Node.COMMIT_PLAN, Node.SUPERVISOR)
+    builder.add_edge(Node.HITL_REJECTED_NO_FEEDBACK, Node.SUPERVISOR)
+    builder.add_edge(Node.HITL_EXHAUSTED, Node.SUPERVISOR)
     builder.add_edge(Node.QA_AGENT, Node.VERIFY_FAITHFULNESS)
     builder.add_conditional_edges(
         Node.VERIFY_FAITHFULNESS, route_after_faithfulness, FAITHFULNESS_ROUTES
     )
-    builder.add_edge(Node.QA_FALLBACK, Node.SUMMARIZE)
-    builder.add_edge(Node.SUMMARIZE, Node.SUPERVISOR)
+    builder.add_edge(Node.QA_FALLBACK, Node.SUPERVISOR)
 
     return builder
 
