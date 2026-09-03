@@ -186,10 +186,15 @@ async def test_a_missing_profile_stops_the_run_and_asks(loop) -> None:
 
 async def test_the_coach_is_not_retried_against_an_empty_profile(loop) -> None:
     """The loop itself: the coach must not be sent back at a profile that cannot have
-    changed, and the retry budget must be untouched when the run stops to ask."""
+    changed, and the retry budget must be untouched when the run stops to ask.
+
+    The coach's own model does run once here — profile completeness is no longer known
+    before the model reads the request, so the one attempt against an empty profile is
+    discarded rather than skipped. What must not happen is a second attempt against the
+    same profile, or a spent verification retry."""
     result = await _ask(loop)
 
-    assert loop.coach_agent.calls == 0
+    assert loop.coach_agent.calls == 1
     assert result.get("coach_retry_count", 0) == 0
 
 
@@ -206,7 +211,11 @@ async def test_the_form_asks_only_for_what_the_user_did_not_say(loop) -> None:
 
 
 async def test_a_completed_form_is_saved_once_and_the_plan_is_built(loop) -> None:
-    """One write for the whole profile, then straight on to the plan the user asked for."""
+    """One write for the whole profile, then straight on to the plan the user asked for.
+
+    The coach is called twice in total: once against the empty profile, discarded, and
+    once more once the form has filled it in — never a third time retrying the same
+    attempt."""
     await _ask(loop)
 
     result = await loop.ainvoke(Command(resume=COMPLETED), CONFIG)
@@ -216,7 +225,7 @@ async def test_a_completed_form_is_saved_once_and_the_plan_is_built(loop) -> Non
     )
     assert stored.value["goal"] == "FAT_LOSS"
     assert stored.value["age"] == 27
-    assert loop.coach_agent.calls == 1
+    assert loop.coach_agent.calls == 2
     assert result["pending_approval"]["kind"] == "plan"
 
 
@@ -232,13 +241,15 @@ async def test_the_stated_fields_survive_the_round_trip(loop) -> None:
 
 
 async def test_an_incomplete_form_asks_again_without_reaching_the_coach(loop) -> None:
-    """Every required field is verified before anything is stored or planned."""
+    """Every required field is verified before anything is stored or planned. The one
+    call already spent on the initial, profile-less attempt does not grow: a resubmitted
+    form that is still incomplete never reaches the coach again."""
     await _ask(loop)
 
     result = await loop.ainvoke(Command(resume={"age": 27}), CONFIG)
 
     assert _form(result)["errors"]
-    assert loop.coach_agent.calls == 0
+    assert loop.coach_agent.calls == 1
 
 
 async def test_the_conversation_says_what_happened(loop) -> None:

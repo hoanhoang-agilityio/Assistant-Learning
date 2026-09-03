@@ -173,7 +173,7 @@ class Settings(BaseSettings):
     # --- LLM -------------------------------------------------------------------------
     OPENAI_API_KEY: str = ""
     DEFAULT_LLM_MODEL: str = "gpt-5-mini"
-    DEFAULT_LLM_TEMPERATURE: float = 0.2
+    DEFAULT_LLM_TEMPERATURE: float = 0
     MAX_TOKENS: int = 2000
     COACH_MAX_TOKENS: int = 8000
     QA_MAX_TOKENS: int = 2000

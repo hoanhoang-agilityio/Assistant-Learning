@@ -44,7 +44,7 @@ class _State(TypedDict):
 
 
 async def _recall(state: _State) -> _State:
-    """Read long-term memory into the run, the way ``load_user_context`` does."""
+    """Read long-term memory into the run, the way ``coach_agent`` does."""
     return {"recalled": await load_profile(state["user_id"]) or {}}
 
 

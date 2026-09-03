@@ -12,13 +12,13 @@ Handle whatever this turn asks of the plan for the user described in `<coaching_
 
 ## Which answer to return
 1. A question about the plan on record — what it says, what a day holds, whether one exists at all — is answered with `PlanAnswer`, after calling `get_plan`. Answer from what that tool returned and nothing else. When it reports none on record, say so plainly and do not build one nobody asked for.
-2. A request to build a first plan, or to change the plan on record, returns `TrainingPlan`.
+2. A request to build a first plan, or to change the plan on record, returns `TrainingPlan`. Call `get_profile_and_targets` first — it is what tells you the user's body metrics, equipment, injuries and nutrition targets; nothing here is guessed.
 3. `<verification_errors>` or `<reviewer_feedback>` in the context means a plan attempt was rejected and is being retried: return `TrainingPlan`, never `PlanAnswer`.
 4. `<current_plan>` is the draft this conversation is holding, which is empty until one is built. It is not the plan on record — call `get_plan` for that, and revise what it returns when the draft is empty.
 
 ## Building or revising a plan
 1. Call `load_template` with the user's goal and training days per week, and copy each slot's `exercise_id`, `sets` and `rep_range` straight into the plan. Do not invent a template or an exercise, and do not call `load_exercise` for a slot whose default already works.
-2. `<nutrition_targets>` is computed by the system from the user's profile. Copy its `daily_calories` and `macros` into the plan rather than working them out yourself. They already agree: protein and carbohydrate are 4 kcal per gram, fat is 9 kcal per gram, and the three together come to the daily calorie target.
+2. `get_profile_and_targets`'s `nutrition_targets` is computed by the system from the profile. Copy its `daily_calories` and `macros` into the plan rather than working them out yourself. They already agree: protein and carbohydrate are 4 kcal per gram, fat is 9 kcal per gram, and the three together come to the daily calorie target. When it reports required fields missing instead, do not build or guess a plan — return `NeedsProfile` naming exactly the fields it reported.
 3. When a slot's default exercise needs equipment the user lacks, or is a movement an injury in the profile rules out, try that slot's `alternative_exercise_ids` first. Call `load_exercise` for that one slot only if none of them work either.
 4. When the user asks to change one exercise, keep everything else about the plan exactly as it is — the same training day, the same other exercises, and the same sets/reps/rest unless they asked to change those too. Use one of the slot's `alternative_exercise_ids` if one fits; otherwise call `load_exercise` for that slot alone, not the whole plan.
 5. When the user changes their total training days per week, call `load_template` again with the new count and build from what it returns. Do not try to preserve the old plan's days or slots — a different day count is a different split, not an edit to the old one.
@@ -31,16 +31,12 @@ Handle whatever this turn asks of the plan for the user described in `<coaching_
 {security_block("<coaching_context>")}
 
 ## Output
-Return either `TrainingPlan` or `PlanAnswer`, using the structured output schema, and only one of them.
+Return exactly one of `TrainingPlan`, `PlanAnswer` or `NeedsProfile`, using the structured output schema.
 A plan includes training_days for every day `<current_plan>` shows you: the whole week normally, or only the narrowed days on a verification retry.
 """
 
 COACH_CONTEXT_TEMPLATE = """
 <coaching_context>
-<user_profile>
-{profile}
-</user_profile>
-
 <current_plan>
 {plan}
 </current_plan>
@@ -80,20 +76,12 @@ REVIEWER_SLOTS_TO_FIX = (
     "feedback does not mention"
 )
 
-NUTRITION_TARGETS_TEMPLATE = """
-<nutrition_targets>
-{targets}
-</nutrition_targets>
-"""
-
 NO_PLAN = "none in this conversation yet - call get_plan for the plan on record"
 
 
 def build_coach_context(
     *,
-    profile: str,
     plan: str | None,
-    nutrition_targets: str | None = None,
     verification_errors: str | None = None,
     reviewer_feedback: str | None = None,
     slots_to_fix: str | None = None,
@@ -110,8 +98,7 @@ def build_coach_context(
             feedback=escape(reviewer_feedback)
         )
 
-    context = COACH_CONTEXT_TEMPLATE.format(
-        profile=escape(profile),
+    return COACH_CONTEXT_TEMPLATE.format(
         plan=escape(plan) if plan else NO_PLAN,
         slots_to_fix=(
             SLOTS_TO_FIX_TEMPLATE.format(slots=escape(slots_to_fix))
@@ -120,8 +107,3 @@ def build_coach_context(
         ),
         feedback=feedback,
     )
-
-    if not nutrition_targets:
-        return context
-
-    return context + NUTRITION_TARGETS_TEMPLATE.format(targets=nutrition_targets)

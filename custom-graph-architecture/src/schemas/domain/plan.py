@@ -117,3 +117,17 @@ class PlanAnswer(BaseModel):
             "nothing else."
         )
     )
+
+
+class NeedsProfile(BaseModel):
+    """The coach's third shape of answer: it cannot build or revise a plan without profile
+    fields ``get_profile_and_targets`` reported missing.
+
+    Returned instead of ``TrainingPlan`` so the graph collects the fields deterministically
+    rather than the agent guessing values or refusing in prose that the turn would then
+    treat as a finished answer.
+    """
+
+    missing_fields: list[str] = Field(
+        description="Required profile fields still missing, exactly as `get_profile_and_targets` reported them."
+    )

@@ -13,7 +13,7 @@ from src.enums import UserAgentRoute
 from src.prompts import USER_AGENT_SYSTEM
 from src.schemas import GraphState, ProfileStatus, UserAgentContext
 from src.services.llm import agent_middleware, chat_model
-from src.services.profile import load_user_context, missing_profile_fields
+from src.services.profile import load_profile, missing_profile_fields
 from src.tools import USER_AGENT_TOOLS, get_user_profile, update_user_profile
 
 USER_AGENT_NAME = "user_agent"
@@ -118,7 +118,7 @@ async def user_agent(state: GraphState) -> UserAgentUpdate:
     """Read or write the user's profile, pausing for the user's approval on an overwrite."""
 
     user_id = state["user_id"]
-    profile = (await load_user_context(user_id)).profile
+    profile = await load_profile(user_id)
     plan_pending = state.get("profile_status") == "need_input"
 
     try:

@@ -8,7 +8,7 @@ from langgraph.prebuilt.chat_agent_executor import AgentState
 ApprovalDecision = Literal["approve", "reject"]
 ApprovalSource = Literal["coach_agent"]
 ApprovalKind = Literal["plan"]
-CoachOutcome = Literal["answered", "drafted"]
+CoachOutcome = Literal["answered", "drafted", "needs_profile"]
 NextAgent = Literal["user_agent", "coach_agent", "qa_agent", "FINISH"]
 ProfileStatus = Literal["ready", "need_input"]
 

@@ -1,4 +1,4 @@
-"""Tests for the ``load_user_context`` node and the profile/plan reads behind it."""
+"""Tests for the profile/plan reads long-term memory backs."""
 
 import pytest
 
@@ -9,10 +9,8 @@ from src.services.memory import CURRENT_PLAN_KEY
 from src.services.profile import (
     PROFILE_KEY,
     REQUIRED_PROFILE_FIELDS,
-    UserContext,
     load_current_plan,
     load_profile,
-    load_user_context,
     missing_profile_fields,
 )
 
@@ -64,7 +62,6 @@ def test_no_profile_means_every_required_field_is_missing() -> None:
 def test_complete_profile_has_no_missing_fields() -> None:
     """Every field the coach agent needs is present, so the graph may start planning."""
     assert missing_profile_fields(COMPLETE_PROFILE) == []
-    assert UserContext(profile=COMPLETE_PROFILE).is_complete
 
 
 def test_optional_fields_are_not_required() -> None:
@@ -100,24 +97,22 @@ async def test_profile_and_plan_are_read_from_long_term_memory(store) -> None:
     """Both live outside the checkpointer, so a brand-new thread still finds them."""
     await _seed(store, profile=COMPLETE_PROFILE, plan=PLAN)
 
-    context = await load_user_context(USER_ID)
+    assert await load_profile(USER_ID) == COMPLETE_PROFILE
+    assert await load_current_plan(USER_ID) == PLAN
 
-    assert context == UserContext(profile=COMPLETE_PROFILE, plan=PLAN)
 
-
-async def test_unknown_user_loads_an_empty_context(store) -> None:
+async def test_unknown_user_has_no_profile_or_plan(store) -> None:
     """A user with nothing stored yields no profile and no plan, not an error."""
-    assert await load_user_context("nobody") == UserContext(profile=None, plan=None)
+    assert await load_profile("nobody") is None
+    assert await load_current_plan("nobody") is None
 
 
-async def test_a_user_with_a_profile_but_no_plan_is_complete(store) -> None:
+async def test_a_user_with_a_profile_but_no_plan_is_still_complete(store) -> None:
     """The plan is what the coaching branch produces; its absence is not missing context."""
     await _seed(store, profile=COMPLETE_PROFILE)
 
-    context = await load_user_context(USER_ID)
-
-    assert context.plan is None
-    assert context.is_complete
+    assert await load_current_plan(USER_ID) is None
+    assert missing_profile_fields(await load_profile(USER_ID)) == []
 
 
 async def test_loaded_values_are_copies_of_what_the_store_holds(store) -> None:
@@ -137,12 +132,13 @@ async def test_one_users_context_is_never_read_for_another(store) -> None:
     """Namespacing is the isolation boundary; a leak here would plan against a stranger."""
     await _seed(store, profile=COMPLETE_PROFILE, plan=PLAN)
 
-    assert await load_user_context("user-2") == UserContext()
+    assert await load_profile("user-2") is None
+    assert await load_current_plan("user-2") is None
 
 
 @pytest.mark.parametrize(
     "load",
-    [load_profile, load_current_plan, load_user_context],
+    [load_profile, load_current_plan],
     ids=lambda f: f.__name__,
 )
 async def test_an_empty_user_id_is_rejected(store, load) -> None:

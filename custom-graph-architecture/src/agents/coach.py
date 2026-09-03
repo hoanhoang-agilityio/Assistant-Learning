@@ -7,7 +7,6 @@ from langchain.agents import create_agent
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import ValidationError
 
 from src.agents.history import trim_history
 from src.configs.config import settings
@@ -19,24 +18,23 @@ from src.schemas import (
     CoachContext,
     CoachOutcome,
     GraphState,
+    NeedsProfile,
     PlanAnswer,
     ProfileStatus,
     TrainingPlan,
-    UserProfile,
 )
 from src.services.llm import agent_middleware, chat_model
-from src.services.nutrition import calc_macros
-from src.services.profile import missing_profile_fields
+from src.services.profile import load_profile, missing_profile_fields
 from src.tools import COACH_TOOLS
 
 COACH_AGENT_NAME = "coach_agent"
-NO_PROFILE = "none on record"
 
 
 class CoachUpdate(TypedDict):
     """The state ``coach_agent`` writes."""
 
     plan: NotRequired[dict | None]
+    profile: NotRequired[dict | None]
     coach_outcome: CoachOutcome | None
     profile_status: NotRequired[ProfileStatus | None]
     messages: list[AnyMessage]
@@ -44,29 +42,17 @@ class CoachUpdate(TypedDict):
 
 @lru_cache
 def build_coach_agent() -> CompiledStateGraph:
-    """Build the coach agent once, with its tools and both shapes of answer bound."""
+    """Build the coach agent once, with its tools and every shape of answer bound."""
 
     return create_agent(
         model=chat_model(max_tokens=settings.COACH_MAX_TOKENS),
         tools=COACH_TOOLS,
         middleware=agent_middleware(),
         system_prompt=COACH_AGENT_SYSTEM,
-        response_format=ToolStrategy(TrainingPlan | PlanAnswer),
+        response_format=ToolStrategy(TrainingPlan | PlanAnswer | NeedsProfile),
         context_schema=CoachContext,
         name=COACH_AGENT_NAME,
     )
-
-
-def _nutrition_targets(profile: dict | None) -> dict | None:
-    """The calorie and macro targets the profile works out to, computed rather than asked for."""
-
-    if not profile:
-        return None
-
-    try:
-        return calc_macros(UserProfile.model_validate(profile)).model_dump(mode="json")
-    except ValidationError:
-        return None
 
 
 def _slots_to_fix(verification: dict) -> list[dict]:
@@ -138,14 +124,17 @@ def _merge_revised_days(plan: dict, revised: dict, failing_days: set[int]) -> di
 
 
 def build_coach_input(state: GraphState) -> list[AnyMessage]:
-    """Assemble what the agent sees: the conversation so far plus this turn's context."""
+    """Assemble what the agent sees: the conversation so far plus this turn's context.
+
+    The profile is not in it: a question about the plan on record needs none, and a build
+    or revise attempt reads it fresh from ``get_profile_and_targets`` instead, which is
+    also where its nutrition targets come computed rather than left for the model to work
+    out.
+    """
 
     verification = state.get("verification_result")
     feedback = state.get("approval_feedback")
     context = build_coach_context(
-        profile=as_prompt_json(state.get("profile")) or NO_PROFILE,
-        nutrition_targets=as_prompt_json(
-            _nutrition_targets(state.get("profile"))),
         plan=as_prompt_json(
             _narrowed_plan(state.get("plan"), _failing_day_numbers(state))
         ),
@@ -159,36 +148,52 @@ def build_coach_input(state: GraphState) -> list[AnyMessage]:
 async def coach_agent(state: GraphState) -> CoachUpdate:
     """Answer from the plan on record, or generate or revise the user's training plan."""
 
-    if missing_profile_fields(state.get("profile")):
-        return {
-            "plan": None,
-            "coach_outcome": None,
-            "profile_status": "need_input",
-            "messages": [],
-        }
+    profile = await load_profile(state["user_id"])
 
     try:
         result = await build_coach_agent().ainvoke(
             {"messages": build_coach_input(state)},
-            context=CoachContext(
-                user_id=state["user_id"], profile=state.get("profile")
-            ),
+            context=CoachContext(user_id=state["user_id"], profile=profile),
         )
     except Exception:
-        return {"plan": None, "coach_outcome": "drafted", "messages": []}
+        return {
+            "plan": None,
+            "profile": profile,
+            "coach_outcome": "drafted",
+            "messages": [],
+        }
 
     response = result.get("structured_response")
 
     # An answer leaves ``plan`` alone: the draft this conversation was holding, if any, is
-    # not something a question about the stored plan revises or discards.
+    # not something a question about the stored plan revises or discards. It needs no
+    # profile either, so it is trusted regardless of one.
     if isinstance(response, PlanAnswer) and response.answer.strip():
         return {
+            "profile": profile,
             "coach_outcome": "answered",
             "messages": [AIMessage(content=response.answer)],
         }
 
+    # Anything else was an attempt to build or revise, which a profile missing required
+    # fields can only have guessed at — whether the model said so itself (``NeedsProfile``)
+    # or tried a ``TrainingPlan`` anyway, neither is trusted over the profile just read.
+    if missing_profile_fields(profile):
+        return {
+            "plan": None,
+            "profile": profile,
+            "coach_outcome": "needs_profile",
+            "profile_status": "need_input",
+            "messages": [],
+        }
+
     if not isinstance(response, TrainingPlan):
-        return {"plan": None, "coach_outcome": "drafted", "messages": []}
+        return {
+            "plan": None,
+            "profile": profile,
+            "coach_outcome": "drafted",
+            "messages": [],
+        }
 
     revised = response.model_dump()
     previous = state.get("plan")
@@ -197,13 +202,18 @@ async def coach_agent(state: GraphState) -> CoachUpdate:
     if previous and failing_days:
         revised = _merge_revised_days(previous, revised, failing_days)
 
-    return {"plan": revised, "coach_outcome": "drafted", "messages": []}
+    return {
+        "plan": revised,
+        "profile": profile,
+        "coach_outcome": "drafted",
+        "messages": [],
+    }
 
 
 def route_after_coach(state: GraphState) -> CoachRoute:
     """Send a plan attempt on to verification, an answer straight back, or bounce to the supervisor for the profile it cannot plan without."""
 
-    if missing_profile_fields(state.get("profile")):
+    if state.get("coach_outcome") == "needs_profile":
         return CoachRoute.NEEDS_PROFILE
     if state.get("coach_outcome") == "answered":
         return CoachRoute.ANSWERED

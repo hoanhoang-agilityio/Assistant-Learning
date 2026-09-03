@@ -1,12 +1,13 @@
 """The user's stored profile and training plan: loading it, saving it."""
 
-import asyncio
-from dataclasses import dataclass
 from typing import Any
+
+from pydantic import ValidationError
 
 from src.runtime import MemoryScope
 from src.schemas import UserProfile
 from src.services.memory import recall, recall_plan, save
+from src.services.nutrition import calc_macros
 
 PROFILE_KEY = "profile"
 
@@ -15,24 +16,6 @@ PROFILE_KEY = "profile"
 REQUIRED_PROFILE_FIELDS: tuple[str, ...] = tuple(
     name for name, field in UserProfile.model_fields.items() if field.is_required()
 )
-
-
-@dataclass(frozen=True, slots=True)
-class UserContext:
-    """Everything the coaching branch knows about the user before it starts planning."""
-
-    profile: dict | None = None
-    plan: dict | None = None
-
-    @property
-    def missing_fields(self) -> list[str]:
-        """Required profile fields that are absent or blank, in the order to ask for them."""
-        return missing_profile_fields(self.profile)
-
-    @property
-    def is_complete(self) -> bool:
-        """Whether the profile carries every field the coach agent needs."""
-        return not self.missing_fields
 
 
 def _is_blank(value: object) -> bool:
@@ -56,20 +39,22 @@ async def load_profile(user_id: str) -> dict | None:
     return await recall(user_id, MemoryScope.FACTS, PROFILE_KEY)
 
 
+def nutrition_targets(profile: dict | None) -> dict | None:
+    """The calorie and macro targets a profile works out to, or None when it cannot be computed."""
+
+    if not profile:
+        return None
+
+    try:
+        return calc_macros(UserProfile.model_validate(profile)).model_dump(mode="json")
+    except ValidationError:
+        return None
+
+
 async def load_current_plan(user_id: str) -> dict | None:
     """Load the user's current training plan from long-term memory."""
 
     return await recall_plan(user_id)
-
-
-async def load_user_context(user_id: str) -> UserContext:
-    """Load the user's profile and current plan together."""
-
-    profile, plan = await asyncio.gather(
-        load_profile(user_id), load_current_plan(user_id)
-    )
-
-    return UserContext(profile=profile, plan=plan)
 
 
 async def save_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]:

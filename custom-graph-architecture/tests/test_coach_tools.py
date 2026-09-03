@@ -9,6 +9,7 @@ from src.tools import (
     COACH_TOOLS,
     calc_macro,
     get_plan,
+    get_profile_and_targets,
     load_exercise,
     load_template,
 )
@@ -16,7 +17,12 @@ from src.tools import (
 # Renaming a tool changes the agent's interface rather than its implementation: the names
 # reach the model, and traces are read by them. A rename should fail here and be a
 # decision, not a silent edit.
-COACH_TOOL_NAMES = {"get_plan", "load_template", "load_exercise"}
+COACH_TOOL_NAMES = {
+    "get_plan",
+    "get_profile_and_targets",
+    "load_template",
+    "load_exercise",
+}
 
 # What the user told the collection loop. A tool that took any of these as an argument
 # would let the model supply them, and a supplied profile field is an invented one.
@@ -105,3 +111,9 @@ def test_the_stored_plan_is_read_for_the_runtimes_user_alone() -> None:
     """Offered `user_id`, the model could read whichever user's plan it named."""
     assert "runtime" in get_plan.args_schema.model_fields
     assert not set(get_plan.args)
+
+
+def test_the_profile_is_read_for_the_runtimes_user_alone() -> None:
+    """Offered arguments, the model could ask for fields it was never given."""
+    assert "runtime" in get_profile_and_targets.args_schema.model_fields
+    assert not set(get_profile_and_targets.args)

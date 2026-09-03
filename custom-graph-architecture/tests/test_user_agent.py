@@ -18,7 +18,6 @@ from src.agents.user import (
 )
 from src.enums import UserAgentRoute
 from src.schemas import GraphState, UserAgentContext, initial_state
-from src.services.profile import UserContext
 
 user_module = sys.modules[user_agent.__module__]
 
@@ -90,10 +89,10 @@ async def test_the_node_loads_the_profile_fresh_for_the_gate(
 ) -> None:
     """A stale ``state['profile']`` must not let a real overwrite slip past the gate unseen."""
 
-    async def load_user_context(_user_id: str) -> UserContext:
-        return UserContext(profile={"age": 30})
+    async def load_profile(_user_id: str) -> dict:
+        return {"age": 30}
 
-    monkeypatch.setattr(user_module, "load_user_context", load_user_context)
+    monkeypatch.setattr(user_module, "load_profile", load_profile)
 
     stub = _StubUserAgent({"messages": [AIMessage(content="done")]})
     monkeypatch.setattr(user_module, "build_user_agent", lambda: stub)
@@ -109,10 +108,10 @@ async def test_a_failed_run_still_reports_the_freshly_loaded_profile(
 ) -> None:
     """The fallback on error should not regress to a stale or empty profile either."""
 
-    async def load_user_context(_user_id: str) -> UserContext:
-        return UserContext(profile={"age": 30})
+    async def load_profile(_user_id: str) -> dict:
+        return {"age": 30}
 
-    monkeypatch.setattr(user_module, "load_user_context", load_user_context)
+    monkeypatch.setattr(user_module, "load_profile", load_profile)
 
     class _FailingUserAgent:
         async def ainvoke(self, *_args: object, **_kwargs: object) -> dict:
