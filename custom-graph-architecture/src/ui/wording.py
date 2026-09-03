@@ -44,7 +44,7 @@ PROFILE_FORM_TITLE = "A few details before I plan"
 PROFILE_FORM_SUBMIT = "Save and build my plan"
 # What a form submission is called in the transcript. The graph resumes from the
 # fields, not from this text, but the turn still has to read as something the user said.
-PROFILE_FORM_SENT = "Here are my details."
+PROFILE_FORM_SENT = "Verifying your profile."
 
 
 def thought_for(seconds: float) -> str:

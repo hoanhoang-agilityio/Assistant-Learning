@@ -11,7 +11,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.enums import UserAgentRoute
 from src.prompts import USER_AGENT_SYSTEM
-from src.schemas import GraphState, ProfileRequiredFor, ProfileStatus, UserAgentContext
+from src.schemas import GraphState, ProfileStatus, UserAgentContext
 from src.services.llm import agent_middleware, chat_model
 from src.services.profile import load_user_context, missing_profile_fields
 from src.tools import USER_AGENT_TOOLS, get_user_profile, update_user_profile
@@ -23,7 +23,6 @@ class UserAgentUpdate(TypedDict):
     """The state ``user_agent`` writes."""
 
     profile: dict | None
-    profile_required_for: NotRequired[ProfileRequiredFor | None]
     profile_status: NotRequired[ProfileStatus | None]
     messages: list[AnyMessage]
 
@@ -100,21 +99,19 @@ def _updated_profile(messages: list[AnyMessage]) -> dict | None:
 
 
 def _profile_completion_update(
-    profile: dict | None, required_for: ProfileRequiredFor | None
+    profile: dict | None, plan_pending: bool
 ) -> UserAgentUpdate:
     """Whether this turn's profile satisfies the plan that sent the caller here, when one did.
 
     Only computed when a plan is actually waiting on it — an ad-hoc question or edit must
-    not trigger the onboarding form for a plan nobody asked to continue. Once the profile
-    turns out complete, ``profile_required_for`` is cleared here too, so the router skips
-    the form rather than sending the caller through it for nothing.
+    not trigger the onboarding form for a plan nobody asked to continue.
     """
 
-    if required_for != "plan":
+    if not plan_pending:
         return {}
     if missing_profile_fields(profile):
         return {"profile_status": "need_input"}
-    return {"profile_status": "ready", "profile_required_for": None}
+    return {"profile_status": "ready"}
 
 
 async def user_agent(state: GraphState) -> UserAgentUpdate:
@@ -122,7 +119,7 @@ async def user_agent(state: GraphState) -> UserAgentUpdate:
 
     user_id = state["user_id"]
     profile = (await load_user_context(user_id)).profile
-    required_for = state.get("profile_required_for")
+    plan_pending = state.get("profile_status") == "need_input"
 
     try:
         result = await build_user_agent().ainvoke(
@@ -133,7 +130,7 @@ async def user_agent(state: GraphState) -> UserAgentUpdate:
         return {
             "profile": profile,
             "messages": [],
-            **_profile_completion_update(profile, required_for),
+            **_profile_completion_update(profile, plan_pending),
         }
 
     messages = result.get("messages", [])
@@ -143,16 +140,13 @@ async def user_agent(state: GraphState) -> UserAgentUpdate:
     return {
         "profile": updated_profile,
         "messages": [AIMessage(content=reply)] if reply else [],
-        **_profile_completion_update(updated_profile, required_for),
+        **_profile_completion_update(updated_profile, plan_pending),
     }
 
 
 def route_after_user_agent(state: GraphState) -> UserAgentRoute:
     """Send the caller on to the profile form if a waiting plan still needs fields, or back to the supervisor."""
 
-    if (
-        state.get("profile_required_for") == "plan"
-        and state.get("profile_status") == "need_input"
-    ):
+    if state.get("profile_status") == "need_input":
         return UserAgentRoute.NEEDS_MORE_INFO
     return UserAgentRoute.DONE

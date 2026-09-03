@@ -10,7 +10,6 @@ ApprovalSource = Literal["coach_agent"]
 ApprovalKind = Literal["plan"]
 CoachOutcome = Literal["answered", "drafted"]
 NextAgent = Literal["user_agent", "coach_agent", "qa_agent", "FINISH"]
-ProfileRequiredFor = Literal["plan"]
 ProfileStatus = Literal["ready", "need_input"]
 
 
@@ -119,7 +118,6 @@ class GraphState(AgentState):
     profile: NotRequired[dict | None]
     profile_draft: NotRequired[dict | None]
     plan: NotRequired[dict | None]
-    profile_required_for: NotRequired[ProfileRequiredFor | None]
     profile_status: NotRequired[ProfileStatus | None]
 
     # --- Coaching ----------------------------------------------------------------------
@@ -156,7 +154,6 @@ def initial_state(user_query: str, user_id: str) -> GraphState:
         profile=None,
         profile_draft=None,
         plan=None,
-        profile_required_for=None,
         profile_status=None,
         coach_outcome=None,
         coach_retry_count=0,

@@ -140,53 +140,48 @@ COMPLETE_PROFILE = {
 
 def test_an_ad_hoc_turn_never_touches_profile_status() -> None:
     """A question with no plan waiting on it must not bounce through the onboarding form."""
-    assert _profile_completion_update(None, None) == {}
-    assert _profile_completion_update(COMPLETE_PROFILE, None) == {}
+    assert _profile_completion_update(None, False) == {}
+    assert _profile_completion_update(COMPLETE_PROFILE, False) == {}
 
 
 def test_a_plan_still_missing_fields_reports_need_input() -> None:
-    """``profile_required_for`` is left alone — the coach's bounce already set it."""
-    assert _profile_completion_update({"age": 27}, "plan") == {
+    assert _profile_completion_update({"age": 27}, True) == {
         "profile_status": "need_input"
     }
 
 
-def test_a_plan_with_a_complete_profile_reports_ready_and_clears_required_for() -> None:
+def test_a_plan_with_a_complete_profile_reports_ready() -> None:
     """Already complete right after the ad-hoc turn means the form has nothing left to ask."""
-    assert _profile_completion_update(COMPLETE_PROFILE, "plan") == {
+    assert _profile_completion_update(COMPLETE_PROFILE, True) == {
         "profile_status": "ready",
-        "profile_required_for": None,
     }
 
 
 def test_no_profile_at_all_with_a_waiting_plan_reports_need_input() -> None:
     """A brand new user is exactly the ``need_input`` case, not an edge case of it."""
-    assert _profile_completion_update(None, "plan") == {"profile_status": "need_input"}
+    assert _profile_completion_update(None, True) == {"profile_status": "need_input"}
 
 
-# --- Routing on profile_required_for + profile_status ------------------------------------
+# --- Routing on profile_status ------------------------------------------------------------
 
 
-def _routed(required_for: str | None, status: str | None) -> GraphState:
-    return initial_state("hi", USER_ID) | {
-        "profile_required_for": required_for,
-        "profile_status": status,
-    }
+def _routed(status: str | None) -> GraphState:
+    return initial_state("hi", USER_ID) | {"profile_status": status}
 
 
 def test_a_plan_still_missing_fields_goes_to_the_form() -> None:
     """The only case the form exists for."""
-    state = _routed("plan", "need_input")
+    state = _routed("need_input")
     assert route_after_user_agent(state) == UserAgentRoute.NEEDS_MORE_INFO
 
 
 def test_a_plan_now_complete_skips_the_form() -> None:
     """Already satisfied by the ad-hoc turn — no reason to ask again."""
-    state = _routed(None, "ready")
+    state = _routed("ready")
     assert route_after_user_agent(state) == UserAgentRoute.DONE
 
 
 def test_an_unrelated_ad_hoc_turn_always_finishes() -> None:
     """Nothing waiting on the profile means the form must never appear."""
-    state = _routed(None, None)
+    state = _routed(None)
     assert route_after_user_agent(state) == UserAgentRoute.DONE

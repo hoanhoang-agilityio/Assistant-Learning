@@ -124,7 +124,6 @@ async def test_a_complete_submission_is_saved_in_one_write(graph, saved) -> None
     assert result["profile"]["sex"] == "MALE"
     assert result["messages"][-1].content == PROFILE_SAVED_MESSAGE
     assert result["profile_status"] == "ready"
-    assert result["profile_required_for"] is None
 
 
 async def test_an_incomplete_submission_is_asked_again_and_nothing_is_saved(

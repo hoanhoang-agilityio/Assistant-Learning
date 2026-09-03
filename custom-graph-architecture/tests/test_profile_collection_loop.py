@@ -8,11 +8,11 @@ user for anything. What has to happen instead is a single pause with a form on i
 
 Profile collection now lives on the ``user_agent`` branch rather than hanging off
 ``coach_agent`` directly: the coach flags what it is missing and bounces back to the
-supervisor (via ``profile_required_for``/``profile_status``), and the supervisor is the
-one that sends the turn on to ``user_agent`` — which is what actually reaches
-``draft_profile``/``collect_profile``. The supervisor stub below reads the same
-``profile_status`` line the real prompt now carries, so it drives the same two-hop
-handoff a real model would, however many times a test resumes or restarts the run.
+supervisor (via ``profile_status``), and the supervisor is the one that sends the turn
+on to ``user_agent`` — which is what actually reaches ``draft_profile``/``collect_profile``.
+The supervisor stub below reads the same ``profile_status`` line the real prompt now
+carries, so it drives the same two-hop handoff a real model would, however many times a
+test resumes or restarts the run.
 """
 
 import sys

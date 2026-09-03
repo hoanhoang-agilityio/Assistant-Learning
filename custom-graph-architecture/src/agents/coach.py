@@ -20,7 +20,6 @@ from src.schemas import (
     CoachOutcome,
     GraphState,
     PlanAnswer,
-    ProfileRequiredFor,
     ProfileStatus,
     TrainingPlan,
     UserProfile,
@@ -39,7 +38,6 @@ class CoachUpdate(TypedDict):
 
     plan: NotRequired[dict | None]
     coach_outcome: CoachOutcome | None
-    profile_required_for: NotRequired[ProfileRequiredFor | None]
     profile_status: NotRequired[ProfileStatus | None]
     messages: list[AnyMessage]
 
@@ -165,7 +163,6 @@ async def coach_agent(state: GraphState) -> CoachUpdate:
         return {
             "plan": None,
             "coach_outcome": None,
-            "profile_required_for": "plan",
             "profile_status": "need_input",
             "messages": [],
         }

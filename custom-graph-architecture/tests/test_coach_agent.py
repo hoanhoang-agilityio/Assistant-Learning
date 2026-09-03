@@ -49,14 +49,13 @@ async def test_an_incomplete_profile_is_not_sent_to_the_model() -> None:
 
 async def test_an_incomplete_profile_flags_the_bounce_back_to_the_supervisor() -> None:
     """The coach cannot ask ``user_agent`` for the fields itself — it can only tell the
-    supervisor a plan is waiting on them, via the two fields the router reads."""
+    supervisor a plan is waiting on them, via the field the router reads."""
     result = await coach_agent(_state(None))
 
-    assert result["profile_required_for"] == "plan"
     assert result["profile_status"] == "need_input"
 
 
-async def test_a_complete_profile_does_not_touch_the_profile_status_fields(
+async def test_a_complete_profile_does_not_touch_the_profile_status_field(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Once there is a plan to build, profile completeness is not this turn's concern."""
@@ -69,7 +68,6 @@ async def test_a_complete_profile_does_not_touch_the_profile_status_fields(
 
     result = await coach_agent(_state(COMPLETE))
 
-    assert "profile_required_for" not in result
     assert "profile_status" not in result
 
 

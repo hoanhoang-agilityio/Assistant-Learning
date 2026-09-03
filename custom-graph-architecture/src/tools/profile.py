@@ -15,11 +15,10 @@ NO_PROFILE_RECORDED = "no profile is on record for this user yet"
 async def get_user_profile(
     runtime: ToolRuntime[UserAgentContext, Any],
 ) -> tuple[str, dict]:
-    """Return the user's stored profile and current training plan.
+    """Return the user's stored training profile.
 
-    Call this before answering anything about the user's own data, and before deciding
-    whether a field they just mentioned is new information or a correction to something
-    already on file.
+    Call this before answering questions about the user's own profile,
+    or before deciding whether newly stated information is new or a correction.
     """
 
     context = await load_user_context(runtime.context.user_id)
@@ -33,11 +32,10 @@ async def get_user_profile(
 async def update_user_profile(
     field: str, value: Any, runtime: ToolRuntime[UserAgentContext, Any]
 ) -> tuple[str, dict]:
-    """Write one field of the user's profile.
+    """Save one field of the user's profile.
 
-    Pass the field's name exactly as it appears in the profile, and the new value. An
-    overwrite of a field that already carries a value pauses for the user's approval
-    before this tool runs at all, so by the time it runs the write is authorized.
+    Use the exact profile field name. Only call this tool after any required
+    approval for overwriting an existing value has been granted.
     """
 
     if field not in UserProfile.model_fields:
