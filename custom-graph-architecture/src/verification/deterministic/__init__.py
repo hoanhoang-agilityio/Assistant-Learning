@@ -12,20 +12,13 @@ from src.schemas import TrainingPlan, UserProfile, VerificationIssue, Verificati
 from src.verification.deterministic.availability import check_availability
 from src.verification.deterministic.completeness import check_completeness
 from src.verification.deterministic.context import PlanContext, build_plan_context
-from src.verification.deterministic.macros import check_macros
-from src.verification.deterministic.safety import check_safety
-from src.verification.deterministic.volume import check_volume
 
 Rule = Callable[[PlanContext], list[VerificationIssue]]
 
-# Ordered as the coach agent should read them: what is missing, then what is wrong, then
-# what is unsafe.
+# Ordered as the coach agent should read them: what is missing, then what does not fit.
 RULES: list[Rule] = [
     check_completeness,
-    check_macros,
-    check_volume,
     check_availability,
-    check_safety,
 ]
 
 

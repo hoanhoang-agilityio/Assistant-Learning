@@ -68,8 +68,16 @@ TEMPLATE = WorkoutTemplate(
             name="Upper",
             body_region=BodyRegion.UPPER,
             exercise_slots=[
-                ExerciseSlot(slot_id="d1-s1", target_muscles=[MuscleGroup.CHEST]),
-                ExerciseSlot(slot_id="d1-s2", target_muscles=[MuscleGroup.BACK]),
+                ExerciseSlot(
+                    slot_id="d1-s1",
+                    exercise_id="ex-bench-press",
+                    target_muscles=[MuscleGroup.CHEST],
+                ),
+                ExerciseSlot(
+                    slot_id="d1-s2",
+                    exercise_id="ex-cable-row",
+                    target_muscles=[MuscleGroup.BACK],
+                ),
             ],
         ),
         WorkoutDayTemplate(
@@ -77,7 +85,11 @@ TEMPLATE = WorkoutTemplate(
             name="Lower",
             body_region=BodyRegion.LOWER,
             exercise_slots=[
-                ExerciseSlot(slot_id="d2-s1", target_muscles=[MuscleGroup.QUADS])
+                ExerciseSlot(
+                    slot_id="d2-s1",
+                    exercise_id="ex-back-squat",
+                    target_muscles=[MuscleGroup.QUADS],
+                )
             ],
         ),
     ],
@@ -216,9 +228,10 @@ def test_a_missing_training_day_fails_the_gate() -> None:
         day(1, "Upper", ("d1-s1", "ex-bench-press"), ("d1-s2", "ex-cable-row"))
     )
 
-    [issue] = check_completeness(context_for(plan))
+    issues = check_completeness(context_for(plan))
+    [missing] = [issue for issue in issues if issue.day_number == 2]
 
-    assert (issue.day_number, issue.field) == (2, "training_days")
+    assert missing.field == "training_days"
 
 
 def test_a_day_the_template_does_not_have_is_reported_once() -> None:
@@ -229,10 +242,10 @@ def test_a_day_the_template_does_not_have_is_reported_once() -> None:
         day(3, "Extra", ("d3-s1", "ex-bench-press")),
     )
 
-    [issue] = check_completeness(context_for(plan))
+    issues = check_completeness(context_for(plan))
+    [extra] = [issue for issue in issues if issue.day_number == 3]
 
-    assert issue.day_number == 3
-    assert "not in template" in issue.message
+    assert "not in template" in extra.message
 
 
 def test_a_repeated_day_number_fails_the_gate() -> None:
@@ -280,5 +293,5 @@ def test_an_unresolved_template_does_not_hide_an_invented_exercise() -> None:
 
     issues = check_completeness(context_for(plan, template=None))
 
-    assert {issue.field for issue in issues} == {"template_id", None}
+    assert {issue.field for issue in issues} == {"template_id", "training_days", None}
     assert any(issue.exercise_id == "ex-invented" for issue in issues)

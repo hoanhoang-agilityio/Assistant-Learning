@@ -1,9 +1,10 @@
 """Schema completeness.
 
 Pydantic already guarantees the plan's shape; this checks it is complete against its own
-template. Every slot the template requires is filled exactly once and on the day that owns
-it, the plan's days are the template's days, and every ``exercise_id`` resolves to a
-catalogue row — the check that stops an invented movement reaching the user.
+template and the user's own request. The plan trains as many days as the user asked for,
+every slot the template requires is filled exactly once and on the day that owns it, the
+plan's days are the template's days, and every ``exercise_id`` resolves to a catalogue row
+— the check that stops an invented movement reaching the user.
 
 The rule reads the template through ``template_id``, which is the only thing tying a plan
 back to what it was meant to build. A plan naming a template that does not exist is
@@ -15,6 +16,7 @@ from collections import Counter
 from src.schemas import (
     CheckName,
     TrainingPlan,
+    UserProfile,
     VerificationIssue,
     WorkoutTemplate,
 )
@@ -25,6 +27,25 @@ def _issue(message: str, **location: object) -> VerificationIssue:
     """One completeness issue, located in the plan. Every one of these fails the gate."""
 
     return VerificationIssue(check=CheckName.COMPLETENESS, message=message, **location)
+
+
+def _check_day_count(
+    plan: TrainingPlan, profile: UserProfile
+) -> list[VerificationIssue]:
+    """Check the plan trains as many days a week as the user asked for."""
+
+    planned = len(plan.training_days)
+    requested = profile.training_days_per_week
+    if planned == requested:
+        return []
+
+    return [
+        _issue(
+            f"The plan trains {planned} days a week; the user asked for {requested}. "
+            f"Call load_template with days_per_week={requested} and build from that.",
+            field="training_days",
+        )
+    ]
 
 
 def _check_days(
@@ -141,7 +162,8 @@ def _check_exercises(context: PlanContext) -> list[VerificationIssue]:
     return [
         _issue(
             f"'{prescribed.exercise_id}' is not an exercise in the catalogue. Fill slot "
-            f"'{prescribed.slot_id}' with an id returned by load_exercise.",
+            f"'{prescribed.slot_id}' with the exercise_id load_template gave it, one of "
+            f"its alternative_exercise_ids, or an id returned by load_exercise.",
             day_number=day.day_number,
             slot_id=prescribed.slot_id,
             exercise_id=prescribed.exercise_id,
@@ -153,11 +175,14 @@ def _check_exercises(context: PlanContext) -> list[VerificationIssue]:
 
 
 def check_completeness(context: PlanContext) -> list[VerificationIssue]:
-    """Check the plan fills its template exactly, with real exercises."""
+    """Check the plan fills its template exactly, with real exercises, on the right week."""
 
     plan = context.plan
+    day_count_issues = _check_day_count(plan, context.profile)
+
     if context.template is None:
         return [
+            *day_count_issues,
             _issue(
                 f"Template '{plan.template_id}' is not in the catalogue. Rebuild the "
                 f"plan from a template returned by load_template.",
@@ -168,6 +193,7 @@ def check_completeness(context: PlanContext) -> list[VerificationIssue]:
         ]
 
     return [
+        *day_count_issues,
         *_check_days(plan, context.template),
         *_check_slots(plan, context.template),
         *_check_exercises(context),

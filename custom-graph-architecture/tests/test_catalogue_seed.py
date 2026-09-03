@@ -56,7 +56,7 @@ def test_the_catalogue_validates_against_the_domain_models(
 ) -> None:
     """The seed is only useful if it is the shape the tools hand to the agent."""
     assert len(exercises) == 103
-    assert len(templates) == 8
+    assert len(templates) == 7
 
 
 def test_exercise_ids_are_unique(exercises) -> None:
@@ -242,4 +242,4 @@ async def test_days_per_week_is_stored_for_filtering(require_postgres: None) -> 
             )
         ).scalars()
 
-    assert {row.id for row in rows} == {"full_body_3day", "push_pull_legs_3day"}
+    assert {row.id for row in rows} == {"push_pull_legs_3day"}

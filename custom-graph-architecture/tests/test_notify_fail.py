@@ -41,7 +41,7 @@ def state_after_the_gate(verification_result: dict | None) -> dict:
 
 def test_the_user_is_told_no_plan_is_coming() -> None:
     """Handing over a plan that failed the gate is the one thing this node prevents."""
-    message = build_notify_fail_message(verdict(error(CheckName.MACROS)))
+    message = build_notify_fail_message(verdict(error(CheckName.COMPLETENESS)))
 
     assert message.startswith(NOTIFY_FAIL_INTRO)
     assert message.endswith(NOTIFY_FAIL_OUTRO)
@@ -51,11 +51,13 @@ def test_the_rules_that_failed_are_named_in_the_user_s_terms() -> None:
     """The issues are written at the coach agent; the user gets what went wrong instead."""
     message = build_notify_fail_message(
         verdict(
-            error(CheckName.SAFETY, "Swap the overhead press for a landmine press.")
+            error(
+                CheckName.AVAILABILITY, "Swap the overhead press for a landmine press."
+            )
         )
     )
 
-    assert CHECK_SUMMARIES[CheckName.SAFETY] in message
+    assert CHECK_SUMMARIES[CheckName.AVAILABILITY] in message
     assert "landmine" not in message
 
 
@@ -71,19 +73,19 @@ def test_a_rule_that_failed_repeatedly_is_named_once() -> None:
 def test_the_rules_are_named_in_the_order_they_ran() -> None:
     """The gate orders its issues for reading; re-ordering them here would undo that."""
     summaries = failed_checks(
-        verdict(error(CheckName.COMPLETENESS), error(CheckName.SAFETY))
+        verdict(error(CheckName.COMPLETENESS), error(CheckName.AVAILABILITY))
     )
 
     assert summaries == [
         CHECK_SUMMARIES[CheckName.COMPLETENESS],
-        CHECK_SUMMARIES[CheckName.SAFETY],
+        CHECK_SUMMARIES[CheckName.AVAILABILITY],
     ]
 
 
 def test_warnings_are_not_reported_as_reasons() -> None:
     """A warning never failed anything, so it cannot be why the run gave up."""
     warning = VerificationIssue(
-        check=CheckName.VOLUME,
+        check=CheckName.AVAILABILITY,
         message="Slightly under the weekly target.",
         severity=Severity.WARNING,
     )
@@ -116,7 +118,9 @@ async def test_the_node_ends_the_run_with_the_notification() -> None:
 
 async def test_the_rejected_plan_is_left_alone() -> None:
     """The user's stored plan is still theirs; a failed revision must not disturb it."""
-    update = await notify_fail(state_after_the_gate(verdict(error(CheckName.MACROS))))
+    update = await notify_fail(
+        state_after_the_gate(verdict(error(CheckName.COMPLETENESS)))
+    )
 
     assert "plan" not in update
 
@@ -125,7 +129,9 @@ async def test_the_failed_attempt_does_not_outlive_the_turn_it_failed_on() -> No
     """Left standing, its errors reach the coach as `<verification_errors>` on every later
     turn of the thread, and its spent budget sends the next attempt's first failure
     straight back here."""
-    update = await notify_fail(state_after_the_gate(verdict(error(CheckName.MACROS))))
+    update = await notify_fail(
+        state_after_the_gate(verdict(error(CheckName.COMPLETENESS)))
+    )
 
     assert update["verification_result"] is None
     assert update["coach_retry_count"] == 0

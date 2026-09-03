@@ -125,7 +125,7 @@ async def test_a_warning_alone_does_not_fail_the_gate(
         return VerificationResult(
             issues=[
                 VerificationIssue(
-                    check=CheckName.SAFETY,
+                    check=CheckName.AVAILABILITY,
                     message="A stated preference was ignored.",
                     severity=Severity.WARNING,
                 )

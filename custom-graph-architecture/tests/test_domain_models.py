@@ -49,6 +49,7 @@ BENCH_PRESS = Exercise(
 
 CHEST_SLOT = ExerciseSlot(
     slot_id="d1-s1",
+    exercise_id="ex-bench-press",
     target_muscles=[MuscleGroup.CHEST],
     allowed_movement_patterns=[MovementPattern.HORIZONTAL_PUSH],
     excluded_movement_patterns=[MovementPattern.ISOLATION],
@@ -230,7 +231,9 @@ def test_an_excluded_pattern_wins_over_an_allowed_one() -> None:
 def test_a_slot_with_no_allowed_patterns_accepts_anything_not_excluded() -> None:
     """An open slot is the default, so an empty list must not mean 'nothing fits'."""
     open_slot = ExerciseSlot(
-        slot_id="d1-s2", excluded_movement_patterns=[MovementPattern.CARRY]
+        slot_id="d1-s2",
+        exercise_id="ex-bench-press",
+        excluded_movement_patterns=[MovementPattern.CARRY],
     )
 
     assert open_slot.accepts_pattern(MovementPattern.HINGE)
@@ -265,7 +268,9 @@ def test_a_template_lists_every_slot_it_requires_to_be_filled() -> None:
                 day_number=2,
                 name="Lower",
                 body_region=BodyRegion.LOWER,
-                exercise_slots=[ExerciseSlot(slot_id="d2-s1")],
+                exercise_slots=[
+                    ExerciseSlot(slot_id="d2-s1", exercise_id="ex-bench-press")
+                ],
             ),
         ],
     )

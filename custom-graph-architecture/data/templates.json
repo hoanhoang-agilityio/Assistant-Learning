@@ -14,6 +14,11 @@
         "exercise_slots": [
           {
             "slot_id": "bp7_ch_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -35,6 +40,11 @@
           },
           {
             "slot_id": "bp7_ch_horiz_push_b",
+            "exercise_id": "push_up_tempo",
+            "alternative_exercise_ids": [
+              "barbell_bench_press",
+              "decline_bench_press_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -56,6 +66,11 @@
           },
           {
             "slot_id": "bp7_ch_chest_iso",
+            "exercise_id": "chest_fly",
+            "alternative_exercise_ids": [
+              "incline_fly_machine",
+              "pec_deck_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -77,6 +92,11 @@
           },
           {
             "slot_id": "bp7_ch_dip",
+            "exercise_id": "dip_machine",
+            "alternative_exercise_ids": [
+              "dip_bodyweight",
+              "machine_assisted_dip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -107,6 +127,11 @@
         "exercise_slots": [
           {
             "slot_id": "bp7_bk_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -128,6 +153,11 @@
           },
           {
             "slot_id": "bp7_bk_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -149,6 +179,11 @@
           },
           {
             "slot_id": "bp7_bk_vert_pull_b",
+            "exercise_id": "dumbbell_pullover",
+            "alternative_exercise_ids": [
+              "pull_up",
+              "pull_up_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -170,6 +205,10 @@
           },
           {
             "slot_id": "bp7_bk_rear_delt",
+            "exercise_id": "rear_delt_fly_tempo",
+            "alternative_exercise_ids": [
+              "face_pull_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -200,6 +239,11 @@
         "exercise_slots": [
           {
             "slot_id": "bp7_sh_vert_push",
+            "exercise_id": "cable_shoulder_press",
+            "alternative_exercise_ids": [
+              "machine_shoulder_press",
+              "smith_machine_overhead_press"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -221,6 +265,11 @@
           },
           {
             "slot_id": "bp7_sh_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -242,6 +291,10 @@
           },
           {
             "slot_id": "bp7_sh_rear_delt",
+            "exercise_id": "rear_delt_fly_tempo",
+            "alternative_exercise_ids": [
+              "face_pull_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -263,6 +316,11 @@
           },
           {
             "slot_id": "bp7_sh_high_pull",
+            "exercise_id": "cable_upright_row",
+            "alternative_exercise_ids": [
+              "dumbbell_upright_row",
+              "upright_row_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -293,6 +351,11 @@
         "exercise_slots": [
           {
             "slot_id": "bp7_ar_biceps",
+            "exercise_id": "barbell_curl",
+            "alternative_exercise_ids": [
+              "cable_curl_machine",
+              "dumbbell_hammer_curl"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -314,6 +377,11 @@
           },
           {
             "slot_id": "bp7_ar_triceps",
+            "exercise_id": "cable_triceps_pushdown",
+            "alternative_exercise_ids": [
+              "overhead_extension",
+              "skull_crusher_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -335,6 +403,11 @@
           },
           {
             "slot_id": "bp7_ar_biceps_b",
+            "exercise_id": "hammer_curl_wide_grip",
+            "alternative_exercise_ids": [
+              "preacher_curl_neutral_grip",
+              "reverse_curl_tempo"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -356,6 +429,11 @@
           },
           {
             "slot_id": "bp7_ar_triceps_b",
+            "exercise_id": "triceps_pushdown_tempo",
+            "alternative_exercise_ids": [
+              "cable_triceps_pushdown",
+              "overhead_extension"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -386,6 +464,11 @@
         "exercise_slots": [
           {
             "slot_id": "bp7_lg_squat",
+            "exercise_id": "bodyweight_squat",
+            "alternative_exercise_ids": [
+              "goblet_squat_dumbbell",
+              "leg_press_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -407,6 +490,11 @@
           },
           {
             "slot_id": "bp7_lg_hinge",
+            "exercise_id": "back_extension_machine",
+            "alternative_exercise_ids": [
+              "cable_pull_through",
+              "kettlebell_swing"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -428,6 +516,11 @@
           },
           {
             "slot_id": "bp7_lg_knee_iso",
+            "exercise_id": "cable_leg_extension",
+            "alternative_exercise_ids": [
+              "leg_extension_machine",
+              "sissy_squat_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -449,6 +542,11 @@
           },
           {
             "slot_id": "bp7_lg_knee_flexion",
+            "exercise_id": "dumbbell_leg_curl",
+            "alternative_exercise_ids": [
+              "leg_curl_neutral_grip",
+              "nordic_curl_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -470,6 +568,11 @@
           },
           {
             "slot_id": "bp7_lg_calf",
+            "exercise_id": "dumbbell_calf_raise",
+            "alternative_exercise_ids": [
+              "leg_press_calf_raise",
+              "seated_calf_raise_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -500,6 +603,11 @@
         "exercise_slots": [
           {
             "slot_id": "bp7_up_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -521,6 +629,11 @@
           },
           {
             "slot_id": "bp7_up_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -542,6 +655,11 @@
           },
           {
             "slot_id": "bp7_up_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -563,6 +681,11 @@
           },
           {
             "slot_id": "bp7_up_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -584,6 +707,11 @@
           },
           {
             "slot_id": "bp7_up_arms",
+            "exercise_id": "barbell_curl",
+            "alternative_exercise_ids": [
+              "cable_curl_machine",
+              "dumbbell_hammer_curl"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -614,6 +742,11 @@
         "exercise_slots": [
           {
             "slot_id": "bp7_lo_lunge",
+            "exercise_id": "walking_lunge_tempo",
+            "alternative_exercise_ids": [
+              "dumbbell_reverse_lunge",
+              "step_up_dumbbell"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -635,6 +768,11 @@
           },
           {
             "slot_id": "bp7_lo_hip_iso",
+            "exercise_id": "machine_hip_thrust",
+            "alternative_exercise_ids": [
+              "glute_bridge_bodyweight",
+              "hip_thrust_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -656,6 +794,11 @@
           },
           {
             "slot_id": "bp7_lo_knee_iso",
+            "exercise_id": "cable_leg_extension",
+            "alternative_exercise_ids": [
+              "leg_extension_machine",
+              "sissy_squat_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -677,6 +820,11 @@
           },
           {
             "slot_id": "bp7_lo_knee_flexion",
+            "exercise_id": "dumbbell_leg_curl",
+            "alternative_exercise_ids": [
+              "leg_curl_neutral_grip",
+              "nordic_curl_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -698,6 +846,11 @@
           },
           {
             "slot_id": "bp7_lo_calf",
+            "exercise_id": "dumbbell_calf_raise",
+            "alternative_exercise_ids": [
+              "leg_press_calf_raise",
+              "seated_calf_raise_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -719,6 +872,11 @@
           },
           {
             "slot_id": "bp7_lo_core",
+            "exercise_id": "ab_rollout",
+            "alternative_exercise_ids": [
+              "ab_rollout_bodyweight",
+              "ab_rollout_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -763,6 +921,11 @@
         "exercise_slots": [
           {
             "slot_id": "cbl5_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -784,6 +947,11 @@
           },
           {
             "slot_id": "cbl5_chest_iso",
+            "exercise_id": "chest_fly",
+            "alternative_exercise_ids": [
+              "incline_fly_machine",
+              "pec_deck_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -805,6 +973,11 @@
           },
           {
             "slot_id": "cbl5_vert_push",
+            "exercise_id": "cable_shoulder_press",
+            "alternative_exercise_ids": [
+              "machine_shoulder_press",
+              "smith_machine_overhead_press"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -826,6 +999,11 @@
           },
           {
             "slot_id": "cbl5_ch_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -847,6 +1025,11 @@
           },
           {
             "slot_id": "cbl5_triceps",
+            "exercise_id": "cable_triceps_pushdown",
+            "alternative_exercise_ids": [
+              "overhead_extension",
+              "skull_crusher_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -877,6 +1060,11 @@
         "exercise_slots": [
           {
             "slot_id": "cbl5_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -898,6 +1086,11 @@
           },
           {
             "slot_id": "cbl5_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -919,6 +1112,10 @@
           },
           {
             "slot_id": "cbl5_rear_delt",
+            "exercise_id": "rear_delt_fly_tempo",
+            "alternative_exercise_ids": [
+              "face_pull_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -940,6 +1137,11 @@
           },
           {
             "slot_id": "cbl5_biceps",
+            "exercise_id": "barbell_curl",
+            "alternative_exercise_ids": [
+              "cable_curl_machine",
+              "dumbbell_hammer_curl"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -970,6 +1172,11 @@
         "exercise_slots": [
           {
             "slot_id": "cbl5_squat",
+            "exercise_id": "bodyweight_squat",
+            "alternative_exercise_ids": [
+              "goblet_squat_dumbbell",
+              "leg_press_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -991,6 +1198,11 @@
           },
           {
             "slot_id": "cbl5_hinge",
+            "exercise_id": "back_extension_machine",
+            "alternative_exercise_ids": [
+              "cable_pull_through",
+              "kettlebell_swing"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1012,6 +1224,11 @@
           },
           {
             "slot_id": "cbl5_knee_iso",
+            "exercise_id": "cable_leg_extension",
+            "alternative_exercise_ids": [
+              "leg_extension_machine",
+              "sissy_squat_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1033,6 +1250,11 @@
           },
           {
             "slot_id": "cbl5_knee_flexion",
+            "exercise_id": "dumbbell_leg_curl",
+            "alternative_exercise_ids": [
+              "leg_curl_neutral_grip",
+              "nordic_curl_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1054,6 +1276,11 @@
           },
           {
             "slot_id": "cbl5_calf",
+            "exercise_id": "dumbbell_calf_raise",
+            "alternative_exercise_ids": [
+              "leg_press_calf_raise",
+              "seated_calf_raise_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1084,6 +1311,11 @@
         "exercise_slots": [
           {
             "slot_id": "cbl5_up_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1105,6 +1337,11 @@
           },
           {
             "slot_id": "cbl5_up_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1126,6 +1363,11 @@
           },
           {
             "slot_id": "cbl5_up_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1147,6 +1389,11 @@
           },
           {
             "slot_id": "cbl5_up_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1168,6 +1415,11 @@
           },
           {
             "slot_id": "cbl5_up_biceps",
+            "exercise_id": "barbell_curl",
+            "alternative_exercise_ids": [
+              "cable_curl_machine",
+              "dumbbell_hammer_curl"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1198,6 +1450,11 @@
         "exercise_slots": [
           {
             "slot_id": "cbl5_lo_lunge",
+            "exercise_id": "walking_lunge_tempo",
+            "alternative_exercise_ids": [
+              "dumbbell_reverse_lunge",
+              "step_up_dumbbell"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1219,6 +1476,11 @@
           },
           {
             "slot_id": "cbl5_lo_hip_iso",
+            "exercise_id": "machine_hip_thrust",
+            "alternative_exercise_ids": [
+              "glute_bridge_bodyweight",
+              "hip_thrust_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1240,6 +1502,11 @@
           },
           {
             "slot_id": "cbl5_lo_knee_iso",
+            "exercise_id": "cable_leg_extension",
+            "alternative_exercise_ids": [
+              "leg_extension_machine",
+              "sissy_squat_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1261,6 +1528,11 @@
           },
           {
             "slot_id": "cbl5_lo_knee_flexion",
+            "exercise_id": "dumbbell_leg_curl",
+            "alternative_exercise_ids": [
+              "leg_curl_neutral_grip",
+              "nordic_curl_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1282,6 +1554,11 @@
           },
           {
             "slot_id": "cbl5_lo_calf",
+            "exercise_id": "dumbbell_calf_raise",
+            "alternative_exercise_ids": [
+              "leg_press_calf_raise",
+              "seated_calf_raise_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1303,6 +1580,11 @@
           },
           {
             "slot_id": "cbl5_lo_core",
+            "exercise_id": "ab_rollout",
+            "alternative_exercise_ids": [
+              "ab_rollout_bodyweight",
+              "ab_rollout_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1348,6 +1630,11 @@
         "exercise_slots": [
           {
             "slot_id": "fb1_squat",
+            "exercise_id": "bodyweight_squat",
+            "alternative_exercise_ids": [
+              "goblet_squat_dumbbell",
+              "leg_press_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1369,6 +1656,11 @@
           },
           {
             "slot_id": "fb1_hinge",
+            "exercise_id": "back_extension_machine",
+            "alternative_exercise_ids": [
+              "cable_pull_through",
+              "kettlebell_swing"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1390,6 +1682,11 @@
           },
           {
             "slot_id": "fb1_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1411,6 +1708,11 @@
           },
           {
             "slot_id": "fb1_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1432,6 +1734,11 @@
           },
           {
             "slot_id": "fb1_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1453,6 +1760,11 @@
           },
           {
             "slot_id": "fb1_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1474,6 +1786,11 @@
           },
           {
             "slot_id": "fb1_core",
+            "exercise_id": "ab_rollout",
+            "alternative_exercise_ids": [
+              "ab_rollout_bodyweight",
+              "ab_rollout_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1503,300 +1820,6 @@
     "notes": null
   },
   {
-    "id": "full_body_3day",
-    "name": "Full body, 3 days",
-    "goals": [
-      "FAT_LOSS",
-      "MUSCLE_GAIN",
-      "MAINTENANCE",
-      "GENERAL_FITNESS"
-    ],
-    "training_days": [
-      {
-        "day_number": 1,
-        "name": "Full body A",
-        "body_region": "FULL_BODY",
-        "exercise_slots": [
-          {
-            "slot_id": "fa_squat",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "SQUAT"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 4,
-            "rep_range": [
-              6,
-              8
-            ],
-            "rir_range": [
-              1,
-              2
-            ],
-            "notes": null
-          },
-          {
-            "slot_id": "fa_horiz_push",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "HORIZONTAL_PUSH"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 4,
-            "rep_range": [
-              6,
-              10
-            ],
-            "rir_range": [
-              1,
-              2
-            ],
-            "notes": null
-          },
-          {
-            "slot_id": "fa_horiz_pull",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "HORIZONTAL_PULL"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 4,
-            "rep_range": [
-              8,
-              12
-            ],
-            "rir_range": [
-              1,
-              2
-            ],
-            "notes": null
-          },
-          {
-            "slot_id": "fa_lateral",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "ABDUCTION"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 3,
-            "rep_range": [
-              12,
-              15
-            ],
-            "rir_range": [
-              1,
-              2
-            ],
-            "notes": null
-          }
-        ],
-        "target_muscles": [],
-        "notes": null
-      },
-      {
-        "day_number": 2,
-        "name": "Full body B",
-        "body_region": "FULL_BODY",
-        "exercise_slots": [
-          {
-            "slot_id": "fb_hinge",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "HINGE"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 4,
-            "rep_range": [
-              5,
-              8
-            ],
-            "rir_range": [
-              1,
-              2
-            ],
-            "notes": null
-          },
-          {
-            "slot_id": "fb_vert_pull",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "VERTICAL_PULL"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 4,
-            "rep_range": [
-              8,
-              12
-            ],
-            "rir_range": [
-              1,
-              2
-            ],
-            "notes": null
-          },
-          {
-            "slot_id": "fb_vert_push",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "VERTICAL_PUSH"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 3,
-            "rep_range": [
-              8,
-              12
-            ],
-            "rir_range": [
-              2,
-              3
-            ],
-            "notes": null
-          },
-          {
-            "slot_id": "fb_arms",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "ELBOW_FLEXION"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 3,
-            "rep_range": [
-              10,
-              12
-            ],
-            "rir_range": [
-              1,
-              2
-            ],
-            "notes": null
-          }
-        ],
-        "target_muscles": [],
-        "notes": null
-      },
-      {
-        "day_number": 3,
-        "name": "Full body C",
-        "body_region": "FULL_BODY",
-        "exercise_slots": [
-          {
-            "slot_id": "fc_lunge",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "LUNGE"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 3,
-            "rep_range": [
-              10,
-              12
-            ],
-            "rir_range": [
-              2,
-              3
-            ],
-            "notes": null
-          },
-          {
-            "slot_id": "fc_horiz_push",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "HORIZONTAL_PUSH"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 3,
-            "rep_range": [
-              10,
-              15
-            ],
-            "rir_range": [
-              2,
-              3
-            ],
-            "notes": null
-          },
-          {
-            "slot_id": "fc_horiz_pull",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "HORIZONTAL_PULL"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 4,
-            "rep_range": [
-              10,
-              15
-            ],
-            "rir_range": [
-              1,
-              2
-            ],
-            "notes": null
-          },
-          {
-            "slot_id": "fc_knee_iso",
-            "exercise_type": null,
-            "target_muscles": [],
-            "allowed_movement_patterns": [
-              "KNEE_EXTENSION"
-            ],
-            "excluded_movement_patterns": [],
-            "required_body_region": null,
-            "alternatives_allowed": true,
-            "sets": 3,
-            "rep_range": [
-              12,
-              15
-            ],
-            "rir_range": [
-              1,
-              2
-            ],
-            "notes": null
-          }
-        ],
-        "target_muscles": [],
-        "notes": null
-      }
-    ],
-    "popularity": 85,
-    "description": null,
-    "notes": null
-  },
-  {
     "id": "push_pull_legs_3day",
     "name": "Push / Pull / Legs, 3 days",
     "goals": [
@@ -1812,6 +1835,11 @@
         "exercise_slots": [
           {
             "slot_id": "ppl3_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1833,6 +1861,11 @@
           },
           {
             "slot_id": "ppl3_vert_push",
+            "exercise_id": "cable_shoulder_press",
+            "alternative_exercise_ids": [
+              "machine_shoulder_press",
+              "smith_machine_overhead_press"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1854,6 +1887,11 @@
           },
           {
             "slot_id": "ppl3_chest_iso",
+            "exercise_id": "chest_fly",
+            "alternative_exercise_ids": [
+              "incline_fly_machine",
+              "pec_deck_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1875,6 +1913,11 @@
           },
           {
             "slot_id": "ppl3_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1896,6 +1939,11 @@
           },
           {
             "slot_id": "ppl3_triceps",
+            "exercise_id": "cable_triceps_pushdown",
+            "alternative_exercise_ids": [
+              "overhead_extension",
+              "skull_crusher_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1926,6 +1974,11 @@
         "exercise_slots": [
           {
             "slot_id": "ppl3_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1947,6 +2000,11 @@
           },
           {
             "slot_id": "ppl3_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1968,6 +2026,11 @@
           },
           {
             "slot_id": "ppl3_vert_pull_b",
+            "exercise_id": "dumbbell_pullover",
+            "alternative_exercise_ids": [
+              "pull_up",
+              "pull_up_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -1989,6 +2052,10 @@
           },
           {
             "slot_id": "ppl3_rear_delt",
+            "exercise_id": "rear_delt_fly_tempo",
+            "alternative_exercise_ids": [
+              "face_pull_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2010,6 +2077,11 @@
           },
           {
             "slot_id": "ppl3_biceps",
+            "exercise_id": "barbell_curl",
+            "alternative_exercise_ids": [
+              "cable_curl_machine",
+              "dumbbell_hammer_curl"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2040,6 +2112,11 @@
         "exercise_slots": [
           {
             "slot_id": "ppl3_squat",
+            "exercise_id": "bodyweight_squat",
+            "alternative_exercise_ids": [
+              "goblet_squat_dumbbell",
+              "leg_press_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2061,6 +2138,11 @@
           },
           {
             "slot_id": "ppl3_hinge",
+            "exercise_id": "back_extension_machine",
+            "alternative_exercise_ids": [
+              "cable_pull_through",
+              "kettlebell_swing"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2082,6 +2164,11 @@
           },
           {
             "slot_id": "ppl3_knee_iso",
+            "exercise_id": "cable_leg_extension",
+            "alternative_exercise_ids": [
+              "leg_extension_machine",
+              "sissy_squat_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2103,6 +2190,11 @@
           },
           {
             "slot_id": "ppl3_knee_flexion",
+            "exercise_id": "dumbbell_leg_curl",
+            "alternative_exercise_ids": [
+              "leg_curl_neutral_grip",
+              "nordic_curl_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2124,6 +2216,11 @@
           },
           {
             "slot_id": "ppl3_calf",
+            "exercise_id": "dumbbell_calf_raise",
+            "alternative_exercise_ids": [
+              "leg_press_calf_raise",
+              "seated_calf_raise_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2168,6 +2265,11 @@
         "exercise_slots": [
           {
             "slot_id": "ppl6_pa_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2189,6 +2291,11 @@
           },
           {
             "slot_id": "ppl6_pa_vert_push",
+            "exercise_id": "cable_shoulder_press",
+            "alternative_exercise_ids": [
+              "machine_shoulder_press",
+              "smith_machine_overhead_press"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2210,6 +2317,11 @@
           },
           {
             "slot_id": "ppl6_pa_chest_iso",
+            "exercise_id": "chest_fly",
+            "alternative_exercise_ids": [
+              "incline_fly_machine",
+              "pec_deck_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2231,6 +2343,11 @@
           },
           {
             "slot_id": "ppl6_pa_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2252,6 +2369,11 @@
           },
           {
             "slot_id": "ppl6_pa_triceps",
+            "exercise_id": "cable_triceps_pushdown",
+            "alternative_exercise_ids": [
+              "overhead_extension",
+              "skull_crusher_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2282,6 +2404,11 @@
         "exercise_slots": [
           {
             "slot_id": "ppl6_la_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2303,6 +2430,11 @@
           },
           {
             "slot_id": "ppl6_la_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2324,6 +2456,11 @@
           },
           {
             "slot_id": "ppl6_la_high_pull",
+            "exercise_id": "cable_upright_row",
+            "alternative_exercise_ids": [
+              "dumbbell_upright_row",
+              "upright_row_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2345,6 +2482,10 @@
           },
           {
             "slot_id": "ppl6_la_rear_delt",
+            "exercise_id": "rear_delt_fly_tempo",
+            "alternative_exercise_ids": [
+              "face_pull_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2366,6 +2507,11 @@
           },
           {
             "slot_id": "ppl6_la_biceps",
+            "exercise_id": "barbell_curl",
+            "alternative_exercise_ids": [
+              "cable_curl_machine",
+              "dumbbell_hammer_curl"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2396,6 +2542,11 @@
         "exercise_slots": [
           {
             "slot_id": "ppl6_ga_squat",
+            "exercise_id": "bodyweight_squat",
+            "alternative_exercise_ids": [
+              "goblet_squat_dumbbell",
+              "leg_press_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2417,6 +2568,11 @@
           },
           {
             "slot_id": "ppl6_ga_hinge",
+            "exercise_id": "back_extension_machine",
+            "alternative_exercise_ids": [
+              "cable_pull_through",
+              "kettlebell_swing"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2438,6 +2594,11 @@
           },
           {
             "slot_id": "ppl6_ga_knee_iso",
+            "exercise_id": "cable_leg_extension",
+            "alternative_exercise_ids": [
+              "leg_extension_machine",
+              "sissy_squat_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2459,6 +2620,11 @@
           },
           {
             "slot_id": "ppl6_ga_knee_flexion",
+            "exercise_id": "dumbbell_leg_curl",
+            "alternative_exercise_ids": [
+              "leg_curl_neutral_grip",
+              "nordic_curl_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2480,6 +2646,11 @@
           },
           {
             "slot_id": "ppl6_ga_calf",
+            "exercise_id": "dumbbell_calf_raise",
+            "alternative_exercise_ids": [
+              "leg_press_calf_raise",
+              "seated_calf_raise_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2510,6 +2681,11 @@
         "exercise_slots": [
           {
             "slot_id": "ppl6_pb_vert_push",
+            "exercise_id": "cable_shoulder_press",
+            "alternative_exercise_ids": [
+              "machine_shoulder_press",
+              "smith_machine_overhead_press"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2531,6 +2707,11 @@
           },
           {
             "slot_id": "ppl6_pb_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2552,6 +2733,11 @@
           },
           {
             "slot_id": "ppl6_pb_chest_iso",
+            "exercise_id": "chest_fly",
+            "alternative_exercise_ids": [
+              "incline_fly_machine",
+              "pec_deck_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2573,6 +2759,11 @@
           },
           {
             "slot_id": "ppl6_pb_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2594,6 +2785,11 @@
           },
           {
             "slot_id": "ppl6_pb_triceps",
+            "exercise_id": "cable_triceps_pushdown",
+            "alternative_exercise_ids": [
+              "overhead_extension",
+              "skull_crusher_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2624,6 +2820,11 @@
         "exercise_slots": [
           {
             "slot_id": "ppl6_lb_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2645,6 +2846,11 @@
           },
           {
             "slot_id": "ppl6_lb_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2666,6 +2872,10 @@
           },
           {
             "slot_id": "ppl6_lb_rear_delt",
+            "exercise_id": "rear_delt_fly_tempo",
+            "alternative_exercise_ids": [
+              "face_pull_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2687,6 +2897,11 @@
           },
           {
             "slot_id": "ppl6_lb_biceps",
+            "exercise_id": "barbell_curl",
+            "alternative_exercise_ids": [
+              "cable_curl_machine",
+              "dumbbell_hammer_curl"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2708,6 +2923,11 @@
           },
           {
             "slot_id": "ppl6_lb_core",
+            "exercise_id": "bird_dog_machine",
+            "alternative_exercise_ids": [
+              "cable_pallof_press",
+              "pallof_press_tempo"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2738,6 +2958,11 @@
         "exercise_slots": [
           {
             "slot_id": "ppl6_gb_hinge",
+            "exercise_id": "back_extension_machine",
+            "alternative_exercise_ids": [
+              "cable_pull_through",
+              "kettlebell_swing"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2759,6 +2984,11 @@
           },
           {
             "slot_id": "ppl6_gb_lunge",
+            "exercise_id": "walking_lunge_tempo",
+            "alternative_exercise_ids": [
+              "dumbbell_reverse_lunge",
+              "step_up_dumbbell"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2780,6 +3010,11 @@
           },
           {
             "slot_id": "ppl6_gb_hip_iso",
+            "exercise_id": "machine_hip_thrust",
+            "alternative_exercise_ids": [
+              "glute_bridge_bodyweight",
+              "hip_thrust_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2801,6 +3036,11 @@
           },
           {
             "slot_id": "ppl6_gb_knee_flexion",
+            "exercise_id": "dumbbell_leg_curl",
+            "alternative_exercise_ids": [
+              "leg_curl_neutral_grip",
+              "nordic_curl_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2822,6 +3062,11 @@
           },
           {
             "slot_id": "ppl6_gb_calf",
+            "exercise_id": "dumbbell_calf_raise",
+            "alternative_exercise_ids": [
+              "leg_press_calf_raise",
+              "seated_calf_raise_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2843,6 +3088,11 @@
           },
           {
             "slot_id": "ppl6_gb_core",
+            "exercise_id": "ab_rollout",
+            "alternative_exercise_ids": [
+              "ab_rollout_bodyweight",
+              "ab_rollout_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2888,6 +3138,11 @@
         "exercise_slots": [
           {
             "slot_id": "ul2_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2909,6 +3164,11 @@
           },
           {
             "slot_id": "ul2_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2930,6 +3190,11 @@
           },
           {
             "slot_id": "ul2_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2951,6 +3216,11 @@
           },
           {
             "slot_id": "ul2_vert_push",
+            "exercise_id": "cable_shoulder_press",
+            "alternative_exercise_ids": [
+              "machine_shoulder_press",
+              "smith_machine_overhead_press"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2972,6 +3242,11 @@
           },
           {
             "slot_id": "ul2_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -2993,6 +3268,11 @@
           },
           {
             "slot_id": "ul2_arms",
+            "exercise_id": "barbell_curl",
+            "alternative_exercise_ids": [
+              "cable_curl_machine",
+              "dumbbell_hammer_curl"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3023,6 +3303,11 @@
         "exercise_slots": [
           {
             "slot_id": "ul2_squat",
+            "exercise_id": "bodyweight_squat",
+            "alternative_exercise_ids": [
+              "goblet_squat_dumbbell",
+              "leg_press_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3044,6 +3329,11 @@
           },
           {
             "slot_id": "ul2_hinge",
+            "exercise_id": "back_extension_machine",
+            "alternative_exercise_ids": [
+              "cable_pull_through",
+              "kettlebell_swing"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3065,6 +3355,11 @@
           },
           {
             "slot_id": "ul2_knee_iso",
+            "exercise_id": "cable_leg_extension",
+            "alternative_exercise_ids": [
+              "leg_extension_machine",
+              "sissy_squat_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3086,6 +3381,11 @@
           },
           {
             "slot_id": "ul2_knee_flexion",
+            "exercise_id": "dumbbell_leg_curl",
+            "alternative_exercise_ids": [
+              "leg_curl_neutral_grip",
+              "nordic_curl_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3107,6 +3407,11 @@
           },
           {
             "slot_id": "ul2_calf",
+            "exercise_id": "dumbbell_calf_raise",
+            "alternative_exercise_ids": [
+              "leg_press_calf_raise",
+              "seated_calf_raise_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3128,6 +3433,11 @@
           },
           {
             "slot_id": "ul2_core",
+            "exercise_id": "ab_rollout",
+            "alternative_exercise_ids": [
+              "ab_rollout_bodyweight",
+              "ab_rollout_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3172,6 +3482,11 @@
         "exercise_slots": [
           {
             "slot_id": "ua_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3193,6 +3508,11 @@
           },
           {
             "slot_id": "ua_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3214,6 +3534,11 @@
           },
           {
             "slot_id": "ua_vert_push",
+            "exercise_id": "cable_shoulder_press",
+            "alternative_exercise_ids": [
+              "machine_shoulder_press",
+              "smith_machine_overhead_press"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3235,6 +3560,11 @@
           },
           {
             "slot_id": "ua_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3256,6 +3586,11 @@
           },
           {
             "slot_id": "ua_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3286,6 +3621,11 @@
         "exercise_slots": [
           {
             "slot_id": "la_squat",
+            "exercise_id": "bodyweight_squat",
+            "alternative_exercise_ids": [
+              "goblet_squat_dumbbell",
+              "leg_press_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3307,6 +3647,11 @@
           },
           {
             "slot_id": "la_hinge",
+            "exercise_id": "back_extension_machine",
+            "alternative_exercise_ids": [
+              "cable_pull_through",
+              "kettlebell_swing"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3328,6 +3673,11 @@
           },
           {
             "slot_id": "la_knee_iso",
+            "exercise_id": "cable_leg_extension",
+            "alternative_exercise_ids": [
+              "leg_extension_machine",
+              "sissy_squat_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3349,6 +3699,11 @@
           },
           {
             "slot_id": "la_hip_iso",
+            "exercise_id": "machine_hip_thrust",
+            "alternative_exercise_ids": [
+              "glute_bridge_bodyweight",
+              "hip_thrust_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3370,6 +3725,11 @@
           },
           {
             "slot_id": "la_knee_flexion",
+            "exercise_id": "dumbbell_leg_curl",
+            "alternative_exercise_ids": [
+              "leg_curl_neutral_grip",
+              "nordic_curl_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3400,6 +3760,11 @@
         "exercise_slots": [
           {
             "slot_id": "ub_vert_pull",
+            "exercise_id": "lat_pulldown_machine",
+            "alternative_exercise_ids": [
+              "lat_pulldown_neutral_grip",
+              "chin_up_wide_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3421,6 +3786,11 @@
           },
           {
             "slot_id": "ub_horiz_push",
+            "exercise_id": "close_grip_bench_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_press_tempo",
+              "dumbbell_bench_press_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3442,6 +3812,11 @@
           },
           {
             "slot_id": "ub_horiz_pull",
+            "exercise_id": "seated_cable_row",
+            "alternative_exercise_ids": [
+              "barbell_row_machine",
+              "cable_row"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3463,6 +3838,11 @@
           },
           {
             "slot_id": "ub_lateral",
+            "exercise_id": "lateral_raise_neutral_grip",
+            "alternative_exercise_ids": [
+              "machine_lateral_raise",
+              "dumbbell_lateral_raise"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3484,6 +3864,11 @@
           },
           {
             "slot_id": "ub_arms",
+            "exercise_id": "barbell_curl",
+            "alternative_exercise_ids": [
+              "cable_curl_machine",
+              "dumbbell_hammer_curl"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3514,6 +3899,11 @@
         "exercise_slots": [
           {
             "slot_id": "lb_hinge",
+            "exercise_id": "back_extension_machine",
+            "alternative_exercise_ids": [
+              "cable_pull_through",
+              "kettlebell_swing"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3535,6 +3925,11 @@
           },
           {
             "slot_id": "lb_squat",
+            "exercise_id": "bodyweight_squat",
+            "alternative_exercise_ids": [
+              "goblet_squat_dumbbell",
+              "leg_press_neutral_grip"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3556,6 +3951,11 @@
           },
           {
             "slot_id": "lb_knee_iso",
+            "exercise_id": "cable_leg_extension",
+            "alternative_exercise_ids": [
+              "leg_extension_machine",
+              "sissy_squat_bodyweight"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3577,6 +3977,11 @@
           },
           {
             "slot_id": "lb_lunge",
+            "exercise_id": "walking_lunge_tempo",
+            "alternative_exercise_ids": [
+              "dumbbell_reverse_lunge",
+              "step_up_dumbbell"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [
@@ -3598,6 +4003,11 @@
           },
           {
             "slot_id": "lb_core",
+            "exercise_id": "ab_rollout",
+            "alternative_exercise_ids": [
+              "ab_rollout_bodyweight",
+              "ab_rollout_machine"
+            ],
             "exercise_type": null,
             "target_muscles": [],
             "allowed_movement_patterns": [

@@ -3,6 +3,12 @@
 A template states requirements — "a horizontal push for chest" — and never names an
 exercise. ``ExerciseSlot`` is both that requirement and the filter the catalogue is
 queried with, so the catalogue can change without the template changing.
+
+Every slot also carries a curated default: ``exercise_id`` and ``alternative_exercise_ids``
+are baked in when the template is seeded, so building a plan can copy them directly rather
+than calling ``load_exercise`` for every slot. The requirement fields above stay, for the
+one case that still needs the catalogue — revising a single exercise the default and its
+alternatives do not cover.
 """
 
 from pydantic import BaseModel, Field
@@ -19,6 +25,16 @@ class ExerciseSlot(BaseModel):
     """One exercise the training day needs, described by what it must satisfy."""
 
     slot_id: str = Field(description="Identifier for this slot within the template.")
+    exercise_id: str = Field(
+        description="Catalogue exercise that fills this slot by default."
+    )
+    alternative_exercise_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Curated substitutes for exercise_id, for when the user's equipment or an "
+            "injury rules it out. Prefer these over a fresh load_exercise search."
+        ),
+    )
     exercise_type: str | None = Field(
         default=None, description="Desired exercise type, in words."
     )

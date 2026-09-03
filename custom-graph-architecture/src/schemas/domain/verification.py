@@ -12,22 +12,14 @@ from pydantic import BaseModel, Field
 
 
 class CheckName(StrEnum):
-    """The deterministic rules, one per milestone-5 task."""
+    """The deterministic rules."""
 
     COMPLETENESS = "completeness"
-    MACROS = "macros"
-    VOLUME = "volume"
     AVAILABILITY = "availability"
-    SAFETY = "safety"
 
 
 class Severity(StrEnum):
-    """Whether an issue fails the gate or is only reported alongside a pass.
-
-    Warnings exist because some rules have a soft half: a ``LIMITED`` movement restriction
-    or an ignored preference is worth telling the agent about, but sending a plan back
-    three times over it would strand the user with no plan at all.
-    """
+    """Whether an issue fails the gate. Every deterministic issue fails it."""
 
     ERROR = "error"
     WARNING = "warning"

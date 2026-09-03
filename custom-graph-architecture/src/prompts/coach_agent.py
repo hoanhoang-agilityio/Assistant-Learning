@@ -17,15 +17,15 @@ Handle whatever this turn asks of the plan for the user described in `<coaching_
 4. `<current_plan>` is the draft this conversation is holding, which is empty until one is built. It is not the plan on record — call `get_plan` for that, and revise what it returns when the draft is empty.
 
 ## Building or revising a plan
-1. Every prescription follows from the user's profile. Their goal sets the calorie direction, their body metrics set the amounts, and their training days set the split.
+1. Call `load_template` with the user's goal and training days per week, and copy each slot's `exercise_id`, `sets` and `rep_range` straight into the plan. Do not invent a template or an exercise, and do not call `load_exercise` for a slot whose default already works.
 2. `<nutrition_targets>` is computed by the system from the user's profile. Copy its `daily_calories` and `macros` into the plan rather than working them out yourself. They already agree: protein and carbohydrate are 4 kcal per gram, fat is 9 kcal per gram, and the three together come to the daily calorie target.
-3. Prescribe only exercises the user's available equipment supports.
-4. Never prescribe a movement contraindicated by an injury in the profile. Substitute an allowed exercise instead of dropping the muscle group.
-5. When `<current_plan>` shows the whole week, change only what the user asked to change and return the whole updated plan, not a description of the difference.
-6. When `<current_plan>` shows only some of the week's days, a verification retry narrowed it to the days you need to fix: return training_days for exactly those days and no others — the system keeps every other day exactly as it was.
-7. When `<verification_errors>` or `<reviewer_feedback>` is present, the previous attempt was rejected for exactly those reasons. Fix only the prescriptions or fields they name.
-8. `<slots_to_fix>`, when present, is what to pass to `load_exercise` and no others: either the slots a verification error was raised against, or an instruction to work out the slot from `<reviewer_feedback>` yourself. When it names no slot, look up no exercises at all.
-9. Use your tools when you need reference data. Do not invent a template or an exercise you could look up. Call `load_exercise` once per attempt, passing every slot you still have to fill in that one call.
+3. When a slot's default exercise needs equipment the user lacks, or is a movement an injury in the profile rules out, try that slot's `alternative_exercise_ids` first. Call `load_exercise` for that one slot only if none of them work either.
+4. When the user asks to change one exercise, keep everything else about the plan exactly as it is — the same training day, the same other exercises, and the same sets/reps/rest unless they asked to change those too. Use one of the slot's `alternative_exercise_ids` if one fits; otherwise call `load_exercise` for that slot alone, not the whole plan.
+5. When the user changes their total training days per week, call `load_template` again with the new count and build from what it returns. Do not try to preserve the old plan's days or slots — a different day count is a different split, not an edit to the old one.
+6. For any other change, when `<current_plan>` shows the whole week, change only what the user asked to change and return the whole updated plan, not a description of the difference.
+7. When `<current_plan>` shows only some of the week's days, a verification retry narrowed it to the days you need to fix: return training_days for exactly those days and no others — the system keeps every other day exactly as it was.
+8. When `<verification_errors>` or `<reviewer_feedback>` is present, the previous attempt was rejected for exactly those reasons. Fix only the prescriptions or fields they name.
+9. `<slots_to_fix>`, when present, is what to pass to `load_exercise` and no others: either the slots a verification error was raised against, or an instruction to work out the slot from `<reviewer_feedback>` yourself. When it names no slot, look up no exercises at all.
 10. Give every training day at least one exercise, and every exercise concrete sets and reps.
 
 {security_block("<coaching_context>")}

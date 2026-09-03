@@ -9,15 +9,10 @@ that the verdict routing depends on means what it says.
 import pytest
 
 import src.verification.deterministic.context as plan_context
-from src.enums import (
-    MovementPattern,
-    RestrictionAction,
-)
+from src.enums import BodyRegion, DifficultyLevel, MovementPattern, MuscleGroup
 from src.schemas import (
     CheckName,
     Exercise,
-    Injury,
-    MovementRestriction,
     Severity,
     TrainingPlan,
     UserProfile,
@@ -41,40 +36,17 @@ from tests.test_verification_completeness import (
     plan_of,
 )
 
-# What the fixture plan's macros come to, so the macro rule stays quiet unless a test
-# means it to fire.
-BALANCED_CALORIES = 2114
-
 
 def passing_plan() -> TrainingPlan:
     """A plan that satisfies every rule in the set."""
-    return complete_plan().model_copy(update={"daily_calories": BALANCED_CALORIES})
+    return complete_plan()
 
 
-def plan_broken_three_ways() -> TrainingPlan:
-    """A plan with an unfilled slot and calories that disagree with its own macros."""
+def plan_broken_two_ways() -> TrainingPlan:
+    """A plan with an unfilled slot, and a slot filled with the wrong muscle entirely."""
     return plan_of(
-        day(1, "Upper", ("d1-s1", "ex-bench-press")),
+        day(1, "Upper", ("d1-s1", "ex-back-squat")),
         day(2, "Lower", ("d2-s1", "ex-back-squat")),
-    )
-
-
-def profile_with_shoulder(action: RestrictionAction) -> UserProfile:
-    """The fixture user, with a shoulder injury the bench press runs into."""
-    return PROFILE.model_copy(
-        update={
-            "injuries": [
-                Injury(
-                    body_part="shoulder",
-                    restrictions=[
-                        MovementRestriction(
-                            movement_pattern=MovementPattern.HORIZONTAL_PUSH,
-                            action=action,
-                        )
-                    ],
-                )
-            ]
-        }
     )
 
 
@@ -105,33 +77,21 @@ def test_every_rule_stays_quiet_on_a_good_plan() -> None:
 
 def test_a_plan_broken_several_ways_is_reported_in_full() -> None:
     """Stopping at the first failure would spend the retry budget one fix at a time."""
-    result = run_rules(
-        context_for(
-            plan_broken_three_ways(),
-            profile_with_shoulder(RestrictionAction.PROHIBITED),
-        )
-    )
+    result = run_rules(context_for(plan_broken_two_ways()))
 
     assert {issue.check for issue in result.errors} == {
         CheckName.COMPLETENESS,
-        CheckName.MACROS,
-        CheckName.SAFETY,
+        CheckName.AVAILABILITY,
     }
 
 
 def test_the_issues_come_back_in_the_order_the_rules_ran() -> None:
-    """The order is what the coach agent reads: what is missing, wrong, then unsafe."""
-    result = run_rules(
-        context_for(
-            plan_broken_three_ways(),
-            profile_with_shoulder(RestrictionAction.PROHIBITED),
-        )
-    )
+    """The order is what the coach agent reads: what is missing, then what does not fit."""
+    result = run_rules(context_for(plan_broken_two_ways()))
 
     assert [issue.check for issue in result.issues] == [
         CheckName.COMPLETENESS,
-        CheckName.MACROS,
-        CheckName.SAFETY,
+        CheckName.AVAILABILITY,
     ]
 
 
@@ -144,10 +104,34 @@ def test_a_good_plan_comes_back_with_nothing_to_say() -> None:
 
 
 def test_a_warning_is_collected_without_failing_the_plan() -> None:
-    """A limited movement is worth telling the agent about, not worth a retry over."""
-    result = run_rules(
-        context_for(passing_plan(), profile_with_shoulder(RestrictionAction.LIMITED))
+    """A slot filled by an exercise that only trains its muscle as a secondary is worth
+    telling the agent about, not worth a retry over."""
+    row_secondary_chest = Exercise(
+        id="ex-row-secondary-chest",
+        name="Chest-supported row",
+        body_region=BodyRegion.UPPER,
+        primary_muscles=[MuscleGroup.BACK],
+        secondary_muscles=[MuscleGroup.CHEST],
+        movement_pattern=MovementPattern.HORIZONTAL_PULL,
+        difficulty=DifficultyLevel.BEGINNER,
     )
+    plan = plan_of(
+        day(
+            1,
+            "Upper",
+            ("d1-s1", "ex-row-secondary-chest"),
+            ("d1-s2", "ex-cable-row"),
+        ),
+        day(2, "Lower", ("d2-s1", "ex-back-squat")),
+    )
+    context = PlanContext(
+        plan=plan,
+        profile=PROFILE,
+        template=TEMPLATE,
+        exercises={**CATALOGUE, row_secondary_chest.id: row_secondary_chest},
+    )
+
+    result = run_rules(context)
 
     assert [issue.severity for issue in result.issues] == [Severity.WARNING]
     assert result.passed
@@ -235,7 +219,9 @@ async def test_an_invented_exercise_is_simply_absent(
 
 def test_an_issue_fails_the_gate_unless_it_says_otherwise() -> None:
     """A rule that forgets to set a severity must not quietly let a plan through."""
-    issue = VerificationIssue(check=CheckName.SAFETY, message="Something is wrong.")
+    issue = VerificationIssue(
+        check=CheckName.AVAILABILITY, message="Something is wrong."
+    )
 
     assert issue.severity is Severity.ERROR
 
@@ -243,7 +229,7 @@ def test_an_issue_fails_the_gate_unless_it_says_otherwise() -> None:
 def test_a_result_holding_an_error_cannot_claim_to_pass() -> None:
     """``passed`` is derived rather than set: the routing depends on that invariant."""
     result = VerificationResult(
-        issues=[VerificationIssue(check=CheckName.MACROS, message="Wrong.")]
+        issues=[VerificationIssue(check=CheckName.COMPLETENESS, message="Wrong.")]
     )
 
     assert not result.passed
@@ -251,9 +237,11 @@ def test_a_result_holding_an_error_cannot_claim_to_pass() -> None:
 
 def test_errors_and_warnings_are_told_apart() -> None:
     """Only errors send the plan back; a warning that did would strand the user."""
-    error = VerificationIssue(check=CheckName.MACROS, message="Wrong.")
+    error = VerificationIssue(check=CheckName.COMPLETENESS, message="Wrong.")
     warning = VerificationIssue(
-        check=CheckName.VOLUME, message="A little light.", severity=Severity.WARNING
+        check=CheckName.AVAILABILITY,
+        message="A little light.",
+        severity=Severity.WARNING,
     )
 
     result = VerificationResult(issues=[error, warning])
@@ -268,7 +256,7 @@ def test_warnings_alone_leave_the_gate_open() -> None:
     result = VerificationResult(
         issues=[
             VerificationIssue(
-                check=CheckName.VOLUME,
+                check=CheckName.AVAILABILITY,
                 message="A little light.",
                 severity=Severity.WARNING,
             )
@@ -296,13 +284,10 @@ async def test_a_good_plan_passes_the_whole_gate(catalogue: list[list[str]]) -> 
 
 async def test_a_bad_plan_fails_the_whole_gate(catalogue: list[list[str]]) -> None:
     """The same path for a plan that must not reach the user."""
-    result = await verify_plan(
-        plan_broken_three_ways(), profile_with_shoulder(RestrictionAction.PROHIBITED)
-    )
+    result = await verify_plan(plan_broken_two_ways(), PROFILE)
 
     assert not result.passed
     assert {issue.check for issue in result.errors} == {
         CheckName.COMPLETENESS,
-        CheckName.MACROS,
-        CheckName.SAFETY,
+        CheckName.AVAILABILITY,
     }

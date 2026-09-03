@@ -189,33 +189,86 @@ def _day_region(
     return BodyRegion.FULL_BODY
 
 
+MAX_ALTERNATIVES = 2
+
+
+def _fill_slot(
+    slot: dict[str, Any],
+    body_region: BodyRegion,
+    exercises: dict[str, Exercise],
+    skill_by_id: dict[str, int],
+    used_ids: set[str],
+) -> dict[str, Any]:
+    """Pick the slot's exercise and a couple of curated alternatives.
+
+    Filtered by the day's region and the slot's movement pattern — the same criteria the
+    old runtime lookup used — then ranked by skill level (a beginner default is the safer
+    one) and by not already used elsewhere in the day, so a day's slots do not all repeat
+    the same movement.
+    """
+    pattern = _pattern(slot["pattern"])
+    candidates = [
+        exercise
+        for exercise in exercises.values()
+        if exercise.movement_pattern is pattern and exercise.body_region is body_region
+    ] or [
+        exercise
+        for exercise in exercises.values()
+        if exercise.movement_pattern is pattern
+    ]
+
+    candidates.sort(
+        key=lambda exercise: (
+            exercise.id in used_ids,
+            skill_by_id[exercise.id],
+            exercise.id,
+        )
+    )
+    if not candidates:
+        raise ValueError(f"No exercise fits slot {slot['slot_id']} ({pattern.value})")
+
+    chosen, *rest = candidates
+    alternatives = [exercise.id for exercise in rest[:MAX_ALTERNATIVES]]
+    used_ids.add(chosen.id)
+    used_ids.update(alternatives)
+
+    return {
+        "slot_id": slot["slot_id"],
+        "exercise_id": chosen.id,
+        "alternative_exercise_ids": alternatives,
+        "allowed_movement_patterns": [pattern],
+        "sets": slot.get("sets"),
+        "rep_range": slot.get("reps"),
+        "rir_range": slot.get("rir"),
+    }
+
+
 def convert_template(
-    row: dict[str, Any], exercises: dict[str, Exercise]
+    row: dict[str, Any], exercises: dict[str, Exercise], skill_by_id: dict[str, int]
 ) -> WorkoutTemplate:
-    """Convert one source template, carrying its prescribed volume onto the slots."""
+    """Convert one source template, baking a fixed exercise into each of its slots."""
+    training_days = []
+    for number, day in enumerate(row["days"], start=1):
+        body_region = _day_region(day["slots"], exercises)
+        used_ids: set[str] = set()
+        training_days.append(
+            {
+                "day_number": number,
+                "name": day["name"],
+                "body_region": body_region,
+                "exercise_slots": [
+                    _fill_slot(slot, body_region, exercises, skill_by_id, used_ids)
+                    for slot in day["slots"]
+                ],
+            }
+        )
+
     return WorkoutTemplate(
         id=row["template_id"],
         name=row["name"],
         goals=[GOALS[goal] for goal in row["goal"]],
         popularity=row.get("popularity", 0),
-        training_days=[
-            {
-                "day_number": number,
-                "name": day["name"],
-                "body_region": _day_region(day["slots"], exercises),
-                "exercise_slots": [
-                    {
-                        "slot_id": slot["slot_id"],
-                        "allowed_movement_patterns": [_pattern(slot["pattern"])],
-                        "sets": slot.get("sets"),
-                        "rep_range": slot.get("reps"),
-                        "rir_range": slot.get("rir"),
-                    }
-                    for slot in day["slots"]
-                ],
-            }
-            for number, day in enumerate(row["days"], start=1)
-        ],
+        training_days=training_days,
     )
 
 
@@ -239,7 +292,10 @@ def main(source_dir: Path = SOURCE_DIR) -> None:
     reject_duration_rows(source_exercises)
 
     exercises = {row["id"]: convert_exercise(row) for row in source_exercises}
-    templates = [convert_template(row, exercises) for row in source_templates]
+    skill_by_id = {row["id"]: row["skill_level"] for row in source_exercises}
+    templates = [
+        convert_template(row, exercises, skill_by_id) for row in source_templates
+    ]
 
     OUTPUT_DIR.mkdir(exist_ok=True)
     (OUTPUT_DIR / "exercises.json").write_text(

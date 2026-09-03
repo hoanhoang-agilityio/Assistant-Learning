@@ -104,6 +104,7 @@ CATALOGUE = {
 
 CHEST_SLOT = ExerciseSlot(
     slot_id="d1-s1",
+    exercise_id="ex-bench-press",
     target_muscles=[MuscleGroup.CHEST],
     allowed_movement_patterns=[MovementPattern.HORIZONTAL_PUSH],
     required_body_region=BodyRegion.UPPER,
@@ -111,6 +112,7 @@ CHEST_SLOT = ExerciseSlot(
 
 REAR_DELT_SLOT = ExerciseSlot(
     slot_id="d1-s2",
+    exercise_id="ex-lateral-raise",
     target_muscles=[MuscleGroup.REAR_DELTS],
     excluded_movement_patterns=[MovementPattern.HORIZONTAL_PUSH],
 )
@@ -250,7 +252,9 @@ def test_a_movement_pattern_the_slot_does_not_take_fails_the_gate() -> None:
 def test_an_excluded_pattern_fails_even_with_no_allowed_list() -> None:
     """A slot that names only what it refuses still refuses it."""
     slot = ExerciseSlot(
-        slot_id="d1-s1", excluded_movement_patterns=[MovementPattern.HORIZONTAL_PUSH]
+        slot_id="d1-s1",
+        exercise_id="ex-push-up",
+        excluded_movement_patterns=[MovementPattern.HORIZONTAL_PUSH],
     )
     template = TEMPLATE.model_copy(deep=True)
     template.training_days[0].exercise_slots = [slot]
@@ -275,6 +279,7 @@ def test_training_the_slots_muscle_only_as_a_secondary_is_a_warning() -> None:
     """The day still gets the work, further down the exercise than the template intended."""
     slot = ExerciseSlot(
         slot_id="d1-s1",
+        exercise_id="ex-bench-press",
         target_muscles=[MuscleGroup.TRICEPS],
         allowed_movement_patterns=[MovementPattern.HORIZONTAL_PUSH],
         required_body_region=BodyRegion.UPPER,
@@ -293,6 +298,7 @@ def test_one_primary_hit_satisfies_a_slot_naming_several_muscles() -> None:
     """A slot asks for an exercise that covers its muscles, not for all of them at once."""
     slot = ExerciseSlot(
         slot_id="d1-s1",
+        exercise_id="ex-bench-press",
         target_muscles=[MuscleGroup.CHEST, MuscleGroup.SHOULDERS],
         allowed_movement_patterns=[MovementPattern.HORIZONTAL_PUSH],
     )
@@ -310,7 +316,9 @@ def test_one_primary_hit_satisfies_a_slot_naming_several_muscles() -> None:
 def test_a_slot_naming_no_muscles_accepts_any_of_them() -> None:
     """Not every slot is written for a muscle; some only constrain the movement."""
     slot = ExerciseSlot(
-        slot_id="d1-s1", allowed_movement_patterns=[MovementPattern.HORIZONTAL_PUSH]
+        slot_id="d1-s1",
+        exercise_id="ex-push-up",
+        allowed_movement_patterns=[MovementPattern.HORIZONTAL_PUSH],
     )
     template = TEMPLATE.model_copy(deep=True)
     template.training_days[0].exercise_slots = [slot]
@@ -327,6 +335,7 @@ def test_the_wrong_body_region_fails_the_gate() -> None:
     """An upper day filled with a squat is not the week the template describes."""
     slot = ExerciseSlot(
         slot_id="d1-s1",
+        exercise_id="ex-back-squat",
         target_muscles=[MuscleGroup.QUADS],
         required_body_region=BodyRegion.UPPER,
     )
@@ -352,6 +361,7 @@ def test_an_error_is_never_displaced_by_a_warning() -> None:
     """The muscle finding is reported first, but not when it is the softer of the two."""
     slot = ExerciseSlot(
         slot_id="d1-s1",
+        exercise_id="ex-skull-crusher",
         target_muscles=[MuscleGroup.TRICEPS],
         allowed_movement_patterns=[MovementPattern.ELBOW_EXTENSION],
     )

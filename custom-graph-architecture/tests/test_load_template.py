@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from src.enums import FitnessGoal
-from src.schemas import WorkoutTemplate
+from src.enums import BodyRegion, FitnessGoal
+from src.schemas import ExerciseSlot, WorkoutDayTemplate, WorkoutTemplate
 from src.services import catalogue
 from src.tools import COACH_TOOLS, load_template
 from src.tools.load_template import NO_TEMPLATE, clamp_training_days
@@ -47,11 +47,35 @@ def test_the_template_training_the_requested_week_wins(templates) -> None:
     assert best.days_per_week == 3
 
 
-def test_popularity_breaks_a_tie(templates) -> None:
-    """Two templates train three days a week; the ranking has to choose between them."""
-    best = catalogue.rank_templates(templates, 3)[0]
+def _template(id: str, *, days: int, popularity: int) -> WorkoutTemplate:
+    """A minimal template of a given length and popularity, for ranking tests only."""
+    return WorkoutTemplate(
+        id=id,
+        name=id,
+        goals=[FitnessGoal.GENERAL_FITNESS],
+        popularity=popularity,
+        training_days=[
+            WorkoutDayTemplate(
+                day_number=day_number,
+                name=f"Day {day_number}",
+                body_region=BodyRegion.FULL_BODY,
+                exercise_slots=[
+                    ExerciseSlot(slot_id=f"s{day_number}", exercise_id="ex-1")
+                ],
+            )
+            for day_number in range(1, days + 1)
+        ],
+    )
 
-    assert best.id == "full_body_3day"
+
+def test_popularity_breaks_a_tie() -> None:
+    """Two templates training the same week; the more popular one wins."""
+    less_popular = _template("less-popular", days=3, popularity=1)
+    more_popular = _template("more-popular", days=3, popularity=9)
+
+    best = catalogue.rank_templates([less_popular, more_popular], 3)[0]
+
+    assert best.id == "more-popular"
 
 
 def test_the_ends_of_the_range_have_a_template_of_their_own(templates) -> None:
@@ -238,7 +262,6 @@ async def test_the_goal_filter_runs_in_the_database(require_postgres: None) -> N
 
     assert {template.id for template in matching} == {
         "full_body_1day",
-        "full_body_3day",
         "upper_lower_2day",
     }
 

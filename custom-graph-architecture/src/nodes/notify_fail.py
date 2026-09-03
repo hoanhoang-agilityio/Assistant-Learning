@@ -27,10 +27,7 @@ NOTIFY_FAIL_OUTRO = (
 
 CHECK_SUMMARIES: dict[CheckName, str] = {
     CheckName.COMPLETENESS: "the plan came out incomplete",
-    CheckName.MACROS: "the calorie and macro targets didn't add up",
-    CheckName.VOLUME: "the training volume didn't fit the days you train",
-    CheckName.AVAILABILITY: "some exercises needed equipment you don't have",
-    CheckName.SAFETY: "some exercises clashed with an injury on your profile",
+    CheckName.AVAILABILITY: "some exercises didn't fit what you have available",
 }
 
 
