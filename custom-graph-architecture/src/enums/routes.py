@@ -10,22 +10,6 @@ class GuardRoute(StrEnum):
     PASS = "pass"
 
 
-class Intent(StrEnum):
-    """The top-level intents, answered by ``route_after_parse`` and ``route_after_context``."""
-
-    COACHING = "coaching"
-    QA = "qa"
-    OFF_TOPIC = "off_topic"
-
-
-class ProfileRoute(StrEnum):
-    """What ``route_after_profile_check`` may answer."""
-
-    COMPLETE = "complete"
-    ASK = "ask"
-    EXHAUSTED = "exhausted"
-
-
 class VerificationRoute(StrEnum):
     """What ``route_after_verification`` may answer."""
 
@@ -48,15 +32,6 @@ class FaithfulnessRoute(StrEnum):
     PASS = "pass"
     RETRY = "retry"
     FALLBACK = "fallback"
-
-
-class HitlRoute(StrEnum):
-    """What ``route_after_hitl_review`` may answer."""
-
-    APPROVE = "approve"
-    REVISE = "revise"
-    NO_FEEDBACK = "no_feedback"
-    EXHAUSTED = "exhausted"
 
 
 class UserAgentRoute(StrEnum):
@@ -88,10 +63,7 @@ __all__ = [
     "CoachRoute",
     "FaithfulnessRoute",
     "GuardRoute",
-    "HitlRoute",
-    "Intent",
     "PlanApprovalRoute",
-    "ProfileRoute",
     "SupervisorRoute",
     "UserAgentRoute",
     "VerificationRoute",

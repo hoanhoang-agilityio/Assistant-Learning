@@ -101,12 +101,6 @@ _exercise_cache: dict[
 ] = {}
 
 
-def clear_exercise_cache() -> None:
-    """Drop every cached catalogue row — for tests, or after the catalogue changes."""
-
-    _exercise_cache.clear()
-
-
 async def _query_exercises(
     movement_patterns: list[MovementPattern], body_region: BodyRegion | None
 ) -> list[Exercise]:

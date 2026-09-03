@@ -4,8 +4,6 @@ These are read, never written by the agent: an exercise the coach agent prescrib
 be one of these rows, which is what stops it inventing movements.
 """
 
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
 from src.enums import (
@@ -16,8 +14,6 @@ from src.enums import (
     MuscleGroup,
 )
 
-MusclePriority = Literal["primary", "secondary"]
-
 
 class ExerciseContraindication(BaseModel):
     """A condition under which an exercise must not be selected."""
@@ -27,19 +23,6 @@ class ExerciseContraindication(BaseModel):
         default_factory=list, description="Contraindicated movement patterns."
     )
     reason: str | None = Field(default=None)
-
-
-class ExerciseMuscleTarget(BaseModel):
-    """A muscle an exercise trains, and how central it is to the movement.
-
-    Specified by the spec alongside ``Exercise``, which carries its primary and secondary
-    muscles as two plain lists rather than through this model.
-    """
-
-    muscle: MuscleGroup = Field(description="Target muscle group.")
-    priority: MusclePriority = Field(
-        description="Whether the role is primary or secondary."
-    )
 
 
 class Exercise(BaseModel):

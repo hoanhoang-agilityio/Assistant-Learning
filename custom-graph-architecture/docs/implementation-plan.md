@@ -176,6 +176,13 @@ All three are addressed as `("users", user_id, scope)` and reached through `src/
 — the one gateway to the store. Facts are what `load_user_context` reads and `persist_profile` writes;
 preferences and accumulated knowledge reach the coach agent through the `recall_memory` tool.
 
+> **Deviation (03/09).** Not built as specified. The supervisor migration removed the node that
+> wrote preferences, leaving `recall_memory` to answer "nothing recorded" for every user, so the
+> tool, `src/services/preferences.py` and `src/services/turn.py` were deleted. `MemoryScope` was
+> then narrowed to *facts*, the one scope with a writer: an addressable scope nothing fills reads
+> as working memory right up until every lookup comes back empty. The store today holds the
+> profile under `("users", user_id, "facts")` and the plan under `("users", user_id, "plan")`.
+
 ## 8. RAG design
 
 ![RAG flow](diagrams/rag-flow.png)

@@ -55,34 +55,6 @@ class AuthService:
             result = await session.execute(select(User).where(User.email == email))
             return result.scalars().first()
 
-    async def delete_user_by_email(self, email: str) -> bool:
-        """Delete a user and everything hanging off them.
-
-        Sessions and refresh tokens carry a foreign key to ``user.id`` with no database
-        cascade, so they are removed first — otherwise the delete fails on the
-        constraint rather than doing what it says.
-
-        Returns:
-            bool: False when no such user exists.
-        """
-        async with session_factory() as session:
-            result = await session.execute(select(User).where(User.email == email))
-            user = result.scalars().first()
-            if user is None:
-                return False
-
-            for model in (ChatSession, RefreshToken):
-                rows = await session.execute(
-                    select(model).where(col(model.user_id) == user.id)
-                )
-                for row in rows.scalars().all():
-                    await session.delete(row)
-
-            await session.delete(user)
-            await session.commit()
-            logger.info("user_deleted", user_id=user.id)
-            return True
-
     # ------------------------------------------------------------- sessions
 
     async def create_session(

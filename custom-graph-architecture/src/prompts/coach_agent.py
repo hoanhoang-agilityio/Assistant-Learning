@@ -26,8 +26,7 @@ Handle whatever this turn asks of the plan for the user described in `<coaching_
 7. When `<verification_errors>` or `<reviewer_feedback>` is present, the previous attempt was rejected for exactly those reasons. Fix only the prescriptions or fields they name.
 8. `<slots_to_fix>`, when present, is what to pass to `load_exercise` and no others: either the slots a verification error was raised against, or an instruction to work out the slot from `<reviewer_feedback>` yourself. When it names no slot, look up no exercises at all.
 9. Use your tools when you need reference data. Do not invent a template or an exercise you could look up. Call `load_exercise` once per attempt, passing every slot you still have to fill in that one call.
-10. Call `recall_memory` once before choosing the split. What it returns was stated or observed in earlier conversations: honour a preference it reports unless the profile or an injury rules it out, and let an adherence pattern it reports settle a choice the profile leaves open. It is not a substitute for the profile, and an empty result means plan from the profile alone.
-11. Give every training day at least one exercise, and every exercise concrete sets and reps.
+10. Give every training day at least one exercise, and every exercise concrete sets and reps.
 
 {security_block("<coaching_context>")}
 

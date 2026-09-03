@@ -166,11 +166,12 @@ Group C — session & input handling.
 | 29/08 | Name a conversation from its first turn instead of "New chat" | 1.5 | | Todo |
 | 29/08 | Cap the chat input and align it with `GUARD_MAX_INPUT_TOKENS` | 0.5 | | Todo |
 
-Group D — long-term memory. `recall_memory` reads two scopes; nothing has ever written
-either, so it answers "nothing recorded" for every user.
+Group D — long-term memory. Closed by removal: the supervisor migration deleted the node
+that wrote preferences, so `recall_memory` answered "nothing recorded" for every user.
 
 | Date | Task | Est | Actual | Status |
 |---|---|---|---|---|
-| 29/08 | Record the preferences a turn states, in the parse call that already runs | 2 | 2 | Done |
-| 29/08 | Narrow `recall_memory` to the one scope something writes | 0.5 | | Todo |
-| 29/08 | Name the writer of every memory scope in the plan doc | 0.5 | | Todo |
+| 29/08 | Record the preferences a turn states, in the parse call that already runs | 2 | 2 | Done — orphaned by the supervisor migration, then removed |
+| 03/09 | Delete `preferences.py`, `turn.py` and the `recall_memory` tool | 0.5 | 0.5 | Done |
+| 03/09 | Drop `MemoryScope.PREFERENCES` and `MemoryScope.KNOWLEDGE`, leaving the one scope with a writer | 0.5 | 0.5 | Done |
+| 03/09 | Sweep the rest of the dead code: three orphaned route enums, five unused definitions, the `tenacity` pin | 1 | 1 | Done — UI left untouched |

@@ -264,7 +264,6 @@ class Settings(BaseSettings):
     )
 
     # --- Logging ---------------------------------------------------------------------
-    LOG_DIR: Path = Path("logs")
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
 

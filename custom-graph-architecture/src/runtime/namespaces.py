@@ -4,18 +4,16 @@ from enum import StrEnum
 
 
 class MemoryScope(StrEnum):
-    """The three kinds of long-term user memory named in the spec.
+    """The kinds of long-term user memory that have a writer.
+
+    The spec named three. ``PREFERENCES`` and ``KNOWLEDGE`` were removed once the
+    supervisor migration deleted the node that wrote them: an addressable scope nothing
+    fills reads as working memory right up until every lookup comes back empty.
 
     Attributes:
-        PREFERENCES: Preferred workout schedule, favourite exercises, dietary preferences,
-            preferred response style.
-        KNOWLEDGE: Behavioural patterns learned over time, e.g. skips workouts longer than
-            60 minutes, adheres better to 4-day plans.
         FACTS: Name, age, weight, sex, activity level, goal, equipment, injuries.
     """
 
-    PREFERENCES = "preferences"
-    KNOWLEDGE = "knowledge"
     FACTS = "facts"
 
 

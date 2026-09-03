@@ -7,10 +7,9 @@ from src.tools.load_exercise import load_exercise
 from src.tools.load_template import load_template
 from src.tools.plan import get_plan
 from src.tools.profile import get_user_profile, update_user_profile
-from src.tools.recall_memory import recall_memory
 from src.tools.search_knowledge import search_knowledge
 
-COACH_TOOLS: list[BaseTool] = [get_plan, load_template, load_exercise, recall_memory]
+COACH_TOOLS: list[BaseTool] = [get_plan, load_template, load_exercise]
 
 QA_TOOLS: list[BaseTool] = [search_knowledge, calc_macro]
 
@@ -25,7 +24,6 @@ __all__ = [
     "get_user_profile",
     "load_exercise",
     "load_template",
-    "recall_memory",
     "search_knowledge",
     "update_user_profile",
 ]

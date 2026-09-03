@@ -1,7 +1,8 @@
 # Pydantic data models and specification
 
 Transcribed from the implementation-detail spec (PDF pp. 16–26). Implemented in
-`src/schemas/domain/` — `enums.py`, `profile.py`, `exercise.py`, `template.py`, `plan.py`.
+`src/schemas/domain/` — `profile.py`, `exercise.py`, `template.py`, `plan.py`,
+`verification.py`. The enumerations below live in `src/enums/domain.py`.
 
 ## Enumerations
 
@@ -155,6 +156,10 @@ An injury/body-part condition under which an exercise should not be selected.
 |---|---|---|---|
 | `muscle` | `MuscleGroup` | Target muscle group | Yes |
 | `priority` | `str` | Muscle involvement role (`primary` or `secondary`) | Yes |
+
+> **Deviation (03/09).** Not implemented, and removed from `src/schemas/domain/exercise.py`.
+> `Exercise` carries `primary_muscles` and `secondary_muscles` as two plain lists, which
+> encodes the same priority in the field name, so nothing ever constructed this model.
 
 ### `Exercise`
 

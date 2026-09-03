@@ -6,8 +6,6 @@ raw ``psycopg_pool.AsyncConnectionPool`` because it needs autocommit and dict ro
 of which the ORM wants.
 """
 
-from collections.abc import AsyncIterator
-
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -30,22 +28,6 @@ session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
 )
-
-
-async def get_session() -> AsyncIterator[AsyncSession]:
-    """Yield a database session, rolling back if the caller raises.
-
-    Intended as a FastAPI dependency and as an ``async with`` context inside services.
-
-    Yields:
-        AsyncSession: A session bound to the application engine.
-    """
-    async with session_factory() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
 
 
 async def close_engine() -> None:

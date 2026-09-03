@@ -22,8 +22,8 @@ from src.configs.config import PersistenceBackend
 from src.runtime import MemoryScope, namespace_for
 from src.runtime.backends import RUNTIMES, build_runtime
 from src.runtime.base import GraphRuntime
-from src.services.memory import delete, load_user_memory, recall, save
-from src.services.profile import load_profile, save_profile
+from src.services.memory import delete, recall
+from src.services.profile import PROFILE_KEY, load_profile, save_profile
 
 USER_ID = "separation-user"
 OTHER_USER_ID = "separation-user-2"
@@ -31,7 +31,6 @@ THREAD_A = "separation-thread-a"
 THREAD_B = "separation-thread-b"
 
 PROFILE = {"age": 34, "goal": "FAT_LOSS"}
-FOUR_DAY_SPLIT = {"days_per_week": 4}
 
 _NEEDS_SERVICE = {PersistenceBackend.POSTGRES}
 
@@ -46,8 +45,7 @@ class _State(TypedDict):
 
 async def _recall(state: _State) -> _State:
     """Read long-term memory into the run, the way ``load_user_context`` does."""
-    memory = await load_user_memory(state["user_id"])
-    return {"recalled": memory.preferences}
+    return {"recalled": await load_profile(state["user_id"]) or {}}
 
 
 async def _ask(state: _State) -> _State:
@@ -118,6 +116,16 @@ async def _clear(runtime: GraphRuntime) -> None:
                 await store.adelete(namespace, item.key)
 
 
+async def _stored_entries(runtime: GraphRuntime, user_id: str) -> list[str]:
+    """Every key the store holds for a user, across every scope."""
+    store = await runtime.store()
+    return [
+        item.key
+        for scope in MemoryScope
+        for item in await store.asearch(namespace_for(user_id, scope), limit=100)
+    ]
+
+
 # --- A new conversation --------------------------------------------------------------------
 
 
@@ -138,27 +146,26 @@ async def test_a_new_thread_still_sees_what_the_store_recorded(
 ) -> None:
     """The point of the split: the conversation resets and the user does not."""
     saver = await runtime.checkpointer()
-    await save(USER_ID, MemoryScope.PREFERENCES, "schedule", FOUR_DAY_SPLIT)
     await save_profile(USER_ID, PROFILE)
 
     await _build(saver).ainvoke({"user_id": USER_ID}, _config(THREAD_B))
 
     state = await _build(saver).aget_state(_config(THREAD_B))
-    assert state.values["recalled"] == {"schedule": FOUR_DAY_SPLIT}
+    assert state.values["recalled"] == PROFILE
     assert await load_profile(USER_ID) == PROFILE
 
 
 async def test_two_threads_read_one_users_memory(runtime: GraphRuntime) -> None:
     """Two conversations at once are two checkpoints over a single long-term memory."""
     saver = await runtime.checkpointer()
-    await save(USER_ID, MemoryScope.PREFERENCES, "schedule", FOUR_DAY_SPLIT)
+    await save_profile(USER_ID, PROFILE)
 
     await _build(saver).ainvoke({"user_id": USER_ID}, _config(THREAD_A))
     await _build(saver).ainvoke({"user_id": USER_ID}, _config(THREAD_B))
 
     for thread_id in (THREAD_A, THREAD_B):
         state = await _build(saver).aget_state(_config(thread_id))
-        assert state.values["recalled"] == {"schedule": FOUR_DAY_SPLIT}
+        assert state.values["recalled"] == PROFILE
 
 
 async def test_a_suspended_run_keeps_its_own_state_while_another_thread_runs(
@@ -187,7 +194,7 @@ async def test_run_state_is_never_written_to_long_term_memory(
     await _build(saver).ainvoke({"user_id": USER_ID}, _config(THREAD_A))
     await _build(saver).ainvoke(Command(resume="4"), _config(THREAD_A))
 
-    assert (await load_user_memory(USER_ID)).is_empty
+    assert await _stored_entries(runtime, USER_ID) == []
     assert await load_profile(USER_ID) is None
 
 
@@ -198,7 +205,7 @@ async def test_a_long_term_write_does_not_touch_the_running_thread(
     saver = await runtime.checkpointer()
     await _build(saver).ainvoke({"user_id": USER_ID}, _config(THREAD_A))
 
-    await save(USER_ID, MemoryScope.PREFERENCES, "schedule", FOUR_DAY_SPLIT)
+    await save_profile(USER_ID, PROFILE)
 
     state = await _build(saver).aget_state(_config(THREAD_A))
     assert state.values["recalled"] == {}
@@ -210,7 +217,7 @@ async def test_one_users_memory_is_not_reachable_from_anothers_thread(
 ) -> None:
     """The store's key is the user, so a shared thread id would still not share memory."""
     saver = await runtime.checkpointer()
-    await save(USER_ID, MemoryScope.PREFERENCES, "schedule", FOUR_DAY_SPLIT)
+    await save_profile(USER_ID, PROFILE)
 
     await _build(saver).ainvoke({"user_id": OTHER_USER_ID}, _config(THREAD_A))
 
@@ -224,27 +231,25 @@ async def test_deleting_a_thread_leaves_the_user_intact(runtime: GraphRuntime) -
     """Clearing a conversation is what the UI offers; it must not clear the profile."""
     saver = await runtime.checkpointer()
     await save_profile(USER_ID, PROFILE)
-    await save(USER_ID, MemoryScope.PREFERENCES, "schedule", FOUR_DAY_SPLIT)
     await _build(saver).ainvoke({"user_id": USER_ID}, _config(THREAD_A))
 
     await saver.adelete_thread(THREAD_A)
 
     assert (await _build(saver).aget_state(_config(THREAD_A))).values == {}
     assert await load_profile(USER_ID) == PROFILE
-    assert await recall(USER_ID, MemoryScope.PREFERENCES, "schedule") == FOUR_DAY_SPLIT
 
 
 async def test_forgetting_a_memory_leaves_the_thread_intact(
     runtime: GraphRuntime,
 ) -> None:
-    """The reverse direction: dropping a stored preference must not lose a suspended run."""
+    """The reverse direction: dropping the stored profile must not lose a suspended run."""
     saver = await runtime.checkpointer()
-    await save(USER_ID, MemoryScope.PREFERENCES, "schedule", FOUR_DAY_SPLIT)
+    await save_profile(USER_ID, PROFILE)
     await _build(saver).ainvoke({"user_id": USER_ID}, _config(THREAD_A))
 
-    await delete(USER_ID, MemoryScope.PREFERENCES, "schedule")
+    await delete(USER_ID, MemoryScope.FACTS, PROFILE_KEY)
 
-    assert await recall(USER_ID, MemoryScope.PREFERENCES, "schedule") is None
+    assert await recall(USER_ID, MemoryScope.FACTS, PROFILE_KEY) is None
     assert (await _build(saver).aget_state(_config(THREAD_A))).next == ("ask",)
     assert (await _build(saver).ainvoke(Command(resume="4"), _config(THREAD_A)))[
         "draft"

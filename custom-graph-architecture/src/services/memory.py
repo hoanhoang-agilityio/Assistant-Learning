@@ -1,12 +1,9 @@
-"""The user's long-term memory: preferences, accumulated knowledge and facts.
+"""The user's long-term memory: the profile facts and the current plan.
 
-One accessor set over ``BaseStore`` for all three scopes in ``MemoryScope``. Everything
-here is keyed by ``user_id`` and outlives the thread it was written on — the checkpointer
-holds the run, this holds the user.
+One accessor set over ``BaseStore``. Everything here is keyed by ``user_id`` and outlives
+the thread it was written on — the checkpointer holds the run, this holds the user.
 """
 
-import asyncio
-from dataclasses import dataclass
 from typing import Any
 
 from src.runtime import (
@@ -18,22 +15,6 @@ from src.runtime import (
 
 CURRENT_PLAN_KEY = "current"
 
-# A user with more entries than this in one scope has a runaway writer, not a long history.
-MAX_ENTRIES_PER_SCOPE = 100
-
-
-@dataclass(frozen=True, slots=True)
-class UserMemory:
-    """What the store knows about a user beyond the profile fields the coach requires."""
-
-    preferences: dict[str, Any]
-    knowledge: dict[str, Any]
-
-    @property
-    def is_empty(self) -> bool:
-        """Whether nothing has been recorded for this user in either scope."""
-        return not self.preferences and not self.knowledge
-
 
 async def recall(user_id: str, scope: MemoryScope, key: str) -> dict | None:
     """Read one entry from a user's long-term memory."""
@@ -42,17 +23,6 @@ async def recall(user_id: str, scope: MemoryScope, key: str) -> dict | None:
     item = await store.aget(namespace_for(user_id, scope), key)
 
     return dict(item.value) if item is not None else None
-
-
-async def recall_scope(user_id: str, scope: MemoryScope) -> dict[str, Any]:
-    """Read every entry a user has in one scope, keyed as it was written."""
-
-    store = await graph_runtime.store()
-    items = await store.asearch(
-        namespace_for(user_id, scope), limit=MAX_ENTRIES_PER_SCOPE
-    )
-
-    return {item.key: dict(item.value) for item in items}
 
 
 async def save(
@@ -72,17 +42,6 @@ async def delete(user_id: str, scope: MemoryScope, key: str) -> None:
 
     store = await graph_runtime.store()
     await store.adelete(namespace_for(user_id, scope), key)
-
-
-async def load_user_memory(user_id: str) -> UserMemory:
-    """Load a user's stated preferences and accumulated knowledge together."""
-
-    preferences, knowledge = await asyncio.gather(
-        recall_scope(user_id, MemoryScope.PREFERENCES),
-        recall_scope(user_id, MemoryScope.KNOWLEDGE),
-    )
-
-    return UserMemory(preferences=preferences, knowledge=knowledge)
 
 
 async def recall_plan(user_id: str) -> dict | None:

@@ -16,7 +16,7 @@ from langgraph.types import Command, interrupt
 from typing_extensions import TypedDict
 
 from src.configs.config import PersistenceBackend, Settings
-from src.runtime import graph_runtime, namespace_for
+from src.runtime import graph_runtime, namespace_for, plan_namespace
 from src.runtime.backends import RUNTIMES, build_runtime
 from src.runtime.backends.postgres import PostgresRuntime
 from src.runtime.base import GraphRuntime
@@ -157,20 +157,22 @@ async def test_long_term_memory_is_scoped_per_user(runtime: GraphRuntime) -> Non
         await store.adelete(alice, "weight")
 
 
-async def test_memory_scopes_do_not_collide(runtime: GraphRuntime) -> None:
-    """The same key in two scopes for one user addresses two different entries."""
+async def test_the_facts_scope_and_the_plan_do_not_collide(
+    runtime: GraphRuntime,
+) -> None:
+    """The same key under one user's facts and their plan addresses two different entries."""
     store = await runtime.store()
     facts = namespace_for("carol", MemoryScope.FACTS)
-    preferences = namespace_for("carol", MemoryScope.PREFERENCES)
+    plan = plan_namespace("carol")
 
-    await store.aput(facts, "schedule", {"source": "profile"})
-    await store.aput(preferences, "schedule", {"source": "stated"})
+    await store.aput(facts, "current", {"source": "profile"})
+    await store.aput(plan, "current", {"source": "plan"})
     try:
-        assert (await store.aget(facts, "schedule")).value == {"source": "profile"}
-        assert (await store.aget(preferences, "schedule")).value == {"source": "stated"}
+        assert (await store.aget(facts, "current")).value == {"source": "profile"}
+        assert (await store.aget(plan, "current")).value == {"source": "plan"}
     finally:
-        await store.adelete(facts, "schedule")
-        await store.adelete(preferences, "schedule")
+        await store.adelete(facts, "current")
+        await store.adelete(plan, "current")
 
 
 # --- Postgres specifics ----------------------------------------------------------------
