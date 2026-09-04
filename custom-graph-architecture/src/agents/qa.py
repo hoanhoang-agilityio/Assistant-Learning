@@ -5,6 +5,7 @@ from typing import TypedDict
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
+from langgraph.errors import GraphBubbleUp
 from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.history import trim_history
@@ -92,6 +93,8 @@ async def qa_agent(state: GraphState) -> QaUpdate:
             {"messages": build_qa_input(state)},
             context=QaContext(user_id=state["user_id"], profile=state.get("profile")),
         )
+    except GraphBubbleUp:
+        raise
     except Exception:
         return {"qa_answer": None, "retrieved_context": []}
 

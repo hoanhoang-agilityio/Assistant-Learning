@@ -6,6 +6,7 @@ from typing import NotRequired, TypedDict
 from langchain.agents import create_agent
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
+from langgraph.errors import GraphBubbleUp
 from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.history import trim_history
@@ -155,6 +156,8 @@ async def coach_agent(state: GraphState) -> CoachUpdate:
             {"messages": build_coach_input(state)},
             context=CoachContext(user_id=state["user_id"], profile=profile),
         )
+    except GraphBubbleUp:
+        raise
     except Exception:
         return {
             "plan": None,

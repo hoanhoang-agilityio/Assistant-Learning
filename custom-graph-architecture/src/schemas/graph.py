@@ -13,7 +13,7 @@ CoachOutcome = Literal["answered", "drafted", "needs_profile"]
 NextAgent = Literal["user_agent", "coach_agent", "qa_agent", "FINISH"]
 ProfileStatus = Literal["ready", "need_input"]
 QaOutcome = Literal["answered", "fallback"]
-UserOutcome = Literal["answered", "needs_input"]
+UserOutcome = Literal["answered", "needs_input", "failed"]
 
 
 @dataclass(frozen=True, slots=True)

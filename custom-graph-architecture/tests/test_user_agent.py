@@ -7,10 +7,15 @@ runs — not by the tool itself (``test_update_user_profile.py`` covers the tool
 
 import sys
 
+import httpx
+import pytest
 from langchain_core.messages import AIMessage
+from langgraph.errors import GraphInterrupt
 from langgraph.prebuilt.tool_node import ToolCallRequest, ToolRuntime
+from openai import APITimeoutError
 
 from src.agents.user import (
+    USER_AGENT_FAILED,
     _overwrites_a_stored_value,
     _profile_completion_update,
     _user_outcome,
@@ -104,25 +109,105 @@ async def test_the_node_loads_the_profile_fresh_for_the_gate(
     assert stub.contexts == [UserAgentContext(user_id=USER_ID, profile={"age": 30})]
 
 
-async def test_a_failed_run_still_reports_the_freshly_loaded_profile(
+# --- What a turn that could not run reports ---------------------------------------------
+
+
+def _raising(error: Exception):
+    """A stub agent whose invoke raises."""
+
+    class _FailingUserAgent:
+        async def ainvoke(self, *_args: object, **_kwargs: object) -> dict:
+            raise error
+
+    return _FailingUserAgent
+
+
+def _transient() -> Exception:
+    """A provider failure the retry policy has already given up on."""
+
+    return APITimeoutError(request=httpx.Request("POST", "https://api.openai.com"))
+
+
+async def _run_failing(monkeypatch, error: Exception) -> dict:
+    async def load_profile(_user_id: str) -> dict:
+        return {"age": 30}
+
+    monkeypatch.setattr(user_module, "load_profile", load_profile)
+    monkeypatch.setattr(user_module, "build_user_agent", _raising(error))
+
+    return await user_agent(initial_state("hi", USER_ID))
+
+
+async def test_a_transient_failure_reports_an_outcome_rather_than_nothing(
+    monkeypatch,
+) -> None:
+    """A blank update is what sent the supervisor round this node eight times."""
+    result = await _run_failing(monkeypatch, _transient())
+
+    assert result["user_outcome"] == "failed"
+
+
+async def test_a_transient_failure_tells_the_user_so(monkeypatch) -> None:
+    """A turn that ends in silence reads to the user as the app hanging."""
+    result = await _run_failing(monkeypatch, _transient())
+
+    assert result["messages"][-1].content == USER_AGENT_FAILED
+
+
+async def test_a_transient_failure_still_reports_the_freshly_loaded_profile(
     monkeypatch,
 ) -> None:
     """The fallback on error should not regress to a stale or empty profile either."""
+    result = await _run_failing(monkeypatch, _transient())
+
+    assert result["profile"] == {"age": 30}
+
+
+async def test_an_unexpected_error_is_not_swallowed(monkeypatch) -> None:
+    """Only the transient set is handled here; a bug belongs to the graph's own reporting."""
+    with pytest.raises(RuntimeError):
+        await _run_failing(monkeypatch, RuntimeError("boom"))
+
+
+async def test_the_approval_interrupt_is_not_swallowed(monkeypatch) -> None:
+    """``GraphInterrupt`` is an ``Exception``: caught here, the HITL pause would vanish."""
+    with pytest.raises(GraphInterrupt):
+        await _run_failing(monkeypatch, GraphInterrupt(()))
+
+
+async def test_a_run_that_says_nothing_is_not_an_answer(monkeypatch) -> None:
+    """A hit call limit ends the agent without raising, and with nothing to show."""
 
     async def load_profile(_user_id: str) -> dict:
         return {"age": 30}
 
     monkeypatch.setattr(user_module, "load_profile", load_profile)
-
-    class _FailingUserAgent:
-        async def ainvoke(self, *_args: object, **_kwargs: object) -> dict:
-            raise RuntimeError("boom")
-
-    monkeypatch.setattr(user_module, "build_user_agent", _FailingUserAgent)
+    monkeypatch.setattr(
+        user_module, "build_user_agent", lambda: _StubUserAgent({"messages": []})
+    )
 
     result = await user_agent(initial_state("hi", USER_ID))
 
-    assert result == {"profile": {"age": 30}, "messages": []}
+    assert result["user_outcome"] == "failed"
+    assert result["messages"][-1].content == USER_AGENT_FAILED
+
+
+async def test_a_failure_with_a_plan_still_owed_fields_hands_over_to_the_form(
+    monkeypatch,
+) -> None:
+    """The form collects them without the model, so that turn is not a dead end."""
+
+    async def load_profile(_user_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(user_module, "load_profile", load_profile)
+    monkeypatch.setattr(user_module, "build_user_agent", _raising(_transient()))
+
+    state = initial_state("hi", USER_ID) | {"profile_status": "need_input"}
+    result = await user_agent(state)
+
+    assert result["user_outcome"] == "needs_input"
+    assert result["profile_status"] == "need_input"
 
 
 # --- Completeness is only checked when a waiting plan asked for it ----------------------

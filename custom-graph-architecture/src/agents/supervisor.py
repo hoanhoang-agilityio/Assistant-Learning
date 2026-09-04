@@ -46,6 +46,8 @@ the answer. Never route to an agent to produce a reply the state says it produce
 - `user_outcome`
   - `answered`: `user_agent` has handled the profile part of this request.
   - `needs_input`: it ran, and the fields still missing are being collected by the form.
+  - `failed`: it could not finish and has told the user so. That part is over for this
+    turn; running it again produces the same failure.
 
 - `coach_outcome`
   - `answered`: it answered a question about the plan on record.
@@ -71,8 +73,9 @@ the answer. Never route to an agent to produce a reply the state says it produce
 4. If `coach_outcome` is `needs_profile` and `profile_status` is `ready`, continue the
    plan already in progress with `coach_agent`. Do not ask for the profile again.
 
-5. `user_outcome: answered` means the profile part has been handled. Do not route to
-   `user_agent` again unless the user asked for a further profile change.
+5. `user_outcome` of `answered` or `failed` means the profile part is over for this
+   turn — handled, or failed in a way that running it again will not fix. Do not route
+   to `user_agent` again unless the user asked for a further profile change.
 
 6. `coach_outcome` of `answered` or `drafted` means the coaching part has been handled.
    Do not route to `coach_agent` again unless the user asked for further coaching work.

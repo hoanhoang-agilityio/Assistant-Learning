@@ -12,11 +12,16 @@ from langgraph.graph.state import CompiledStateGraph
 from src.enums import UserAgentRoute
 from src.prompts import USER_AGENT_SYSTEM
 from src.schemas import GraphState, ProfileStatus, UserAgentContext, UserOutcome
-from src.services.llm import agent_middleware, chat_model
+from src.services.llm import RETRYABLE_ERRORS, agent_middleware, chat_model
 from src.services.profile import load_profile, missing_profile_fields
+from src.services.profile_presentation import PROFILE_UPDATED, update_summary
 from src.tools import USER_AGENT_TOOLS, get_user_profile, update_user_profile
 
 USER_AGENT_NAME = "user_agent"
+
+USER_AGENT_FAILED = (
+    "I could not get to your profile just now. Ask me again in a moment."
+)
 
 
 class UserAgentUpdate(TypedDict):
@@ -35,11 +40,22 @@ def _is_blank(value: object) -> bool:
     return isinstance(value, str) and not value.strip()
 
 
+def _proposed_update(tool_call: dict) -> dict:
+    """The change one ``update_user_profile`` call proposes, as a field-to-value mapping."""
+    args = tool_call["args"]
+    return {args["field"]: args.get("value")} if args.get("field") else {}
+
+
 def _overwrites_a_stored_value(request: ToolCallRequest) -> bool:
     """Interrupt only when the field ``update_user_profile`` is about to write already has a value."""
     profile = request.runtime.context.profile or {}
     field = request.tool_call["args"].get("field")
     return not _is_blank(profile.get(field))
+
+
+def _approval_question(tool_call: dict, _state: object, _runtime: object) -> str:
+    """What the user is asked to approve: the change itself, not the call that would make it."""
+    return update_summary(_proposed_update(tool_call))
 
 
 @lru_cache
@@ -55,6 +71,7 @@ def build_user_agent() -> CompiledStateGraph:
                 interrupt_on={
                     update_user_profile.name: InterruptOnConfig(
                         allowed_decisions=["approve", "reject"],
+                        description=_approval_question,
                         when=_overwrites_a_stored_value,
                     )
                 }
@@ -67,7 +84,7 @@ def build_user_agent() -> CompiledStateGraph:
 
 
 def _final_reply(messages: list[AnyMessage]) -> str | None:
-    """The agent's own last word, which becomes the turn's reply."""
+    """The agent's own last word, which becomes the turn's reply when it wrote nothing."""
 
     for message in reversed(messages):
         if isinstance(message, AIMessage) and isinstance(message.content, str):
@@ -99,6 +116,14 @@ def _updated_profile(messages: list[AnyMessage]) -> dict | None:
     return None
 
 
+def _wrote_profile(messages: list[AnyMessage]) -> bool:
+    """Whether the agent actually saved a field this turn, rather than only reading one."""
+
+    artifact = _tool_artifact(messages, update_user_profile.name)
+
+    return bool(artifact) and artifact.get("status") == "written"
+
+
 def _profile_completion_update(
     profile: dict | None, plan_pending: bool
 ) -> UserAgentUpdate:
@@ -116,9 +141,34 @@ def _profile_completion_update(
 
 
 def _user_outcome(profile_status: ProfileStatus | None) -> UserOutcome:
-    """What the supervisor reads off this turn """
+    """What the supervisor reads off this turn"""
 
     return "needs_input" if profile_status == "need_input" else "answered"
+
+
+def _failed(profile: dict | None, plan_pending: bool) -> UserAgentUpdate:
+    """A turn the agent could not finish, reported as an outcome rather than left blank.
+
+    A waiting plan whose fields are still missing is not a dead end — the form collects
+    them without the model — so that turn reports what the form is about to do instead.
+    """
+
+    completion = _profile_completion_update(profile, plan_pending)
+
+    if completion.get("profile_status") == "need_input":
+        return {
+            "profile": profile,
+            "user_outcome": "needs_input",
+            "messages": [],
+            **completion,
+        }
+
+    return {
+        "profile": profile,
+        "user_outcome": "failed",
+        "messages": [AIMessage(content=USER_AGENT_FAILED)],
+        **completion,
+    }
 
 
 async def user_agent(state: GraphState) -> UserAgentUpdate:
@@ -128,27 +178,32 @@ async def user_agent(state: GraphState) -> UserAgentUpdate:
     profile = await load_profile(user_id)
     plan_pending = state.get("profile_status") == "need_input"
 
+    # Only the transient failures the retry policy already gave up on: those leave the
+    # profile reachable next turn. Anything else — a bad request, a bug, the approval
+    # interrupt itself — is left to bubble, so the graph sees it rather than a blank turn.
     try:
         result = await build_user_agent().ainvoke(
             {"messages": state["messages"]},
             context=UserAgentContext(user_id=user_id, profile=profile),
         )
-    except Exception:
-        return {
-            "profile": profile,
-            "messages": [],
-            **_profile_completion_update(profile, plan_pending),
-        }
+    except RETRYABLE_ERRORS:
+        return _failed(profile, plan_pending)
 
     messages = result.get("messages", [])
-    reply = _final_reply(messages)
+    reply = PROFILE_UPDATED if _wrote_profile(messages) else _final_reply(messages)
+
+    # The agent ran but came back with nothing to say and nothing written — a hit call
+    # limit, an empty completion. There is no reply to show, so it is not an answer.
+    if reply is None:
+        return _failed(profile, plan_pending)
+
     updated_profile = _updated_profile(messages) or profile
     completion = _profile_completion_update(updated_profile, plan_pending)
 
     return {
         "profile": updated_profile,
         "user_outcome": _user_outcome(completion.get("profile_status")),
-        "messages": [AIMessage(content=reply)] if reply else [],
+        "messages": [AIMessage(content=reply)],
         **completion,
     }
 

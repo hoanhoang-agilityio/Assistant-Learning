@@ -81,15 +81,15 @@ class UserProfile(BaseModel):
     sex: Sex = Field(description="Biological sex.")
     height_cm: float = Field(gt=0, description="Height in centimetres.")
     current_weight_kg: float = Field(gt=0, description="Current body weight in kg.")
+    target_weight_kg: float | None = Field(
+        default=None, gt=0, description="Goal body weight in kg."
+    )
     activity_level: ActivityLevel = Field(description="Daily activity level.")
     goal: FitnessGoal = Field(description="Primary fitness goal.")
     training_days_per_week: int = Field(
         ge=MIN_TRAINING_DAYS,
         le=MAX_TRAINING_DAYS,
         description="Days per week the user can train.",
-    )
-    target_weight_kg: float | None = Field(
-        default=None, gt=0, description="Goal body weight in kg."
     )
     injuries: list[Injury] = Field(
         default_factory=list, description="Current or relevant previous injuries."
