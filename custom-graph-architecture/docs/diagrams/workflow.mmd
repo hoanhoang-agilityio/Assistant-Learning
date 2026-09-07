@@ -1,0 +1,61 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	guard_input(guard_input)
+	blocked(blocked)
+	supervisor(supervisor)
+	user_agent(user_agent)
+	coach_agent(coach_agent)
+	draft_profile(draft_profile)
+	collect_profile(collect_profile)
+	deterministic_verification(deterministic_verification)
+	present_plan(present_plan)
+	notify_fail(notify_fail)
+	plan_approval(plan_approval)
+	hitl_rejected_no_feedback(hitl_rejected_no_feedback)
+	hitl_exhausted(hitl_exhausted)
+	commit_plan(commit_plan)
+	qa_agent(qa_agent)
+	verify_faithfulness(verify_faithfulness)
+	qa_fallback(qa_fallback)
+	summarize(summarize)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> guard_input;
+	coach_agent -. &nbsp;ready&nbsp; .-> deterministic_verification;
+	coach_agent -. &nbsp;answered&nbsp; .-> summarize;
+	collect_profile --> summarize;
+	commit_plan --> summarize;
+	deterministic_verification -. &nbsp;retry&nbsp; .-> coach_agent;
+	deterministic_verification -. &nbsp;exhausted&nbsp; .-> notify_fail;
+	deterministic_verification -. &nbsp;pass&nbsp; .-> present_plan;
+	draft_profile --> collect_profile;
+	guard_input -.-> blocked;
+	guard_input -. &nbsp;pass&nbsp; .-> supervisor;
+	hitl_exhausted --> summarize;
+	hitl_rejected_no_feedback --> summarize;
+	notify_fail --> summarize;
+	plan_approval -. &nbsp;coach_revise&nbsp; .-> coach_agent;
+	plan_approval -. &nbsp;coach_approve&nbsp; .-> commit_plan;
+	plan_approval -. &nbsp;coach_exhausted&nbsp; .-> hitl_exhausted;
+	plan_approval -. &nbsp;coach_no_feedback&nbsp; .-> hitl_rejected_no_feedback;
+	present_plan --> plan_approval;
+	qa_agent --> verify_faithfulness;
+	qa_fallback --> summarize;
+	summarize --> supervisor;
+	supervisor -. &nbsp;FINISH&nbsp; .-> __end__;
+	supervisor -.-> coach_agent;
+	supervisor -.-> qa_agent;
+	supervisor -.-> user_agent;
+	user_agent -. &nbsp;needs_more_info&nbsp; .-> draft_profile;
+	user_agent -. &nbsp;done&nbsp; .-> summarize;
+	verify_faithfulness -. &nbsp;retry&nbsp; .-> qa_agent;
+	verify_faithfulness -. &nbsp;fallback&nbsp; .-> qa_fallback;
+	verify_faithfulness -. &nbsp;pass&nbsp; .-> summarize;
+	blocked --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
