@@ -18,12 +18,15 @@
     "@copilotkit/react-core": "1.72.0",
     "@copilotkit/react-ui": "1.72.0",
     "@copilotkit/runtime": "1.72.0",
-    "@repo/ui": "workspace:*",
+    "@repo/shared": "workspace:*",
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "4.6.5",
+    "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@eslint/compat": "2.1.1",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "4.3.3",
@@ -31,9 +34,10 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "eslint": "10.9.1",
+    "eslint-config-next": "16.3.4",
     "postcss": "8.5.28",
     "prettier": "3.9.6",
     "tailwindcss": "4.3.3",
-    "typescript": "7.0.2"
+    "typescript": "^5"
   }
 }
