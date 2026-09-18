@@ -1,3 +1,5 @@
+import type { generateText } from "ai";
+
 /**
  * How a model exposes reasoning. The reasoning mapper
  * (`services/llm/reasoning.ts`) switches on this to build `providerOptions`.
@@ -5,7 +7,11 @@
  * disabled.
  */
 export type ReasoningKind =
-  "openai-effort" | "anthropic-budget" | "gemini-level" | "gemini-budget";
+  | "openai-effort"
+  | "anthropic-adaptive"
+  | "anthropic-budget"
+  | "gemini-level"
+  | "gemini-budget";
 
 export interface ModelInfo {
   id: string;
@@ -20,3 +26,8 @@ export interface ProviderInfo {
   /** First entry is the provider's default model. */
   models: readonly ModelInfo[];
 }
+
+/** The `providerOptions` accepted by AI SDK calls. */
+export type ProviderOptions = NonNullable<
+  Parameters<typeof generateText>[0]["providerOptions"]
+>;
