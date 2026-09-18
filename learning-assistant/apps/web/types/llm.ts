@@ -1,3 +1,4 @@
+import type { Settings } from "@repo/shared/schemas";
 import type { generateText } from "ai";
 
 /**
@@ -31,3 +32,7 @@ export interface ProviderInfo {
 export type ProviderOptions = NonNullable<
   Parameters<typeof generateText>[0]["providerOptions"]
 >;
+
+/** Settings for one run after checking keys and the allowlist. */
+export type RunSettingsResult =
+  { ok: true; settings: Settings } | { ok: false; error: string };
