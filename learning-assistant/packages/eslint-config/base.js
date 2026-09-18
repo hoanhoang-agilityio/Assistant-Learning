@@ -1,4 +1,5 @@
 import babelParser from "@babel/eslint-parser";
+import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
 import eslintConfigPrettier from "eslint-config-prettier";
 import turboPlugin from "eslint-plugin-turbo";
@@ -20,7 +21,11 @@ export const config = [
       parserOptions: {
         requireConfigFile: false,
         babelOptions: {
-          presets: ["@babel/preset-typescript"],
+          // Resolve the preset here: Babel resolves bare names from the linted
+          // file's package, which may not depend on the preset.
+          presets: [
+            fileURLToPath(import.meta.resolve("@babel/preset-typescript")),
+          ],
           // Babel's extension-based JSX detection doesn't reach ESLint; force it for .tsx.
           overrides: [{ test: /\.tsx$/, parserOpts: { plugins: ["jsx"] } }],
         },

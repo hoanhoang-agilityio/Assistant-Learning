@@ -1,8 +1,9 @@
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
-    "outDir": "dist"
+    // Source-only package: consumers import the .ts files directly, nothing is emitted.
+    "noEmit": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src", "vitest.config.ts"],
+  "exclude": ["node_modules"]
 }

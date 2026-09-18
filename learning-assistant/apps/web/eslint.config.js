@@ -12,5 +12,12 @@ export default defineConfig([
   ...fixupConfigRules([...nextVitals, ...nextTs]),
   // Locate the Next app from this file, not the cwd (editors may lint from the repo root).
   { settings: { next: { rootDir: import.meta.dirname } } },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  // refer-ui/ is a local, gitignored design reference (removed in M6.1).
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    "refer-ui/**",
+  ]),
 ]);
