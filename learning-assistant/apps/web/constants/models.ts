@@ -19,7 +19,7 @@ export const PROVIDER_CATALOG = {
       {
         id: "claude-sonnet-5",
         label: "Claude Sonnet 5",
-        reasoning: "anthropic-budget",
+        reasoning: "anthropic-adaptive",
       },
       {
         id: "claude-haiku-4-5",

@@ -152,7 +152,7 @@ The user picks a provider and a model from an allowlist in `constants/models.ts`
 | Provider | Models | Reasoning option (`providerOptions`) | Key |
 | --- | --- | --- | --- |
 | OpenAI | `gpt-5.4-mini` (default), `gpt-5.4` | `openai.reasoningEffort` | `OPENAI_API_KEY` |
-| Anthropic | `claude-sonnet-5`, `claude-haiku-4-5` | `anthropic.thinking.budgetTokens`: off / 2k / 8k / 16k | `ANTHROPIC_API_KEY` |
+| Anthropic | `claude-sonnet-5`, `claude-haiku-4-5` | Sonnet 5: `anthropic.thinking` adaptive + `effort`; Haiku 4.5: `anthropic.thinking.budgetTokens` off / 2k / 8k / 16k | `ANTHROPIC_API_KEY` |
 | Google (free tier) | `gemini-3.8-flash`, `gemini-2.5-flash` | 3.x: `thinkingConfig.thinkingLevel`; 2.5: `thinkingConfig.thinkingBudget` | `GOOGLE_GENERATIVE_AI_API_KEY` |
 
 The Gemini models were picked because they are on the free tier and are stable ([pricing](https://ai.google.dev/gemini-api/docs/pricing), [models](https://ai.google.dev/gemini-api/docs/models)).
