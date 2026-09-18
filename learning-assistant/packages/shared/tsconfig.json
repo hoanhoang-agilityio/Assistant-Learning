@@ -1,8 +1,12 @@
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
-    // Source-only package: consumers import the .ts files directly, nothing is emitted.
-    "noEmit": true
+    // Source-only package: consumers import the .ts files directly through
+    // their bundler (Next, Vitest), so nothing is emitted and imports are
+    // extensionless like in apps/web.
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
   },
   "include": ["src", "vitest.config.ts"],
   "exclude": ["node_modules"]
