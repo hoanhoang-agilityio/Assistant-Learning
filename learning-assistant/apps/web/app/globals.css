@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+/* Expose the tokens as utilities: bg-background, text-foreground, font-sans, font-mono. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/*
+ * Global styles live in layers: unlayered CSS beats every Tailwind utility,
+ * so an unlayered `* { padding: 0 }` would silently override `p-4`.
+ */
+@layer base {
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  body {
+    color: var(--foreground);
+    background: var(--background);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    html {
+      color-scheme: dark;
+    }
+  }
+}
+
+@layer components {
+  .imgDark {
+    display: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .imgLight {
+      display: none;
+    }
+    .imgDark {
+      display: unset;
+    }
+  }
+}

@@ -1,0 +1,2 @@
+# Hooks run from the git root (ai-training/); this project lives in learning-assistant/.
+cd learning-assistant && pnpm exec lint-staged
