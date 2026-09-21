@@ -4,4 +4,5 @@ export * from "./notes";
 export * from "./quiz";
 export * from "./research";
 export * from "./settings";
+export * from "./tool-params";
 export * from "./tool-results";

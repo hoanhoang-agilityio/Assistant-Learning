@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { ReasoningKind } from "../../../types/llm";
-import { getReasoningOptions, toReasoningOptions } from "../reasoning";
+import {
+  getReasoningOptions,
+  toReasoningOptions,
+} from "@/services/llm/reasoning";
+import type { ReasoningKind } from "@/types/llm";
 
 describe("toReasoningOptions", () => {
   it.each<[ReasoningKind, string, object]>([

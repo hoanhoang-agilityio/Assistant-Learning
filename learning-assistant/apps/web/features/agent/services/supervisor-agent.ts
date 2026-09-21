@@ -9,13 +9,14 @@ import {
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
 import { filter, type Observable, of } from "rxjs";
 
-import { SUPERVISOR_MAX_STEPS } from "../../constants/agents";
-import type { LearningSupervisorAgentConfig } from "../../types/agents";
-import { createLanguageModel } from "../llm/language-model";
-import { getReasoningOptions } from "../llm/reasoning";
-import { resolveRunSettings } from "../llm/run-settings";
-import { syncStateFromTools } from "./state-sync";
-import { readLearningState, toSupervisorState } from "./supervisor-state";
+import { SUPERVISOR_MAX_STEPS } from "@/features/agent/constants/agents";
+import { syncStateFromTools } from "@/features/agent/services/state-sync";
+import { toSupervisorState } from "@/features/agent/services/supervisor-state";
+import type { LearningSupervisorAgentConfig } from "@/features/agent/types/agents";
+import { createLanguageModel } from "@/services/llm/language-model";
+import { getReasoningOptions } from "@/services/llm/reasoning";
+import { resolveRunSettings } from "@/services/llm/run-settings";
+import { readLearningState } from "@/utils/learning-state";
 
 /**
  * The inner agent sees a trimmed state, so a state event from its built-in

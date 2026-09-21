@@ -1,15 +1,15 @@
 import { PROVIDERS, SettingsSchema } from "@repo/shared/schemas";
 
-import { PROVIDER_CATALOG } from "../../constants/models";
-import { DEFAULT_SETTINGS } from "../../constants/settings";
-import type { Env } from "../../types/env";
-import type { RunSettingsResult } from "../../types/llm";
+import { PROVIDER_CATALOG } from "@/constants/models";
+import { DEFAULT_SETTINGS } from "@/constants/settings";
+import { getAvailableProviders } from "@/services/llm/providers";
+import type { Env } from "@/types/env";
+import type { RunSettingsResult } from "@/types/llm";
 import {
   getDefaultModel,
   isAllowedModel,
   supportsReasoning,
-} from "../../utils/models";
-import { getAvailableProviders } from "./providers";
+} from "@/utils/models";
 
 const missingKeysError = `No LLM provider is configured. Set one of ${PROVIDERS.map(
   (provider) => PROVIDER_CATALOG[provider].envKey,

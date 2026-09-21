@@ -1,14 +1,14 @@
 import { PROVIDERS, SettingsSchema } from "@repo/shared/schemas";
 import { describe, expect, it } from "vitest";
 
-import { PROVIDER_CATALOG } from "../../constants/models";
-import { DEFAULT_SETTINGS } from "../../constants/settings";
+import { PROVIDER_CATALOG } from "@/constants/models";
+import { DEFAULT_SETTINGS } from "@/constants/settings";
 import {
   findModel,
   getDefaultModel,
   isAllowedModel,
   supportsReasoning,
-} from "../models";
+} from "@/utils/models";
 
 describe("model catalog", () => {
   it("has at least one model per provider", () => {

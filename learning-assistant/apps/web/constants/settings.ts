@@ -1,6 +1,6 @@
 import { QUESTION_COUNT, type Settings } from "@repo/shared/schemas";
 
-import { DEFAULT_PROVIDER, PROVIDER_CATALOG } from "./models";
+import { DEFAULT_PROVIDER, PROVIDER_CATALOG } from "@/constants/models";
 
 export const DEFAULT_SETTINGS: Settings = {
   provider: DEFAULT_PROVIDER,
@@ -10,3 +10,6 @@ export const DEFAULT_SETTINGS: Settings = {
   learningLevel: "beginner",
   theme: "light",
 };
+
+/** `localStorage` key for the persisted settings store. */
+export const SETTINGS_STORAGE_KEY = "learning-assistant:settings";

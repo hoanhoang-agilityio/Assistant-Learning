@@ -8,13 +8,13 @@ import {
 import type { LearningState, SubagentTool } from "@repo/shared/schemas";
 import { concatMap, type OperatorFunction } from "rxjs";
 
-import type { StateUpdate } from "../../types/agents";
 import {
   applyToolResult,
+  handleStartTask,
   interruptTask,
   isSubagentTool,
-  handleStartTask,
-} from "./state-deltas";
+} from "@/features/agent/services/state-deltas";
+import type { StateUpdate } from "@/features/agent/types/agents";
 
 /**
  * Keeps the client's state in step with subagent tools. Emits a `STATE_DELTA`

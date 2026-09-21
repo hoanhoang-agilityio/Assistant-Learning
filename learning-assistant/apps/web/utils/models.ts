@@ -1,7 +1,7 @@
 import type { Provider } from "@repo/shared/schemas";
 
-import { PROVIDER_CATALOG } from "../constants/models";
-import type { ModelInfo } from "../types/llm";
+import { PROVIDER_CATALOG } from "@/constants/models";
+import type { ModelInfo } from "@/types/llm";
 
 export const getModels = (provider: Provider): readonly ModelInfo[] => {
   return PROVIDER_CATALOG[provider].models;

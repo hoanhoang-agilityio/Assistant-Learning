@@ -8,10 +8,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyToolResult,
+  handleStartTask,
   interruptTask,
   isSubagentTool,
-  handleStartTask,
-} from "../state-deltas";
+} from "@/features/agent/services/state-deltas";
 
 const research = {
   title: "Closures",

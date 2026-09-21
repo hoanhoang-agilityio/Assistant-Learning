@@ -1,6 +1,5 @@
 import { defineTool } from "@copilotkit/runtime/v2";
-import type { ToolResult } from "@repo/shared/schemas";
-import { z } from "zod";
+import { ToolParamSchemas, type ToolResult } from "@repo/shared/schemas";
 
 /**
  * Smoke-test stand-in for the real `research` tool (M3.1/M3.3). It returns a
@@ -10,9 +9,7 @@ import { z } from "zod";
 export const stubResearchTool = defineTool({
   name: "research",
   description: "Research a topic for the student.",
-  parameters: z.object({
-    topic: z.string().min(1).describe("Short noun phrase for the topic"),
-  }),
+  parameters: ToolParamSchemas.research,
   execute: async ({ topic }): Promise<ToolResult<"research">> => ({
     ok: true,
     data: {

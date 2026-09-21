@@ -8,9 +8,10 @@ import {
 } from "@repo/shared/a2ui/feedback-catalog";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 
-import { SUPERVISOR_PROMPT } from "../../../../services/agents/prompts/supervisor";
-import { LearningSupervisorAgent } from "../../../../services/agents/supervisor-agent";
-import { stubResearchTool } from "../../../../services/agents/tools/stub-research";
+import { COPILOT_RUNTIME_URL } from "@/constants/copilot";
+import { SUPERVISOR_PROMPT } from "@/features/agent/services/prompts/supervisor";
+import { LearningSupervisorAgent } from "@/features/agent/services/supervisor-agent";
+import { stubResearchTool } from "@/features/agent/services/tools/stub-research";
 
 const learningAgent = new LearningSupervisorAgent({
   prompt: SUPERVISOR_PROMPT,
@@ -30,7 +31,7 @@ const runtime = new CopilotRuntime({
 
 const handler = createCopilotRuntimeHandler({
   runtime,
-  basePath: "/api/copilotkit",
+  basePath: COPILOT_RUNTIME_URL,
 });
 
 export const GET = handler;

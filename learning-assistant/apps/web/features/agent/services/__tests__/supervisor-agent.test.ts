@@ -2,7 +2,7 @@ import { EventType, type RunAgentInput } from "@ag-ui/client";
 import { firstValueFrom, toArray } from "rxjs";
 import { describe, expect, it } from "vitest";
 
-import { LearningSupervisorAgent } from "../supervisor-agent";
+import { LearningSupervisorAgent } from "@/features/agent/services/supervisor-agent";
 
 const input: RunAgentInput = {
   threadId: "t1",
