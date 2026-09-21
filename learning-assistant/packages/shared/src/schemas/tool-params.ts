@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { QUESTION_COUNT } from "./settings";
 import type { SubagentTool } from "./tool-results";
 
 /**
@@ -23,14 +22,9 @@ export const ToolParamSchemas = {
       .optional()
       .describe("The selected text, exactly as it appears; only for selection"),
   }),
-  generateQuiz: z.object({
-    count: z
-      .int()
-      .min(QUESTION_COUNT.min)
-      .max(QUESTION_COUNT.max)
-      .optional()
-      .describe("Number of questions; defaults to the user's setting"),
-  }),
+  // The question count comes from the user's settings only, so the model
+  // cannot override it (it tends to repeat the count of an earlier quiz).
+  generateQuiz: z.object({}),
   evaluate: z.object({}),
 } as const satisfies Record<SubagentTool, z.ZodType>;
 

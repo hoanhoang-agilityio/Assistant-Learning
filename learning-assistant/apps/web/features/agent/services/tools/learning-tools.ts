@@ -1,55 +1,23 @@
 import { defineTool, type ToolDefinition } from "@copilotkit/runtime/v2";
-import {
-  type SubagentTool,
-  ToolParamSchemas,
-  type ToolResult,
-  type ToolResultData,
-} from "@repo/shared/schemas";
+import { ToolParamSchemas, type ToolResult } from "@repo/shared/schemas";
 
 import {
   TOOL_DESCRIPTIONS,
   TOOL_ERRORS,
-  TOOL_FAILURE_PREFIX,
 } from "@/features/agent/constants/tools";
 import { runMakeNotes } from "@/features/agent/services/subagents/notes";
 import { runResearch } from "@/features/agent/services/subagents/research";
 import { runSimplify } from "@/features/agent/services/subagents/simplify";
+import { createQuizTools } from "@/features/agent/services/tools/quiz-tools";
+import {
+  fail,
+  runSubagent,
+} from "@/features/agent/services/tools/run-subagent";
 import type { SupervisorRunContext } from "@/features/agent/types/agents";
 import { getActiveNotes } from "@/utils/learning-state";
 
-interface ToolFailure {
-  ok: false;
-  error: string;
-}
-
-const fail = (error: string): ToolFailure => ({ ok: false, error });
-
-/**
- * Runs a subagent and turns any throw into `{ ok: false, error }`. Tools never
- * throw: the wrapper reads the failure into `status.error` and the Supervisor
- * sees it in the tool result, so it can explain instead of retrying blindly.
- */
-const runSubagent = async <T extends SubagentTool>(
-  tool: T,
-  signal: AbortSignal,
-  work: () => Promise<ToolResultData<T>>,
-): Promise<{ ok: true; data: ToolResultData<T> } | ToolFailure> => {
-  try {
-    return { ok: true, data: await work() };
-  } catch (error) {
-    if (signal.aborted) return fail(TOOL_ERRORS.stopped);
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`[${tool}]`, error);
-    return fail(`${TOOL_FAILURE_PREFIX[tool]}: ${message}`);
-  }
-};
-
-/**
- * The Research and Notes subagent tools for one run. They read the settings
- * and the live state from `ctx`, check their prerequisites, and return a
- * result the wrapper writes into state.
- */
-export const createLearningTools = ({
+/** Research, notes and simplify. */
+const createNotesTools = ({
   settings,
   getState,
   signal,
@@ -110,3 +78,12 @@ export const createLearningTools = ({
     },
   }),
 ];
+
+/**
+ * The subagent tools for one run. They read the settings and the live state
+ * from `ctx`, check their prerequisites, and return a result the wrapper
+ * writes into state.
+ */
+export const createLearningTools = (
+  ctx: SupervisorRunContext,
+): ToolDefinition[] => [...createNotesTools(ctx), ...createQuizTools(ctx)];
