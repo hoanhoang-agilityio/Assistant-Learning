@@ -1,6 +1,7 @@
 import { initialLearningState, type LearningState } from "@repo/shared/schemas";
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_SETTINGS } from "@/constants/settings";
 import { toSupervisorState } from "@/features/agent/services/supervisor-state";
 
 describe("toSupervisorState", () => {
@@ -30,9 +31,10 @@ describe("toSupervisorState", () => {
       },
     };
 
-    const trimmed = toSupervisorState(state);
+    const trimmed = toSupervisorState(state, DEFAULT_SETTINGS);
 
     expect(trimmed).toEqual({
+      settings: { questionCount: DEFAULT_SETTINGS.questionCount },
       stage: "quiz",
       status: { running: null },
       topic: "Closures",

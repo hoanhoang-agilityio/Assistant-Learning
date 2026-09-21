@@ -1,21 +1,28 @@
-import type { LearningState } from "@repo/shared/schemas";
+import type { LearningState, Settings } from "@repo/shared/schemas";
 
 import type { SupervisorState } from "@/features/agent/types/agents";
 import { getActiveNotes } from "@/utils/learning-state";
 
-/** Trims the state to what the Supervisor needs to choose the next step. */
-export const toSupervisorState = ({
-  stage,
-  status,
-  topic,
-  research,
-  notes,
-  quiz,
-  score,
-  feedback,
-  reflection,
-  quizOutdated,
-}: LearningState): SupervisorState => ({
+/**
+ * Trims the state to what the Supervisor needs to choose the next step, plus
+ * the settings it must respect (so it never guesses a question count).
+ */
+export const toSupervisorState = (
+  {
+    stage,
+    status,
+    topic,
+    research,
+    notes,
+    quiz,
+    score,
+    feedback,
+    reflection,
+    quizOutdated,
+  }: LearningState,
+  { questionCount }: Settings,
+): SupervisorState => ({
+  settings: { questionCount },
   stage,
   status,
   topic,

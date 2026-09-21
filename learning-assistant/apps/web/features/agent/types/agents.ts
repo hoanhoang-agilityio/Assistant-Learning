@@ -8,6 +8,7 @@ import type {
   Status,
 } from "@repo/shared/schemas";
 
+import type { AnswerKeyStore } from "@/features/agent/types/answer-key";
 import type { Env } from "@/types/env";
 
 /** A JSON Patch operation. The wrapper only emits top-level `add`s. */
@@ -35,6 +36,8 @@ export interface SupervisorRunContext {
   signal: AbortSignal;
   /** Server env, for optional keys such as `TAVILY_API_KEY`. */
   env: Env;
+  /** Seals the quiz answer key and unseals it to grade the quiz. */
+  answerKeys: AnswerKeyStore;
 }
 
 /** A web search result given to the Research Agent. */
@@ -53,6 +56,11 @@ export interface LearningSupervisorAgentConfig {
   tools?: (ctx: SupervisorRunContext) => ToolDefinition[];
   /** Server env used to find provider keys. Defaults to `process.env`. */
   env?: Env;
+  /**
+   * Where the quiz answer key is kept. Defaults to sealing it into state with
+   * `QUIZ_SEAL_SECRET` from `env`.
+   */
+  answerKeys?: AnswerKeyStore;
 }
 
 /**
@@ -60,6 +68,8 @@ export interface LearningSupervisorAgentConfig {
  * because `BuiltInAgent` writes the whole state into the system prompt.
  */
 export interface SupervisorState {
+  /** The user's settings the Supervisor must respect. */
+  settings: Pick<Settings, "questionCount">;
   stage: Stage;
   status: Status;
   topic: string | null;
