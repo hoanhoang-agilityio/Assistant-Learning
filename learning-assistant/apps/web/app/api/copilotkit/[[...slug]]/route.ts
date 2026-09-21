@@ -11,12 +11,12 @@ import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 import { COPILOT_RUNTIME_URL } from "@/constants/copilot";
 import { SUPERVISOR_PROMPT } from "@/features/agent/services/prompts/supervisor";
 import { LearningSupervisorAgent } from "@/features/agent/services/supervisor-agent";
-import { stubResearchTool } from "@/features/agent/services/tools/stub-research";
+import { createLearningTools } from "@/features/agent/services/tools/learning-tools";
 
 const learningAgent = new LearningSupervisorAgent({
   prompt: SUPERVISOR_PROMPT,
-  // TODO(M3.3): replace the stub with the real subagent tools.
-  tools: () => [stubResearchTool],
+  // TODO(M4.3, M5): add the generateQuiz and evaluate tools.
+  tools: createLearningTools,
 });
 
 const runtime = new CopilotRuntime({
