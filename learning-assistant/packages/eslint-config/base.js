@@ -4,6 +4,7 @@ import js from "@eslint/js";
 import eslintConfigPrettier from "eslint-config-prettier";
 import turboPlugin from "eslint-plugin-turbo";
 import onlyWarn from "eslint-plugin-only-warn";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
 
 /**
  * A shared ESLint configuration for the repository.
@@ -48,6 +49,19 @@ export const config = [
       "no-dupe-args": "off",
       "no-dupe-class-members": "off",
       "no-unused-vars": "off",
+    },
+  },
+  {
+    // Sorted imports, in blank-line-separated groups: side effects, Node
+    // built-ins, packages (incl. @repo/*), app code via the `@/` alias, then
+    // relative imports.
+    plugins: { "simple-import-sort": simpleImportSort },
+    rules: {
+      "simple-import-sort/imports": [
+        "error",
+        { groups: [["^\\u0000"], ["^node:"], ["^@?\\w"], ["^@/"], ["^\\."]] },
+      ],
+      "simple-import-sort/exports": "error",
     },
   },
   {
