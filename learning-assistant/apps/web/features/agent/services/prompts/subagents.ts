@@ -69,3 +69,15 @@ export const createSimplifySelectionPrompt = (
     `SELECTION:\n${selection}`,
     `NOTES:\n${notes}`,
   ].join("\n\n");
+
+export const createQuizSystem = (level: LearningLevel) =>
+  [
+    "You are the Quiz Agent of a learning assistant. You write multiple-choice questions that test whether the student understood their study notes.",
+    LEVEL_GUIDANCE[level],
+    "Every question has exactly 4 options and exactly one correct option; `correctIndex` is its 0-based position. Vary where the correct option sits. Wrong options must be plausible, not jokes, and no option may be `All of the above` or `None of the above`.",
+    "Tag every question with a short `concept` (2 to 4 words) naming the idea it tests. Reuse the same concept name across questions that test the same idea, so results can be grouped by concept; aim for 2 to 5 concepts in total.",
+    "Base every question and answer on the notes only. `explanation` says in one or two sentences why the correct option is right.",
+  ].join("\n\n");
+
+export const createQuizPrompt = (notes: string, count: number) =>
+  `Write exactly ${count} questions from these notes:\n\n${notes}`;

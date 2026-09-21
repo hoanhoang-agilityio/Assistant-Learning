@@ -60,3 +60,9 @@ export const TAVILY_MAX_RESULTS = 5;
 
 /** Upper bound on the text of each web result given to the model. */
 export const SEARCH_RESULT_MAX_CHARS = 2000;
+
+/** Env variable holding the secret the quiz answer key is sealed with. */
+export const QUIZ_SEAL_SECRET_ENV_KEY = "QUIZ_SEAL_SECRET";
+
+/** Quiz Agent calls before giving up: the first try plus one retry. */
+export const QUIZ_ATTEMPTS = 2;
