@@ -10,6 +10,19 @@ import type {
 
 import type { Env } from "./env";
 
+/** A JSON Patch operation. The wrapper only emits top-level `add`s. */
+export interface StatePatchOperation {
+  op: "add";
+  path: `/${keyof LearningState}`;
+  value: unknown;
+}
+
+/** The next state, and the patch that turns the previous state into it. */
+export interface StateUpdate {
+  state: LearningState;
+  patch: StatePatchOperation[];
+}
+
 /** What a run's tools can see: the user's settings and the full state. */
 export interface SupervisorRunContext {
   settings: Settings;
