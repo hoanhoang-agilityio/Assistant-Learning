@@ -27,6 +27,7 @@ export const useCanvasShell = () => {
     isBuilding: getRunningStage(state) === activeStage,
     hasData: hasStageData(state, activeStage),
     error: state.status.error ?? null,
+    isQuizOutdated: state.quizOutdated && activeStage !== "research",
     hasPrev: prevStage !== null,
     hasNext: nextStage !== null,
     handleSelectStage,
