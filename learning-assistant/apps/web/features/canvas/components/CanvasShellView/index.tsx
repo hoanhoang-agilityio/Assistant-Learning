@@ -1,6 +1,7 @@
 import type { LearningState } from "@repo/shared/schemas";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { QuizOutdatedBanner } from "@/features/canvas/components/QuizOutdatedBanner";
 import { StageEmpty } from "@/features/canvas/components/StageEmpty";
 import { StageError } from "@/features/canvas/components/StageError";
 import { StagePreview } from "@/features/canvas/components/StagePreview";
@@ -25,6 +26,8 @@ export interface CanvasShellViewProps {
   isBuilding: boolean;
   hasData: boolean;
   error: string | null;
+  /** A notes change cleared the quiz; show the banner. */
+  isQuizOutdated: boolean;
   hasPrev: boolean;
   hasNext: boolean;
   onSelectStage: (stage: CanvasStage) => void;
@@ -44,6 +47,7 @@ export const CanvasShellView = ({
   isBuilding,
   hasData,
   error,
+  isQuizOutdated,
   hasPrev,
   hasNext,
   onSelectStage,
@@ -95,6 +99,7 @@ export const CanvasShellView = ({
     <div className="flex-1 overflow-y-auto p-6">
       <div className="mx-auto max-w-4xl space-y-6">
         {error && <StageError message={error} />}
+        {isQuizOutdated && <QuizOutdatedBanner />}
         {isBuilding ? (
           <StageSkeleton step={step} />
         ) : hasData ? (

@@ -16,6 +16,7 @@ export const CanvasShell = () => {
     isBuilding,
     hasData,
     error,
+    isQuizOutdated,
     hasPrev,
     hasNext,
     handleSelectStage,
@@ -35,6 +36,7 @@ export const CanvasShell = () => {
       isBuilding={isBuilding}
       hasData={hasData}
       error={error}
+      isQuizOutdated={isQuizOutdated}
       hasPrev={hasPrev}
       hasNext={hasNext}
       onSelectStage={handleSelectStage}
