@@ -7,6 +7,9 @@ export default defineConfig({
     // Mirrors `paths` in tsconfig.json.
     alias: { "@": fileURLToPath(new URL(".", import.meta.url)) },
   },
+  // tsconfig keeps `jsx: "preserve"` for Next; tests that import components
+  // need the JSX compiled.
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     environment: "node",
     include: ["**/*.test.ts"],

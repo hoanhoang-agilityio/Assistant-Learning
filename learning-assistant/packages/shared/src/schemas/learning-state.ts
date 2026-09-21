@@ -23,6 +23,15 @@ export const RUNNING_TASKS = [
 
 export const TIERS = ["Novice", "Practitioner", "Master"] as const;
 
+/** State built from the quiz. It goes out of date when the notes change. */
+export const QUIZ_STATE_KEYS = [
+  "quiz",
+  "evaluation",
+  "score",
+  "feedback",
+  "reflection",
+] as const;
+
 export const StageSchema = z.enum(STAGES);
 export const RunningTaskSchema = z.enum(RUNNING_TASKS);
 export const TierSchema = z.enum(TIERS);
@@ -94,6 +103,11 @@ export const LearningStateSchema = z.object({
   score: ScoreSchema.nullable(),
   feedback: FeedbackSchema.nullable(),
   reflection: ReflectionSchema.nullable(),
+  /**
+   * The student edited the notes after a quiz existed, so the quiz and its
+   * results were cleared. Reset when a new quiz, notes or research arrive.
+   */
+  quizOutdated: z.boolean(),
 });
 
 export type Stage = z.infer<typeof StageSchema>;
@@ -119,4 +133,5 @@ export const initialLearningState: LearningState = {
   score: null,
   feedback: null,
   reflection: null,
+  quizOutdated: false,
 };
