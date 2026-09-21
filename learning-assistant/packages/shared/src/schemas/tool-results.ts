@@ -55,6 +55,8 @@ export const ToolResultSchemas = {
   generateQuiz: createResultSchema(z.object({ quiz: QuizSchema })),
   evaluate: createResultSchema(
     z.object({
+      /** The answers that were graded; they replace `quiz.answers`. */
+      answers: QuizSchema.shape.answers,
       evaluation: EvaluationSchema,
       score: ScoreSchema,
       feedback: FeedbackSchema,

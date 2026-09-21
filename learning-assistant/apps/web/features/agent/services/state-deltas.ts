@@ -39,7 +39,10 @@ const createStateUpdate = (
   patch: createStatePatch(prev, next),
 });
 
-const handleToolFail = (state: LearningState, error: string): StateUpdate =>
+const createFailureUpdate = (
+  state: LearningState,
+  error: string,
+): StateUpdate =>
   createStateUpdate(state, { ...state, status: { running: null, error } });
 
 const clearLaterStages = (
@@ -115,13 +118,16 @@ const appliers: {
 
   generateQuiz: (state, { quiz }) => ({ ...state, quiz, quizOutdated: false }),
 
-  evaluate: (state, { evaluation, score, feedback }) => ({
-    ...state,
-    evaluation,
-    score,
-    feedback,
-    quiz: state.quiz && { ...state.quiz, submitted: true },
-  }),
+  evaluate: (state, { answers, evaluation, score, feedback }) =>
+    state.quiz
+      ? {
+          ...state,
+          evaluation,
+          score,
+          feedback,
+          quiz: { ...state.quiz, answers, submitted: true },
+        }
+      : "There is no quiz to grade.",
 };
 
 const parseResult = <T extends SubagentTool>(
@@ -140,7 +146,7 @@ const applyData = <T extends SubagentTool>(
 ): LearningState | string => appliers[tool](state, data, prev);
 
 /** A subagent tool started: mark its task as running. */
-export const handleStartTask = (
+export const createStartUpdate = (
   state: LearningState,
   tool: SubagentTool,
 ): StateUpdate =>
@@ -152,7 +158,7 @@ export const handleStartTask = (
 /**
  * A subagent tool returned. `content` is the `TOOL_CALL_RESULT` content (the
  * JSON-serialised tool result). On success the data is written to state, later
- * stages are cleared and the canvas moves to the tool's stage; on handleToolFailure
+ * stages are cleared and the canvas moves to the tool's stage; on failure
  * `status.error` is set and the rest of the state is kept.
  */
 export const applyToolResult = (
@@ -164,7 +170,7 @@ export const applyToolResult = (
   try {
     raw = JSON.parse(content);
   } catch {
-    return handleToolFail(
+    return createFailureUpdate(
       state,
       `The ${tool} step returned an unreadable result.`,
     );
@@ -172,12 +178,12 @@ export const applyToolResult = (
 
   const result = parseResult(tool, raw);
   if (!result) {
-    return handleToolFail(
+    return createFailureUpdate(
       state,
       `The ${tool} step returned an invalid result.`,
     );
   }
-  if (!result.ok) return handleToolFail(state, result.error);
+  if (!result.ok) return createFailureUpdate(state, result.error);
 
   const next = applyData(
     clearLaterStages(state, tool),
@@ -185,7 +191,7 @@ export const applyToolResult = (
     result.data,
     state,
   );
-  if (typeof next === "string") return handleToolFail(state, next);
+  if (typeof next === "string") return createFailureUpdate(state, next);
 
   return createStateUpdate(state, {
     ...next,
@@ -202,4 +208,7 @@ export const applyToolResult = (
 export const interruptTask = (state: LearningState): StateUpdate | null =>
   state.status.running === null
     ? null
-    : handleToolFail(state, `The ${state.status.running} step did not finish.`);
+    : createFailureUpdate(
+        state,
+        `The ${state.status.running} step did not finish.`,
+      );

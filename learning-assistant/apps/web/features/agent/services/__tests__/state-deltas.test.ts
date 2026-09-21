@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyToolResult,
-  handleStartTask,
+  createStartUpdate,
   interruptTask,
   isSubagentTool,
 } from "@/features/agent/services/state-deltas";
@@ -73,7 +73,7 @@ describe("isSubagentTool", () => {
   });
 });
 
-describe("handleStartTask", () => {
+describe("createStartUpdate", () => {
   it.each<[SubagentTool, string]>([
     ["research", "research"],
     ["makeNotes", "notes"],
@@ -81,7 +81,7 @@ describe("handleStartTask", () => {
     ["generateQuiz", "quiz"],
     ["evaluate", "evaluate"],
   ])("%s sets status.running to %s", (tool, running) => {
-    const { state, patch } = handleStartTask(initialLearningState, tool);
+    const { state, patch } = createStartUpdate(initialLearningState, tool);
     expect(state.status).toEqual({ running });
     expect(patch).toEqual([{ op: "add", path: "/status", value: { running } }]);
   });
@@ -154,10 +154,11 @@ describe("applyToolResult", () => {
       { stage: "quiz", quiz },
     ],
     [
-      "evaluate writes the results and marks the quiz submitted",
+      "evaluate writes the results, the graded answers and marks the quiz submitted",
       "evaluate",
       { ...withNotes, stage: "quiz" },
       {
+        answers: { a: 1 },
         evaluation,
         score: { percent: 100, tier: "Master" },
         feedback: { a2uiOperations: [], summary: "Well done." },
@@ -166,11 +167,11 @@ describe("applyToolResult", () => {
         stage: "evaluation",
         evaluation,
         score: { percent: 100, tier: "Master" },
-        quiz: { ...quiz, submitted: true },
+        quiz: { ...quiz, answers: { a: 1 }, submitted: true },
       },
     ],
   ])("%s", (_, tool, before, data, expected) => {
-    const running = handleStartTask(before, tool).state;
+    const running = createStartUpdate(before, tool).state;
     const { state, patch } = applyToolResult(
       running,
       tool,
@@ -198,7 +199,7 @@ describe("applyToolResult", () => {
       "The research step returned an invalid result.",
     ],
   ])("sets status.error for %s and keeps the data", (_, content, error) => {
-    const running = handleStartTask(withNotes, "research").state;
+    const running = createStartUpdate(withNotes, "research").state;
     const { state, patch } = applyToolResult(running, "research", content);
 
     expect(state).toEqual({ ...withNotes, status: { running: null, error } });
@@ -267,7 +268,10 @@ describe("interruptTask", () => {
   });
 
   it("clears a task left running", () => {
-    const running = handleStartTask(initialLearningState, "generateQuiz").state;
+    const running = createStartUpdate(
+      initialLearningState,
+      "generateQuiz",
+    ).state;
     expect(interruptTask(running)?.state.status).toEqual({
       running: null,
       error: "The quiz step did not finish.",
