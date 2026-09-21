@@ -223,6 +223,34 @@ describe("applyToolResult", () => {
     expect(state.notes).toEqual(withNotes.notes);
   });
 
+  it("flags the quiz as outdated when simplify clears it", () => {
+    const { state } = applyToolResult(
+      withNotes,
+      "simplify",
+      serializeSuccess({ scope: "all", markdown: "Simple notes." }),
+    );
+    expect(state.quiz).toBeNull();
+    expect(state.quizOutdated).toBe(true);
+  });
+
+  it("does not flag the quiz when simplify had none to clear", () => {
+    const { state } = applyToolResult(
+      { ...withNotes, quiz: null },
+      "simplify",
+      serializeSuccess({ scope: "all", markdown: "Simple notes." }),
+    );
+    expect(state.quizOutdated).toBe(false);
+  });
+
+  it("clears the outdated flag when a new quiz arrives", () => {
+    const { state } = applyToolResult(
+      { ...withNotes, quiz: null, quizOutdated: true },
+      "generateQuiz",
+      serializeSuccess({ quiz }),
+    );
+    expect(state.quizOutdated).toBe(false);
+  });
+
   it("produces a patch that applies to an empty client state", () => {
     const { patch } = applyToolResult(
       initialLearningState,

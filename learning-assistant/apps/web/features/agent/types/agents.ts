@@ -26,7 +26,22 @@ export interface StateUpdate {
 /** What a run's tools can see: the user's settings and the full state. */
 export interface SupervisorRunContext {
   settings: Settings;
-  state: LearningState;
+  /**
+   * The state as of now, including results of earlier tools in the same run
+   * (autopilot runs research, then notes, then the quiz).
+   */
+  getState: () => LearningState;
+  /** Aborted when the user stops the run. */
+  signal: AbortSignal;
+  /** Server env, for optional keys such as `TAVILY_API_KEY`. */
+  env: Env;
+}
+
+/** A web search result given to the Research Agent. */
+export interface SearchResult {
+  title: string;
+  url: string;
+  content: string;
 }
 
 export interface LearningSupervisorAgentConfig {
@@ -62,4 +77,5 @@ export interface SupervisorState {
   score: Score | null;
   hasFeedback: boolean;
   hasReflection: boolean;
+  quizOutdated: boolean;
 }

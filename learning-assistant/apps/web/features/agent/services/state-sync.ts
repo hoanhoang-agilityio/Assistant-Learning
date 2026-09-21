@@ -20,16 +20,19 @@ import type { StateUpdate } from "@/features/agent/types/agents";
  * Keeps the client's state in step with subagent tools. Emits a `STATE_DELTA`
  * after a subagent's `TOOL_CALL_START` (status running) and after its
  * `TOOL_CALL_RESULT` (result, stage and status), and clears a task left
- * running before the run finishes or fails.
+ * running before the run finishes or fails. `onStateChange` receives each
+ * new state, so later tools in the same run see earlier results.
  */
 export const syncStateFromTools = (
   initial: LearningState,
+  onStateChange?: (state: LearningState) => void,
 ): OperatorFunction<BaseEvent, BaseEvent> => {
   let state = initial;
   const runningTools = new Map<string, SubagentTool>();
 
   const handleConvertToDelta = (update: StateUpdate): StateDeltaEvent[] => {
     state = update.state;
+    onStateChange?.(state);
     return update.patch.length > 0
       ? [{ type: EventType.STATE_DELTA, delta: update.patch }]
       : [];
