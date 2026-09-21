@@ -47,3 +47,14 @@ export type QuizDraftQuestion = z.infer<typeof QuizDraftQuestionSchema>;
 export type QuizDraft = z.infer<typeof QuizDraftSchema>;
 export type QuizQuestion = z.infer<typeof QuizQuestionSchema>;
 export type AnswerKey = z.infer<typeof AnswerKeySchema>;
+
+/**
+ * What the Submit button sends in its `submit_quiz` action context: the quiz
+ * it was pressed on and the student's answers (question id → option index).
+ */
+export const QuizSubmissionSchema = z.object({
+  quizId: z.string().min(1),
+  answers: z.record(z.string(), OptionIndexSchema),
+});
+
+export type QuizSubmission = z.infer<typeof QuizSubmissionSchema>;
