@@ -1,6 +1,7 @@
 import type { LearningState } from "@repo/shared/schemas";
 
 import { NotesStage } from "@/features/canvas/components/stages/NotesStage";
+import { QuizStage } from "@/features/canvas/components/stages/QuizStage";
 import { ResearchStage } from "@/features/canvas/components/stages/ResearchStage";
 import { CARD_CLASS } from "@/features/canvas/constants/canvas";
 import type { CanvasStage } from "@/features/canvas/types/canvas";
@@ -11,9 +12,8 @@ export interface StagePreviewProps {
 }
 
 /**
- * The view of each stage's data. Research and Notes have their real views;
- * the rest are plain read-only placeholders until M4 (Quiz) and M5
- * (Evaluation to Feedback).
+ * The view of each stage's data. Research, Notes and Quiz have their real
+ * views; Evaluation to Feedback are plain read-only placeholders until M5.
  */
 export const StagePreview = ({ stage, state }: StagePreviewProps) => {
   switch (stage) {
@@ -22,11 +22,10 @@ export const StagePreview = ({ stage, state }: StagePreviewProps) => {
     case "notes":
       return state.notes && <NotesStage notes={state.notes} />;
     case "quiz":
-      if (!state.quiz) return null;
       return (
-        <p className={`${CARD_CLASS} text-sm`}>
-          {state.quiz.questions.length} questions ready.
-        </p>
+        state.quiz && (
+          <QuizStage quiz={state.quiz} evaluation={state.evaluation} />
+        )
       );
     case "evaluation":
       if (!state.evaluation) return null;
