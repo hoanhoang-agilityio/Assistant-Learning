@@ -36,9 +36,7 @@ export const useChatResize = (
     event.currentTarget.setPointerCapture(event.pointerId);
 
     isDraggingRef.current = true;
-
     setIsDragging(true);
-
     document.body.classList.add(RESIZING_BODY_CLASS);
   };
 
@@ -46,7 +44,6 @@ export const useChatResize = (
     if (!isDraggingRef.current) return;
 
     const left = containerRef.current?.getBoundingClientRect().left ?? 0;
-
     resizeTo(event.clientX - left);
   };
 
@@ -56,24 +53,19 @@ export const useChatResize = (
     }
 
     isDraggingRef.current = false;
-
     setIsDragging(false);
-
     document.body.classList.remove(RESIZING_BODY_CLASS);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === RESIZE_KEYS.narrower) {
       event.preventDefault();
-
       resizeTo(chatWidth - CHAT_RESIZE_STEP);
     } else if (event.key === RESIZE_KEYS.wider) {
       event.preventDefault();
-
       resizeTo(chatWidth + CHAT_RESIZE_STEP);
     } else if (event.key === RESIZE_KEYS.reset) {
       event.preventDefault();
-
       resetChatWidth();
     }
   };

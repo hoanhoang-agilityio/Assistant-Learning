@@ -25,8 +25,6 @@ export const AppShell = ({ availableProviders }: AppShellProps) => {
       runtimeUrl={COPILOT_RUNTIME_URL}
       agentId={LEARNING_AGENT_ID}
       properties={properties}
-      // The dev Inspector's floating button covers the header's Settings.
-      enableInspector={false}
     >
       <Workspace availableProviders={availableProviders} />
     </CopilotKitProvider>
