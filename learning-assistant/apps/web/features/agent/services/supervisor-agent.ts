@@ -2,6 +2,7 @@ import {
   AbstractAgent,
   type BaseEvent,
   EventType,
+  type Message,
   type RunAgentInput,
   type RunErrorEvent,
   type RunStartedEvent,
@@ -9,10 +10,19 @@ import {
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
 import { filter, type Observable, of } from "rxjs";
 
-import { SUPERVISOR_MAX_STEPS } from "@/features/agent/constants/agents";
+import {
+  QUIZ_SEAL_SECRET_ENV_KEY,
+  SUPERVISOR_MAX_STEPS,
+} from "@/features/agent/constants/agents";
+import { SealedAnswerKeyStore } from "@/features/agent/services/answer-key/sealed-answer-key-store";
 import { syncStateFromTools } from "@/features/agent/services/state-sync";
+import { runSubmittedQuiz } from "@/features/agent/services/submit-quiz";
 import { toSupervisorState } from "@/features/agent/services/supervisor-state";
-import type { LearningSupervisorAgentConfig } from "@/features/agent/types/agents";
+import type {
+  LearningSupervisorAgentConfig,
+  SupervisorRunContext,
+} from "@/features/agent/types/agents";
+import { parseSubmitAction } from "@/features/agent/utils/submit-action";
 import { createLanguageModel } from "@/services/llm/language-model";
 import { getReasoningOptions } from "@/services/llm/reasoning";
 import { resolveRunSettings } from "@/services/llm/run-settings";
@@ -31,7 +41,8 @@ const isInnerStateEvent = (event: BaseEvent) =>
  * Thin wrapper around `BuiltInAgent`. On each run it reads
  * `forwardedProps.settings`, builds an inner agent for the chosen model and
  * reasoning effort, passes it a trimmed state and pipes its events through,
- * adding a `STATE_DELTA` for each subagent tool result.
+ * adding a `STATE_DELTA` for each subagent tool result. A quiz Submit
+ * (`forwardedProps.a2uiAction`) is graded before the Supervisor runs.
  */
 export class LearningSupervisorAgent extends AbstractAgent {
   private config: LearningSupervisorAgentConfig;
@@ -62,11 +73,22 @@ export class LearningSupervisorAgent extends AbstractAgent {
     }
 
     const { settings } = resolved;
+    const env = this.config.env ?? process.env;
     const initial = readLearningState(input.state);
     let current = initial;
     this.abortController = new AbortController();
 
-    this.inner = new BuiltInAgent({
+    const ctx: SupervisorRunContext = {
+      settings,
+      getState: () => current,
+      signal: this.abortController.signal,
+      env,
+      answerKeys:
+        this.config.answerKeys ??
+        new SealedAnswerKeyStore(env[QUIZ_SEAL_SECRET_ENV_KEY]),
+    };
+
+    const inner = new BuiltInAgent({
       model: createLanguageModel(settings.provider, settings.model),
       providerOptions: getReasoningOptions(
         settings.provider,
@@ -75,16 +97,30 @@ export class LearningSupervisorAgent extends AbstractAgent {
       ),
       maxSteps: this.config.maxSteps ?? SUPERVISOR_MAX_STEPS,
       prompt: this.config.prompt,
-      tools:
-        this.config.tools?.({
-          settings,
-          getState: () => current,
-          signal: this.abortController.signal,
-          env: this.config.env ?? process.env,
-        }) ?? [],
+      tools: this.config.tools?.(ctx) ?? [],
     });
+    this.inner = inner;
 
-    return this.inner.run({ ...input, state: toSupervisorState(initial) }).pipe(
+    // The Supervisor sees the trimmed state as of when it starts.
+    const runSupervisor = (messages: Message[]) =>
+      inner.run({
+        ...input,
+        messages,
+        state: toSupervisorState(current, settings),
+      });
+
+    // Submit on the quiz surface is graded in code, not routed by the LLM.
+    const submit = parseSubmitAction(input.forwardedProps);
+    const events = submit
+      ? runSubmittedQuiz({
+          input,
+          ctx,
+          submission: submit.submission,
+          runSupervisor,
+        })
+      : runSupervisor(input.messages);
+
+    return events.pipe(
       filter((event) => !isInnerStateEvent(event)),
       syncStateFromTools(initial, (next) => {
         current = next;
