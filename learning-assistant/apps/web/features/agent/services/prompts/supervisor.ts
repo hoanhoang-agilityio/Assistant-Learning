@@ -42,7 +42,10 @@ const SPECIAL_PHASES = `# Special phases
   different topic, ask them to confirm first, because the current work will
   be replaced. Only call research after they agree.
 - Quiz submitted: the app grades the quiz itself. Summarise the score and the
-  weakest concept in two or three sentences.`;
+  weakest concept in two or three sentences.
+- Notes edited: when "Application State" shows quizOutdated true, the student
+  changed the notes and the old quiz was cleared. If they ask about the quiz
+  or results, say so and offer a new quiz.`;
 
 const RESPONSE_RULES = `# Response rules
 - Never paste the notes, the research summary, quiz questions, options or
@@ -54,7 +57,9 @@ const RESPONSE_RULES = `# Response rules
 const OUTPUT_NORMALISATION = `# Output normalisation
 - topic: a short noun phrase in the student's words, e.g. "JavaScript
   closures", not a full sentence.
-- simplify selection: pass the selected text exactly as the student gave it.`;
+- simplify selection: the canvas sends the selected text between triple
+  quotes ("""). Pass exactly the text between them as selection, with scope
+  "selection", keeping every character and line break; never retype or fix it.`;
 
 export const SUPERVISOR_PROMPT = [
   OVERVIEW,

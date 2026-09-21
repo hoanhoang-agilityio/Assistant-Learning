@@ -1,6 +1,7 @@
 import type { LearningState } from "@repo/shared/schemas";
 
 import type { SupervisorState } from "@/features/agent/types/agents";
+import { getActiveNotes } from "@/utils/learning-state";
 
 /** Trims the state to what the Supervisor needs to choose the next step. */
 export const toSupervisorState = ({
@@ -13,6 +14,7 @@ export const toSupervisorState = ({
   score,
   feedback,
   reflection,
+  quizOutdated,
 }: LearningState): SupervisorState => ({
   stage,
   status,
@@ -24,10 +26,7 @@ export const toSupervisorState = ({
   notes: notes && {
     view: notes.view,
     hasSimplified: notes.simplified !== null,
-    characters: (notes.view === "simplified" && notes.simplified
-      ? notes.simplified
-      : notes.original
-    ).length,
+    characters: getActiveNotes(notes).length,
   },
   quiz: quiz && {
     questionCount: quiz.questions.length,
@@ -37,4 +36,5 @@ export const toSupervisorState = ({
   score,
   hasFeedback: feedback !== null,
   hasReflection: reflection !== null,
+  quizOutdated,
 });

@@ -36,6 +36,7 @@ const isInnerStateEvent = (event: BaseEvent) =>
 export class LearningSupervisorAgent extends AbstractAgent {
   private config: LearningSupervisorAgentConfig;
   private inner?: BuiltInAgent;
+  private abortController?: AbortController;
 
   constructor(config: LearningSupervisorAgentConfig = {}) {
     super();
@@ -61,7 +62,9 @@ export class LearningSupervisorAgent extends AbstractAgent {
     }
 
     const { settings } = resolved;
-    const state = readLearningState(input.state);
+    const initial = readLearningState(input.state);
+    let current = initial;
+    this.abortController = new AbortController();
 
     this.inner = new BuiltInAgent({
       model: createLanguageModel(settings.provider, settings.model),
@@ -72,12 +75,20 @@ export class LearningSupervisorAgent extends AbstractAgent {
       ),
       maxSteps: this.config.maxSteps ?? SUPERVISOR_MAX_STEPS,
       prompt: this.config.prompt,
-      tools: this.config.tools?.({ settings, state }) ?? [],
+      tools:
+        this.config.tools?.({
+          settings,
+          getState: () => current,
+          signal: this.abortController.signal,
+          env: this.config.env ?? process.env,
+        }) ?? [],
     });
 
-    return this.inner.run({ ...input, state: toSupervisorState(state) }).pipe(
+    return this.inner.run({ ...input, state: toSupervisorState(initial) }).pipe(
       filter((event) => !isInnerStateEvent(event)),
-      syncStateFromTools(state),
+      syncStateFromTools(initial, (next) => {
+        current = next;
+      }),
     );
   }
 
@@ -87,10 +98,12 @@ export class LearningSupervisorAgent extends AbstractAgent {
     const cloned: LearningSupervisorAgent = super.clone();
     cloned.config = this.config;
     cloned.inner = undefined;
+    cloned.abortController = undefined;
     return cloned;
   }
 
   abortRun(): void {
+    this.abortController?.abort();
     this.inner?.abortRun();
   }
 }

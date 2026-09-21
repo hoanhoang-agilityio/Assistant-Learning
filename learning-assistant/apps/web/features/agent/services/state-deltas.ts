@@ -17,6 +17,7 @@ import type {
   StatePatchOperation,
   StateUpdate,
 } from "@/features/agent/types/agents";
+import { getActiveNotes, hasQuizData } from "@/utils/learning-state";
 
 export const isSubagentTool = (name: string): name is SubagentTool =>
   (SUBAGENT_TOOLS as readonly string[]).includes(name);
@@ -49,18 +50,13 @@ const clearLaterStages = (
   ...Object.fromEntries(SUBAGENT_CLEARS[tool].map((key) => [key, null])),
 });
 
-const getActiveText = (notes: Notes) =>
-  notes.view === "simplified" && notes.simplified !== null
-    ? notes.simplified
-    : notes.original;
-
 /** Replaces the selection in the active view with its simplified rewrite. */
 const replaceSelection = (
   notes: Notes,
   selection: string,
   markdown: string,
 ): Notes | null => {
-  const text = getActiveText(notes);
+  const text = getActiveNotes(notes);
   if (!text.includes(selection)) return null;
   const rewritten = text.replace(selection, () => markdown);
   return notes.view === "simplified" && notes.simplified !== null
@@ -76,17 +72,26 @@ const appliers: {
   [T in SubagentTool]: (
     state: LearningState,
     data: ToolResultData<T>,
+    prev: LearningState,
   ) => LearningState | string;
 } = {
-  research: (state, { topic, research }) => ({ ...state, topic, research }),
+  research: (state, { topic, research }) => ({
+    ...state,
+    topic,
+    research,
+    quizOutdated: false,
+  }),
 
   makeNotes: (state, { markdown }) => ({
     ...state,
     notes: { original: markdown, simplified: null, view: "original" },
+    quizOutdated: false,
   }),
 
-  simplify: (state, result) => {
+  // Simplifying changes the notes, so an existing quiz is out of date.
+  simplify: (state, result, prev) => {
     if (!state.notes) return "There are no notes to simplify.";
+    const quizOutdated = prev.quizOutdated || hasQuizData(prev);
     if (result.scope === "all") {
       return {
         ...state,
@@ -95,6 +100,7 @@ const appliers: {
           simplified: result.markdown,
           view: "simplified",
         },
+        quizOutdated,
       };
     }
     const notes = replaceSelection(
@@ -103,11 +109,11 @@ const appliers: {
       result.markdown,
     );
     return notes
-      ? { ...state, notes }
+      ? { ...state, notes, quizOutdated }
       : "The selected text is no longer in the notes.";
   },
 
-  generateQuiz: (state, { quiz }) => ({ ...state, quiz }),
+  generateQuiz: (state, { quiz }) => ({ ...state, quiz, quizOutdated: false }),
 
   evaluate: (state, { evaluation, score, feedback }) => ({
     ...state,
@@ -130,7 +136,8 @@ const applyData = <T extends SubagentTool>(
   state: LearningState,
   tool: T,
   data: ToolResultData<T>,
-): LearningState | string => appliers[tool](state, data);
+  prev: LearningState,
+): LearningState | string => appliers[tool](state, data, prev);
 
 /** A subagent tool started: mark its task as running. */
 export const handleStartTask = (
@@ -172,7 +179,12 @@ export const applyToolResult = (
   }
   if (!result.ok) return handleToolFail(state, result.error);
 
-  const next = applyData(clearLaterStages(state, tool), tool, result.data);
+  const next = applyData(
+    clearLaterStages(state, tool),
+    tool,
+    result.data,
+    state,
+  );
   if (typeof next === "string") return handleToolFail(state, next);
 
   return createStateUpdate(state, {

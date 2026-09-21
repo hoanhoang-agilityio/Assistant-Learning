@@ -42,6 +42,7 @@ describe("toSupervisorState", () => {
       score: null,
       hasFeedback: false,
       hasReflection: false,
+      quizOutdated: false,
     });
     expect(JSON.stringify(trimmed)).not.toContain("Bindings");
     expect(JSON.stringify(trimmed)).not.toContain("sealed");
