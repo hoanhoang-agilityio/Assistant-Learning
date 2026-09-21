@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SETTINGS } from "../../../constants/settings";
-import { resolveRunSettings } from "../run-settings";
+import { DEFAULT_SETTINGS } from "@/constants/settings";
+import { resolveRunSettings } from "@/services/llm/run-settings";
 
 const allKeys = {
   OPENAI_API_KEY: "o",

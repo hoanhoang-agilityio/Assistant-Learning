@@ -1,6 +1,6 @@
 import type { Provider } from "@repo/shared/schemas";
 
-import type { ProviderInfo } from "../types/llm";
+import type { ProviderInfo } from "@/types/llm";
 
 // TODO: configure these in the .env
 export const PROVIDER_CATALOG = {

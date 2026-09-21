@@ -1,7 +1,7 @@
-import { PROVIDERS, type Provider } from "@repo/shared/schemas";
+import { type Provider, PROVIDERS } from "@repo/shared/schemas";
 
-import { PROVIDER_CATALOG } from "../../constants/models";
-import type { Env } from "../../types/env";
+import { PROVIDER_CATALOG } from "@/constants/models";
+import type { Env } from "@/types/env";
 
 export const hasProviderKey = (
   provider: Provider,

@@ -12,8 +12,11 @@ import {
   SUBAGENT_CLEARS,
   SUBAGENT_STAGE,
   SUBAGENT_TASK,
-} from "../../constants/agents";
-import type { StatePatchOperation, StateUpdate } from "../../types/agents";
+} from "@/features/agent/constants/agents";
+import type {
+  StatePatchOperation,
+  StateUpdate,
+} from "@/features/agent/types/agents";
 
 export const isSubagentTool = (name: string): name is SubagentTool =>
   (SUBAGENT_TOOLS as readonly string[]).includes(name);

@@ -1,9 +1,8 @@
 import { fixupConfigRules } from "@eslint/compat";
+import { config as baseConfig } from "@repo/eslint-config/base";
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
-
-import { config as baseConfig } from "@repo/eslint-config/base";
 
 export default defineConfig([
   ...baseConfig,

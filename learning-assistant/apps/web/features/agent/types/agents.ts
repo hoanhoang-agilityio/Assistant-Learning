@@ -8,7 +8,7 @@ import type {
   Status,
 } from "@repo/shared/schemas";
 
-import type { Env } from "./env";
+import type { Env } from "@/types/env";
 
 /** A JSON Patch operation. The wrapper only emits top-level `add`s. */
 export interface StatePatchOperation {

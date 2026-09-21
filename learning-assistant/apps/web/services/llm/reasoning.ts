@@ -7,9 +7,9 @@ import {
   ANTHROPIC_THINKING_BUDGET,
   GEMINI_THINKING_BUDGET,
   GEMINI_THINKING_LEVEL,
-} from "../../constants/reasoning";
-import type { ProviderOptions, ReasoningKind } from "../../types/llm";
-import { findModel } from "../../utils/models";
+} from "@/constants/reasoning";
+import type { ProviderOptions, ReasoningKind } from "@/types/llm";
+import { findModel } from "@/utils/models";
 
 /** Maps the normalised effort to one reasoning kind's `providerOptions`. */
 export const toReasoningOptions = (

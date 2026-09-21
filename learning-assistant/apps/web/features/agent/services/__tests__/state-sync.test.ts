@@ -3,7 +3,7 @@ import { initialLearningState } from "@repo/shared/schemas";
 import { firstValueFrom, from, toArray } from "rxjs";
 import { describe, expect, it } from "vitest";
 
-import { syncStateFromTools } from "../state-sync";
+import { syncStateFromTools } from "@/features/agent/services/state-sync";
 
 const run = (events: BaseEvent[]) =>
   firstValueFrom(

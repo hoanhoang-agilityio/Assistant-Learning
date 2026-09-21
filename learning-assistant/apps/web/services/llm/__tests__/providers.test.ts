@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { getAvailableProviders, hasProviderKey } from "../providers";
+import {
+  getAvailableProviders,
+  hasProviderKey,
+} from "@/services/llm/providers";
 
 describe("getAvailableProviders", () => {
   it("returns nothing when no keys are set", () => {
