@@ -8,8 +8,10 @@ export const TOOL_DESCRIPTIONS: Record<SubagentTool, string> = {
     "Turn the current research into editable markdown study notes on the canvas. Needs research.",
   simplify:
     'Rewrite the notes in student-friendly language. scope "all" rewrites the whole set into the Simplified view; scope "selection" rewrites only `selection`, which must be copied exactly from the notes. Needs notes.',
-  generateQuiz: "Write a multiple-choice quiz from the notes. Needs notes.",
-  evaluate: "Grade the submitted quiz. Needs a fully answered quiz.",
+  generateQuiz:
+    "Write a new multiple-choice quiz from the notes the student is viewing, replacing any current quiz and its results. Needs notes.",
+  evaluate:
+    "Grade the quiz with the answers the student picked on the canvas. Only when they ask in chat to grade it; the Submit button grades it without you. Needs every question answered.",
 };
 
 /**
@@ -25,6 +27,13 @@ export const TOOL_ERRORS = {
     'Simplifying a selection needs the selected text. Pass it in "selection", or use scope "all".',
   selectionNotFound:
     "The selected text was not found in the notes. It must be copied exactly from the notes the student is viewing.",
+  noNotesForQuiz:
+    "There are no notes yet, so there is nothing to quiz on. Make notes first.",
+  noQuiz: "There is no quiz yet. Write a quiz first.",
+  quizAlreadySubmitted:
+    "This quiz was already graded. The student can Retake it or ask for new questions.",
+  staleQuiz:
+    "The answers were for a quiz that has since been replaced. The student should answer the current quiz.",
   stopped: "The student stopped this step.",
 } as const;
 
