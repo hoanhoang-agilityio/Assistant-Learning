@@ -1,0 +1,38 @@
+{
+  "surfaceId": "research",
+  "catalogId": "learning-assistant/canvas/v1",
+  "components": [
+    {
+      "id": "root",
+      "component": "Stack",
+      "children": ["article", "flashcards", "sources"]
+    },
+    {
+      "id": "article",
+      "component": "ArticleCard",
+      "eyebrow": "Curated Reading",
+      "title": { "path": "/research/title" },
+      "body": { "path": "/research/summary" },
+      "child": "insight"
+    },
+    {
+      "id": "insight",
+      "component": "InsightCallout",
+      "label": "Key Insight",
+      "text": { "path": "/research/keyInsight" }
+    },
+    {
+      "id": "flashcards",
+      "component": "Flashcards",
+      "title": "Key Term Flashcards",
+      "cards": { "path": "/research/keyTerms" }
+    },
+    {
+      "id": "sources",
+      "component": "SourceList",
+      "title": "Sources",
+      "sources": { "path": "/research/sources" },
+      "emptyText": "No web sources: this research comes from the model's own knowledge."
+    }
+  ]
+}

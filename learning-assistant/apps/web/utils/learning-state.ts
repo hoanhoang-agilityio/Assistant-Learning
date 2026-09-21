@@ -2,6 +2,8 @@ import {
   initialLearningState,
   type LearningState,
   LearningStateSchema,
+  type Notes,
+  QUIZ_STATE_KEYS,
 } from "@repo/shared/schemas";
 
 /**
@@ -16,3 +18,13 @@ export const readLearningState = (raw: unknown): LearningState => {
   const parsed = LearningStateSchema.safeParse(merged);
   return parsed.success ? parsed.data : initialLearningState;
 };
+
+/** The notes text the student is looking at: simplified or original. */
+export const getActiveNotes = (notes: Notes): string =>
+  notes.view === "simplified" && notes.simplified !== null
+    ? notes.simplified
+    : notes.original;
+
+/** A quiz or anything built from it exists. */
+export const hasQuizData = (state: LearningState): boolean =>
+  QUIZ_STATE_KEYS.some((key) => state[key] !== null);
