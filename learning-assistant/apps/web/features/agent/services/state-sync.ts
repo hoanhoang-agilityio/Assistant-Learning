@@ -10,7 +10,7 @@ import { concatMap, type OperatorFunction } from "rxjs";
 
 import {
   applyToolResult,
-  handleStartTask,
+  createStartUpdate,
   interruptTask,
   isSubagentTool,
 } from "@/features/agent/services/state-deltas";
@@ -30,7 +30,7 @@ export const syncStateFromTools = (
   let state = initial;
   const runningTools = new Map<string, SubagentTool>();
 
-  const handleConvertToDelta = (update: StateUpdate): StateDeltaEvent[] => {
+  const toDeltaEvents = (update: StateUpdate): StateDeltaEvent[] => {
     state = update.state;
     onStateChange?.(state);
     return update.patch.length > 0
@@ -46,7 +46,7 @@ export const syncStateFromTools = (
         runningTools.set(toolCallId, toolCallName);
         return [
           event,
-          ...handleConvertToDelta(handleStartTask(state, toolCallName)),
+          ...toDeltaEvents(createStartUpdate(state, toolCallName)),
         ];
       }
       case EventType.TOOL_CALL_RESULT: {
@@ -54,15 +54,12 @@ export const syncStateFromTools = (
         const tool = runningTools.get(toolCallId);
         if (!tool) return [event];
         runningTools.delete(toolCallId);
-        return [
-          event,
-          ...handleConvertToDelta(applyToolResult(state, tool, content)),
-        ];
+        return [event, ...toDeltaEvents(applyToolResult(state, tool, content))];
       }
       case EventType.RUN_FINISHED:
       case EventType.RUN_ERROR: {
         const update = interruptTask(state);
-        return update ? [...handleConvertToDelta(update), event] : [event];
+        return update ? [...toDeltaEvents(update), event] : [event];
       }
       default:
         return [event];
