@@ -14,6 +14,7 @@ import type { LearningSupervisorAgentConfig } from "../../types/agents";
 import { createLanguageModel } from "../llm/language-model";
 import { getReasoningOptions } from "../llm/reasoning";
 import { resolveRunSettings } from "../llm/run-settings";
+import { syncStateFromTools } from "./state-sync";
 import { readLearningState, toSupervisorState } from "./supervisor-state";
 
 /**
@@ -28,7 +29,8 @@ const isInnerStateEvent = (event: BaseEvent) =>
 /**
  * Thin wrapper around `BuiltInAgent`. On each run it reads
  * `forwardedProps.settings`, builds an inner agent for the chosen model and
- * reasoning effort, passes it a trimmed state and pipes its events through.
+ * reasoning effort, passes it a trimmed state and pipes its events through,
+ * adding a `STATE_DELTA` for each subagent tool result.
  */
 export class LearningSupervisorAgent extends AbstractAgent {
   private config: LearningSupervisorAgentConfig;
@@ -72,9 +74,10 @@ export class LearningSupervisorAgent extends AbstractAgent {
       tools: this.config.tools?.({ settings, state }) ?? [],
     });
 
-    return this.inner
-      .run({ ...input, state: toSupervisorState(state) })
-      .pipe(filter((event) => !isInnerStateEvent(event)));
+    return this.inner.run({ ...input, state: toSupervisorState(state) }).pipe(
+      filter((event) => !isInnerStateEvent(event)),
+      syncStateFromTools(state),
+    );
   }
 
   // The runtime clones the agent for each request, and the base clone does
