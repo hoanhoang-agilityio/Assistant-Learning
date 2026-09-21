@@ -26,3 +26,10 @@ export interface StepperStep extends Pick<StageStep, "id" | "title" | "icon"> {
   /** Its subagent is running. */
   isBuilding: boolean;
 }
+
+/** One choice in an `OptionToggle`. */
+export interface ToggleOption<T extends string> {
+  id: T;
+  label: string;
+  icon: LucideIcon;
+}
