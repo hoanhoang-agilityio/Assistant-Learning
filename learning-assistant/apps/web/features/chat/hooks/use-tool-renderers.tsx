@@ -3,6 +3,7 @@ import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 import { ToolParamSchemas } from "@repo/shared/schemas";
 
 import { ToolProgress } from "@/features/chat/components/ToolProgress";
+import { formatQuizSize } from "@/features/chat/utils/tool-results";
 
 /**
  * Progress cards for every subagent tool. Called once from the app shell so
@@ -60,13 +61,11 @@ export const useToolRenderers = () => {
       name: "generateQuiz",
       agentId: LEARNING_AGENT_ID,
       parameters: ToolParamSchemas.generateQuiz,
-      render: ({ status, parameters, result }) => (
+      render: ({ status, result }) => (
         <ToolProgress
           tool="generateQuiz"
           status={status}
-          detail={
-            parameters.count ? `${parameters.count} questions` : undefined
-          }
+          detail={formatQuizSize(result)}
           result={result}
         />
       ),

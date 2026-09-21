@@ -1,4 +1,4 @@
-import type { SubagentTool } from "@repo/shared/schemas";
+import { type SubagentTool, ToolResultSchemas } from "@repo/shared/schemas";
 
 import { TOOL_LABELS } from "@/features/chat/constants/tools";
 import type { ToolCallStatus, ToolPhase } from "@/features/chat/types/chat";
@@ -56,5 +56,20 @@ export const formatToolTitle = (
       return labels.failed;
     case "stopped":
       return labels.stopped;
+  }
+};
+
+/** "8 questions" from a successful `generateQuiz` result, else `undefined`. */
+export const formatQuizSize = (
+  result: string | undefined,
+): string | undefined => {
+  if (!result) return undefined;
+  try {
+    const parsed = ToolResultSchemas.generateQuiz.safeParse(JSON.parse(result));
+    return parsed.success && parsed.data.ok
+      ? `${parsed.data.data.quiz.questions.length} questions`
+      : undefined;
+  } catch {
+    return undefined;
   }
 };

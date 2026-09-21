@@ -15,7 +15,6 @@ import { createLearningTools } from "@/features/agent/services/tools/learning-to
 
 const learningAgent = new LearningSupervisorAgent({
   prompt: SUPERVISOR_PROMPT,
-  // TODO(M4.3, M5): add the generateQuiz and evaluate tools.
   tools: createLearningTools,
 });
 

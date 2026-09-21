@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatQuizSize,
   formatToolTitle,
   getToolPhase,
   parseToolError,
@@ -56,4 +57,33 @@ describe("formatToolTitle", () => {
       "Research stopped",
     );
   });
+});
+
+describe("formatQuizSize", () => {
+  const question = {
+    id: "q1",
+    concept: "A",
+    question: "One?",
+    options: ["a", "b", "c", "d"],
+  };
+  const quiz = {
+    id: "quiz-1",
+    questions: [question, { ...question, id: "q2" }],
+    answers: {},
+    answerKeySealed: "sealed",
+    submitted: false,
+  };
+
+  it("counts the questions in a successful result", () => {
+    expect(formatQuizSize(JSON.stringify({ ok: true, data: { quiz } }))).toBe(
+      "2 questions",
+    );
+  });
+
+  it.each([undefined, "not json", JSON.stringify({ ok: false, error: "x" })])(
+    "is undefined for %j",
+    (result) => {
+      expect(formatQuizSize(result)).toBeUndefined();
+    },
+  );
 });
