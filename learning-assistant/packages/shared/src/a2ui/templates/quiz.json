@@ -1,0 +1,48 @@
+{
+  "surfaceId": "quiz",
+  "catalogId": "learning-assistant/canvas/v1",
+  "components": [
+    {
+      "id": "root",
+      "component": "Stack",
+      "children": ["questions", "actions"]
+    },
+    {
+      "id": "questions",
+      "component": "Stack",
+      "children": { "componentId": "question", "path": "/questions" }
+    },
+    {
+      "id": "question",
+      "component": "QuestionCard",
+      "questionId": { "path": "id" },
+      "number": { "path": "number" },
+      "concept": { "path": "concept" },
+      "question": { "path": "question" },
+      "options": { "path": "options" },
+      "selectedIndex": { "path": "selectedIndex" },
+      "result": { "path": "result" },
+      "isLocked": { "path": "/isLocked" }
+    },
+    {
+      "id": "actions",
+      "component": "QuizActionBar",
+      "answeredCount": { "path": "/answeredCount" },
+      "total": { "path": "/total" },
+      "canSubmit": { "path": "/canSubmit" },
+      "isSubmitted": { "path": "/isSubmitted" },
+      "isLocked": { "path": "/isLocked" },
+      "submitAction": {
+        "event": {
+          "name": "submit_quiz",
+          "context": {
+            "quizId": { "path": "/quizId" },
+            "answers": { "path": "/answers" }
+          }
+        }
+      },
+      "retakeAction": { "event": { "name": "retake_quiz" } },
+      "newQuestionsAction": { "event": { "name": "new_questions" } }
+    }
+  ]
+}
