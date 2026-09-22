@@ -1,6 +1,3 @@
-/** Letters shown before the options, in option order. */
-export const OPTION_LETTERS = ["A", "B", "C", "D"] as const;
-
 /** Prefix of each question heading's id; its radio group points to it. */
 export const QUESTION_LABEL_ID_PREFIX = "question-";
 

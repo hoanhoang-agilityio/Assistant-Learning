@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const OPTIONS_PER_QUESTION = 4;
 
+/** Letters shown before the options, in option order. */
+export const OPTION_LETTERS = ["A", "B", "C", "D"] as const;
+
 export const OptionIndexSchema = z
   .int()
   .min(0)
