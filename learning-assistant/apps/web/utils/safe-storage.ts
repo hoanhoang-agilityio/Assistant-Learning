@@ -1,30 +1,37 @@
 import type { StateStorage } from "zustand/middleware";
 
 /**
- * `localStorage` that never throws. Storage can be missing (server render) or
- * blocked (private mode, disabled site data); settings then live in memory
+ * Web Storage that never throws. Storage can be missing (server render) or
+ * blocked (private mode, disabled site data); values then live in memory
  * for the session.
  */
-export const safeLocalStorage: StateStorage = {
+const createSafeStorage = (getStorage: () => Storage): StateStorage => ({
   getItem: (name) => {
     try {
-      return window.localStorage.getItem(name);
+      return getStorage().getItem(name);
     } catch {
       return null;
     }
   },
   setItem: (name, value) => {
     try {
-      window.localStorage.setItem(name, value);
+      getStorage().setItem(name, value);
     } catch {
       // Keep the in-memory value.
     }
   },
   removeItem: (name) => {
     try {
-      window.localStorage.removeItem(name);
+      getStorage().removeItem(name);
     } catch {
       // Nothing to remove.
     }
   },
-};
+});
+
+export const safeLocalStorage = createSafeStorage(() => window.localStorage);
+
+/** Cleared when the tab closes. */
+export const safeSessionStorage = createSafeStorage(
+  () => window.sessionStorage,
+);
