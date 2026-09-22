@@ -1,4 +1,8 @@
-import { type SubagentTool, ToolResultSchemas } from "@repo/shared/schemas";
+import {
+  type Score,
+  type SubagentTool,
+  ToolResultSchemas,
+} from "@repo/shared/schemas";
 
 import { TOOL_LABELS } from "@/features/chat/constants/tools";
 import type { ToolCallStatus, ToolPhase } from "@/features/chat/types/chat";
@@ -8,7 +12,9 @@ import type { ToolCallStatus, ToolPhase } from "@/features/chat/types/chat";
  * `{ ok: false, error }` instead of throwing; anything else counts as success.
  */
 export const parseToolError = (result: string | undefined): string | null => {
-  if (!result) return null;
+  if (!result) {
+    return null;
+  }
   try {
     const parsed: unknown = JSON.parse(result);
     if (
@@ -36,7 +42,9 @@ export const getToolPhase = (
   isRunning: boolean,
   error: string | null,
 ): ToolPhase => {
-  if (status !== "complete") return isRunning ? "running" : "stopped";
+  if (status !== "complete") {
+    return isRunning ? "running" : "stopped";
+  }
   return error ? "failed" : "done";
 };
 
@@ -63,7 +71,9 @@ export const formatToolTitle = (
 export const formatQuizSize = (
   result: string | undefined,
 ): string | undefined => {
-  if (!result) return undefined;
+  if (!result) {
+    return undefined;
+  }
   try {
     const parsed = ToolResultSchemas.generateQuiz.safeParse(JSON.parse(result));
     return parsed.success && parsed.data.ok
@@ -71,5 +81,20 @@ export const formatQuizSize = (
       : undefined;
   } catch {
     return undefined;
+  }
+};
+
+/** The score from a successful `evaluate` result, else `null`. */
+export const parseEvaluateScore = (
+  result: string | undefined,
+): Score | null => {
+  if (!result) {
+    return null;
+  }
+  try {
+    const parsed = ToolResultSchemas.evaluate.safeParse(JSON.parse(result));
+    return parsed.success && parsed.data.ok ? parsed.data.data.score : null;
+  } catch {
+    return null;
   }
 };

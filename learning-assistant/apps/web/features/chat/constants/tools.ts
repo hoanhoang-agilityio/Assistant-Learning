@@ -36,3 +36,9 @@ export const TOOL_LABELS: Record<
     stopped: "Evaluation stopped",
   },
 };
+
+/** The card under a finished evaluation that opens the Feedback stage. */
+export const FEEDBACK_READY_COPY = {
+  title: "Feedback ready",
+  hint: "see your personal feedback",
+} as const;
