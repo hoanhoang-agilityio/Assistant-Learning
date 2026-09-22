@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { readList, readText } from "@/features/canvas/utils/a2ui-props";
+import {
+  readList,
+  readMasteryItems,
+  readStatTiles,
+  readText,
+  readTier,
+} from "@/features/canvas/utils/a2ui-props";
 
 describe("readText", () => {
   it("keeps a resolved string", () => {
@@ -27,4 +33,32 @@ describe("readList", () => {
       expect(readList(value)).toEqual([]);
     },
   );
+});
+
+describe("readStatTiles / readMasteryItems", () => {
+  it("keeps well-formed items and drops the rest", () => {
+    expect(
+      readStatTiles([
+        { label: "Accuracy", value: "67%", tone: "indigo" },
+        { label: "Bad tone", value: "1", tone: "purple" },
+        "oops",
+      ]),
+    ).toEqual([{ label: "Accuracy", value: "67%", tone: "indigo" }]);
+    expect(
+      readMasteryItems([
+        { concept: "Scope", percent: 120, tone: "rose", isWeakest: true },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("falls back to an empty list for an unresolved binding", () => {
+    expect(readStatTiles({ path: "/tiles" })).toEqual([]);
+  });
+});
+
+describe("readTier", () => {
+  it("reads a tier name only", () => {
+    expect(readTier("Master")).toBe("Master");
+    expect(readTier("Expert")).toBeNull();
+  });
 });

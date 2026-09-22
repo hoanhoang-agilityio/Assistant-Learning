@@ -1,0 +1,25 @@
+{
+  "surfaceId": "evaluation",
+  "catalogId": "learning-assistant/canvas/v1",
+  "components": [
+    {
+      "id": "root",
+      "component": "Stack",
+      "children": ["analysis"]
+    },
+    {
+      "id": "analysis",
+      "component": "StatTiles",
+      "title": "AI Performance Analysis",
+      "tiles": { "path": "/tiles" },
+      "child": "mastery"
+    },
+    {
+      "id": "mastery",
+      "component": "MasteryBars",
+      "title": "Skill Mastery Breakdown",
+      "items": { "path": "/mastery" },
+      "emptyText": "No concepts were tagged on this quiz."
+    }
+  ]
+}
