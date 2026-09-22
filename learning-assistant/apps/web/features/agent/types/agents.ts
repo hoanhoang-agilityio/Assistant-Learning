@@ -1,5 +1,6 @@
 import type { ToolDefinition } from "@copilotkit/runtime/v2";
 import type {
+  Evaluation,
   LearningState,
   Notes,
   Score,
@@ -84,6 +85,8 @@ export interface SupervisorState {
     answeredCount: number;
     submitted: boolean;
   } | null;
+  /** The grade in brief; the explanations and feedback stay on the canvas. */
+  evaluation: Pick<Evaluation, "correct" | "total" | "weakestConcept"> | null;
   score: Score | null;
   hasFeedback: boolean;
   hasReflection: boolean;
