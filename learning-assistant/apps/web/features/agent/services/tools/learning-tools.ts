@@ -28,7 +28,7 @@ const createNotesTools = ({
     description: TOOL_DESCRIPTIONS.research,
     parameters: ToolParamSchemas.research,
     execute: ({ topic }): Promise<ToolResult<"research">> =>
-      runSubagent("research", signal, async () => ({
+      runSubagent("research", { settings, signal }, async () => ({
         topic,
         research: await runResearch({ topic, settings, env, signal }),
       })),
@@ -43,7 +43,7 @@ const createNotesTools = ({
       if (!research) {
         return fail(TOOL_ERRORS.noResearch);
       }
-      return runSubagent("makeNotes", signal, async () => ({
+      return runSubagent("makeNotes", { settings, signal }, async () => ({
         markdown: await runMakeNotes({ research, settings, signal }),
       }));
     },
@@ -61,7 +61,7 @@ const createNotesTools = ({
       const text = getActiveNotes(notes);
 
       if (scope === "all") {
-        return runSubagent("simplify", signal, async () => ({
+        return runSubagent("simplify", { settings, signal }, async () => ({
           scope,
           markdown: await runSimplify({ notes: text, settings, signal }),
         }));
@@ -73,7 +73,7 @@ const createNotesTools = ({
       if (!text.includes(selection)) {
         return fail(TOOL_ERRORS.selectionNotFound);
       }
-      return runSubagent("simplify", signal, async () => ({
+      return runSubagent("simplify", { settings, signal }, async () => ({
         scope,
         selection,
         markdown: await runSimplify({
