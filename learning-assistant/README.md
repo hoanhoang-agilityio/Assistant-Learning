@@ -13,53 +13,45 @@ pnpm install
 cp apps/web/.env.example apps/web/.env
 ```
 
-Fill in `apps/web/.env` (see below). At minimum, set one provider key and `QUIZ_SEAL_SECRET`. Then start the app:
+Fill in `apps/web/.env` (see below). At minimum, set `API_KEY_SEAL_SECRET` and `QUIZ_SEAL_SECRET`. Then start the app:
 
 ```bash
 pnpm dev
 ```
 
-Open <http://localhost:3000>. Keys are read on each request, so after you change `.env`, restart the dev server.
+Open <http://localhost:3000>. You are sent to the API key page first: enter your own OpenAI API key. The server checks it with OpenAI, then returns it sealed (AES-256-GCM with `API_KEY_SEAL_SECRET`). The browser keeps only the sealed key, in `sessionStorage`, so it is cleared when the tab closes. Without a saved key, the assistant sends you back to the key page. After you change `.env`, restart the dev server.
 
 ## Environment variables
 
 All variables live in `apps/web/.env` and are read on the server only.
 
-| Variable | Required | What it does |
-| --- | --- | --- |
-| `OPENAI_API_KEY` | One provider key | Enables OpenAI models |
-| `ANTHROPIC_API_KEY` | One provider key | Enables Anthropic models |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | One provider key | Enables Google Gemini models |
-| `QUIZ_SEAL_SECRET` | Yes | Secret used to encrypt the quiz answer key until Submit. Generate one with `openssl rand -base64 32` |
-| `TAVILY_API_KEY` | No | Turns on web research with cited sources. Without it, research uses only the model's own knowledge and lists no sources |
-| `NEXT_PUBLIC_RUNTIME_URL` | No | Base path of the CopilotKit runtime route. Defaults to `/api/copilotkit` |
+| Variable                  | Required | What it does                                                                                                                         |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `API_KEY_SEAL_SECRET`     | Yes      | Secret used to encrypt the user's OpenAI key, so the browser never stores the plain key. Generate one with `openssl rand -base64 32` |
+| `QUIZ_SEAL_SECRET`        | Yes      | Secret used to encrypt the quiz answer key until Submit. Generate one with `openssl rand -base64 32`                                 |
+| `TAVILY_API_KEY`          | No       | Turns on web research with cited sources. Without it, research uses only the model's own knowledge and lists no sources              |
+| `NEXT_PUBLIC_RUNTIME_URL` | No       | Base path of the CopilotKit runtime route. Defaults to `/api/copilotkit`                                                             |
 
 The `LANGSMITH_*` entries in `.env.example` are not read by v1.
 
-## Providers and models
+## Model
 
-Settings (the gear in the header) only lists providers whose key is set. The allowlist is in [apps/web/constants/models.ts](./apps/web/constants/models.ts):
+Every agent uses OpenAI's `gpt-5.4-mini` with low reasoning effort, called with the user's own key. Both are set in [apps/web/constants/openai.ts](./apps/web/constants/openai.ts).
 
-| Provider | Models | Reasoning effort |
-| --- | --- | --- |
-| OpenAI | GPT-5.4 mini (default), GPT-5.4 | Effort level |
-| Anthropic | Claude Sonnet 5, Claude Haiku 4.5 | Adaptive thinking or a token budget |
-| Google | Gemini 3.8 Flash, Gemini 2.5 Flash | Thinking level or a token budget |
-
-Settings also hold the question count (3–20), the learning level and the theme. They are saved in the browser and sent with every run. If a provider rejects a key, runs out of quota or does not know a model, the chat and the canvas explain what to fix.
+Settings hold the question count (3–20), the learning level, the theme, and a link to change the API key. They are saved in the browser and sent with every run. If OpenAI rejects the key, the quota runs out or the model is not available, the chat and the canvas explain what to fix.
 
 ## Scripts
 
 Run these from the repo root. Turborepo runs them in every package.
 
-| Command | What it does |
-| --- | --- |
-| `pnpm dev` | Starts the web app on port 3000 |
-| `pnpm build` | Builds for production |
-| `pnpm lint` | Runs ESLint with zero warnings allowed |
-| `pnpm check-types` | Type-checks every package |
-| `pnpm test` | Runs the Vitest suites |
-| `pnpm format` | Formats `ts`, `tsx` and `md` files with Prettier |
+| Command            | What it does                                     |
+| ------------------ | ------------------------------------------------ |
+| `pnpm dev`         | Starts the web app on port 3000                  |
+| `pnpm build`       | Builds for production                            |
+| `pnpm lint`        | Runs ESLint with zero warnings allowed           |
+| `pnpm check-types` | Type-checks every package                        |
+| `pnpm test`        | Runs the Vitest suites                           |
+| `pnpm format`      | Formats `ts`, `tsx` and `md` files with Prettier |
 
 Commits go through Husky: lint-staged formats and lints staged files, and commitlint checks for a conventional commit message.
 
@@ -80,7 +72,7 @@ packages/typescript-config/ tsconfig presets
 
 Everything runs inside the Next.js app. `CopilotRuntime` hosts one agent, `LearningSupervisorAgent`. It is a thin wrapper around CopilotKit's `BuiltInAgent`, and on each run it does four things:
 
-1. Reads the user's settings from `forwardedProps` and builds the Supervisor for the chosen model and reasoning effort.
+1. Reads the user's settings from `forwardedProps` and builds the Supervisor with the user's OpenAI key.
 2. Gives the Supervisor its subagent tools (`research`, `makeNotes`, `simplify`, `generateQuiz`, `evaluate`), each running a focused `generateObject` call.
 3. Passes the Supervisor a trimmed state, never the full notes or quiz.
 4. Turns each tool result into an AG-UI `STATE_DELTA`, so the canvas updates without the LLM copying data into state.
