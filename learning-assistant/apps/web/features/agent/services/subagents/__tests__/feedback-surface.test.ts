@@ -6,7 +6,7 @@ import type { FeedbackComponent } from "@repo/shared/schemas";
 import { generateText } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_SETTINGS } from "@/constants/settings";
+import { TEST_RUN_SETTINGS } from "@/features/agent/services/__tests__/quiz-fixtures";
 import { runFeedbackSurface } from "@/features/agent/services/subagents/feedback-surface";
 import type { EvaluatorInput } from "@/features/agent/types/scoring";
 
@@ -75,7 +75,7 @@ describe("runFeedbackSurface", () => {
 
     const operations = await runFeedbackSurface({
       input: INPUT,
-      settings: DEFAULT_SETTINGS,
+      settings: TEST_RUN_SETTINGS,
     });
 
     expect(operations).toEqual([
@@ -107,7 +107,7 @@ describe("runFeedbackSurface", () => {
       .mockResolvedValueOnce(replyWith(dangling))
       .mockResolvedValueOnce(replyWith(VALID));
 
-    await runFeedbackSurface({ input: INPUT, settings: DEFAULT_SETTINGS });
+    await runFeedbackSurface({ input: INPUT, settings: TEST_RUN_SETTINGS });
 
     expect(generateText).toHaveBeenCalledTimes(2);
     expect(vi.mocked(generateText).mock.calls[1]?.[0].system).toContain(
@@ -123,7 +123,7 @@ describe("runFeedbackSurface", () => {
     vi.mocked(generateText).mockResolvedValue(replyWith(noRoot));
 
     await expect(
-      runFeedbackSurface({ input: INPUT, settings: DEFAULT_SETTINGS }),
+      runFeedbackSurface({ input: INPUT, settings: TEST_RUN_SETTINGS }),
     ).rejects.toThrow("invalid after 2 attempts");
   });
 });

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_SETTINGS } from "@/constants/settings";
+import { TEST_RUN_SETTINGS } from "@/features/agent/services/__tests__/quiz-fixtures";
 import {
   QUIZ_DRAFT,
   SECRET_EXPLANATION,
@@ -40,7 +40,7 @@ const setup = async () => {
       answers,
       answerKeys,
       notes: "# Closures",
-      settings: DEFAULT_SETTINGS,
+      settings: TEST_RUN_SETTINGS,
     },
   };
 };

@@ -8,6 +8,7 @@ import {
 import { DEFAULT_SETTINGS } from "@/constants/settings";
 import { SealedAnswerKeyStore } from "@/features/agent/services/answer-key/sealed-answer-key-store";
 import type { SupervisorRunContext } from "@/features/agent/types/agents";
+import type { RunSettings } from "@/types/llm";
 
 /** Text that must never reach the client before the quiz is submitted. */
 export const SECRET_EXPLANATION = "SECRET-EXPLANATION";
@@ -29,11 +30,17 @@ export const STATE_WITH_NOTES: LearningState = {
   notes: { original: "# Closures", simplified: null, view: "original" },
 };
 
+/** Run settings with a placeholder key; model calls are mocked in tests. */
+export const TEST_RUN_SETTINGS: RunSettings = {
+  ...DEFAULT_SETTINGS,
+  apiKey: "sk-test",
+};
+
 /** A run context whose state can be changed by the test, like the wrapper's. */
 export const createTestContext = (initial: LearningState) => {
   let state = initial;
   const ctx: SupervisorRunContext = {
-    settings: DEFAULT_SETTINGS,
+    settings: TEST_RUN_SETTINGS,
     getState: () => state,
     signal: new AbortController().signal,
     env: {},

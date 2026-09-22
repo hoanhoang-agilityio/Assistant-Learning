@@ -6,6 +6,7 @@ import {
 import { firstValueFrom, toArray } from "rxjs";
 import { describe, expect, it } from "vitest";
 
+import { API_KEY_ROUTE } from "@/constants/routes";
 import { LearningSupervisorAgent } from "@/features/agent/services/supervisor-agent";
 
 const input: RunAgentInput = {
@@ -19,7 +20,7 @@ const input: RunAgentInput = {
 };
 
 describe("LearningSupervisorAgent", () => {
-  it("explains in chat, then emits RUN_ERROR, when no provider has a key", async () => {
+  it("explains in chat, then emits RUN_ERROR, when no API key is saved", async () => {
     const agent = new LearningSupervisorAgent({ env: {} });
     const events = await firstValueFrom(agent.run(input).pipe(toArray()));
 
@@ -34,7 +35,7 @@ describe("LearningSupervisorAgent", () => {
       (e): e is TextMessageContentEvent =>
         e.type === EventType.TEXT_MESSAGE_CONTENT,
     );
-    expect(content?.delta).toContain("OPENAI_API_KEY");
+    expect(content?.delta).toContain(API_KEY_ROUTE);
   });
 
   it("keeps its config when cloned", async () => {
