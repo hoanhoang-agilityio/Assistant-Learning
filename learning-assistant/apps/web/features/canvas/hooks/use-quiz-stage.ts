@@ -1,12 +1,11 @@
 import type { A2UIClientEventMessage } from "@copilotkit/a2ui-renderer";
-import { useCopilotKit } from "@copilotkit/react-core/v2";
 import { QUIZ_ACTIONS } from "@repo/shared/a2ui/quiz-actions";
 import type { Evaluation, LearningState, Quiz } from "@repo/shared/schemas";
 import { useMemo } from "react";
 
-import { A2UI_ACTION_PROP } from "@/features/canvas/constants/a2ui";
 import { NEW_QUESTIONS_MESSAGE } from "@/features/canvas/constants/quiz";
 import { useSendMessage } from "@/features/canvas/hooks/use-send-message";
+import { useSubmitQuiz } from "@/features/canvas/hooks/use-submit-quiz";
 import { createQuizDataModel } from "@/features/canvas/utils/build-surface";
 import {
   parseSelectAnswer,
@@ -25,8 +24,8 @@ import { readLearningState } from "@/utils/learning-state";
  */
 export const useQuizStage = (quiz: Quiz, evaluation: Evaluation | null) => {
   const { agent, isRunning } = useLearningAgent();
-  const { copilotkit } = useCopilotKit();
   const sendMessage = useSendMessage();
+  const submit = useSubmitQuiz();
 
   const dataModel = useMemo(
     () => createQuizDataModel(quiz, evaluation, isRunning),
@@ -39,14 +38,6 @@ export const useQuizStage = (quiz: Quiz, evaluation: Evaluation | null) => {
     if (next !== current) {
       agent.setState(next);
     }
-  };
-
-  const submit = (message: A2UIClientEventMessage) => {
-    copilotkit
-      .runAgent({ agent, forwardedProps: { [A2UI_ACTION_PROP]: message } })
-      .catch((error: unknown) => {
-        console.error("[quiz] Submitting the quiz failed", error);
-      });
   };
 
   const handleAction = (message: A2UIClientEventMessage) => {
