@@ -1,4 +1,4 @@
-import type { Quiz, Settings, ToolResultData } from "@repo/shared/schemas";
+import type { Quiz, ToolResultData } from "@repo/shared/schemas";
 import { getTier } from "@repo/shared/utils/tier";
 
 import { runEvaluator } from "@/features/agent/services/subagents/evaluator";
@@ -11,6 +11,7 @@ import {
 } from "@/features/agent/utils/evaluation";
 import { formatFeedbackSummary } from "@/features/agent/utils/feedback-summary";
 import { scoreQuiz } from "@/features/agent/utils/scoring";
+import type { RunSettings } from "@/types/llm";
 
 interface EvaluateParams {
   quiz: Quiz;
@@ -19,7 +20,7 @@ interface EvaluateParams {
   answerKeys: AnswerKeyStore;
   /** The notes the student was quizzed on. */
   notes: string;
-  settings: Settings;
+  settings: RunSettings;
   signal?: AbortSignal;
 }
 

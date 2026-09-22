@@ -1,8 +1,4 @@
-import {
-  type QuizDraft,
-  QuizDraftQuestionSchema,
-  type Settings,
-} from "@repo/shared/schemas";
+import { type QuizDraft, QuizDraftQuestionSchema } from "@repo/shared/schemas";
 import { z } from "zod";
 
 import { QUIZ_ATTEMPTS } from "@/features/agent/constants/agents";
@@ -11,12 +7,13 @@ import {
   createQuizSystem,
 } from "@/features/agent/services/prompts/subagents";
 import { generateStructured } from "@/features/agent/services/subagents/generate-structured";
+import type { RunSettings } from "@/types/llm";
 
 interface QuizParams {
   /** The notes in the view the student is looking at. */
   notes: string;
   count: number;
-  settings: Settings;
+  settings: RunSettings;
   signal?: AbortSignal;
 }
 

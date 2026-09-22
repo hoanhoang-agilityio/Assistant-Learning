@@ -9,9 +9,10 @@ import {
   FEEDBACK_CATALOG_ID,
   FEEDBACK_SURFACE_ID,
 } from "@repo/shared/a2ui/feedback-catalog";
-import { FeedbackSurfaceArgsSchema, type Settings } from "@repo/shared/schemas";
+import { FeedbackSurfaceArgsSchema } from "@repo/shared/schemas";
 import { generateText, tool } from "ai";
 
+import { OPENAI_CALL_OPTIONS } from "@/constants/openai";
 import { FEEDBACK_SURFACE_ATTEMPTS } from "@/features/agent/constants/agents";
 import {
   createFeedbackSurfacePrompt,
@@ -19,11 +20,11 @@ import {
 } from "@/features/agent/services/prompts/evaluator";
 import type { EvaluatorInput } from "@/features/agent/types/scoring";
 import { createLanguageModel } from "@/services/llm/language-model";
-import { getReasoningOptions } from "@/services/llm/reasoning";
+import type { RunSettings } from "@/types/llm";
 
 interface FeedbackSurfaceParams {
   input: EvaluatorInput;
-  settings: Settings;
+  settings: RunSettings;
   signal?: AbortSignal;
 }
 
@@ -43,12 +44,8 @@ export const runFeedbackSurface = async ({
 }: FeedbackSurfaceParams): Promise<A2UIOperation[]> => {
   const invokeSubagent = async (system: string) => {
     const { toolCalls } = await generateText({
-      model: createLanguageModel(settings.provider, settings.model),
-      providerOptions: getReasoningOptions(
-        settings.provider,
-        settings.model,
-        settings.reasoningEffort,
-      ),
+      model: createLanguageModel(settings.apiKey),
+      providerOptions: OPENAI_CALL_OPTIONS,
       system,
       prompt: createFeedbackSurfacePrompt(input),
       tools: {

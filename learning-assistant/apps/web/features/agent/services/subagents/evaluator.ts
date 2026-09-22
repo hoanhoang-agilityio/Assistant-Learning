@@ -1,7 +1,6 @@
 import {
   type EvaluationFeedback,
   EvaluationFeedbackSchema,
-  type Settings,
 } from "@repo/shared/schemas";
 
 import {
@@ -10,10 +9,11 @@ import {
 } from "@/features/agent/services/prompts/evaluator";
 import { generateStructured } from "@/features/agent/services/subagents/generate-structured";
 import type { EvaluatorInput } from "@/features/agent/types/scoring";
+import type { RunSettings } from "@/types/llm";
 
 interface EvaluatorParams {
   input: EvaluatorInput;
-  settings: Settings;
+  settings: RunSettings;
   signal?: AbortSignal;
 }
 
