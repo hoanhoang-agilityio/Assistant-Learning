@@ -1,4 +1,39 @@
-import type { ChildRef, QuestionResult } from "@/features/canvas/types/a2ui";
+import { TierSchema } from "@repo/shared/schemas";
+import { z } from "zod";
+
+import type {
+  ChildRef,
+  MasteryItem,
+  QuestionResult,
+  StatChip,
+  StatTile,
+} from "@/features/canvas/types/a2ui";
+
+const ToneSchema = z.enum(["indigo", "emerald", "amber", "rose"]);
+
+const StatTileSchema = z.object({
+  label: z.string(),
+  value: z.string(),
+  tone: ToneSchema,
+});
+
+const MasteryItemSchema = z.object({
+  concept: z.string(),
+  percent: z.number().min(0).max(100),
+  tone: ToneSchema,
+  isWeakest: z.boolean(),
+});
+
+const StatChipSchema = z.object({ label: z.string(), value: z.string() });
+
+/** The items of a bound list that have the expected shape; others are dropped. */
+const readItems = <T>(value: unknown, schema: z.ZodType<T>): T[] =>
+  Array.isArray(value)
+    ? value.flatMap((item: unknown) => {
+        const parsed = schema.safeParse(item);
+        return parsed.success ? [parsed.data] : [];
+      })
+    : [];
 
 /**
  * The binder resolves `{ path }` bindings before a component renders, but the
@@ -29,7 +64,9 @@ const isChildRef = (item: unknown): item is ChildRef =>
 export const readChildren = (value: unknown): ChildRef[] =>
   Array.isArray(value)
     ? value.flatMap((item: unknown) => {
-        if (typeof item === "string") return [{ id: item }];
+        if (typeof item === "string") {
+          return [{ id: item }];
+        }
         return isChildRef(item) ? [item] : [];
       })
     : [];
@@ -46,7 +83,9 @@ export const readAction = (value: unknown): (() => void) | undefined =>
     : undefined;
 
 export const readQuestionResult = (value: unknown): QuestionResult | null => {
-  if (typeof value !== "object" || value === null) return null;
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
   const { correctIndex, isCorrect, explanation } = value as Record<
     string,
     unknown
@@ -54,4 +93,19 @@ export const readQuestionResult = (value: unknown): QuestionResult | null => {
   return typeof correctIndex === "number" && typeof isCorrect === "boolean"
     ? { correctIndex, isCorrect, explanation: readText(explanation) }
     : null;
+};
+
+export const readStatTiles = (value: unknown): StatTile[] =>
+  readItems(value, StatTileSchema);
+
+export const readMasteryItems = (value: unknown): MasteryItem[] =>
+  readItems(value, MasteryItemSchema);
+
+export const readStatChips = (value: unknown): StatChip[] =>
+  readItems(value, StatChipSchema);
+
+/** A tier name, or `null` when the value is not one. */
+export const readTier = (value: unknown) => {
+  const parsed = TierSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 };

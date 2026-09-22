@@ -1,5 +1,5 @@
 import type { PropsOf, RendererProps } from "@copilotkit/a2ui-renderer";
-import type { ResearchResult } from "@repo/shared/schemas";
+import type { ResearchResult, Tier } from "@repo/shared/schemas";
 import type { ReactNode } from "react";
 
 import type { CANVAS_COMPONENT_DEFINITIONS } from "@/features/canvas/constants/a2ui-catalog";
@@ -64,4 +64,40 @@ export interface QuizDataModel {
   isSubmitted: boolean;
   /** The agent is running; the quiz waits for it. */
   isLocked: boolean;
+}
+
+/** Colour of a stat or bar; each maps to a Tailwind palette. */
+export type Tone = "indigo" | "emerald" | "amber" | "rose";
+
+/** One headline number on the Evaluation stage. */
+export interface StatTile {
+  label: string;
+  value: string;
+  tone: Tone;
+}
+
+/** One concept's mastery bar. */
+export interface MasteryItem {
+  concept: string;
+  percent: number;
+  tone: Tone;
+  isWeakest: boolean;
+}
+
+export interface EvaluationDataModel {
+  tiles: StatTile[];
+  mastery: MasteryItem[];
+}
+
+/** One small stat under the score. */
+export interface StatChip {
+  label: string;
+  value: string;
+}
+
+export interface ScoreDataModel {
+  percent: number;
+  tier: Tier;
+  tierDescription: string;
+  chips: StatChip[];
 }

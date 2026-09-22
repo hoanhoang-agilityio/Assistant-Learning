@@ -1,0 +1,31 @@
+{
+  "surfaceId": "score",
+  "catalogId": "learning-assistant/canvas/v1",
+  "components": [
+    {
+      "id": "root",
+      "component": "Stack",
+      "children": ["score"]
+    },
+    {
+      "id": "score",
+      "component": "ScoreCard",
+      "label": "Final Score",
+      "percent": { "path": "/percent" },
+      "badge": "tier",
+      "chips": "chips"
+    },
+    {
+      "id": "tier",
+      "component": "TierBadge",
+      "eyebrow": "Module Mastery Tier",
+      "tier": { "path": "/tier" },
+      "description": { "path": "/tierDescription" }
+    },
+    {
+      "id": "chips",
+      "component": "StatChips",
+      "chips": { "path": "/chips" }
+    }
+  ]
+}
