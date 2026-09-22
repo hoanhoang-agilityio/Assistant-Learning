@@ -7,11 +7,7 @@ import type { SettingsStore } from "@/features/settings/types/settings";
 import {
   clampQuestionCount,
   parseSettings,
-  reconcileProvider,
-  selectModel,
-  selectProvider,
 } from "@/features/settings/utils/settings";
-import { supportsReasoning } from "@/utils/models";
 import { safeLocalStorage } from "@/utils/safe-storage";
 
 /**
@@ -29,16 +25,6 @@ export const useSettingsStore = create<SettingsStore>()(
       return {
         settings: DEFAULT_SETTINGS,
         actions: {
-          setProvider: (provider) =>
-            update((settings) => selectProvider(settings, provider)),
-          setModel: (model) =>
-            update((settings) => selectModel(settings, model)),
-          setReasoningEffort: (reasoningEffort) =>
-            update((settings) =>
-              supportsReasoning(settings.provider, settings.model)
-                ? { ...settings, reasoningEffort }
-                : settings,
-            ),
           setQuestionCount: (count) =>
             update((settings) => ({
               ...settings,
@@ -52,8 +38,6 @@ export const useSettingsStore = create<SettingsStore>()(
               ...settings,
               theme: settings.theme === "dark" ? "light" : "dark",
             })),
-          reconcileProviders: (available) =>
-            update((settings) => reconcileProvider(settings, available)),
         },
       };
     },
