@@ -4,7 +4,7 @@ import type { QuizScore } from "@/features/agent/types/scoring";
 
 /**
  * A plain feedback summary written from the score alone. It is the fallback
- * text for the Feedback stage until the Evaluator Agent writes one (M5.2).
+ * text for the Feedback stage when the Evaluator Agent writes none.
  */
 export const formatFeedbackSummary = (
   { correct, total, percent, weakestConcept }: QuizScore,
