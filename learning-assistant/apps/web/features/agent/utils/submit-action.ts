@@ -25,10 +25,14 @@ export const parseSubmitAction = (
   forwardedProps: unknown,
 ): { submission?: QuizSubmission } | null => {
   const parsed = ForwardedActionSchema.safeParse(forwardedProps);
-  if (!parsed.success) return null;
+  if (!parsed.success) {
+    return null;
+  }
 
   const { name, context } = parsed.data.a2uiAction.userAction;
-  if (name !== QUIZ_ACTIONS.submit) return null;
+  if (name !== QUIZ_ACTIONS.submit) {
+    return null;
+  }
 
   const submission = QuizSubmissionSchema.safeParse(context);
   return submission.success ? { submission: submission.data } : {};

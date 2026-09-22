@@ -41,7 +41,9 @@ export const useChatResize = (
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (!isDraggingRef.current) return;
+    if (!isDraggingRef.current) {
+      return;
+    }
 
     const left = containerRef.current?.getBoundingClientRect().left ?? 0;
     resizeTo(event.clientX - left);

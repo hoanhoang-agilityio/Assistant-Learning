@@ -42,7 +42,9 @@ export const syncStateFromTools = (
     switch (event.type) {
       case EventType.TOOL_CALL_START: {
         const { toolCallId, toolCallName } = event as ToolCallStartEvent;
-        if (!isSubagentTool(toolCallName)) return [event];
+        if (!isSubagentTool(toolCallName)) {
+          return [event];
+        }
         runningTools.set(toolCallId, toolCallName);
         return [
           event,
@@ -52,7 +54,9 @@ export const syncStateFromTools = (
       case EventType.TOOL_CALL_RESULT: {
         const { toolCallId, content } = event as ToolCallResultEvent;
         const tool = runningTools.get(toolCallId);
-        if (!tool) return [event];
+        if (!tool) {
+          return [event];
+        }
         runningTools.delete(toolCallId);
         return [event, ...toDeltaEvents(applyToolResult(state, tool, content))];
       }

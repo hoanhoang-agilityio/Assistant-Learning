@@ -40,7 +40,9 @@ const createNotesTools = ({
     parameters: ToolParamSchemas.makeNotes,
     execute: async (): Promise<ToolResult<"makeNotes">> => {
       const { research } = getState();
-      if (!research) return fail(TOOL_ERRORS.noResearch);
+      if (!research) {
+        return fail(TOOL_ERRORS.noResearch);
+      }
       return runSubagent("makeNotes", signal, async () => ({
         markdown: await runMakeNotes({ research, settings, signal }),
       }));
@@ -53,7 +55,9 @@ const createNotesTools = ({
     parameters: ToolParamSchemas.simplify,
     execute: async ({ scope, selection }): Promise<ToolResult<"simplify">> => {
       const { notes } = getState();
-      if (!notes) return fail(TOOL_ERRORS.noNotes);
+      if (!notes) {
+        return fail(TOOL_ERRORS.noNotes);
+      }
       const text = getActiveNotes(notes);
 
       if (scope === "all") {
@@ -63,8 +67,12 @@ const createNotesTools = ({
         }));
       }
 
-      if (!selection) return fail(TOOL_ERRORS.noSelection);
-      if (!text.includes(selection)) return fail(TOOL_ERRORS.selectionNotFound);
+      if (!selection) {
+        return fail(TOOL_ERRORS.noSelection);
+      }
+      if (!text.includes(selection)) {
+        return fail(TOOL_ERRORS.selectionNotFound);
+      }
       return runSubagent("simplify", signal, async () => ({
         scope,
         selection,

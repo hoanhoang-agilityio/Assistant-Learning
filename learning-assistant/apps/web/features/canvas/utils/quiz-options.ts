@@ -10,7 +10,11 @@ export const getOptionState = (
   result: QuestionResult | null,
 ): OptionState => {
   const isSelected = index === selectedIndex;
-  if (!result) return isSelected ? "selected" : "idle";
-  if (index === result.correctIndex) return "correct";
+  if (!result) {
+    return isSelected ? "selected" : "idle";
+  }
+  if (index === result.correctIndex) {
+    return "correct";
+  }
   return isSelected ? "incorrect" : "idle";
 };

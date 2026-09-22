@@ -60,7 +60,9 @@ const replaceSelection = (
   markdown: string,
 ): Notes | null => {
   const text = getActiveNotes(notes);
-  if (!text.includes(selection)) return null;
+  if (!text.includes(selection)) {
+    return null;
+  }
   const rewritten = text.replace(selection, () => markdown);
   return notes.view === "simplified" && notes.simplified !== null
     ? { ...notes, simplified: rewritten }
@@ -93,7 +95,9 @@ const appliers: {
 
   // Simplifying changes the notes, so an existing quiz is out of date.
   simplify: (state, result, prev) => {
-    if (!state.notes) return "There are no notes to simplify.";
+    if (!state.notes) {
+      return "There are no notes to simplify.";
+    }
     const quizOutdated = prev.quizOutdated || hasQuizData(prev);
     if (result.scope === "all") {
       return {
@@ -183,7 +187,9 @@ export const applyToolResult = (
       `The ${tool} step returned an invalid result.`,
     );
   }
-  if (!result.ok) return createFailureUpdate(state, result.error);
+  if (!result.ok) {
+    return createFailureUpdate(state, result.error);
+  }
 
   const next = applyData(
     clearLaterStages(state, tool),
@@ -191,7 +197,9 @@ export const applyToolResult = (
     result.data,
     state,
   );
-  if (typeof next === "string") return createFailureUpdate(state, next);
+  if (typeof next === "string") {
+    return createFailureUpdate(state, next);
+  }
 
   return createStateUpdate(state, {
     ...next,

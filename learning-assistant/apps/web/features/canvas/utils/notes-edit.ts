@@ -24,7 +24,9 @@ export const applyNotesEdit = (
   state: LearningState,
   text: string,
 ): LearningState => {
-  if (!state.notes || getActiveNotes(state.notes) === text) return state;
+  if (!state.notes || getActiveNotes(state.notes) === text) {
+    return state;
+  }
 
   return {
     ...state,

@@ -37,15 +37,21 @@ export const useNotesStage = (notes: Notes) => {
   const timerRef = useRef<number | null>(null);
 
   const flush = useCallback(() => {
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+    }
     timerRef.current = null;
     const text = pendingRef.current;
-    if (text === null) return;
+    if (text === null) {
+      return;
+    }
     pendingRef.current = null;
 
     const current = readLearningState(agent.state);
     const next = applyNotesEdit(current, text);
-    if (next !== current) agent.setState(next);
+    if (next !== current) {
+      agent.setState(next);
+    }
     setDraft(null);
   }, [agent]);
 
@@ -55,7 +61,9 @@ export const useNotesStage = (notes: Notes) => {
   const handleChange = (text: string) => {
     setDraft(text);
     pendingRef.current = text;
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+    }
     timerRef.current = window.setTimeout(flush, NOTES_SAVE_DELAY_MS);
   };
 
@@ -76,7 +84,9 @@ export const useNotesStage = (notes: Notes) => {
   };
 
   const handleSimplifySelection = () => {
-    if (!selection) return;
+    if (!selection) {
+      return;
+    }
     flush();
     sendMessage(formatSimplifySelectionMessage(selection));
     setSelection("");

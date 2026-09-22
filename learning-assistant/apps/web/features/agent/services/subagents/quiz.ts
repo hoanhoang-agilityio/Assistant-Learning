@@ -48,7 +48,9 @@ export const runQuiz = async ({
         signal,
       });
     } catch (error) {
-      if (signal?.aborted) throw error;
+      if (signal?.aborted) {
+        throw error;
+      }
       lastError = error;
       console.warn(`[quiz] Attempt ${attempt} failed.`, error);
     }
