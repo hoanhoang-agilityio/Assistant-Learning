@@ -15,6 +15,7 @@ import {
   SUPERVISOR_MAX_STEPS,
 } from "@/features/agent/constants/agents";
 import { SealedAnswerKeyStore } from "@/features/agent/services/answer-key/sealed-answer-key-store";
+import { explainRunErrors } from "@/features/agent/services/run-errors";
 import { syncStateFromTools } from "@/features/agent/services/state-sync";
 import { runSubmittedQuiz } from "@/features/agent/services/submit-quiz";
 import { toSupervisorState } from "@/features/agent/services/supervisor-state";
@@ -22,6 +23,7 @@ import type {
   LearningSupervisorAgentConfig,
   SupervisorRunContext,
 } from "@/features/agent/types/agents";
+import { formatProviderError } from "@/features/agent/utils/provider-errors";
 import { parseSubmitAction } from "@/features/agent/utils/submit-action";
 import { createLanguageModel } from "@/services/llm/language-model";
 import { getReasoningOptions } from "@/services/llm/reasoning";
@@ -42,7 +44,8 @@ const isInnerStateEvent = (event: BaseEvent) =>
  * `forwardedProps.settings`, builds an inner agent for the chosen model and
  * reasoning effort, passes it a trimmed state and pipes its events through,
  * adding a `STATE_DELTA` for each subagent tool result. A quiz Submit
- * (`forwardedProps.a2uiAction`) is graded before the Supervisor runs.
+ * (`forwardedProps.a2uiAction`) is graded before the Supervisor runs. A failed
+ * run leaves a readable message in the chat.
  */
 export class LearningSupervisorAgent extends AbstractAgent {
   private config: LearningSupervisorAgentConfig;
@@ -69,7 +72,7 @@ export class LearningSupervisorAgent extends AbstractAgent {
         type: EventType.RUN_ERROR,
         message: resolved.error,
       };
-      return of(started, failed);
+      return of(started, failed).pipe(explainRunErrors((message) => message));
     }
 
     const { settings } = resolved;
@@ -125,6 +128,7 @@ export class LearningSupervisorAgent extends AbstractAgent {
       syncStateFromTools(initial, (next) => {
         current = next;
       }),
+      explainRunErrors((message) => formatProviderError(message, settings)),
     );
   }
 
