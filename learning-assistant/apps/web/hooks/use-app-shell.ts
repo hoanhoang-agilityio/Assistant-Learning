@@ -1,39 +1,59 @@
-import type { Provider } from "@repo/shared/schemas";
+import { useRouter } from "next/navigation";
 import { useLayoutEffect, useMemo, useState } from "react";
 
+import { API_KEY_ROUTE } from "@/constants/routes";
+import { API_KEY_HEADER } from "@/features/api-key/constants/api-key";
+import {
+  useApiKeyStore,
+  useSealedApiKey,
+} from "@/features/api-key/hooks/use-api-key-store";
 import {
   useSettings,
-  useSettingsActions,
   useSettingsStore,
 } from "@/features/settings/hooks/use-settings-store";
 import { useThemeClass } from "@/features/settings/hooks/use-theme-class";
 import { useLayoutStore } from "@/hooks/use-layout-store";
 
 /**
- * Loads saved settings and layout, keeps the theme class in sync, and builds
- * the provider `properties` that carry the settings to the agent.
+ * Loads the saved API key, settings and layout, sends the user to the key page
+ * when no key is saved, keeps the theme class in sync, and builds what the
+ * provider sends on every request: the sealed key as a header and the settings
+ * as `properties`.
  */
-export const useAppShell = (availableProviders: readonly Provider[]) => {
+export const useAppShell = () => {
+  const router = useRouter();
   const settings = useSettings();
-  const { reconcileProviders } = useSettingsActions();
+  const sealedKey = useSealedApiKey();
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Load saved settings and layout before first paint, then drop a provider
-  // whose key is gone from the server.
+  // Load saved state before first paint.
   useLayoutEffect(() => {
     void Promise.all([
+      useApiKeyStore.persist.rehydrate(),
       useSettingsStore.persist.rehydrate(),
       useLayoutStore.persist.rehydrate(),
     ]).then(() => {
-      reconcileProviders(availableProviders);
       setIsHydrated(true);
     });
-  }, [availableProviders, reconcileProviders]);
+  }, []);
+
+  // Also covers the key being forgotten while the assistant is open.
+  useLayoutEffect(() => {
+    if (isHydrated && !sealedKey) {
+      router.replace(API_KEY_ROUTE);
+    }
+  }, [isHydrated, sealedKey, router]);
 
   useThemeClass(settings.theme, isHydrated);
+
+  const headers = useMemo(
+    (): Record<string, string> =>
+      sealedKey ? { [API_KEY_HEADER]: sealedKey } : {},
+    [sealedKey],
+  );
 
   // Provider `properties` are merged into `forwardedProps` on each run.
   const properties = useMemo(() => ({ settings }), [settings]);
 
-  return { properties };
+  return { isReady: isHydrated && sealedKey !== null, headers, properties };
 };
