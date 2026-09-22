@@ -1,32 +1,24 @@
 import {
   LEARNING_LEVELS,
   type LearningLevel,
-  type Provider,
   QUESTION_COUNT,
-  REASONING_EFFORTS,
-  type ReasoningEffort,
   type Settings as UserSettings,
   type Theme,
   THEMES,
 } from "@repo/shared/schemas";
 import {
-  Bot,
-  Brain,
   GraduationCap,
+  KeyRound,
   ListChecks,
   Palette,
-  Server,
   Settings,
   Sliders,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { type RefObject, useId } from "react";
 
-import { PROVIDER_CATALOG } from "@/constants/models";
-import type { ModelInfo } from "@/types/llm";
-
-const FIELD_CLASS =
-  "w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none transition-all focus:border-indigo-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900";
+import { API_KEY_ROUTE } from "@/constants/routes";
 
 const LABEL_CLASS =
   "mb-1 flex items-center gap-1 font-medium text-slate-600 dark:text-slate-300";
@@ -43,34 +35,20 @@ export interface SettingsPopoverViewProps {
   /** Wraps the button and the panel; clicks outside it close the popover. */
   containerRef: RefObject<HTMLDivElement | null>;
   settings: UserSettings;
-  availableProviders: readonly Provider[];
-  models: readonly ModelInfo[];
-  hasProviders: boolean;
-  canReason: boolean;
   onToggle: () => void;
   onClose: () => void;
-  onProviderChange: (value: string) => void;
-  onModelChange: (model: string) => void;
-  onReasoningEffortChange: (effort: ReasoningEffort) => void;
   onQuestionCountChange: (count: number) => void;
   onLearningLevelChange: (level: LearningLevel) => void;
   onThemeChange: (theme: Theme) => void;
 }
 
-/** Header button + popover for model, reasoning, quiz and display settings. */
+/** Header button + popover for the API key, quiz and display settings. */
 export const SettingsPopoverView = ({
   isOpen,
   containerRef,
   settings,
-  availableProviders,
-  models,
-  hasProviders,
-  canReason,
   onToggle,
   onClose,
-  onProviderChange,
-  onModelChange,
-  onReasoningEffortChange,
   onQuestionCountChange,
   onLearningLevelChange,
   onThemeChange,
@@ -116,80 +94,17 @@ export const SettingsPopoverView = ({
           </div>
 
           <div className="space-y-4 text-xs">
-            {hasProviders ? (
-              <>
-                <div>
-                  <label
-                    htmlFor={`${panelId}-provider`}
-                    className={LABEL_CLASS}
-                  >
-                    <Server className="h-3.5 w-3.5" /> Provider
-                  </label>
-                  <select
-                    id={`${panelId}-provider`}
-                    value={settings.provider}
-                    onChange={(e) => onProviderChange(e.target.value)}
-                    className={FIELD_CLASS}
-                  >
-                    {availableProviders.map((provider) => (
-                      <option key={provider} value={provider}>
-                        {PROVIDER_CATALOG[provider].label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor={`${panelId}-model`} className={LABEL_CLASS}>
-                    <Bot className="h-3.5 w-3.5" /> AI Model
-                  </label>
-                  <select
-                    id={`${panelId}-model`}
-                    value={settings.model}
-                    onChange={(e) => onModelChange(e.target.value)}
-                    className={FIELD_CLASS}
-                  >
-                    {models.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            ) : (
-              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-700 dark:text-amber-300">
-                No LLM provider is configured on the server. Add an API key to
-                <code className="mx-1">.env</code>and restart.
-              </p>
-            )}
-
-            <fieldset>
-              <legend className={LABEL_CLASS}>
-                <Brain className="h-3.5 w-3.5" /> Reasoning Effort
-              </legend>
-              <div className="grid grid-cols-4 gap-1">
-                {REASONING_EFFORTS.map((effort) => (
-                  <button
-                    key={effort}
-                    type="button"
-                    disabled={!canReason}
-                    aria-pressed={settings.reasoningEffort === effort}
-                    onClick={() => onReasoningEffortChange(effort)}
-                    className={segmentClass(
-                      settings.reasoningEffort === effort,
-                    )}
-                  >
-                    {effort}
-                  </button>
-                ))}
-              </div>
-              {!canReason && (
-                <p className="mt-1 text-[11px] text-slate-400">
-                  This model has no reasoning control.
-                </p>
-              )}
-            </fieldset>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 font-medium text-slate-600 dark:text-slate-300">
+                <KeyRound className="h-3.5 w-3.5" /> OpenAI API key
+              </span>
+              <Link
+                href={API_KEY_ROUTE}
+                className="rounded border border-slate-200 px-2 py-1 text-[11px] transition-all hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-700"
+              >
+                Change
+              </Link>
+            </div>
 
             <div>
               <label htmlFor={`${panelId}-count`} className={LABEL_CLASS}>
