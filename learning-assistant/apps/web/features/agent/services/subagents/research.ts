@@ -1,7 +1,6 @@
 import {
   type ResearchResult,
   ResearchResultSchema,
-  type Settings,
 } from "@repo/shared/schemas";
 
 import { TAVILY_ENV_KEY } from "@/features/agent/constants/agents";
@@ -13,6 +12,7 @@ import { searchTavily } from "@/features/agent/services/search/tavily";
 import { generateStructured } from "@/features/agent/services/subagents/generate-structured";
 import type { SearchResult } from "@/features/agent/types/agents";
 import type { Env } from "@/types/env";
+import type { RunSettings } from "@/types/llm";
 
 /**
  * The model writes the reading only. Sources come from the search results in
@@ -22,7 +22,7 @@ const ResearchDraftSchema = ResearchResultSchema.omit({ sources: true });
 
 interface ResearchParams {
   topic: string;
-  settings: Settings;
+  settings: RunSettings;
   env: Env;
   signal?: AbortSignal;
 }

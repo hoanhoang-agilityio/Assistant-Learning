@@ -1,12 +1,12 @@
-import type { Settings } from "@repo/shared/schemas";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
 
+import { OPENAI_CALL_OPTIONS } from "@/constants/openai";
 import { createLanguageModel } from "@/services/llm/language-model";
-import { getReasoningOptions } from "@/services/llm/reasoning";
+import type { RunSettings } from "@/types/llm";
 
 interface GenerateStructuredParams<T extends z.ZodType> {
-  settings: Settings;
+  settings: RunSettings;
   system: string;
   prompt: string;
   schema: T;
@@ -14,8 +14,7 @@ interface GenerateStructuredParams<T extends z.ZodType> {
 }
 
 /**
- * One structured-output call with the model and reasoning effort from
- * Settings. Every subagent is one of these. (`generateText` + `Output.object`
+ * One structured-output call to the OpenAI model. Every subagent is one of these. (`generateText` + `Output.object`
  * is the AI SDK 6 replacement for the deprecated `generateObject`.)
  */
 export const generateStructured = async <T extends z.ZodType>({
@@ -26,12 +25,8 @@ export const generateStructured = async <T extends z.ZodType>({
   signal,
 }: GenerateStructuredParams<T>): Promise<z.infer<T>> => {
   const { output } = await generateText({
-    model: createLanguageModel(settings.provider, settings.model),
-    providerOptions: getReasoningOptions(
-      settings.provider,
-      settings.model,
-      settings.reasoningEffort,
-    ),
+    model: createLanguageModel(settings.apiKey),
+    providerOptions: OPENAI_CALL_OPTIONS,
     system,
     prompt,
     output: Output.object({ schema }),

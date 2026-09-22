@@ -1,4 +1,4 @@
-import { NotesResultSchema, type Settings } from "@repo/shared/schemas";
+import { NotesResultSchema } from "@repo/shared/schemas";
 
 import {
   createSimplifyAllPrompt,
@@ -6,13 +6,14 @@ import {
   createSimplifySystem,
 } from "@/features/agent/services/prompts/subagents";
 import { generateStructured } from "@/features/agent/services/subagents/generate-structured";
+import type { RunSettings } from "@/types/llm";
 
 interface SimplifyParams {
   /** The notes in the view the student is looking at. */
   notes: string;
   /** Rewrite only this part of `notes`; the whole set when omitted. */
   selection?: string;
-  settings: Settings;
+  settings: RunSettings;
   signal?: AbortSignal;
 }
 

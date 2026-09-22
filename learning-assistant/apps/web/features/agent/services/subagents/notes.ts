@@ -1,18 +1,15 @@
-import {
-  NotesResultSchema,
-  type ResearchResult,
-  type Settings,
-} from "@repo/shared/schemas";
+import { NotesResultSchema, type ResearchResult } from "@repo/shared/schemas";
 
 import {
   createNotesPrompt,
   createNotesSystem,
 } from "@/features/agent/services/prompts/subagents";
 import { generateStructured } from "@/features/agent/services/subagents/generate-structured";
+import type { RunSettings } from "@/types/llm";
 
 interface NotesParams {
   research: ResearchResult;
-  settings: Settings;
+  settings: RunSettings;
   signal?: AbortSignal;
 }
 
