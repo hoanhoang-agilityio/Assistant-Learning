@@ -12,10 +12,15 @@ import { z } from "zod3";
 import { ArticleCard } from "@/features/canvas/components/a2ui/ArticleCard";
 import { Flashcards } from "@/features/canvas/components/a2ui/Flashcards";
 import { InsightCallout } from "@/features/canvas/components/a2ui/InsightCallout";
+import { MasteryBars } from "@/features/canvas/components/a2ui/MasteryBars";
 import { QuestionCard } from "@/features/canvas/components/a2ui/QuestionCard";
 import { QuizActionBar } from "@/features/canvas/components/a2ui/QuizActionBar";
+import { ScoreCard } from "@/features/canvas/components/a2ui/ScoreCard";
 import { SourceList } from "@/features/canvas/components/a2ui/SourceList";
 import { Stack } from "@/features/canvas/components/a2ui/Stack";
+import { StatChips } from "@/features/canvas/components/a2ui/StatChips";
+import { StatTiles } from "@/features/canvas/components/a2ui/StatTiles";
+import { TierBadge } from "@/features/canvas/components/a2ui/TierBadge";
 
 /** `{ "path": "/…" }`: a JSON Pointer into the surface's data model. */
 const BindingSchema = z.object({ path: z.string() });
@@ -66,6 +71,30 @@ const KeyTermListSchema = z.union([
 
 const SourceListSchema = z.union([
   z.array(z.object({ title: z.string(), url: z.string() })),
+  BindingSchema,
+]);
+
+const ToneSchema = z.enum(["indigo", "emerald", "amber", "rose"]);
+
+const StatTileListSchema = z.union([
+  z.array(z.object({ label: z.string(), value: z.string(), tone: ToneSchema })),
+  BindingSchema,
+]);
+
+const MasteryListSchema = z.union([
+  z.array(
+    z.object({
+      concept: z.string(),
+      percent: z.number(),
+      tone: ToneSchema,
+      isWeakest: z.boolean(),
+    }),
+  ),
+  BindingSchema,
+]);
+
+const StatChipListSchema = z.union([
+  z.array(z.object({ label: z.string(), value: z.string() })),
   BindingSchema,
 ]);
 
@@ -128,6 +157,45 @@ export const CANVAS_COMPONENT_DEFINITIONS = {
       newQuestionsAction: ActionSchema,
     }),
   },
+  StatTiles: {
+    description:
+      "A card of headline stats (label, value, tone), then one child below them.",
+    props: z.object({
+      title: TextSchema,
+      tiles: StatTileListSchema,
+      child: z.string().optional(),
+    }),
+  },
+  MasteryBars: {
+    description: "One mastery progress bar per concept; the weakest is tagged.",
+    props: z.object({
+      title: TextSchema,
+      items: MasteryListSchema,
+      emptyText: TextSchema.optional(),
+    }),
+  },
+  TierBadge: {
+    description: "The mastery tier as a medal, with what the tier means.",
+    props: z.object({
+      eyebrow: TextSchema.optional(),
+      tier: TextSchema,
+      description: TextSchema.optional(),
+    }),
+  },
+  ScoreCard: {
+    description:
+      "The final score card: a badge child, the score out of 100, then a chips child.",
+    props: z.object({
+      label: TextSchema,
+      percent: NumberSchema,
+      badge: z.string().optional(),
+      chips: z.string().optional(),
+    }),
+  },
+  StatChips: {
+    description: "A row of small stats, each a value over a label.",
+    props: z.object({ chips: StatChipListSchema }),
+  },
 } satisfies CatalogDefinitions;
 
 /** The catalog every fixed canvas surface renders with. */
@@ -141,6 +209,11 @@ export const CANVAS_CATALOG = createCatalog(
     SourceList,
     QuestionCard,
     QuizActionBar,
+    StatTiles,
+    MasteryBars,
+    TierBadge,
+    ScoreCard,
+    StatChips,
   },
   { catalogId: CANVAS_CATALOG_ID, includeBasicCatalog: true },
 );
