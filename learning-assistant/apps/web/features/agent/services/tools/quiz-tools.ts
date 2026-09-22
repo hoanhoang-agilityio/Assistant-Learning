@@ -35,7 +35,7 @@ export const runEvaluateStep = async (
     return fail(check.error);
   }
 
-  return runSubagent("evaluate", signal, () =>
+  return runSubagent("evaluate", { settings, signal }, () =>
     runEvaluation({
       quiz: check.quiz,
       answers: check.answers,
@@ -62,7 +62,7 @@ export const createQuizTools = (
         return fail(TOOL_ERRORS.noNotesForQuiz);
       }
 
-      return runSubagent("generateQuiz", signal, async () => {
+      return runSubagent("generateQuiz", { settings, signal }, async () => {
         const draft = await runQuiz({
           notes: getActiveNotes(notes),
           count: settings.questionCount,
