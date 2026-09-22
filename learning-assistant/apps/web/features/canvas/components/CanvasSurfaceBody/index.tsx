@@ -2,6 +2,11 @@ import { A2UIRenderer } from "@copilotkit/a2ui-renderer";
 import type { SurfaceTemplate } from "@repo/shared/a2ui/surface-template";
 
 import { StageError } from "@/features/canvas/components/StageError";
+import { SurfaceBoundary } from "@/features/canvas/components/SurfaceBoundary";
+import {
+  SURFACE_ERROR_PREFIX,
+  SURFACE_RENDER_ERROR,
+} from "@/features/canvas/constants/a2ui";
 import { useCanvasSurface } from "@/features/canvas/hooks/use-canvas-surface";
 
 export interface CanvasSurfaceBodyProps {
@@ -17,8 +22,10 @@ export const CanvasSurfaceBody = ({
   const { error } = useCanvasSurface(template, dataModel);
 
   return error ? (
-    <StageError message={`This stage could not be drawn: ${error}`} />
+    <StageError message={`${SURFACE_ERROR_PREFIX}: ${error}`} />
   ) : (
-    <A2UIRenderer surfaceId={template.surfaceId} />
+    <SurfaceBoundary fallback={<StageError message={SURFACE_RENDER_ERROR} />}>
+      <A2UIRenderer surfaceId={template.surfaceId} />
+    </SurfaceBoundary>
   );
 };
