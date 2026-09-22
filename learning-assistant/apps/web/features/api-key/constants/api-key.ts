@@ -55,7 +55,8 @@ export const API_KEY_ERRORS = {
     "Could not reach OpenAI to check the key. Try again in a moment.",
   unexpected:
     "OpenAI could not check the key right now. Try again in a moment.",
-  missingSecret: `${API_KEY_SEAL_SECRET_ENV_KEY} is not set on the server, so the key cannot be stored safely. Add it to the server environment.`,
+  missingSecret:
+    "API key storage is currently unavailable. Please contact the administrator.",
 } as const;
 
 export const INITIAL_API_KEY_FORM_STATE: ApiKeyFormState = { error: null };
