@@ -31,3 +31,21 @@ export const ToolParamSchemas = {
 export type ToolParams<T extends SubagentTool> = z.infer<
   (typeof ToolParamSchemas)[T]
 >;
+
+/** Arguments of the `confirmNewTopic` human-in-the-loop tool. */
+export const ConfirmNewTopicParamsSchema = z.object({
+  topic: z
+    .string()
+    .min(1)
+    .describe("Short noun phrase for the new topic the student asked about"),
+});
+
+/** What the student chose on the new-topic card. */
+export const NewTopicDecisionSchema = z.object({
+  confirmed: z.boolean(),
+  /** What the Supervisor should do next. */
+  instruction: z.string(),
+});
+
+export type ConfirmNewTopicParams = z.infer<typeof ConfirmNewTopicParamsSchema>;
+export type NewTopicDecision = z.infer<typeof NewTopicDecisionSchema>;
