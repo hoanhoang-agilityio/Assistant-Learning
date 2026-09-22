@@ -1,4 +1,4 @@
-import type { LearningState } from "@repo/shared/schemas";
+import type { LearningState, Stage } from "@repo/shared/schemas";
 
 import {
   RUNNING_TASK_STAGE,
@@ -11,9 +11,15 @@ import type {
   StepperStep,
 } from "@/features/canvas/types/canvas";
 
+/** The canvas stage for `stage`; `idle` has none. */
+export const toCanvasStage = (stage: Stage): CanvasStage | null =>
+  stage === "idle" ? null : stage;
+
 export const getStageStep = (stage: CanvasStage): StageStep => {
   const step = STAGE_STEPS.find(({ id }) => id === stage);
-  if (!step) throw new Error(`Unknown stage: ${stage}`);
+  if (!step) {
+    throw new Error(`Unknown stage: ${stage}`);
+  }
   return step;
 };
 
