@@ -1,4 +1,5 @@
 export * from "./evaluation";
+export * from "./feedback-surface";
 export * from "./learning-state";
 export * from "./notes";
 export * from "./quiz";

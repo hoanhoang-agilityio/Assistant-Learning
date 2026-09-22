@@ -1,10 +1,8 @@
+import { OPTION_LETTERS } from "@repo/shared/schemas";
 import { CheckCircle2, Lightbulb, XCircle } from "lucide-react";
 
 import { CARD_CLASS } from "@/features/canvas/constants/canvas";
-import {
-  OPTION_LETTERS,
-  QUESTION_LABEL_ID_PREFIX,
-} from "@/features/canvas/constants/quiz";
+import { QUESTION_LABEL_ID_PREFIX } from "@/features/canvas/constants/quiz";
 import type { OptionState, QuestionResult } from "@/features/canvas/types/a2ui";
 import { getOptionState } from "@/features/canvas/utils/quiz-options";
 
