@@ -11,6 +11,7 @@ import type {
 
 import type { AnswerKeyStore } from "@/features/agent/types/answer-key";
 import type { Env } from "@/types/env";
+import type { RunSettings } from "@/types/llm";
 
 /** A JSON Patch operation. The wrapper only emits top-level `add`s. */
 export interface StatePatchOperation {
@@ -27,7 +28,8 @@ export interface StateUpdate {
 
 /** What a run's tools can see: the user's settings and the full state. */
 export interface SupervisorRunContext {
-  settings: Settings;
+  /** The user's settings and API key. The key must never reach state. */
+  settings: RunSettings;
   /**
    * The state as of now, including results of earlier tools in the same run
    * (autopilot runs research, then notes, then the quiz).
@@ -55,7 +57,12 @@ export interface LearningSupervisorAgentConfig {
   maxSteps?: number;
   /** Builds the subagent tools for one run. */
   tools?: (ctx: SupervisorRunContext) => ToolDefinition[];
-  /** Server env used to find provider keys. Defaults to `process.env`. */
+  /** The user's OpenAI API key for this request, opened from its sealed header. */
+  apiKey?: string;
+  /**
+   * Server env for optional keys such as `TAVILY_API_KEY` and
+   * `QUIZ_SEAL_SECRET`. Defaults to `process.env`.
+   */
   env?: Env;
   /**
    * Where the quiz answer key is kept. Defaults to sealing it into state with

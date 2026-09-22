@@ -1,15 +1,12 @@
-import type { ProviderErrorKind } from "@/features/agent/types/errors";
-
-/** Where the server reads provider keys from, as the student sees it. */
-export const ENV_FILE_PATH = "apps/web/.env";
+import type { OpenAIErrorKind } from "@/features/agent/types/errors";
 
 /**
- * How each kind of provider failure is recognised: HTTP status codes from the
+ * How each kind of OpenAI failure is recognised: HTTP status codes from the
  * AI SDK's `APICallError`, and patterns in the message for errors without one
  * (or wrapped in a `RetryError`). Checked in this order.
  */
-export const PROVIDER_ERROR_MATCHERS: readonly {
-  kind: ProviderErrorKind;
+export const OPENAI_ERROR_MATCHERS: readonly {
+  kind: OpenAIErrorKind;
   statusCodes: readonly number[];
   pattern: RegExp;
 }[] = [
@@ -17,12 +14,12 @@ export const PROVIDER_ERROR_MATCHERS: readonly {
     kind: "auth",
     statusCodes: [401, 403],
     pattern:
-      /api key|api_key|x-api-key|unauthori[sz]ed|authentication|permission denied/i,
+      /api key|api_key|unauthori[sz]ed|authentication|permission denied/i,
   },
   {
     kind: "rateLimit",
     statusCodes: [429],
-    pattern: /rate limit|quota|too many requests|resource.?exhausted/i,
+    pattern: /rate limit|quota|too many requests/i,
   },
   {
     kind: "model",
@@ -31,7 +28,7 @@ export const PROVIDER_ERROR_MATCHERS: readonly {
   },
   {
     kind: "overloaded",
-    statusCodes: [500, 502, 503, 529],
+    statusCodes: [500, 502, 503],
     pattern: /overloaded|service unavailable|internal server error/i,
   },
   {
