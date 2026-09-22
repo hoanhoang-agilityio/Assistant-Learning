@@ -8,6 +8,7 @@ import {
   getRunningStage,
   getStepperSteps,
   isStageUnlocked,
+  toCanvasStage,
 } from "@/features/canvas/utils/stages";
 
 const research: LearningState["research"] = {
@@ -31,6 +32,13 @@ const withQuizRunning: LearningState = {
   stage: "notes",
   status: { running: "quiz" },
 };
+
+describe("toCanvasStage", () => {
+  it("maps idle to no stage and keeps the rest", () => {
+    expect(toCanvasStage("idle")).toBeNull();
+    expect(toCanvasStage("feedback")).toBe("feedback");
+  });
+});
 
 describe("getRunningStage", () => {
   it("maps each running task to its stage", () => {
