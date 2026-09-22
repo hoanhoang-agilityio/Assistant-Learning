@@ -1,15 +1,28 @@
 import { extendsBasicCatalog } from "@copilotkit/a2ui-renderer";
 import { ROOT_COMPONENT_ID } from "@repo/shared/a2ui/canvas-catalog";
 import { QUIZ_ACTIONS } from "@repo/shared/a2ui/quiz-actions";
-import { QUIZ_TEMPLATE, RESEARCH_TEMPLATE } from "@repo/shared/a2ui/templates";
-import type { Evaluation, Quiz, ResearchResult } from "@repo/shared/schemas";
+import {
+  EVALUATION_TEMPLATE,
+  QUIZ_TEMPLATE,
+  RESEARCH_TEMPLATE,
+  SCORE_TEMPLATE,
+} from "@repo/shared/a2ui/templates";
+import type {
+  Evaluation,
+  Quiz,
+  ResearchResult,
+  Score,
+} from "@repo/shared/schemas";
 import { describe, expect, it } from "vitest";
 
 import { CANVAS_CATALOG } from "@/features/canvas/constants/a2ui-catalog";
 import {
   buildSurface,
+  createEvaluationDataModel,
   createQuizDataModel,
   createResearchDataModel,
+  createScoreDataModel,
+  formatNextTier,
 } from "@/features/canvas/utils/build-surface";
 
 const research: ResearchResult = {
@@ -22,9 +35,15 @@ const research: ResearchResult = {
 
 /** Every `{ "path": … }` binding anywhere in a value. */
 const collectBindingPaths = (value: unknown): string[] => {
-  if (Array.isArray(value)) return value.flatMap(collectBindingPaths);
-  if (!value || typeof value !== "object") return [];
-  if ("path" in value && typeof value.path === "string") return [value.path];
+  if (Array.isArray(value)) {
+    return value.flatMap(collectBindingPaths);
+  }
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  if ("path" in value && typeof value.path === "string") {
+    return [value.path];
+  }
   return Object.values(value).flatMap(collectBindingPaths);
 };
 
@@ -105,7 +124,9 @@ describe("research template", () => {
       ...(Array.isArray(component.children) ? component.children : []),
       ...(typeof component.child === "string" ? [component.child] : []),
     ]);
-    for (const id of childIds) expect(ids).toContain(id);
+    for (const id of childIds) {
+      expect(ids).toContain(id);
+    }
   });
 });
 
@@ -136,8 +157,12 @@ const evaluation: Evaluation = {
 
 /** Every action event name anywhere in a value. */
 const collectActionNames = (value: unknown): string[] => {
-  if (Array.isArray(value)) return value.flatMap(collectActionNames);
-  if (!value || typeof value !== "object") return [];
+  if (Array.isArray(value)) {
+    return value.flatMap(collectActionNames);
+  }
+  if (!value || typeof value !== "object") {
+    return [];
+  }
   if ("event" in value && value.event && typeof value.event === "object") {
     return "name" in value.event && typeof value.event.name === "string"
       ? [value.event.name]
@@ -228,6 +253,98 @@ describe("quiz template", () => {
         QUIZ_ACTIONS.newQuestions,
       ].sort(),
     );
+  });
+});
+
+const graded: Evaluation = {
+  correct: 2,
+  total: 3,
+  percent: 67,
+  weakestConcept: "Scope",
+  perQuestion: [],
+  mastery: [
+    { concept: "Closures", percent: 100 },
+    { concept: "Scope", percent: 0 },
+    { concept: "Hoisting", percent: 50 },
+  ],
+};
+
+const score: Score = { percent: 67, tier: "Practitioner" };
+
+describe("createEvaluationDataModel", () => {
+  it("shows accuracy, correct answers and the weakest concept", () => {
+    expect(createEvaluationDataModel(graded).tiles).toEqual([
+      { label: "Accuracy", value: "67%", tone: "indigo" },
+      { label: "Correct Answers", value: "2 / 3", tone: "indigo" },
+      { label: "Weakest Concept", value: "Scope", tone: "amber" },
+    ]);
+  });
+
+  it("colours each concept's bar by its tier and tags the weakest", () => {
+    expect(createEvaluationDataModel(graded).mastery).toEqual([
+      { concept: "Closures", percent: 100, tone: "emerald", isWeakest: false },
+      { concept: "Scope", percent: 0, tone: "rose", isWeakest: true },
+      { concept: "Hoisting", percent: 50, tone: "amber", isWeakest: false },
+    ]);
+  });
+
+  it("says None when every concept was answered perfectly", () => {
+    const perfect = createEvaluationDataModel({
+      ...graded,
+      weakestConcept: null,
+      mastery: [],
+    });
+    expect(perfect.tiles[2]).toEqual({
+      label: "Weakest Concept",
+      value: "None",
+      tone: "emerald",
+    });
+    expect(perfect.mastery).toEqual([]);
+  });
+});
+
+describe("formatNextTier", () => {
+  it.each([
+    [0, "Practitioner at 50%"],
+    [67, "Master at 80%"],
+    [80, "Top tier"],
+  ])("%i%% → %s", (percent, text) => {
+    expect(formatNextTier(percent)).toBe(text);
+  });
+});
+
+describe("createScoreDataModel", () => {
+  it("has the tier, what it means and three chips", () => {
+    const model = createScoreDataModel(score, graded);
+
+    expect(model).toMatchObject({ percent: 67, tier: "Practitioner" });
+    expect(model.tierDescription).toContain("Master");
+    expect(model.chips).toEqual([
+      { label: "Correct", value: "2 / 3" },
+      { label: "Concepts Mastered", value: "1 / 3" },
+      { label: "Next Tier", value: "Master at 80%" },
+    ]);
+  });
+});
+
+describe.each([
+  ["evaluation", EVALUATION_TEMPLATE, createEvaluationDataModel(graded)],
+  ["score", SCORE_TEMPLATE, createScoreDataModel(score, graded)],
+])("%s template", (_name, template, model) => {
+  const ids = template.components.map(({ id }) => id);
+
+  it("has a root, unique ids and only canvas components", () => {
+    expect(ids).toContain(ROOT_COMPONENT_ID);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const { component } of template.components) {
+      expect(CANVAS_CATALOG.components.has(component), component).toBe(true);
+    }
+  });
+
+  it("binds every path to the stage data", () => {
+    for (const path of collectBindingPaths(template.components)) {
+      expect(resolvePointer(model, path), path).not.toBeUndefined();
+    }
   });
 });
 
