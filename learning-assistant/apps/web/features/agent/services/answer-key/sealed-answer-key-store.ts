@@ -38,7 +38,9 @@ export class SealedAnswerKeyStore implements AnswerKeyStore {
   }
 
   private requireKey(): Buffer {
-    if (!this.key) throw new Error(SEAL_ERRORS.missingSecret);
+    if (!this.key) {
+      throw new Error(SEAL_ERRORS.missingSecret);
+    }
     return this.key;
   }
 

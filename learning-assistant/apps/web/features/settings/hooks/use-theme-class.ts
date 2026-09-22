@@ -8,7 +8,9 @@ import { useLayoutEffect } from "react";
  */
 export const useThemeClass = (theme: Theme, isEnabled: boolean) => {
   useLayoutEffect(() => {
-    if (!isEnabled) return;
+    if (!isEnabled) {
+      return;
+    }
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme, isEnabled]);
 };

@@ -34,11 +34,15 @@ const findSources = async (
   signal?: AbortSignal,
 ): Promise<SearchResult[]> => {
   const apiKey = env[TAVILY_ENV_KEY];
-  if (!apiKey) return [];
+  if (!apiKey) {
+    return [];
+  }
   try {
     return await searchTavily(topic, apiKey, signal);
   } catch (error) {
-    if (signal?.aborted) throw error;
+    if (signal?.aborted) {
+      throw error;
+    }
     console.warn("[research] Web search failed; using model knowledge.", error);
     return [];
   }

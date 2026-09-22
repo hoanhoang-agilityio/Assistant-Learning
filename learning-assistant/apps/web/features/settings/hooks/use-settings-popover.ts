@@ -25,14 +25,18 @@ export const useSettingsPopover = (availableProviders: readonly Provider[]) => {
   } = useSettingsActions();
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      return;
+    }
     const handlePointerDown = (event: PointerEvent) => {
       if (!containerRef.current?.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsOpen(false);
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
     };
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -44,7 +48,9 @@ export const useSettingsPopover = (availableProviders: readonly Provider[]) => {
 
   const handleProviderChange = (value: string) => {
     const parsed = ProviderSchema.safeParse(value);
-    if (parsed.success) setProvider(parsed.data);
+    if (parsed.success) {
+      setProvider(parsed.data);
+    }
   };
 
   return {

@@ -36,7 +36,9 @@ export const useQuizStage = (quiz: Quiz, evaluation: Evaluation | null) => {
   const updateState = (update: (state: LearningState) => LearningState) => {
     const current = readLearningState(agent.state);
     const next = update(current);
-    if (next !== current) agent.setState(next);
+    if (next !== current) {
+      agent.setState(next);
+    }
   };
 
   const submit = (message: A2UIClientEventMessage) => {
@@ -49,12 +51,16 @@ export const useQuizStage = (quiz: Quiz, evaluation: Evaluation | null) => {
 
   const handleAction = (message: A2UIClientEventMessage) => {
     const action = message.userAction;
-    if (!action || agent.isRunning) return;
+    if (!action || agent.isRunning) {
+      return;
+    }
 
     switch (action.name) {
       case QUIZ_ACTIONS.selectAnswer: {
         const choice = parseSelectAnswer(action.context);
-        if (choice) updateState((state) => selectAnswer(state, choice));
+        if (choice) {
+          updateState((state) => selectAnswer(state, choice));
+        }
         return;
       }
       case QUIZ_ACTIONS.submit:

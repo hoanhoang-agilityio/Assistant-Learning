@@ -30,7 +30,9 @@ export const resolveRunSettings = (
 
   const available = getAvailableProviders(env);
   const [firstAvailable] = available;
-  if (!firstAvailable) return { ok: false, error: missingKeysError };
+  if (!firstAvailable) {
+    return { ok: false, error: missingKeysError };
+  }
 
   const provider = available.includes(requested.provider)
     ? requested.provider

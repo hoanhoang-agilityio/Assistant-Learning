@@ -25,7 +25,9 @@ export const runSubagent = async <T extends SubagentTool>(
   try {
     return { ok: true, data: await work() };
   } catch (error) {
-    if (signal.aborted) return fail(TOOL_ERRORS.stopped);
+    if (signal.aborted) {
+      return fail(TOOL_ERRORS.stopped);
+    }
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[${tool}]`, error);
     return fail(`${TOOL_FAILURE_PREFIX[tool]}: ${message}`);

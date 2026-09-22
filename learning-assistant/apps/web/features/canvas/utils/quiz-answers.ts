@@ -54,7 +54,9 @@ export const selectAnswer = (
  */
 export const retakeQuiz = (state: LearningState): LearningState => {
   const { quiz } = state;
-  if (!quiz) return state;
+  if (!quiz) {
+    return state;
+  }
 
   return {
     ...state,

@@ -17,7 +17,9 @@ export const validateSubmission = (
   submission?: QuizSubmission,
 ): SubmissionCheck => {
   const { quiz } = state;
-  if (!quiz) return { ok: false, error: TOOL_ERRORS.noQuiz };
+  if (!quiz) {
+    return { ok: false, error: TOOL_ERRORS.noQuiz };
+  }
   if (quiz.submitted) {
     return { ok: false, error: TOOL_ERRORS.quizAlreadySubmitted };
   }

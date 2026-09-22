@@ -13,7 +13,9 @@ export const clampChatWidth = (
   width: number,
   containerWidth?: number,
 ): number => {
-  if (!Number.isFinite(width)) return CHAT_WIDTH.default;
+  if (!Number.isFinite(width)) {
+    return CHAT_WIDTH.default;
+  }
   const roomLeft =
     containerWidth === undefined
       ? CHAT_WIDTH.max

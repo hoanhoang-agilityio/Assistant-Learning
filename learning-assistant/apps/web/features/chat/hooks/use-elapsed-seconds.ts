@@ -5,7 +5,9 @@ export const useElapsedSeconds = (isRunning: boolean) => {
   const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
-    if (!isRunning) return;
+    if (!isRunning) {
+      return;
+    }
     const timer = window.setInterval(() => setSeconds((s) => s + 1), 1000);
     return () => window.clearInterval(timer);
   }, [isRunning]);

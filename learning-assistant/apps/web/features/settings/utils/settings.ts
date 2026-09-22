@@ -57,7 +57,9 @@ export const selectProvider = (
   settings: Settings,
   provider: Provider,
 ): Settings => {
-  if (provider === settings.provider) return settings;
+  if (provider === settings.provider) {
+    return settings;
+  }
   return withSupportedEffort({
     ...settings,
     provider,
@@ -67,12 +69,16 @@ export const selectProvider = (
 
 /** Switches model within the current provider; ignores models off the allowlist. */
 export const selectModel = (settings: Settings, model: string): Settings => {
-  if (!isAllowedModel(settings.provider, model)) return settings;
+  if (!isAllowedModel(settings.provider, model)) {
+    return settings;
+  }
   return withSupportedEffort({ ...settings, model });
 };
 
 export const clampQuestionCount = (count: number): number => {
-  if (!Number.isFinite(count)) return QUESTION_COUNT.default;
+  if (!Number.isFinite(count)) {
+    return QUESTION_COUNT.default;
+  }
   return Math.min(
     QUESTION_COUNT.max,
     Math.max(QUESTION_COUNT.min, Math.round(count)),
@@ -89,6 +95,8 @@ export const reconcileProvider = (
   available: readonly Provider[],
 ): Settings => {
   const [firstAvailable] = available;
-  if (!firstAvailable || available.includes(settings.provider)) return settings;
+  if (!firstAvailable || available.includes(settings.provider)) {
+    return settings;
+  }
   return selectProvider(settings, firstAvailable);
 };
