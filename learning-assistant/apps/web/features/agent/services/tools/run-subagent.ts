@@ -5,7 +5,7 @@ import {
   TOOL_FAILURE_PREFIX,
 } from "@/features/agent/constants/tools";
 import type { SupervisorRunContext } from "@/features/agent/types/agents";
-import { formatProviderError } from "@/features/agent/utils/provider-errors";
+import { formatOpenAIError } from "@/features/agent/utils/openai-errors";
 
 interface ToolFailure {
   ok: false;
@@ -18,12 +18,12 @@ export const fail = (error: string): ToolFailure => ({ ok: false, error });
  * Runs a subagent and turns any throw into `{ ok: false, error }`. Tools never
  * throw: the wrapper reads the failure into `status.error` and the Supervisor
  * sees it in the tool result, so it can explain instead of retrying blindly.
- * A provider failure (bad key, rate limit…) is put in words the student can
+ * An OpenAI failure (bad key, rate limit…) is put in words the student can
  * act on.
  */
 export const runSubagent = async <T extends SubagentTool>(
   tool: T,
-  { settings, signal }: Pick<SupervisorRunContext, "settings" | "signal">,
+  { signal }: Pick<SupervisorRunContext, "signal">,
   work: () => Promise<ToolResultData<T>>,
 ): Promise<{ ok: true; data: ToolResultData<T> } | ToolFailure> => {
   try {
@@ -33,8 +33,6 @@ export const runSubagent = async <T extends SubagentTool>(
       return fail(TOOL_ERRORS.stopped);
     }
     console.error(`[${tool}]`, error);
-    return fail(
-      `${TOOL_FAILURE_PREFIX[tool]}: ${formatProviderError(error, settings)}`,
-    );
+    return fail(`${TOOL_FAILURE_PREFIX[tool]}: ${formatOpenAIError(error)}`);
   }
 };

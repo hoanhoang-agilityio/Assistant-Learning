@@ -10,6 +10,7 @@ import {
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
 import { filter, type Observable, of } from "rxjs";
 
+import { OPENAI_CALL_OPTIONS } from "@/constants/openai";
 import {
   QUIZ_SEAL_SECRET_ENV_KEY,
   SUPERVISOR_MAX_STEPS,
@@ -23,10 +24,9 @@ import type {
   LearningSupervisorAgentConfig,
   SupervisorRunContext,
 } from "@/features/agent/types/agents";
-import { formatProviderError } from "@/features/agent/utils/provider-errors";
+import { formatOpenAIError } from "@/features/agent/utils/openai-errors";
 import { parseSubmitAction } from "@/features/agent/utils/submit-action";
 import { createLanguageModel } from "@/services/llm/language-model";
-import { getReasoningOptions } from "@/services/llm/reasoning";
 import { resolveRunSettings } from "@/services/llm/run-settings";
 import { readLearningState } from "@/utils/learning-state";
 
@@ -41,8 +41,7 @@ const isInnerStateEvent = (event: BaseEvent) =>
 
 /**
  * Thin wrapper around `BuiltInAgent`. On each run it reads
- * `forwardedProps.settings`, builds an inner agent for the chosen model and
- * reasoning effort, passes it a trimmed state and pipes its events through,
+ * `forwardedProps.settings` and the user's API key (`config.apiKey`), builds an inner agent for the OpenAI model, passes it a trimmed state and pipes its events through,
  * adding a `STATE_DELTA` for each subagent tool result. A quiz Submit
  * (`forwardedProps.a2uiAction`) is graded before the Supervisor runs. A failed
  * run leaves a readable message in the chat.
@@ -60,7 +59,7 @@ export class LearningSupervisorAgent extends AbstractAgent {
   run(input: RunAgentInput): Observable<BaseEvent> {
     const resolved = resolveRunSettings(
       input.forwardedProps?.settings,
-      this.config.env,
+      this.config.apiKey,
     );
     if (!resolved.ok) {
       const started: RunStartedEvent = {
@@ -92,12 +91,8 @@ export class LearningSupervisorAgent extends AbstractAgent {
     };
 
     const inner = new BuiltInAgent({
-      model: createLanguageModel(settings.provider, settings.model),
-      providerOptions: getReasoningOptions(
-        settings.provider,
-        settings.model,
-        settings.reasoningEffort,
-      ),
+      model: createLanguageModel(settings.apiKey),
+      providerOptions: OPENAI_CALL_OPTIONS,
       maxSteps: this.config.maxSteps ?? SUPERVISOR_MAX_STEPS,
       prompt: this.config.prompt,
       tools: this.config.tools?.(ctx) ?? [],
@@ -128,7 +123,7 @@ export class LearningSupervisorAgent extends AbstractAgent {
       syncStateFromTools(initial, (next) => {
         current = next;
       }),
-      explainRunErrors((message) => formatProviderError(message, settings)),
+      explainRunErrors(formatOpenAIError),
     );
   }
 

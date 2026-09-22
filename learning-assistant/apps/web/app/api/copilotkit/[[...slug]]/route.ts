@@ -8,14 +8,18 @@ import { COPILOT_RUNTIME_URL } from "@/constants/copilot";
 import { SUPERVISOR_PROMPT } from "@/features/agent/services/prompts/supervisor";
 import { LearningSupervisorAgent } from "@/features/agent/services/supervisor-agent";
 import { createLearningTools } from "@/features/agent/services/tools/learning-tools";
-
-const learningAgent = new LearningSupervisorAgent({
-  prompt: SUPERVISOR_PROMPT,
-  tools: createLearningTools,
-});
+import { readApiKeyFromRequest } from "@/features/api-key/services/request-api-key";
 
 const runtime = new CopilotRuntime({
-  agents: { [LEARNING_AGENT_ID]: learningAgent },
+  // Built per request so each run uses the caller's own OpenAI key, sent
+  // sealed in a header and opened only here on the server.
+  agents: ({ request }) => ({
+    [LEARNING_AGENT_ID]: new LearningSupervisorAgent({
+      prompt: SUPERVISOR_PROMPT,
+      tools: createLearningTools,
+      apiKey: readApiKeyFromRequest(request),
+    }),
+  }),
   // The A2UI middleware delivers surface actions (the quiz Submit) to the
   // agent. The Supervisor gets no render tool: the Evaluator composes the
   // Feedback surface itself (`subagents/feedback-surface.ts`), so the
