@@ -2,10 +2,6 @@ import {
   CopilotRuntime,
   createCopilotRuntimeHandler,
 } from "@copilotkit/runtime/v2";
-import {
-  FEEDBACK_CATALOG,
-  FEEDBACK_CATALOG_ID,
-} from "@repo/shared/a2ui/feedback-catalog";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 
 import { COPILOT_RUNTIME_URL } from "@/constants/copilot";
@@ -20,11 +16,13 @@ const learningAgent = new LearningSupervisorAgent({
 
 const runtime = new CopilotRuntime({
   agents: { [LEARNING_AGENT_ID]: learningAgent },
+  // The A2UI middleware delivers surface actions (the quiz Submit) to the
+  // agent. The Supervisor gets no render tool: the Evaluator composes the
+  // Feedback surface itself (`subagents/feedback-surface.ts`), so the
+  // Feedback catalog is not injected into the Supervisor's context either.
   a2ui: {
     agents: [LEARNING_AGENT_ID],
-    injectA2UITool: true,
-    schema: FEEDBACK_CATALOG,
-    defaultCatalogId: FEEDBACK_CATALOG_ID,
+    injectA2UITool: false,
   },
 });
 

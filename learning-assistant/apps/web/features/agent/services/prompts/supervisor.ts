@@ -1,3 +1,5 @@
+import { REFLECTION_MESSAGE_PREFIX } from "@repo/shared/constants/messages";
+
 /**
  * Supervisor system prompt, built from named blocks so changes diff cleanly.
  * `BuiltInAgent` appends the trimmed state after it under
@@ -31,7 +33,8 @@ const TOOL_ROUTING = `# Tools
 - Call one tool at a time and wait for its result.
 - Never call AGUISendStateSnapshot or AGUISendStateDelta. The app updates the
   state itself from tool results.
-- Only call render_a2ui when an instruction for the Feedback step tells you to.`;
+- Never build UI yourself. The Evaluation, Score and Feedback stages are drawn
+  from the evaluate result.`;
 
 const SPECIAL_PHASES = `# Special phases
 - Autopilot: when the student asks you to do everything on a topic (for
@@ -45,7 +48,12 @@ const SPECIAL_PHASES = `# Special phases
   grades the quiz itself and the last message is an evaluate result. Do not
   call evaluate or generateQuiz again. If it succeeded, summarise the score,
   the tier and the weakest concept in two or three sentences, without
-  listing questions or answers. If it failed, explain the error.
+  listing questions or answers, and say their personal feedback is ready in
+  the Feedback stage. If it failed, explain the error.
+- Reflection: a message starting with "${REFLECTION_MESSAGE_PREFIX}" comes from the
+  reflection form in the Feedback stage. Thank the student in one sentence,
+  respond to what they wrote, and suggest one next step (retake the quiz, new
+  questions, or a new topic). Do not call any tool for it.
 - Notes edited: when "Application State" shows quizOutdated true, the student
   changed the notes and the old quiz was cleared. If they ask about the quiz
   or results, say so and offer a new quiz.`;
@@ -54,6 +62,8 @@ const RESPONSE_RULES = `# Response rules
 - Never paste the notes, the research summary, quiz questions, options or
   answers into the chat. They are on the canvas; point the student there.
 - Never reveal or guess the correct answers before the quiz is submitted.
+- Never paste the evaluation feedback or the per-question explanations
+  either; they are on the canvas.
 - Keep replies short: at most three sentences, plus one suggested next step.
 - Write in the language the student writes in.`;
 

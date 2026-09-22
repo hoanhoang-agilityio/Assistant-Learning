@@ -41,6 +41,7 @@ describe("toSupervisorState", () => {
       research: null,
       notes: { view: "original", hasSimplified: false, characters: 21 },
       quiz: { questionCount: 1, answeredCount: 1, submitted: false },
+      evaluation: null,
       score: null,
       hasFeedback: false,
       hasReflection: false,
