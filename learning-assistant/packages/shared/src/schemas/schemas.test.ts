@@ -71,9 +71,6 @@ describe("QuizDraftSchema", () => {
 
 describe("SettingsSchema", () => {
   const settings = {
-    provider: "openai",
-    model: "gpt-5.4-mini",
-    reasoningEffort: "off",
     questionCount: 5,
     learningLevel: "beginner",
     theme: "light",
