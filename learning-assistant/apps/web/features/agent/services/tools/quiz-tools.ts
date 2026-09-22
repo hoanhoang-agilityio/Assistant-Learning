@@ -26,13 +26,24 @@ import { getActiveNotes } from "@/utils/learning-state";
  * answers in state.
  */
 export const runEvaluateStep = async (
-  { getState, signal, answerKeys }: SupervisorRunContext,
+  { settings, getState, signal, answerKeys }: SupervisorRunContext,
   submission?: QuizSubmission,
 ): Promise<ToolResult<"evaluate">> => {
-  const check = validateSubmission(getState(), submission);
-  if (!check.ok) return fail(check.error);
+  const state = getState();
+  const check = validateSubmission(state, submission);
+  if (!check.ok) {
+    return fail(check.error);
+  }
+
   return runSubagent("evaluate", signal, () =>
-    runEvaluation({ quiz: check.quiz, answers: check.answers, answerKeys }),
+    runEvaluation({
+      quiz: check.quiz,
+      answers: check.answers,
+      answerKeys,
+      notes: state.notes ? getActiveNotes(state.notes) : "",
+      settings,
+      signal,
+    }),
   );
 };
 
@@ -47,7 +58,9 @@ export const createQuizTools = (
     execute: async (): Promise<ToolResult<"generateQuiz">> => {
       const { settings, getState, signal, answerKeys } = ctx;
       const { notes } = getState();
-      if (!notes) return fail(TOOL_ERRORS.noNotesForQuiz);
+      if (!notes) {
+        return fail(TOOL_ERRORS.noNotesForQuiz);
+      }
 
       return runSubagent("generateQuiz", signal, async () => {
         const draft = await runQuiz({

@@ -22,6 +22,20 @@ vi.mock("@/features/agent/services/subagents/quiz", () => ({
   runQuiz: vi.fn(async () => QUIZ_DRAFT),
 }));
 
+// The Evaluator is unavailable here, so the answer key's explanations and the
+// score-based summary are used.
+vi.mock("@/features/agent/services/subagents/evaluator", () => ({
+  runEvaluator: vi.fn(async () => {
+    throw new Error("No model in tests.");
+  }),
+}));
+
+vi.mock("@/features/agent/services/subagents/feedback-surface", () => ({
+  runFeedbackSurface: vi.fn(async () => {
+    throw new Error("No model in tests.");
+  }),
+}));
+
 /** Anything that would reveal the answer key. */
 const LEAKS = ["correctIndex", "explanation", SECRET_EXPLANATION];
 
@@ -70,14 +84,18 @@ describe("answer key before submit (M4.7)", () => {
     expect(states.at(-1)?.quiz?.questions).toHaveLength(3);
 
     const wire = JSON.stringify({ events, states });
-    for (const leak of LEAKS) expect(wire).not.toContain(leak);
+    for (const leak of LEAKS) {
+      expect(wire).not.toContain(leak);
+    }
   });
 
   it("is revealed only after Submit, in the evaluation", async () => {
     const { ctx, setState } = createTestContext(STATE_WITH_NOTES);
     const { states } = await generateQuiz(ctx);
     const quizzed = states.at(-1);
-    if (!quizzed?.quiz) throw new Error("No quiz was written.");
+    if (!quizzed?.quiz) {
+      throw new Error("No quiz was written.");
+    }
     setState(quizzed);
 
     const answers = { q1: 1, q2: 0, q3: 3 };
