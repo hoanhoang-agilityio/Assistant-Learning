@@ -66,3 +66,6 @@ export const QUIZ_SEAL_SECRET_ENV_KEY = "QUIZ_SEAL_SECRET";
 
 /** Quiz Agent calls before giving up: the first try plus one retry. */
 export const QUIZ_ATTEMPTS = 2;
+
+/** Feedback surface attempts: the first try plus one retry with the errors. */
+export const FEEDBACK_SURFACE_ATTEMPTS = 2;

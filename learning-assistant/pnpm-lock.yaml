@@ -69,6 +69,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@ag-ui/a2ui-toolkit':
+        specifier: 0.0.4
+        version: 0.0.4
       '@ag-ui/client':
         specifier: 0.0.59
         version: 0.0.59
