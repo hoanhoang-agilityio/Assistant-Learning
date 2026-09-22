@@ -26,11 +26,15 @@ export interface CanvasShellViewProps {
   isBuilding: boolean;
   hasData: boolean;
   error: string | null;
+  /** The failed task can be repeated. */
+  canRetry: boolean;
+  isRetryDisabled: boolean;
   /** A notes change cleared the quiz; show the banner. */
   isQuizOutdated: boolean;
   hasPrev: boolean;
   hasNext: boolean;
   onSelectStage: (stage: CanvasStage) => void;
+  onRetry: () => void;
   onPrev: () => void;
   onNext: () => void;
 }
@@ -47,10 +51,13 @@ export const CanvasShellView = ({
   isBuilding,
   hasData,
   error,
+  canRetry,
+  isRetryDisabled,
   isQuizOutdated,
   hasPrev,
   hasNext,
   onSelectStage,
+  onRetry,
   onPrev,
   onNext,
 }: CanvasShellViewProps) => (
@@ -98,7 +105,13 @@ export const CanvasShellView = ({
 
     <div className="flex-1 overflow-y-auto p-6">
       <div className="mx-auto max-w-4xl space-y-6">
-        {error && <StageError message={error} />}
+        {error && (
+          <StageError
+            message={error}
+            onRetry={canRetry ? onRetry : undefined}
+            isRetryDisabled={isRetryDisabled}
+          />
+        )}
         {isQuizOutdated && <QuizOutdatedBanner />}
         {isBuilding ? (
           <StageSkeleton step={step} />

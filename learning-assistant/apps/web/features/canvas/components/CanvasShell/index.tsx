@@ -16,10 +16,13 @@ export const CanvasShell = () => {
     isBuilding,
     hasData,
     error,
+    canRetry,
+    isRetryDisabled,
     isQuizOutdated,
     hasPrev,
     hasNext,
     handleSelectStage,
+    handleRetry,
     handlePrev,
     handleNext,
   } = useCanvasShell();
@@ -36,10 +39,13 @@ export const CanvasShell = () => {
       isBuilding={isBuilding}
       hasData={hasData}
       error={error}
+      canRetry={canRetry}
+      isRetryDisabled={isRetryDisabled}
       isQuizOutdated={isQuizOutdated}
       hasPrev={hasPrev}
       hasNext={hasNext}
       onSelectStage={handleSelectStage}
+      onRetry={handleRetry}
       onPrev={handlePrev}
       onNext={handleNext}
     />
