@@ -1,18 +1,8 @@
-import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
-import { openai } from "@ai-sdk/openai";
-import type { Provider } from "@repo/shared/schemas";
+import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
-// The default provider instances read OPENAI_API_KEY, ANTHROPIC_API_KEY and
-// GOOGLE_GENERATIVE_AI_API_KEY, the same keys as `PROVIDER_CATALOG`.
-const providerFactories = {
-  openai,
-  anthropic,
-  google,
-} satisfies Record<Provider, (modelId: string) => LanguageModel>;
+import { OPENAI_MODEL } from "@/constants/openai";
 
-export const createLanguageModel = (
-  provider: Provider,
-  modelId: string,
-): LanguageModel => providerFactories[provider](modelId);
+/** The OpenAI model, called with the user's own key; nothing is read from env. */
+export const createLanguageModel = (apiKey: string): LanguageModel =>
+  createOpenAI({ apiKey })(OPENAI_MODEL);
