@@ -2,6 +2,7 @@ import { useRenderTool } from "@copilotkit/react-core/v2";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 import { ToolParamSchemas } from "@repo/shared/schemas";
 
+import { FeedbackReadyCard } from "@/features/chat/components/FeedbackReadyCard";
 import { ToolProgress } from "@/features/chat/components/ToolProgress";
 import { formatQuizSize } from "@/features/chat/utils/tool-results";
 
@@ -79,7 +80,10 @@ export const useToolRenderers = () => {
       agentId: LEARNING_AGENT_ID,
       parameters: ToolParamSchemas.evaluate,
       render: ({ status, result }) => (
-        <ToolProgress tool="evaluate" status={status} result={result} />
+        <div className="space-y-2">
+          <ToolProgress tool="evaluate" status={status} result={result} />
+          {status === "complete" && <FeedbackReadyCard result={result} />}
+        </div>
       ),
     },
     [],

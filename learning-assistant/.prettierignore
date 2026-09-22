@@ -7,3 +7,5 @@ build
 dist
 coverage
 next-env.d.ts
+# Local, gitignored design reference (removed in M6.1).
+apps/web/refer-ui

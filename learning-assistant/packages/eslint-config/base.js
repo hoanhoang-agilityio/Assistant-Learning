@@ -62,6 +62,8 @@ export const config = [
         { groups: [["^\\u0000"], ["^node:"], ["^@?\\w"], ["^@/"], ["^\\."]] },
       ],
       "simple-import-sort/exports": "error",
+      // Every if/else/for/while body is a braced block, even a single return.
+      curly: ["error", "all"],
     },
   },
   {

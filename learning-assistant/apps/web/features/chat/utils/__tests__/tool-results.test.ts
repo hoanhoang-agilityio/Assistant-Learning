@@ -4,6 +4,7 @@ import {
   formatQuizSize,
   formatToolTitle,
   getToolPhase,
+  parseEvaluateScore,
   parseToolError,
 } from "@/features/chat/utils/tool-results";
 
@@ -86,4 +87,37 @@ describe("formatQuizSize", () => {
       expect(formatQuizSize(result)).toBeUndefined();
     },
   );
+});
+
+describe("parseEvaluateScore", () => {
+  const data = {
+    answers: { q1: 0 },
+    evaluation: {
+      correct: 1,
+      total: 1,
+      percent: 100,
+      weakestConcept: null,
+      perQuestion: [
+        { qid: "q1", correctIndex: 0, isCorrect: true, explanation: "" },
+      ],
+      mastery: [{ concept: "A", percent: 100 }],
+    },
+    score: { percent: 100, tier: "Master" },
+    feedback: { a2uiOperations: [], summary: "Great." },
+  };
+
+  it("reads the score from a successful result", () => {
+    expect(parseEvaluateScore(JSON.stringify({ ok: true, data }))).toEqual({
+      percent: 100,
+      tier: "Master",
+    });
+  });
+
+  it.each([
+    undefined,
+    "not json",
+    JSON.stringify({ ok: false, error: "No quiz" }),
+  ])("is null for %s", (result) => {
+    expect(parseEvaluateScore(result)).toBeNull();
+  });
 });
