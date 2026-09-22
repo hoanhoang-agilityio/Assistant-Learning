@@ -1,6 +1,7 @@
 import {
   type LearningState,
   type Notes,
+  type RunningTask,
   SUBAGENT_TOOLS,
   type SubagentTool,
   type ToolResult,
@@ -41,9 +42,13 @@ const createStateUpdate = (
 
 const createFailureUpdate = (
   state: LearningState,
+  failed: RunningTask,
   error: string,
 ): StateUpdate =>
-  createStateUpdate(state, { ...state, status: { running: null, error } });
+  createStateUpdate(state, {
+    ...state,
+    status: { running: null, error, failed },
+  });
 
 const clearLaterStages = (
   state: LearningState,
@@ -163,19 +168,22 @@ export const createStartUpdate = (
  * A subagent tool returned. `content` is the `TOOL_CALL_RESULT` content (the
  * JSON-serialised tool result). On success the data is written to state, later
  * stages are cleared and the canvas moves to the tool's stage; on failure
- * `status.error` is set and the rest of the state is kept.
+ * `status.error` and `status.failed` are set and the rest of the state is
+ * kept.
  */
 export const applyToolResult = (
   state: LearningState,
   tool: SubagentTool,
   content: string,
 ): StateUpdate => {
+  const task = SUBAGENT_TASK[tool];
   let raw: unknown;
   try {
     raw = JSON.parse(content);
   } catch {
     return createFailureUpdate(
       state,
+      task,
       `The ${tool} step returned an unreadable result.`,
     );
   }
@@ -184,11 +192,12 @@ export const applyToolResult = (
   if (!result) {
     return createFailureUpdate(
       state,
+      task,
       `The ${tool} step returned an invalid result.`,
     );
   }
   if (!result.ok) {
-    return createFailureUpdate(state, result.error);
+    return createFailureUpdate(state, task, result.error);
   }
 
   const next = applyData(
@@ -198,7 +207,7 @@ export const applyToolResult = (
     state,
   );
   if (typeof next === "string") {
-    return createFailureUpdate(state, next);
+    return createFailureUpdate(state, task, next);
   }
 
   return createStateUpdate(state, {
@@ -218,5 +227,6 @@ export const interruptTask = (state: LearningState): StateUpdate | null =>
     ? null
     : createFailureUpdate(
         state,
+        state.status.running,
         `The ${state.status.running} step did not finish.`,
       );
