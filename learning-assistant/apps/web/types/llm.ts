@@ -1,38 +1,11 @@
 import type { Settings } from "@repo/shared/schemas";
-import type { generateText } from "ai";
 
 /**
- * How a model exposes reasoning. The reasoning mapper
- * (`services/llm/reasoning.ts`) switches on this to build `providerOptions`.
- * `null` means the model has no reasoning control and the effort picker is
- * disabled.
+ * Settings for one run, plus the user's OpenAI API key.
+ * Server only: never put it in agent state or in a message.
  */
-export type ReasoningKind =
-  | "openai-effort"
-  | "anthropic-adaptive"
-  | "anthropic-budget"
-  | "gemini-level"
-  | "gemini-budget";
+export type RunSettings = Settings & { apiKey: string };
 
-export interface ModelInfo {
-  id: string;
-  label: string;
-  reasoning: ReasoningKind | null;
-}
-
-export interface ProviderInfo {
-  label: string;
-  /** Server env variable holding the API key. */
-  envKey: string;
-  /** First entry is the provider's default model. */
-  models: readonly ModelInfo[];
-}
-
-/** The `providerOptions` accepted by AI SDK calls. */
-export type ProviderOptions = NonNullable<
-  Parameters<typeof generateText>[0]["providerOptions"]
->;
-
-/** Settings for one run after checking keys and the allowlist. */
+/** Settings for one run after checking the key. */
 export type RunSettingsResult =
-  { ok: true; settings: Settings } | { ok: false; error: string };
+  { ok: true; settings: RunSettings } | { ok: false; error: string };
