@@ -201,11 +201,10 @@ describe("applyToolResult", () => {
   ])("sets status.error for %s and keeps the data", (_, content, error) => {
     const running = createStartUpdate(withNotes, "research").state;
     const { state, patch } = applyToolResult(running, "research", content);
+    const status = { running: null, error, failed: "research" };
 
-    expect(state).toEqual({ ...withNotes, status: { running: null, error } });
-    expect(patch).toEqual([
-      { op: "add", path: "/status", value: { running: null, error } },
-    ]);
+    expect(state).toEqual({ ...withNotes, status });
+    expect(patch).toEqual([{ op: "add", path: "/status", value: status }]);
   });
 
   it("fails simplify when the selection is gone", () => {
@@ -218,9 +217,11 @@ describe("applyToolResult", () => {
         markdown: "x",
       }),
     );
-    expect(state.status.error).toBe(
-      "The selected text is no longer in the notes.",
-    );
+    expect(state.status).toEqual({
+      running: null,
+      error: "The selected text is no longer in the notes.",
+      failed: "simplify",
+    });
     expect(state.notes).toEqual(withNotes.notes);
   });
 
@@ -275,6 +276,7 @@ describe("interruptTask", () => {
     expect(interruptTask(running)?.state.status).toEqual({
       running: null,
       error: "The quiz step did not finish.",
+      failed: "quiz",
     });
   });
 });

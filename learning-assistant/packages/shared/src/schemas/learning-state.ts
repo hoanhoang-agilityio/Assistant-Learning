@@ -41,6 +41,8 @@ const PercentSchema = z.number().min(0).max(100);
 export const StatusSchema = z.object({
   running: RunningTaskSchema.nullable(),
   error: z.string().optional(),
+  /** The task that set `error`, so the canvas can offer to retry it. */
+  failed: RunningTaskSchema.optional(),
 });
 
 export const NotesSchema = z.object({
