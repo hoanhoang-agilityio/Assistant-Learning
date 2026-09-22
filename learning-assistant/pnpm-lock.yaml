@@ -41,12 +41,6 @@ importers:
       '@ag-ui/client':
         specifier: 0.0.59
         version: 0.0.59
-      '@ai-sdk/anthropic':
-        specifier: 3.0.118
-        version: 3.0.118(zod@4.6.5)
-      '@ai-sdk/google':
-        specifier: 3.0.123
-        version: 3.0.123(zod@4.6.5)
       '@ai-sdk/openai':
         specifier: 3.0.113
         version: 3.0.113(zod@4.6.5)
@@ -6078,12 +6072,6 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
       zod: 3.25.76
 
-  '@ai-sdk/anthropic@3.0.118(zod@4.6.5)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.16
-      '@ai-sdk/provider-utils': 4.0.51(zod@4.6.5)
-      zod: 4.6.5
-
   '@ai-sdk/gateway@3.0.196(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 3.0.16
@@ -6121,12 +6109,6 @@ snapshots:
       '@ai-sdk/provider': 3.0.16
       '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
       zod: 3.25.76
-
-  '@ai-sdk/google@3.0.123(zod@4.6.5)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.16
-      '@ai-sdk/provider-utils': 4.0.51(zod@4.6.5)
-      zod: 4.6.5
 
   '@ai-sdk/mcp@1.0.81(zod@3.25.76)':
     dependencies:
