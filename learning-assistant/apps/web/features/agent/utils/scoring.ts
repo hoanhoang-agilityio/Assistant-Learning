@@ -1,14 +1,5 @@
-import type {
-  AnswerKey,
-  Evaluation,
-  QuizQuestion,
-  Tier,
-} from "@repo/shared/schemas";
+import type { AnswerKey, Evaluation, QuizQuestion } from "@repo/shared/schemas";
 
-import {
-  LOWEST_TIER,
-  TIER_THRESHOLDS,
-} from "@/features/agent/constants/scoring";
 import type { QuestionResult, QuizScore } from "@/features/agent/types/scoring";
 
 /** Whole-number percent; 0 when there is nothing to count. */
@@ -38,7 +29,9 @@ export const calculateMastery = (
   questions.forEach(({ concept }, index) => {
     const count = counts.get(concept) ?? { correct: 0, total: 0 };
     count.total += 1;
-    if (results[index]?.isCorrect) count.correct += 1;
+    if (results[index]?.isCorrect) {
+      count.correct += 1;
+    }
     counts.set(concept, count);
   });
   return Array.from(counts, ([concept, { correct, total }]) => ({
@@ -61,11 +54,6 @@ export const findWeakestConcept = (
   );
   return weakest && weakest.percent < 100 ? weakest.concept : null;
 };
-
-/** Under 50% Novice, under 80% Practitioner, otherwise Master. */
-export const getTier = (percent: number): Tier =>
-  TIER_THRESHOLDS.find(({ minPercent }) => percent >= minPercent)?.tier ??
-  LOWEST_TIER;
 
 /** Everything about a graded quiz that code can work out. */
 export const scoreQuiz = (

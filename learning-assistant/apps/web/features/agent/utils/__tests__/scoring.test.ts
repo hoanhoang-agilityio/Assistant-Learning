@@ -5,7 +5,6 @@ import {
   calculateMastery,
   calculatePercent,
   findWeakestConcept,
-  getTier,
   gradeQuestions,
   scoreQuiz,
 } from "@/features/agent/utils/scoring";
@@ -94,19 +93,6 @@ describe("findWeakestConcept", () => {
   it("is null with no concepts or a perfect score", () => {
     expect(findWeakestConcept([])).toBeNull();
     expect(findWeakestConcept([{ concept: "A", percent: 100 }])).toBeNull();
-  });
-});
-
-describe("getTier", () => {
-  it.each([
-    [0, "Novice"],
-    [49, "Novice"],
-    [50, "Practitioner"],
-    [79, "Practitioner"],
-    [80, "Master"],
-    [100, "Master"],
-  ])("%i%% is %s", (percent, tier) => {
-    expect(getTier(percent)).toBe(tier);
   });
 });
 
