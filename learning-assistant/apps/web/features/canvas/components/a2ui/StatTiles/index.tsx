@@ -16,7 +16,7 @@ export const StatTiles = ({
       {readText(props.title)}
     </h3>
 
-    <dl className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+    <dl className="mb-6 grid grid-cols-1 gap-4 @3xl:grid-cols-3">
       {readStatTiles(props.tiles).map(({ label, value, tone }) => (
         <div
           key={label}

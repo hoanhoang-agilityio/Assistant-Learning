@@ -7,9 +7,15 @@ export interface HeaderViewProps {
   onToggleTheme: () => void;
 }
 
-/** App title, theme toggle and the settings popover. */
+/**
+ * App title, theme toggle and the settings popover. Breakpoints are container
+ * queries, so a previewed device frame gets the narrow header too. While the
+ * settings popover is open the header rises above the chat popup (z 1200),
+ * which otherwise covers it; only then, so a full-screen popup on a phone
+ * keeps its own header on top.
+ */
 export const HeaderView = ({ isDark, onToggleTheme }: HeaderViewProps) => (
-  <header className="z-20 flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 dark:border-slate-700 dark:bg-slate-800/90">
+  <header className="z-20 flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 has-[[role=dialog]]:z-[1300] @2xl:px-6 dark:border-slate-700 dark:bg-slate-800/90">
     <div className="flex items-center gap-3">
       <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-tr from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20">
         <Sparkles className="h-5 w-5" />
@@ -18,7 +24,7 @@ export const HeaderView = ({ isDark, onToggleTheme }: HeaderViewProps) => (
         <h1 className="text-base leading-tight font-bold tracking-tight">
           Learning Assistant
         </h1>
-        <p className="text-xs text-slate-400">
+        <p className="hidden text-xs text-slate-400 @2xl:block">
           Interactive Canvas & Real-time Assistant
         </p>
       </div>
