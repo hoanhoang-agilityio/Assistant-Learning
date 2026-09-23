@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "@/constants/settings";
 import {
   clampQuestionCount,
+  describeLearningSettings,
   parseSettings,
 } from "@/features/settings/utils/settings";
 
@@ -41,5 +42,17 @@ describe("clampQuestionCount", () => {
     [Number.NaN, 5],
   ])("clamps %s to %s", (input, expected) => {
     expect(clampQuestionCount(input)).toBe(expected);
+  });
+});
+
+describe("describeLearningSettings", () => {
+  it("reports the question count and the level", () => {
+    expect(
+      describeLearningSettings({
+        ...DEFAULT_SETTINGS,
+        questionCount: 10,
+        learningLevel: "advanced",
+      }),
+    ).toBe("Quizzes now have 10 questions; the learning level is advanced.");
   });
 });

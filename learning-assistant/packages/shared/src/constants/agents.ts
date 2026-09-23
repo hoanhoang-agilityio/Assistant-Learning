@@ -13,3 +13,6 @@ export const SET_THEME_TOOL = "setTheme";
 
 /** Frontend tool: shows, hides or pops out the chat and switches the view. */
 export const SET_LAYOUT_TOOL = "setLayout";
+
+/** Frontend tool: changes the quiz question count and the learning level. */
+export const SET_LEARNING_SETTINGS_TOOL = "setLearningSettings";

@@ -34,7 +34,10 @@ describe("toSupervisorState", () => {
     const trimmed = toSupervisorState(state, DEFAULT_SETTINGS);
 
     expect(trimmed).toEqual({
-      settings: { questionCount: DEFAULT_SETTINGS.questionCount },
+      settings: {
+        questionCount: DEFAULT_SETTINGS.questionCount,
+        learningLevel: DEFAULT_SETTINGS.learningLevel,
+      },
       stage: "quiz",
       status: { running: null },
       topic: "Closures",

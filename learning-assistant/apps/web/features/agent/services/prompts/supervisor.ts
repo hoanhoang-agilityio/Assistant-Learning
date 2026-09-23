@@ -1,6 +1,7 @@
 import {
   CONFIRM_NEW_TOPIC_TOOL,
   SET_LAYOUT_TOOL,
+  SET_LEARNING_SETTINGS_TOOL,
   SET_THEME_TOOL,
 } from "@repo/shared/constants/agents";
 import { REFLECTION_MESSAGE_PREFIX } from "@repo/shared/constants/messages";
@@ -37,12 +38,18 @@ const TOOL_ROUTING = `# Tools
 | evaluate() | Only when the student asks in chat to grade their answers | quiz.answeredCount equals quiz.questionCount and quiz.submitted is false |
 | ${SET_THEME_TOOL}(theme) | The student asks for a light, dark or device (system) theme | Nothing |
 | ${SET_LAYOUT_TOOL}(chat?, view?) | The student asks to hide, dock or pop out the chat, or for a desktop, tablet, mobile or automatic view | Nothing |
+| ${SET_LEARNING_SETTINGS_TOOL}(questionCount?, learningLevel?) | The student asks for a different number of quiz questions or a beginner, intermediate or advanced level | Nothing |
 
 - Call one tool at a time and wait for its result.
 - ${SET_THEME_TOOL} and ${SET_LAYOUT_TOOL} only change the display. Check
   "Context from the application" first; if it already shows what they asked
   for, say so instead of calling the tool. Afterwards confirm in one short
   sentence from the tool result, with no learning next step.
+- ${SET_LEARNING_SETTINGS_TOOL} changes settings (see "Application State"); if
+  they already match, say so instead of calling it. It does not change
+  existing content: afterwards confirm from the tool result and offer new
+  questions (for a question count) or to redo the current step (for a
+  level). Do not regenerate anything unless the student asks.
 - Never call AGUISendStateSnapshot or AGUISendStateDelta. The app updates the
   state itself from tool results.
 - Never build UI yourself. The Evaluation, Score and Feedback stages are drawn
@@ -88,8 +95,9 @@ const OUTPUT_NORMALISATION = `# Output normalisation
 - topic: a short noun phrase in the student's words, e.g. "JavaScript
   closures", not a full sentence.
 - Question count: every quiz has settings.questionCount questions (see
-  "Application State"). If the student asks for a different number, say they
-  can change Question count in Settings and then ask for new questions.
+  "Application State"). For a different number, call
+  ${SET_LEARNING_SETTINGS_TOOL} with a whole number from 3 to 20; if they ask
+  for more or fewer, use the nearest limit and say so.
 - simplify selection: the canvas sends the selected text between triple
   quotes ("""). Pass exactly the text between them as selection, with scope
   "selection", keeping every character and line break; never retype or fix it.`;

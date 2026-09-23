@@ -7,10 +7,16 @@ export interface DisplayToolCardProps {
   status: "inProgress" | "executing" | "complete";
   /** What changes, e.g. "dark" or "popup · mobile". */
   detail?: string;
+  /** Running and done labels; defaults to the display copy. */
+  copy?: { running: string; done: string };
 }
 
-/** A one-line chat card for the theme and layout tools. */
-export const DisplayToolCard = ({ status, detail }: DisplayToolCardProps) => {
+/** A one-line chat card for the theme, layout and settings tools. */
+export const DisplayToolCard = ({
+  status,
+  detail,
+  copy = DISPLAY_TOOL_COPY,
+}: DisplayToolCardProps) => {
   const isDone = status === "complete";
 
   return (
@@ -27,9 +33,7 @@ export const DisplayToolCard = ({ status, detail }: DisplayToolCardProps) => {
       ) : (
         <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
       )}
-      <span className="font-medium">
-        {isDone ? DISPLAY_TOOL_COPY.done : DISPLAY_TOOL_COPY.running}
-      </span>
+      <span className="font-medium">{isDone ? copy.done : copy.running}</span>
       {detail && <span className="capitalize opacity-70">{detail}</span>}
     </div>
   );

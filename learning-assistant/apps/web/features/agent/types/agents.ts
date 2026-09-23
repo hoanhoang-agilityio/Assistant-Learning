@@ -77,7 +77,7 @@ export interface LearningSupervisorAgentConfig {
  */
 export interface SupervisorState {
   /** The user's settings the Supervisor must respect. */
-  settings: Pick<Settings, "questionCount">;
+  settings: Pick<Settings, "questionCount" | "learningLevel">;
   stage: Stage;
   status: Status;
   topic: string | null;
