@@ -62,6 +62,9 @@ importers:
       ai:
         specifier: 6.0.285
         version: 6.0.285(zod@4.6.5)
+      langsmith:
+        specifier: 0.10.4
+        version: 0.10.4(@opentelemetry/api@1.9.1)(ws@8.21.3)
       lucide-react:
         specifier: 1.47.0
         version: 1.47.0(react@19.2.8)

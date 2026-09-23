@@ -7,6 +7,9 @@ import {
   type SubagentTool,
 } from "@repo/shared/schemas";
 
+/** The student's side of a turn in the LangSmith trace when Submit started it. */
+export const QUIZ_SUBMIT_TURN = "Submitted the quiz.";
+
 /** Upper bound on LLM steps (tool calls and replies) in one Supervisor run. */
 export const SUPERVISOR_MAX_STEPS = 8;
 

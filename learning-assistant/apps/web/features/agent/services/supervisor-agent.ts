@@ -13,10 +13,12 @@ import { filter, type Observable, of } from "rxjs";
 import { OPENAI_CALL_OPTIONS } from "@/constants/openai";
 import {
   QUIZ_SEAL_SECRET_ENV_KEY,
+  QUIZ_SUBMIT_TURN,
   SUPERVISOR_MAX_STEPS,
 } from "@/features/agent/constants/agents";
 import { SealedAnswerKeyStore } from "@/features/agent/services/answer-key/sealed-answer-key-store";
 import { explainRunErrors } from "@/features/agent/services/run-errors";
+import { traceTurn } from "@/features/agent/services/run-trace";
 import { syncStateFromTools } from "@/features/agent/services/state-sync";
 import { runSubmittedQuiz } from "@/features/agent/services/submit-quiz";
 import { toSupervisorState } from "@/features/agent/services/supervisor-state";
@@ -91,7 +93,7 @@ export class LearningSupervisorAgent extends AbstractAgent {
     };
 
     const inner = new BuiltInAgent({
-      model: createLanguageModel(settings.apiKey),
+      model: createLanguageModel(settings.apiKey, "supervisor"),
       providerOptions: OPENAI_CALL_OPTIONS,
       maxSteps: this.config.maxSteps ?? SUPERVISOR_MAX_STEPS,
       prompt: this.config.prompt,
@@ -118,12 +120,16 @@ export class LearningSupervisorAgent extends AbstractAgent {
         })
       : runSupervisor(input.messages);
 
-    return events.pipe(
-      filter((event) => !isInnerStateEvent(event)),
-      syncStateFromTools(initial, (next) => {
-        current = next;
-      }),
-      explainRunErrors(formatOpenAIError),
+    return traceTurn(
+      input,
+      events.pipe(
+        filter((event) => !isInnerStateEvent(event)),
+        syncStateFromTools(initial, (next) => {
+          current = next;
+        }),
+        explainRunErrors(formatOpenAIError),
+      ),
+      submit ? QUIZ_SUBMIT_TURN : undefined,
     );
   }
 
