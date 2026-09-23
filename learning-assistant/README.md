@@ -31,8 +31,12 @@ All variables live in `apps/web/.env` and are read on the server only.
 | `QUIZ_SEAL_SECRET`        | Yes      | Secret used to encrypt the quiz answer key until Submit. Generate one with `openssl rand -base64 32`                                 |
 | `TAVILY_API_KEY`          | No       | Turns on web research with cited sources. Without it, research uses only the model's own knowledge and lists no sources              |
 | `NEXT_PUBLIC_RUNTIME_URL` | No       | Base path of the CopilotKit runtime route. Defaults to `/api/copilotkit`                                                             |
+| `LANGSMITH_TRACING`       | No       | Set to `true` to send every LLM call to LangSmith                                                                                    |
+| `LANGSMITH_API_KEY`       | No       | LangSmith API key. Required when `LANGSMITH_TRACING` is `true`                                                                       |
+| `LANGSMITH_PROJECT`       | No       | LangSmith project the traces go to. Defaults to `default`                                                                            |
+| `LANGSMITH_ENDPOINT`      | No       | LangSmith API URL. Defaults to `https://api.smith.langchain.com`; use `https://eu.api.smith.langchain.com` for the EU region         |
 
-The `LANGSMITH_*` entries in `.env.example` are not read by v1.
+With tracing on, each turn of the conversation is one `learning` trace. Its Supervisor steps (`supervisor`) and subagent tool calls (`research`, `makeMaterial`, `generateQuiz`…) are nested under it, each subagent with its own LLM calls. Every trace carries the chat's `thread_id`, so LangSmith's **Threads** tab groups a conversation's turns together.
 
 ## Model
 
