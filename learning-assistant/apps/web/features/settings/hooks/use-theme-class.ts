@@ -1,16 +1,21 @@
-import type { Theme } from "@repo/shared/schemas";
 import { useLayoutEffect } from "react";
 
+import { DARK_THEME_CLASS } from "@/constants/settings";
+import type { ResolvedTheme } from "@/features/settings/types/settings";
+
 /**
- * Keeps the `dark` class on <html> in sync with the theme setting. The inline
- * script in the root layout sets it before first paint; this keeps it right
- * after toggles and after React's dev remount clears it.
+ * Keeps the `dark` class on <html> in sync with the theme on screen. The
+ * inline script in the root layout sets it before first paint; this keeps it
+ * right after toggles, OS switches and React's dev remount.
  */
-export const useThemeClass = (theme: Theme, isEnabled: boolean) => {
+export const useThemeClass = (theme: ResolvedTheme, isEnabled: boolean) => {
   useLayoutEffect(() => {
     if (!isEnabled) {
       return;
     }
-    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.toggle(
+      DARK_THEME_CLASS,
+      theme === "dark",
+    );
   }, [theme, isEnabled]);
 };
