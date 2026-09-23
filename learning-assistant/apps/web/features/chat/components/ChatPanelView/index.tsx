@@ -1,34 +1,35 @@
 "use client";
 
 import { CopilotChat } from "@copilotkit/react-core/v2";
-import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
-import { MessageSquare, PanelLeftClose } from "lucide-react";
+import { MessageSquare, PanelLeftClose, PictureInPicture2 } from "lucide-react";
 
 import { CHAT_PANEL_ID } from "@/constants/layout";
-import { renderAssistantMessage } from "@/features/chat/components/AssistantMessage";
-import { ChatWelcome } from "@/features/chat/components/ChatWelcome";
-import { TypingCursor } from "@/features/chat/components/TypingCursor";
-import { renderUserMessage } from "@/features/chat/components/UserMessage";
-import { WELCOME_TEXT } from "@/features/chat/constants/chat";
+import {
+  CHAT_TITLE,
+  CHAT_VIEW_PROPS,
+} from "@/features/chat/constants/chat-view";
 
-const SUGGESTION_PILL_CLASS =
-  "shrink-0 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] whitespace-nowrap text-slate-600 transition-all hover:border-indigo-200 hover:bg-indigo-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800";
+const HEADER_BUTTON_CLASS =
+  "rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200/60 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200";
 
 export interface ChatPanelViewProps {
   /** Panel width in px. */
   width: number;
   isOpen: boolean;
   onCollapse: () => void;
+  /** Moves the chat into a floating popup. */
+  onPopOut: () => void;
 }
 
 /**
  * Left panel: the Supervisor chat, restyled to match the reference UI. It
- * stays mounted while collapsed so the draft and scroll position survive.
+ * stays mounted while hidden so the draft and scroll position survive.
  */
 export const ChatPanelView = ({
   width,
   isOpen,
   onCollapse,
+  onPopOut,
 }: ChatPanelViewProps) => (
   <aside
     id={CHAT_PANEL_ID}
@@ -39,7 +40,7 @@ export const ChatPanelView = ({
       <div className="flex items-center gap-2">
         <MessageSquare className="h-4 w-4 text-indigo-500" />
         <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400">
-          Assistant Chat
+          {CHAT_TITLE}
         </span>
       </div>
       <div className="flex items-center gap-2">
@@ -49,40 +50,27 @@ export const ChatPanelView = ({
         </span>
         <button
           type="button"
+          onClick={onPopOut}
+          aria-label="Pop out chat"
+          title="Pop out chat"
+          className={HEADER_BUTTON_CLASS}
+        >
+          <PictureInPicture2 className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
           onClick={onCollapse}
           aria-label="Collapse chat"
           aria-controls={CHAT_PANEL_ID}
           aria-expanded={isOpen}
           title="Collapse chat"
-          className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200/60 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+          className={HEADER_BUTTON_CLASS}
         >
           <PanelLeftClose className="h-4 w-4" />
         </button>
       </div>
     </div>
 
-    <CopilotChat
-      agentId={LEARNING_AGENT_ID}
-      className="min-h-0 flex-1"
-      labels={{
-        chatInputPlaceholder: "Ask your AI tutor anything...",
-        welcomeMessageText: WELCOME_TEXT,
-      }}
-      welcomeScreen={ChatWelcome}
-      messageView={{
-        className: "px-4 pb-4",
-        assistantMessage: { children: renderAssistantMessage },
-        userMessage: { children: renderUserMessage },
-        cursor: TypingCursor,
-      }}
-      suggestionView={{
-        className:
-          "suggestion-scroll flex flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-slate-100 px-4 py-2 dark:border-slate-800/80",
-        suggestion: { className: SUGGESTION_PILL_CLASS },
-      }}
-      input={{
-        className: "border-t border-slate-200 p-3 dark:border-slate-800",
-      }}
-    />
+    <CopilotChat {...CHAT_VIEW_PROPS} className="min-h-0 flex-1" />
   </aside>
 );

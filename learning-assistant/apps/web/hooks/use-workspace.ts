@@ -4,7 +4,7 @@ import { useNewTopicTool } from "@/features/chat/hooks/use-new-topic-tool";
 import { useStageSuggestions } from "@/features/chat/hooks/use-stage-suggestions";
 import { useToolRenderers } from "@/features/chat/hooks/use-tool-renderers";
 import { hasTopicWork } from "@/features/chat/utils/new-topic";
-import { useLayout } from "@/hooks/use-layout-store";
+import { useDisplay } from "@/hooks/use-display";
 import { useLearningAgent } from "@/hooks/use-learning-agent";
 
 /**
@@ -14,12 +14,12 @@ import { useLearningAgent } from "@/hooks/use-learning-agent";
  */
 export const useWorkspace = () => {
   const { state } = useLearningAgent();
-  const { chatMode } = useLayout();
+  const display = useDisplay();
   const panelsRef = useRef<HTMLDivElement>(null);
 
   useToolRenderers();
   useNewTopicTool(hasTopicWork(state));
   useStageSuggestions(state.stage);
 
-  return { isChatOpen: chatMode !== "hidden", panelsRef };
+  return { display, panelsRef };
 };

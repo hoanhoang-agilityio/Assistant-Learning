@@ -5,7 +5,7 @@ import { useWorkspace } from "@/hooks/use-workspace";
 
 /** Registers the app-wide CopilotKit hooks and lays out the panels. */
 export const Workspace = () => {
-  const { isChatOpen, panelsRef } = useWorkspace();
+  const { display, panelsRef } = useWorkspace();
 
-  return <WorkspaceView isChatOpen={isChatOpen} panelsRef={panelsRef} />;
+  return <WorkspaceView display={display} panelsRef={panelsRef} />;
 };

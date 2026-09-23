@@ -3,12 +3,9 @@
 import { ChatRailView } from "@/features/chat/components/ChatRailView";
 import { useChatLayout } from "@/features/chat/hooks/use-chat-layout";
 
-/** Shows the rail only while the chat is collapsed. */
+/** The slim bar shown while the chat is hidden. */
 export const ChatRail = () => {
-  const { isChatOpen, handleToggleChat } = useChatLayout();
-  if (isChatOpen) {
-    return null;
-  }
+  const { handleOpen } = useChatLayout();
 
-  return <ChatRailView onOpen={handleToggleChat} />;
+  return <ChatRailView onOpen={handleOpen} />;
 };

@@ -1,14 +1,20 @@
+import { useDisplay } from "@/hooks/use-display";
 import { useLayout, useLayoutActions } from "@/hooks/use-layout-store";
 
-/** The chat panel's width and open state, and a handler to toggle it. */
+/**
+ * The docked chat's width and whether it is on screen, and handlers to hide
+ * it, open it again and pop it out.
+ */
 export const useChatLayout = () => {
-  const { chatWidth, chatMode } = useLayout();
+  const { chatWidth } = useLayout();
+  const { chat } = useDisplay();
   const { setChatMode } = useLayoutActions();
-  const isChatOpen = chatMode !== "hidden";
 
   return {
     chatWidth,
-    isChatOpen,
-    handleToggleChat: () => setChatMode(isChatOpen ? "hidden" : "docked"),
+    isDocked: chat === "docked",
+    handleHide: () => setChatMode("hidden"),
+    handleOpen: () => setChatMode("docked"),
+    handlePopOut: () => setChatMode("popup"),
   };
 };
