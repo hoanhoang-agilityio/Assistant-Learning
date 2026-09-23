@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* `dark:` follows the `dark` class on <html>, set from Settings, not the OS. */
+/* `dark:` follows the `dark` class on <html>, set from Settings (which may follow the OS). */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
@@ -121,6 +121,18 @@
   --input: #334155;
   --popover: #1e293b;
   --popover-foreground: #e2e8f0;
+}
+
+/*
+ * The chat's `--background` is transparent so the docked panel shows through;
+ * the popup floats over the canvas, so it needs a solid one.
+ */
+:root .copilotKitPopup {
+  background-color: #ffffff;
+}
+
+:root.dark .copilotKitPopup {
+  background-color: #0f172a; /* slate-900 */
 }
 
 /*
