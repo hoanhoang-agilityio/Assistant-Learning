@@ -31,7 +31,7 @@ describe("getRetryAction", () => {
     expect(getRetryAction(initialLearningState)).toBeNull();
   });
 
-  it.each(["research", "notes", "simplify", "quiz"] as const)(
+  it.each(["research", "material", "simplify", "quiz"] as const)(
     "asks the assistant again when %s failed",
     (failed) => {
       expect(getRetryAction(withFailure(failed))).toEqual({

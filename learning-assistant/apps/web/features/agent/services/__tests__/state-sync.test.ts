@@ -38,7 +38,7 @@ describe("syncStateFromTools", () => {
   it("emits STATE_DELTA after a subagent's start and result", async () => {
     const events = await run([
       ...started,
-      createToolStartEvent("makeNotes"),
+      createToolStartEvent("makeMaterial"),
       createToolResultEvent({ ok: true, data: { markdown: "# Notes" } }),
       finished,
     ]);

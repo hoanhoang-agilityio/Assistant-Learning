@@ -16,19 +16,26 @@ export const STAGE_SUGGESTIONS: Record<
     },
     {
       title: "Do everything on black holes",
-      message: "Do the whole flow on black holes: research, notes and a quiz.",
+      message:
+        "Do the whole flow on black holes: research, learning material and a quiz.",
     },
   ],
   research: [
-    { title: "Make notes", message: "Turn the research into notes." },
+    {
+      title: "Make learning material",
+      message: "Turn the research into learning material.",
+    },
     {
       title: "Explain the key insight",
       message: "Explain the key insight in simpler words.",
     },
   ],
-  notes: [
-    { title: "Simplify my notes", message: "Simplify my notes." },
-    { title: "Quiz me", message: "Quiz me on my notes." },
+  material: [
+    {
+      title: "Simplify my learning material",
+      message: "Simplify my learning material.",
+    },
+    { title: "Quiz me", message: "Quiz me on my learning material." },
   ],
   quiz: [
     { title: "New questions", message: "Give me a new set of questions." },

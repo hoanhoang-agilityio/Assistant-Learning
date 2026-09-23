@@ -39,7 +39,7 @@ const setup = async () => {
       quiz,
       answers,
       answerKeys,
-      notes: "# Closures",
+      material: "# Closures",
       settings: TEST_RUN_SETTINGS,
     },
   };
@@ -83,7 +83,7 @@ describe("runEvaluation", () => {
     });
 
     const [call] = vi.mocked(runEvaluator).mock.calls[0] ?? [];
-    expect(call?.input.notes).toBe("# Closures");
+    expect(call?.input.material).toBe("# Closures");
     expect(call?.input.questions[2]).toMatchObject({
       chosenIndex: 0,
       correctIndex: 3,

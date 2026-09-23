@@ -2,7 +2,7 @@ import type { ToolDefinition } from "@copilotkit/runtime/v2";
 import type {
   Evaluation,
   LearningState,
-  Notes,
+  Material,
   Score,
   Settings,
   Stage,
@@ -32,7 +32,7 @@ export interface SupervisorRunContext {
   settings: RunSettings;
   /**
    * The state as of now, including results of earlier tools in the same run
-   * (autopilot runs research, then notes, then the quiz).
+   * (autopilot runs research, then learning material, then the quiz).
    */
   getState: () => LearningState;
   /** Aborted when the user stops the run. */
@@ -72,7 +72,7 @@ export interface LearningSupervisorAgentConfig {
 }
 
 /**
- * The state the Supervisor LLM sees. It never holds the full notes or quiz,
+ * The state the Supervisor LLM sees. It never holds the full learning material or quiz,
  * because `BuiltInAgent` writes the whole state into the system prompt.
  */
 export interface SupervisorState {
@@ -82,8 +82,8 @@ export interface SupervisorState {
   status: Status;
   topic: string | null;
   research: { title: string; keyInsight: string } | null;
-  notes: {
-    view: Notes["view"];
+  material: {
+    view: Material["view"];
     hasSimplified: boolean;
     characters: number;
   } | null;

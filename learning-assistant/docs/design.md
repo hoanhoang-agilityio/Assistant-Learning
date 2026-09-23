@@ -4,19 +4,19 @@
 
 ## Overview
 
-We are building a learning assistant that takes a student from a topic to scored, personalised feedback in one session. It uses CopilotKit 1.72, AG-UI and A2UI, with a Supervisor that delegates to four subagents: Research, Notes, Quiz and Evaluator.
+We are building a learning assistant that takes a student from a topic to scored, personalised feedback in one session. It uses CopilotKit 1.72, AG-UI and A2UI, with a Supervisor that delegates to four subagents: Research, Material, Quiz and Evaluator.
 
-The end-to-end flow is **Research → Notes → Quiz → Evaluation → Score → Feedback**.
+The end-to-end flow is **Research → Learning Material → Quiz → Evaluation → Score → Feedback**.
 
-| User scenario                                        | Handled by                                      |
-| ---------------------------------------------------- | ----------------------------------------------- |
-| Enter a topic and ask for research                   | Supervisor → Research Agent                     |
-| Structure research into clear notes                  | Supervisor → Notes Agent                        |
-| Rewrite complex content in student-friendly language | Supervisor → Notes Agent (simplify)             |
-| Generate N multiple-choice questions from the notes  | Supervisor → Quiz Agent                         |
-| Submit answers, get a score and detailed feedback    | Deterministic scoring in code + Evaluator Agent |
-| Pick the question count, learning level and theme    | Settings popover → `forwardedProps.settings`    |
-| Review the whole flow                                | Stepper canvas with six stages                  |
+| User scenario                                          | Handled by                                      |
+| ------------------------------------------------------ | ----------------------------------------------- |
+| Enter a topic and ask for research                     | Supervisor → Research Agent                     |
+| Structure research into learning material              | Supervisor → Material Agent                     |
+| Rewrite complex content in student-friendly language   | Supervisor → Material Agent (simplify)          |
+| Generate N multiple-choice questions from the material | Supervisor → Quiz Agent                         |
+| Submit answers, get a score and detailed feedback      | Deterministic scoring in code + Evaluator Agent |
+| Pick the question count, learning level and theme      | Settings popover → `forwardedProps.settings`    |
+| Review the whole flow                                  | Stepper canvas with six stages                  |
 
 **Scope.** v1 is TypeScript only in `apps/web`, keeps state for the session only, and has no auth or database. v2 moves the agents to Python (LangGraph + FastAPI) and adds Clerk auth, Postgres persistence, long-term memory and multiple conversations. v1 includes the seams that make that migration cheap.
 
@@ -30,7 +30,7 @@ flowchart LR
   RT --> W[LearningSupervisorAgent<br/>wrapper]
   W --> S[BuiltInAgent<br/>Supervisor LLM]
   S --> R[research]
-  S --> N[makeNotes / simplify]
+  S --> N[makeMaterial / simplify]
   S --> Q[generateQuiz]
   S --> E[evaluate]
   W -- STATE_DELTA --> UI
@@ -48,7 +48,7 @@ On each run the wrapper does four things:
 
 1. Reads `forwardedProps.settings` (question count, level) and the user's OpenAI key.
 2. Builds an inner `BuiltInAgent` whose subagent tools have the settings and the full state in scope.
-3. Passes the inner agent a trimmed state: stage, topic, flags and short summaries, never the full notes or quiz.
+3. Passes the inner agent a trimmed state: stage, topic, flags and short summaries, never the full learning material or quiz.
 4. Watches the event stream, and emits a `STATE_DELTA` when a subagent tool result arrives. The LLM never copies data into state.
 
 **Code layout.**
@@ -67,39 +67,39 @@ On each run the wrapper does four things:
 
 The Supervisor is the only agent that talks to the user and the only thing that changes state. Each subagent is a single `generateObject` call with its own prompt and a zod output schema. All of them use the model from Settings and get the learning level in their prompt.
 
-| Agent            | Supervisor tool               | Input                                              | Output                                                                                |
-| ---------------- | ----------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Research         | `research(topic)`             | topic, level                                       | `{ title, summary, keyInsight, keyTerms[{term, definition}], sources[{title, url}] }` |
-| Notes            | `makeNotes()`                 | research                                           | markdown notes → `notes.original`                                                     |
-| Notes (simplify) | `simplify(scope, selection?)` | the whole set of notes or the selected text, level | student-friendly markdown → `notes.simplified`, or the selection rewritten            |
-| Quiz             | `generateQuiz(count?)`        | notes (the active view), level, question count     | `questions[{id, concept, question, options[4]}]` + answer key (sealed)                |
-| Evaluator        | `evaluate()`                  | questions, answers, unsealed key                   | per-question explanations + dynamic A2UI feedback surface                             |
+| Agent               | Supervisor tool               | Input                                                   | Output                                                                                |
+| ------------------- | ----------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Research            | `research(topic)`             | topic, level                                            | `{ title, summary, keyInsight, keyTerms[{term, definition}], sources[{title, url}] }` |
+| Material            | `makeMaterial()`              | research                                                | markdown learning material → `material.original`                                      |
+| Material (simplify) | `simplify(scope, selection?)` | the whole learning material or the selected text, level | student-friendly markdown → `material.simplified`, or the selection rewritten         |
+| Quiz                | `generateQuiz(count?)`        | material (the active view), level, question count       | `questions[{id, concept, question, options[4]}]` + answer key (sealed)                |
+| Evaluator           | `evaluate()`                  | questions, answers, unsealed key                        | per-question explanations + dynamic A2UI feedback surface                             |
 
 **Research source.** Research uses Tavily when `TAVILY_API_KEY` is set, and returns cited sources. Without the key it uses only the model's own knowledge, and `sources` is empty.
 
 **Flow control.**
 
-- **Step by step (default).** Each scenario is its own request. If a prerequisite is missing, the Supervisor explains what is needed instead of guessing, e.g. no quiz before notes exist.
-- **Autopilot.** "Do the whole thing" chains research → notes → quiz, then stops, because the user has to answer the quiz.
-- **New topic.** When notes or a quiz already exist, the user confirms before anything is reset. The confirmation is human-in-the-loop, via `useHumanInTheLoop`. Chat history is kept.
+- **Step by step (default).** Each scenario is its own request. If a prerequisite is missing, the Supervisor explains what is needed instead of guessing, e.g. no quiz before learning material exists.
+- **Autopilot.** "Do the whole thing" chains research → learning material → quiz, then stops, because the user has to answer the quiz.
+- **New topic.** When learning material or a quiz already exists, the user confirms before anything is reset. The confirmation is human-in-the-loop, via `useHumanInTheLoop`. Chat history is kept.
 
 **Submitting the quiz.** The Submit button is an A2UI action (`submit_quiz`) that carries the answers. The wrapper sees it in `forwardedProps.a2uiAction` and runs `evaluate` directly, without waiting for the LLM to choose the tool. The Supervisor LLM then writes a short summary in the chat.
 
 **Scoring.** Scoring is done in code: each answer is compared with the unsealed `correctIndex`. Mastery for each concept, the weakest concept and the tier are computed in code too: under 50% is Novice, under 80% is Practitioner, and 80% or more is Master. The Evaluator LLM writes only the explanations and the feedback.
 
-**Retake and New questions.** Retake clears the answers and keeps the same questions. New questions calls `generateQuiz` again. Editing the notes clears the quiz, evaluation, score and feedback, and a banner tells the user the quiz is out of date.
+**Retake and New questions.** Retake clears the answers and keeps the same questions. New questions calls `generateQuiz` again. Editing the learning material clears the quiz, evaluation, score and feedback, and a banner tells the user the quiz is out of date.
 
 ## Shared state and AG-UI sync
 
-Agent state is the single source of truth for the canvas. The server changes it with `STATE_DELTA` events, and the Notes editor changes it from the client with `agent.setState`. Settings are not part of state: they live in zustand, are saved to `localStorage`, and are sent in `forwardedProps`.
+Agent state is the single source of truth for the canvas. The server changes it with `STATE_DELTA` events, and the Learning Material editor changes it from the client with `agent.setState`. Settings are not part of state: they live in zustand, are saved to `localStorage`, and are sent in `forwardedProps`.
 
 ```ts
 {
-  stage: "idle"|"research"|"notes"|"quiz"|"evaluation"|"score"|"feedback",
-  status: { running: null|"research"|"notes"|"simplify"|"quiz"|"evaluate", error?: string },
+  stage: "idle"|"research"|"material"|"quiz"|"evaluation"|"score"|"feedback",
+  status: { running: null|"research"|"material"|"simplify"|"quiz"|"evaluate", error?: string },
   topic: string | null,
   research: { title, summary, keyInsight, keyTerms[], sources[] } | null,
-  notes: { original: string, simplified: string | null, view: "original"|"simplified" } | null,
+  material: { original: string, simplified: string | null, view: "original"|"simplified" } | null,
   quiz: { id, questions[{ id, concept, question, options[4] }],
           answers: Record<qid, idx>, answerKeySealed: string, submitted: boolean } | null,
   evaluation: { correct, total, percent, weakestConcept,
@@ -113,8 +113,8 @@ Agent state is the single source of truth for the canvas. The server changes it 
 
 | Concern                       | Rule                                                                                                                                                                             |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| What the LLM sees             | A trimmed state: `stage`, `status`, `topic`, which stages have data, a 1–2 line summary of each. Never the full notes or quiz.                                                   |
-| Who writes to state           | The wrapper, from subagent results. The client writes only notes edits, the notes view toggle, quiz answers and the reflection.                                                  |
+| What the LLM sees             | A trimmed state: `stage`, `status`, `topic`, which stages have data, a 1–2 line summary of each. Never the full learning material or quiz.                                       |
+| Who writes to state           | The wrapper, from subagent results. The client writes only learning material edits, the material view toggle, quiz answers and the reflection.                                   |
 | Stage advance                 | The wrapper sets `stage` when a tool finishes; the canvas follows it and unlocks that stage.                                                                                     |
 | Answer key                    | `answerKeySealed` is AES-GCM-encrypted `{correctIndex[], explanations[]}` using `QUIZ_SEAL_SECRET`. It is unsealed only inside `evaluate`. Behind an `AnswerKeyStore` interface. |
 | Correct answers on the client | Appear only in `evaluation.perQuestion` after submit.                                                                                                                            |
@@ -131,7 +131,7 @@ The UI follows `apps/web/refer-ui/ai_learning_canvas_chat.tsx` closely: header, 
 | Stage      | Rendering                  | Components                                                                                                                            |
 | ---------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Research   | A2UI, fixed                | ArticleCard, InsightCallout, Flashcards (flipping is local state), SourceList                                                         |
-| Notes      | Custom React               | Markdown editor/preview, Simplify for the whole set of notes or a selection, Original/Simplified toggle                               |
+| Material   | Custom React               | Markdown editor/preview, Simplify for the whole learning material or a selection, Original/Simplified toggle                          |
 | Quiz       | A2UI, fixed                | QuestionCard with ChoicePicker for each question, Submit (`submit_quiz` action), Retake, New questions                                |
 | Evaluation | A2UI, fixed                | StatTiles (accuracy, answered, weakest concept), MasteryBars by concept                                                               |
 | Score      | A2UI, fixed                | TierBadge, ScoreCard, StatChips                                                                                                       |
@@ -157,14 +157,14 @@ The app uses OpenAI only. The user enters their own OpenAI API key on `/api-key`
 
 v1 ships as six milestone commits on the `learning-assistant` branch. No PR is opened until it is requested. The task-level breakdown is in [v1-tasks.md](./v1-tasks.md).
 
-| #   | Milestone                                                                      | Done when                                                                                           |
-| --- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| 1   | Shared schemas, JSON Schema export, wrapper agent, runtime + A2UI middleware   | A chat message reaches the Supervisor with the chosen model; a tool result produces a `STATE_DELTA` |
-| 2   | Settings popover, app shell, layout, CopilotChat restyle, stepper              | The reference layout renders with live settings and dark mode                                       |
-| 3   | Research + Notes (editor, Simplify, two-way sync), fixed A2UI Research surface | Research → Notes works end to end, including edits and Simplify                                     |
-| 4   | Quiz + answer-key sealing + `submit_quiz` routing                              | Answers stay hidden until submit; Retake and New questions work                                     |
-| 5   | Evaluation, Score, dynamic Feedback surface, reflection form                   | Submit shows score, tier, mastery and AI feedback                                                   |
-| 6   | Cleanup: delete `apps/docs`, remove the Clerk mention from metadata, README    | Lint, type-check and tests pass                                                                     |
+| #   | Milestone                                                                                  | Done when                                                                                           |
+| --- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| 1   | Shared schemas, JSON Schema export, wrapper agent, runtime + A2UI middleware               | A chat message reaches the Supervisor with the chosen model; a tool result produces a `STATE_DELTA` |
+| 2   | Settings popover, app shell, layout, CopilotChat restyle, stepper                          | The reference layout renders with live settings and dark mode                                       |
+| 3   | Research + Learning Material (editor, Simplify, two-way sync), fixed A2UI Research surface | Research → Learning Material works end to end, including edits and Simplify                         |
+| 4   | Quiz + answer-key sealing + `submit_quiz` routing                                          | Answers stay hidden until submit; Retake and New questions work                                     |
+| 5   | Evaluation, Score, dynamic Feedback surface, reflection form                               | Submit shows score, tier, mastery and AI feedback                                                   |
+| 6   | Cleanup: delete `apps/docs`, remove the Clerk mention from metadata, README                | Lint, type-check and tests pass                                                                     |
 
 **Testing.** Vitest covers the pure logic: scoring, mastery, tiers, sealing round-trips, template and data binding, and turning tool results into state deltas. Playwright is out of scope for v1.
 
@@ -208,7 +208,7 @@ The LangGraph checkpointer (`AsyncPostgresSaver`) holds each thread's full state
 | `user_settings` | user_id, question_count, level, theme                                                                                                 |
 | `conversations` | id = thread_id, user_id, title, topic, stage, status, last_activity_at, created_at                                                    |
 | `research`      | conversation_id, payload jsonb, sources jsonb                                                                                         |
-| `notes`         | conversation_id, original, simplified, updated_at                                                                                     |
+| `material`      | conversation_id, original, simplified, updated_at                                                                                     |
 | `quiz_attempts` | id, conversation_id, attempt_no, questions, answer_key, answers, status, score_pct, tier, mastery, feedback, started_at, submitted_at |
 | `reflections`   | conversation_id, rating, text                                                                                                         |
 
@@ -248,7 +248,7 @@ The Supervisor prompt reads the profile and the relevant weak concepts. The Quiz
 - A collapsible conversation sidebar next to the chat, with a "New topic" button. Rows show title, topic, stage, status and score, and can be searched, filtered, renamed and deleted.
 - A History / Progress page shows scores over time for each topic, per-concept mastery and a Retake button. It is the last v2 milestone.
 - API: `GET/POST/PATCH/DELETE /api/v1/conversations` and `GET /conversations/{id}/attempts`. Switching conversations changes `<CopilotKit threadId>`.
-- **Delete is permanent**, after a confirmation step. In one request it removes the rows (cascading to research, notes, attempts and reflections) and calls `checkpointer.adelete_thread`.
+- **Delete is permanent**, after a confirmation step. In one request it removes the rows (cascading to research, material, attempts and reflections) and calls `checkpointer.adelete_thread`.
 - On delete, long-term memory is recomputed: the topic's entry is removed and concept mastery is rebuilt from the attempts that remain. Profile memories are kept, and users delete them in the Memory panel.
 
 ## Decision log

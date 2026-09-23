@@ -19,7 +19,7 @@ interface EvaluatorParams {
 
 /**
  * Evaluator Agent, text part: an explanation for each graded question and a
- * personal feedback summary, written from the grading and the notes.
+ * personal feedback summary, written from the grading and the learning material.
  */
 export const runEvaluator = ({
   input,

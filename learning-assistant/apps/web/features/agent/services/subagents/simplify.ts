@@ -1,4 +1,4 @@
-import { NotesResultSchema } from "@repo/shared/schemas";
+import { MaterialResultSchema } from "@repo/shared/schemas";
 
 import {
   createSimplifyAllPrompt,
@@ -9,20 +9,20 @@ import { generateStructured } from "@/features/agent/services/subagents/generate
 import type { RunSettings } from "@/types/llm";
 
 interface SimplifyParams {
-  /** The notes in the view the student is looking at. */
-  notes: string;
-  /** Rewrite only this part of `notes`; the whole set when omitted. */
+  /** The learning material in the view the student is looking at. */
+  material: string;
+  /** Rewrite only this part of `material`; the whole set when omitted. */
   selection?: string;
   settings: RunSettings;
   signal?: AbortSignal;
 }
 
 /**
- * Notes Agent (simplify): student-friendly markdown for the whole set of
- * notes, or for the selection only (the rewritten selection is returned).
+ * Material Agent (simplify): student-friendly markdown for the whole
+ * learning material, or for the selection only (the rewritten selection is returned).
  */
 export const runSimplify = async ({
-  notes,
+  material,
   selection,
   settings,
   signal,
@@ -32,9 +32,9 @@ export const runSimplify = async ({
     system: createSimplifySystem(settings.learningLevel),
     prompt:
       selection === undefined
-        ? createSimplifyAllPrompt(notes)
-        : createSimplifySelectionPrompt(selection, notes),
-    schema: NotesResultSchema,
+        ? createSimplifyAllPrompt(material)
+        : createSimplifySelectionPrompt(selection, material),
+    schema: MaterialResultSchema,
     signal,
   });
   return markdown;

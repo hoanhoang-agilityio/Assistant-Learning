@@ -11,15 +11,15 @@ export const TOOL_LABELS: Record<
     failed: "Research failed",
     stopped: "Research stopped",
   },
-  makeNotes: {
-    running: "Writing notes",
-    done: "Notes ready",
-    failed: "Notes failed",
-    stopped: "Notes stopped",
+  makeMaterial: {
+    running: "Writing learning material",
+    done: "Learning material ready",
+    failed: "Learning material failed",
+    stopped: "Learning material stopped",
   },
   simplify: {
-    running: "Simplifying notes",
-    done: "Notes simplified",
+    running: "Simplifying learning material",
+    done: "Learning material simplified",
     failed: "Simplify failed",
     stopped: "Simplify stopped",
   },

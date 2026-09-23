@@ -1,6 +1,6 @@
 import {
   type LearningState,
-  type Notes,
+  type Material,
   type RunningTask,
   SUBAGENT_TOOLS,
   type SubagentTool,
@@ -18,7 +18,7 @@ import type {
   StatePatchOperation,
   StateUpdate,
 } from "@/features/agent/types/agents";
-import { getActiveNotes, hasQuizData } from "@/utils/learning-state";
+import { getActiveMaterial, hasQuizData } from "@/utils/learning-state";
 
 export const isSubagentTool = (name: string): name is SubagentTool =>
   (SUBAGENT_TOOLS as readonly string[]).includes(name);
@@ -60,18 +60,18 @@ const clearLaterStages = (
 
 /** Replaces the selection in the active view with its simplified rewrite. */
 const replaceSelection = (
-  notes: Notes,
+  material: Material,
   selection: string,
   markdown: string,
-): Notes | null => {
-  const text = getActiveNotes(notes);
+): Material | null => {
+  const text = getActiveMaterial(material);
   if (!text.includes(selection)) {
     return null;
   }
   const rewritten = text.replace(selection, () => markdown);
-  return notes.view === "simplified" && notes.simplified !== null
-    ? { ...notes, simplified: rewritten }
-    : { ...notes, original: rewritten };
+  return material.view === "simplified" && material.simplified !== null
+    ? { ...material, simplified: rewritten }
+    : { ...material, original: rewritten };
 };
 
 /**
@@ -92,37 +92,37 @@ const appliers: {
     quizOutdated: false,
   }),
 
-  makeNotes: (state, { markdown }) => ({
+  makeMaterial: (state, { markdown }) => ({
     ...state,
-    notes: { original: markdown, simplified: null, view: "original" },
+    material: { original: markdown, simplified: null, view: "original" },
     quizOutdated: false,
   }),
 
-  // Simplifying changes the notes, so an existing quiz is out of date.
+  // Simplifying changes the learning material, so an existing quiz is out of date.
   simplify: (state, result, prev) => {
-    if (!state.notes) {
-      return "There are no notes to simplify.";
+    if (!state.material) {
+      return "There is no learning material to simplify.";
     }
     const quizOutdated = prev.quizOutdated || hasQuizData(prev);
     if (result.scope === "all") {
       return {
         ...state,
-        notes: {
-          ...state.notes,
+        material: {
+          ...state.material,
           simplified: result.markdown,
           view: "simplified",
         },
         quizOutdated,
       };
     }
-    const notes = replaceSelection(
-      state.notes,
+    const material = replaceSelection(
+      state.material,
       result.selection,
       result.markdown,
     );
-    return notes
-      ? { ...state, notes, quizOutdated }
-      : "The selected text is no longer in the notes.";
+    return material
+      ? { ...state, material, quizOutdated }
+      : "The selected text is no longer in the learning material.";
   },
 
   generateQuiz: (state, { quiz }) => ({ ...state, quiz, quizOutdated: false }),

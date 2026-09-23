@@ -23,11 +23,11 @@ export const QUIZ_DRAFT: QuizDraft = {
   })),
 };
 
-export const STATE_WITH_NOTES: LearningState = {
+export const STATE_WITH_MATERIAL: LearningState = {
   ...initialLearningState,
-  stage: "notes",
+  stage: "material",
   topic: "Closures",
-  notes: { original: "# Closures", simplified: null, view: "original" },
+  material: { original: "# Closures", simplified: null, view: "original" },
 };
 
 /** Run settings with a placeholder key; model calls are mocked in tests. */

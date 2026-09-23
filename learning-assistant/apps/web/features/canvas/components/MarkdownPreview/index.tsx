@@ -47,7 +47,7 @@ const COMPONENTS: Components = {
   ),
 };
 
-/** Rendered notes (GitHub-flavoured markdown), styled like the canvas. */
+/** Rendered learning material (GitHub-flavoured markdown), styled like the canvas. */
 export const MarkdownPreview = ({ markdown }: MarkdownPreviewProps) => (
   <div className="min-h-80 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
     <Markdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>

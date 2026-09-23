@@ -30,7 +30,7 @@ const INPUT: EvaluatorInput = {
     weakestConcept: "Scope",
   },
   tier: "Practitioner",
-  notes: "# Scope",
+  material: "# Scope",
 };
 
 const VALID: FeedbackComponent[] = [

@@ -2,7 +2,7 @@ import type { LearningState } from "@repo/shared/schemas";
 
 import { EvaluationStage } from "@/features/canvas/components/stages/EvaluationStage";
 import { FeedbackStage } from "@/features/canvas/components/stages/FeedbackStage";
-import { NotesStage } from "@/features/canvas/components/stages/NotesStage";
+import { MaterialStage } from "@/features/canvas/components/stages/MaterialStage";
 import { QuizStage } from "@/features/canvas/components/stages/QuizStage";
 import { ResearchStage } from "@/features/canvas/components/stages/ResearchStage";
 import { ScoreStage } from "@/features/canvas/components/stages/ScoreStage";
@@ -18,8 +18,8 @@ export const StagePreview = ({ stage, state }: StagePreviewProps) => {
   switch (stage) {
     case "research":
       return state.research && <ResearchStage research={state.research} />;
-    case "notes":
-      return state.notes && <NotesStage notes={state.notes} />;
+    case "material":
+      return state.material && <MaterialStage material={state.material} />;
     case "quiz":
       return (
         state.quiz && (

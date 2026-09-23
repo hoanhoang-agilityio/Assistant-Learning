@@ -1,4 +1,4 @@
-import type { Notes } from "@repo/shared/schemas";
+import type { Material } from "@repo/shared/schemas";
 import {
   type SyntheticEvent,
   useCallback,
@@ -8,30 +8,34 @@ import {
 } from "react";
 
 import {
-  NOTES_SAVE_DELAY_MS,
+  DEFAULT_MATERIAL_MODE,
+  MATERIAL_SAVE_DELAY_MS,
   SIMPLIFY_ALL_MESSAGE,
-} from "@/features/canvas/constants/notes";
+} from "@/features/canvas/constants/material";
 import { useSendMessage } from "@/features/canvas/hooks/use-send-message";
-import type { NotesMode, NotesView } from "@/features/canvas/types/notes";
+import type {
+  MaterialMode,
+  MaterialView,
+} from "@/features/canvas/types/material";
 import {
-  applyNotesEdit,
-  setNotesView,
-} from "@/features/canvas/utils/notes-edit";
-import { formatSimplifySelectionMessage } from "@/features/canvas/utils/notes-messages";
+  applyMaterialEdit,
+  setMaterialView,
+} from "@/features/canvas/utils/material-edit";
+import { formatSimplifySelectionMessage } from "@/features/canvas/utils/material-messages";
 import { useLearningAgent } from "@/hooks/use-learning-agent";
-import { getActiveNotes, readLearningState } from "@/utils/learning-state";
+import { getActiveMaterial, readLearningState } from "@/utils/learning-state";
 
 /**
- * The Notes editor. Keystrokes stay in a local draft and are written to the
+ * The Learning Material editor. Keystrokes stay in a local draft and are written to the
  * agent's state after a pause (`agent.setState`); the pending edit is flushed
- * first whenever the agent is about to read the notes. Editing is locked
+ * first whenever the agent is about to read the learning material. Editing is locked
  * while the agent runs, so a server update never races a local edit.
  */
-export const useNotesStage = (notes: Notes) => {
+export const useMaterialStage = (material: Material) => {
   const { agent, isRunning } = useLearningAgent();
   const sendMessage = useSendMessage();
   const [draft, setDraft] = useState<string | null>(null);
-  const [mode, setMode] = useState<NotesMode>("edit");
+  const [mode, setMode] = useState<MaterialMode>(DEFAULT_MATERIAL_MODE);
   const [selection, setSelection] = useState("");
   const pendingRef = useRef<string | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -48,7 +52,7 @@ export const useNotesStage = (notes: Notes) => {
     pendingRef.current = null;
 
     const current = readLearningState(agent.state);
-    const next = applyNotesEdit(current, text);
+    const next = applyMaterialEdit(current, text);
     if (next !== current) {
       agent.setState(next);
     }
@@ -64,7 +68,7 @@ export const useNotesStage = (notes: Notes) => {
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
     }
-    timerRef.current = window.setTimeout(flush, NOTES_SAVE_DELAY_MS);
+    timerRef.current = window.setTimeout(flush, MATERIAL_SAVE_DELAY_MS);
   };
 
   const handleSelect = (event: SyntheticEvent<HTMLTextAreaElement>) => {
@@ -72,10 +76,10 @@ export const useNotesStage = (notes: Notes) => {
     setSelection(value.slice(selectionStart, selectionEnd).trim());
   };
 
-  const handleViewChange = (view: NotesView) => {
+  const handleViewChange = (view: MaterialView) => {
     flush();
     setSelection("");
-    agent.setState(setNotesView(readLearningState(agent.state), view));
+    agent.setState(setMaterialView(readLearningState(agent.state), view));
   };
 
   const handleSimplifyAll = () => {
@@ -92,14 +96,14 @@ export const useNotesStage = (notes: Notes) => {
     setSelection("");
   };
 
-  const text = draft ?? getActiveNotes(notes);
+  const text = draft ?? getActiveMaterial(material);
 
   return {
     text,
     characterCount: text.length,
     mode,
-    view: notes.view,
-    hasSimplified: notes.simplified !== null,
+    view: material.view,
+    hasSimplified: material.simplified !== null,
     hasSelection: selection.length > 0,
     isSaving: draft !== null,
     isLocked: isRunning,

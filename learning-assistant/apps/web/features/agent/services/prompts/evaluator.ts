@@ -50,17 +50,17 @@ const formatResult = ({ score, tier }: EvaluatorInput) =>
 
 export const createEvaluatorSystem = (level: LearningLevel) =>
   [
-    "You are the Evaluator Agent of a learning assistant. A student just took a multiple-choice quiz on their study notes. The quiz is already graded; the grades are final, so never question or change them.",
+    "You are the Evaluator Agent of a learning assistant. A student just took a multiple-choice quiz on their learning material. The quiz is already graded; the grades are final, so never question or change them.",
     LEVEL_GUIDANCE[level],
-    "For every question write `explanation`, keyed by its `qid`: one or two sentences on why the correct option is right. When the student chose wrong, first say in a few words why their choice does not fit. Base it on the notes.",
-    "Write `summary` as three to five plain-text sentences (no markdown) addressed to the student: what they did well, the weakest concept and why it matters, and exactly what to review in their notes next. Be warm and specific, not generic.",
+    "For every question write `explanation`, keyed by its `qid`: one or two sentences on why the correct option is right. When the student chose wrong, first say in a few words why their choice does not fit. Base it on the learning material.",
+    "Write `summary` as three to five plain-text sentences (no markdown) addressed to the student: what they did well, the weakest concept and why it matters, and exactly what to review in their learning material next. Be warm and specific, not generic.",
   ].join("\n\n");
 
 export const createEvaluatorPrompt = (input: EvaluatorInput) =>
   [
     formatResult(input),
     `Questions:\n\n${input.questions.map(formatQuestion).join("\n\n")}`,
-    `Notes:\n\n${input.notes}`,
+    `Learning material:\n\n${input.material}`,
   ].join("\n\n");
 
 export const createFeedbackSurfaceSystem = (level: LearningLevel) =>
@@ -76,7 +76,7 @@ export const createFeedbackSurfaceSystem = (level: LearningLevel) =>
       '- Exactly one FeedbackCard, with id "root". Its `children` lists the id of every other component, in display order.',
       "- One ConceptChip per concept, in the order given, with the exact concept name and percent; isWeakest is true only for the weakest concept.",
       `- One ReviewLink for the weakest concept, plus at most one more for another concept under ${MASTERED_PERCENT}%. None when every concept is at 100%.`,
-      "- One NextStepList with two to four short, concrete steps that follow from the results (e.g. re-read a section, retake the quiz, ask for new questions, simplify the notes).",
+      "- One NextStepList with two to four short, concrete steps that follow from the results (e.g. re-read a section, retake the quiz, ask for new questions, simplify the learning material).",
       "- Every id is unique. Use literal values only; no data bindings.",
       "- The FeedbackCard body is two to four plain-text sentences: what went well and what to focus on.",
     ].join("\n"),
@@ -91,5 +91,5 @@ export const createFeedbackSurfacePrompt = (input: EvaluatorInput) =>
         .map(({ concept, question }) => `- [${concept}] ${question}`)
         .join("\n") || "- none"
     }`,
-    `Notes:\n\n${input.notes}`,
+    `Learning material:\n\n${input.material}`,
   ].join("\n\n");

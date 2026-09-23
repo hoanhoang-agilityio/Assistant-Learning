@@ -22,13 +22,13 @@ export const STAGE_STEPS: readonly StageStep[] = [
       "Ask the assistant to research a topic, e.g. “Research photosynthesis”.",
   },
   {
-    id: "notes",
-    title: "Notes",
+    id: "material",
+    title: "Learning Material",
     description: "Synthesize & edit structured insights",
     icon: FileText,
-    dataKey: "notes",
+    dataKey: "material",
     emptyHint:
-      "Once research is ready, ask the assistant to turn it into notes.",
+      "Once research is ready, ask the assistant to turn it into learning material.",
   },
   {
     id: "quiz",
@@ -36,7 +36,8 @@ export const STAGE_STEPS: readonly StageStep[] = [
     description: "Test knowledge with dynamic questions",
     icon: HelpCircle,
     dataKey: "quiz",
-    emptyHint: "Once your notes are ready, ask the assistant to quiz you.",
+    emptyHint:
+      "Once your learning material is ready, ask the assistant to quiz you.",
   },
   {
     id: "evaluation",
@@ -67,8 +68,8 @@ export const STAGE_STEPS: readonly StageStep[] = [
 /** The stage that shows a skeleton while each subagent task runs. */
 export const RUNNING_TASK_STAGE: Record<RunningTask, CanvasStage> = {
   research: "research",
-  notes: "notes",
-  simplify: "notes",
+  material: "material",
+  simplify: "material",
   quiz: "quiz",
   evaluate: "evaluation",
 };

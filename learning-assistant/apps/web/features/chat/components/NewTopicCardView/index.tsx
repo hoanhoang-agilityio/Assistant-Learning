@@ -65,8 +65,8 @@ export const NewTopicCardView = ({
         <div className="min-w-0">
           <p className="font-semibold">{NEW_TOPIC_COPY.title}</p>
           <p className="mt-0.5 text-slate-600 dark:text-slate-400">
-            Switching to <strong>“{topic}”</strong> clears the research, notes,
-            quiz and results for{" "}
+            Switching to <strong>“{topic}”</strong> clears the research,
+            learning material, quiz and results for{" "}
             {currentTopic ? `“${currentTopic}”` : CURRENT_TOPIC_FALLBACK}. This
             chat stays.
           </p>

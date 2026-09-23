@@ -30,11 +30,11 @@ export interface GradedQuestion {
   keyExplanation: string;
 }
 
-/** What the Evaluator Agent writes feedback from: the grading and the notes. */
+/** What the Evaluator Agent writes feedback from: the grading and the learning material. */
 export interface EvaluatorInput {
   questions: GradedQuestion[];
   score: QuizScore;
   tier: Tier;
-  /** The notes the student was quizzed on. */
-  notes: string;
+  /** The learning material the student was quizzed on. */
+  material: string;
 }

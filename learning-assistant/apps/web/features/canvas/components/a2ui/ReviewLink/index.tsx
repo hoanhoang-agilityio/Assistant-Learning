@@ -4,7 +4,7 @@ import type { FeedbackComponentProps } from "@/features/canvas/types/feedback";
 import { readText } from "@/features/canvas/utils/a2ui-props";
 import { createReviewConceptAction } from "@/features/canvas/utils/feedback";
 
-/** A link that opens the notes to review one concept. */
+/** A link that opens the learning material to review one concept. */
 export const ReviewLink = ({
   props,
   dispatch,

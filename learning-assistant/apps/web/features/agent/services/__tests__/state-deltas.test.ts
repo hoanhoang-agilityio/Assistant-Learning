@@ -47,12 +47,12 @@ const evaluation = {
   mastery: [{ concept: "Closures", percent: 100 }],
 };
 
-const withNotes: LearningState = {
+const withMaterial: LearningState = {
   ...initialLearningState,
-  stage: "notes",
+  stage: "material",
   topic: "Closures",
   research,
-  notes: {
+  material: {
     original: "Closures capture bindings in lexical scope.",
     simplified: null,
     view: "original",
@@ -76,7 +76,7 @@ describe("isSubagentTool", () => {
 describe("createStartUpdate", () => {
   it.each<[SubagentTool, string]>([
     ["research", "research"],
-    ["makeNotes", "notes"],
+    ["makeMaterial", "material"],
     ["simplify", "simplify"],
     ["generateQuiz", "quiz"],
     ["evaluate", "evaluate"],
@@ -94,35 +94,39 @@ describe("applyToolResult", () => {
     [
       "research writes topic and research, clears later stages",
       "research",
-      withNotes,
+      withMaterial,
       { topic: "Closures", research },
       {
         stage: "research",
         topic: "Closures",
         research,
-        notes: null,
+        material: null,
         quiz: null,
       },
     ],
     [
-      "makeNotes writes the original notes, clears the quiz",
-      "makeNotes",
-      withNotes,
+      "makeMaterial writes the original learning material, clears the quiz",
+      "makeMaterial",
+      withMaterial,
       { markdown: "# New notes" },
       {
-        stage: "notes",
-        notes: { original: "# New notes", simplified: null, view: "original" },
+        stage: "material",
+        material: {
+          original: "# New notes",
+          simplified: null,
+          view: "original",
+        },
         quiz: null,
       },
     ],
     [
       "simplify all writes the simplified view",
       "simplify",
-      withNotes,
+      withMaterial,
       { scope: "all", markdown: "Easy notes" },
       {
-        stage: "notes",
-        notes: {
+        stage: "material",
+        material: {
           original: "Closures capture bindings in lexical scope.",
           simplified: "Easy notes",
           view: "simplified",
@@ -132,14 +136,14 @@ describe("applyToolResult", () => {
     [
       "simplify selection rewrites the selection in the active view",
       "simplify",
-      withNotes,
+      withMaterial,
       {
         scope: "selection",
         selection: "in lexical scope",
         markdown: "where they were made",
       },
       {
-        notes: {
+        material: {
           original: "Closures capture bindings where they were made.",
           simplified: null,
           view: "original",
@@ -149,14 +153,14 @@ describe("applyToolResult", () => {
     [
       "generateQuiz writes the quiz",
       "generateQuiz",
-      { ...withNotes, quiz: null },
+      { ...withMaterial, quiz: null },
       { quiz },
       { stage: "quiz", quiz },
     ],
     [
       "evaluate writes the results, the graded answers and marks the quiz submitted",
       "evaluate",
-      { ...withNotes, stage: "quiz" },
+      { ...withMaterial, stage: "quiz" },
       {
         answers: { a: 1 },
         evaluation,
@@ -199,17 +203,17 @@ describe("applyToolResult", () => {
       "The research step returned an invalid result.",
     ],
   ])("sets status.error for %s and keeps the data", (_, content, error) => {
-    const running = createStartUpdate(withNotes, "research").state;
+    const running = createStartUpdate(withMaterial, "research").state;
     const { state, patch } = applyToolResult(running, "research", content);
     const status = { running: null, error, failed: "research" };
 
-    expect(state).toEqual({ ...withNotes, status });
+    expect(state).toEqual({ ...withMaterial, status });
     expect(patch).toEqual([{ op: "add", path: "/status", value: status }]);
   });
 
   it("fails simplify when the selection is gone", () => {
     const { state } = applyToolResult(
-      withNotes,
+      withMaterial,
       "simplify",
       serializeSuccess({
         scope: "selection",
@@ -219,15 +223,15 @@ describe("applyToolResult", () => {
     );
     expect(state.status).toEqual({
       running: null,
-      error: "The selected text is no longer in the notes.",
+      error: "The selected text is no longer in the learning material.",
       failed: "simplify",
     });
-    expect(state.notes).toEqual(withNotes.notes);
+    expect(state.material).toEqual(withMaterial.material);
   });
 
   it("flags the quiz as outdated when simplify clears it", () => {
     const { state } = applyToolResult(
-      withNotes,
+      withMaterial,
       "simplify",
       serializeSuccess({ scope: "all", markdown: "Simple notes." }),
     );
@@ -237,7 +241,7 @@ describe("applyToolResult", () => {
 
   it("does not flag the quiz when simplify had none to clear", () => {
     const { state } = applyToolResult(
-      { ...withNotes, quiz: null },
+      { ...withMaterial, quiz: null },
       "simplify",
       serializeSuccess({ scope: "all", markdown: "Simple notes." }),
     );
@@ -246,7 +250,7 @@ describe("applyToolResult", () => {
 
   it("clears the outdated flag when a new quiz arrives", () => {
     const { state } = applyToolResult(
-      { ...withNotes, quiz: null, quizOutdated: true },
+      { ...withMaterial, quiz: null, quizOutdated: true },
       "generateQuiz",
       serializeSuccess({ quiz }),
     );
