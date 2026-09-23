@@ -9,11 +9,15 @@ export const SettingsPopover = () => {
     isOpen,
     containerRef,
     settings,
+    chatMode,
+    viewMode,
     handleToggle,
     handleClose,
     handleQuestionCountChange,
     handleLearningLevelChange,
     handleThemeChange,
+    handleChatModeChange,
+    handleViewModeChange,
   } = useSettingsPopover();
 
   return (
@@ -21,11 +25,15 @@ export const SettingsPopover = () => {
       isOpen={isOpen}
       containerRef={containerRef}
       settings={settings}
+      chatMode={chatMode}
+      viewMode={viewMode}
       onToggle={handleToggle}
       onClose={handleClose}
       onQuestionCountChange={handleQuestionCountChange}
       onLearningLevelChange={handleLearningLevelChange}
       onThemeChange={handleThemeChange}
+      onChatModeChange={handleChatModeChange}
+      onViewModeChange={handleViewModeChange}
     />
   );
 };
