@@ -1,7 +1,7 @@
 import {
   SELECTION_FENCE,
   SIMPLIFY_SELECTION_INTRO,
-} from "@/features/canvas/constants/notes";
+} from "@/features/canvas/constants/material";
 
 /** The chat message that asks the assistant to simplify a selection. */
 export const formatSimplifySelectionMessage = (selection: string): string =>

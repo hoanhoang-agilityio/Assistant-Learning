@@ -5,12 +5,12 @@ import { DEFAULT_SETTINGS } from "@/constants/settings";
 import { toSupervisorState } from "@/features/agent/services/supervisor-state";
 
 describe("toSupervisorState", () => {
-  it("keeps short summaries and drops the full notes and quiz", () => {
+  it("keeps short summaries and drops the full learning material and quiz", () => {
     const state: LearningState = {
       ...initialLearningState,
       stage: "quiz",
       topic: "Closures",
-      notes: {
+      material: {
         original: "# Closures\nLong notes",
         simplified: null,
         view: "original",
@@ -39,7 +39,7 @@ describe("toSupervisorState", () => {
       status: { running: null },
       topic: "Closures",
       research: null,
-      notes: { view: "original", hasSimplified: false, characters: 21 },
+      material: { view: "original", hasSimplified: false, characters: 21 },
       quiz: { questionCount: 1, answeredCount: 1, submitted: false },
       evaluation: null,
       score: null,

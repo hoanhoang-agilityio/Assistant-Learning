@@ -10,7 +10,7 @@ import { NEW_TOPIC_TOOL_DESCRIPTION } from "@/features/chat/constants/new-topic"
 
 /**
  * The human-in-the-loop confirmation before a new topic replaces the current
- * work. Offered to the Supervisor only while notes or a quiz exist
+ * work. Offered to the Supervisor only while learning material or a quiz exists
  * (`isAvailable`); the renderer stays registered either way, so a card
  * already in the chat keeps rendering. Called once from the app shell.
  */

@@ -18,8 +18,8 @@ interface EvaluateParams {
   /** Every question's chosen option, already checked by `validateSubmission`. */
   answers: Quiz["answers"];
   answerKeys: AnswerKeyStore;
-  /** The notes the student was quizzed on. */
-  notes: string;
+  /** The learning material the student was quizzed on. */
+  material: string;
   settings: RunSettings;
   signal?: AbortSignal;
 }
@@ -56,7 +56,7 @@ export const runEvaluation = async ({
   quiz,
   answers,
   answerKeys,
-  notes,
+  material,
   settings,
   signal,
 }: EvaluateParams): Promise<ToolResultData<"evaluate">> => {
@@ -72,7 +72,7 @@ export const runEvaluation = async ({
     ),
     score,
     tier,
-    notes,
+    material,
   };
 
   const [written, a2uiOperations] = await Promise.all([

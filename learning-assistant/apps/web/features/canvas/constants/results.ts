@@ -12,7 +12,7 @@ export const TIER_TONE: Record<Tier, Tone> = {
 /** What each tier means, under the badge on the Score stage. */
 export const TIER_DESCRIPTIONS: Record<Tier, string> = {
   Novice:
-    "You're building the foundations. Review your notes, then retake the quiz.",
+    "You're building the foundations. Review your learning material, then retake the quiz.",
   Practitioner:
     "You understand the core ideas. A little more practice gets you to Master.",
   Master:

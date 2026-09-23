@@ -13,7 +13,7 @@ export const SUPERVISOR_MAX_STEPS = 8;
 /** `status.running` while each subagent tool runs. */
 export const SUBAGENT_TASK: Record<SubagentTool, RunningTask> = {
   research: "research",
-  makeNotes: "notes",
+  makeMaterial: "material",
   simplify: "simplify",
   generateQuiz: "quiz",
   evaluate: "evaluate",
@@ -22,8 +22,8 @@ export const SUBAGENT_TASK: Record<SubagentTool, RunningTask> = {
 /** The stage the canvas moves to when each subagent tool succeeds. */
 export const SUBAGENT_STAGE: Record<SubagentTool, Stage> = {
   research: "research",
-  makeNotes: "notes",
-  simplify: "notes",
+  makeMaterial: "material",
+  simplify: "material",
   generateQuiz: "quiz",
   evaluate: "evaluation",
 };
@@ -33,8 +33,8 @@ export const SUBAGENT_CLEARS: Record<
   SubagentTool,
   readonly (keyof LearningState)[]
 > = {
-  research: ["notes", ...QUIZ_STATE_KEYS],
-  makeNotes: QUIZ_STATE_KEYS,
+  research: ["material", ...QUIZ_STATE_KEYS],
+  makeMaterial: QUIZ_STATE_KEYS,
   simplify: QUIZ_STATE_KEYS,
   generateQuiz: ["evaluation", "score", "feedback", "reflection"],
   evaluate: ["reflection"],

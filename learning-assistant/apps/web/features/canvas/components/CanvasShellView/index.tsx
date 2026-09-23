@@ -29,7 +29,7 @@ export interface CanvasShellViewProps {
   /** The failed task can be repeated. */
   canRetry: boolean;
   isRetryDisabled: boolean;
-  /** A notes change cleared the quiz; show the banner. */
+  /** A learning material change cleared the quiz; show the banner. */
   isQuizOutdated: boolean;
   hasPrev: boolean;
   hasNext: boolean;

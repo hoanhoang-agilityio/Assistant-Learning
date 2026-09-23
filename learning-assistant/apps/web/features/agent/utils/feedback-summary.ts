@@ -12,7 +12,7 @@ export const formatFeedbackSummary = (
 ): string => {
   const result = `You answered ${correct} of ${total} questions correctly (${percent}%), which puts you at the ${tier} tier.`;
   const next = weakestConcept
-    ? `Review "${weakestConcept}" in your notes next.`
+    ? `Review "${weakestConcept}" in your learning material next.`
     : "You got every concept right.";
   return `${result} ${next}`;
 };

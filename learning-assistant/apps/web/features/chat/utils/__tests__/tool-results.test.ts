@@ -10,9 +10,9 @@ import {
 
 describe("parseToolError", () => {
   it("returns the error of a failed result", () => {
-    expect(parseToolError('{"ok":false,"error":"No notes yet."}')).toBe(
-      "No notes yet.",
-    );
+    expect(
+      parseToolError('{"ok":false,"error":"No learning material yet."}'),
+    ).toBe("No learning material yet.");
   });
 
   it.each([undefined, "", '{"ok":true,"data":{}}', "plain text"])(
@@ -49,8 +49,12 @@ describe("formatToolTitle", () => {
   });
 
   it("uses the plain label without a detail, and when failed or stopped", () => {
-    expect(formatToolTitle("makeNotes", "running")).toBe("Writing notes…");
-    expect(formatToolTitle("makeNotes", "done")).toBe("Notes ready");
+    expect(formatToolTitle("makeMaterial", "running")).toBe(
+      "Writing learning material…",
+    );
+    expect(formatToolTitle("makeMaterial", "done")).toBe(
+      "Learning material ready",
+    );
     expect(formatToolTitle("research", "failed", "Closures")).toBe(
       "Research failed",
     );

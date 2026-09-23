@@ -8,10 +8,10 @@ import {
   resetForNewTopic,
 } from "@/features/chat/utils/new-topic";
 
-const withNotes: LearningState = {
+const withMaterial: LearningState = {
   ...initialLearningState,
   topic: "Closures",
-  notes: { original: "# Notes", simplified: null, view: "original" },
+  material: { original: "# Notes", simplified: null, view: "original" },
 };
 
 describe("hasTopicWork", () => {
@@ -22,8 +22,8 @@ describe("hasTopicWork", () => {
     );
   });
 
-  it("is true once notes or a quiz exist", () => {
-    expect(hasTopicWork(withNotes)).toBe(true);
+  it("is true once learning material or a quiz exists", () => {
+    expect(hasTopicWork(withMaterial)).toBe(true);
     expect(
       hasTopicWork({
         ...initialLearningState,

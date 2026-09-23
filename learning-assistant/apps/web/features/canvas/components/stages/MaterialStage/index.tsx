@@ -1,14 +1,14 @@
-import type { Notes } from "@repo/shared/schemas";
+import type { Material } from "@repo/shared/schemas";
 
-import { NotesStageView } from "@/features/canvas/components/stages/NotesStageView";
-import { useNotesStage } from "@/features/canvas/hooks/use-notes-stage";
+import { MaterialStageView } from "@/features/canvas/components/stages/MaterialStageView";
+import { useMaterialStage } from "@/features/canvas/hooks/use-material-stage";
 
-export interface NotesStageProps {
-  notes: Notes;
+export interface MaterialStageProps {
+  material: Material;
 }
 
-/** The Notes stage: editable markdown synced to the agent, with Simplify. */
-export const NotesStage = ({ notes }: NotesStageProps) => {
+/** The Learning Material stage: editable markdown synced to the agent, with Simplify. */
+export const MaterialStage = ({ material }: MaterialStageProps) => {
   const {
     text,
     characterCount,
@@ -24,10 +24,10 @@ export const NotesStage = ({ notes }: NotesStageProps) => {
     handleViewChange,
     handleSimplifyAll,
     handleSimplifySelection,
-  } = useNotesStage(notes);
+  } = useMaterialStage(material);
 
   return (
-    <NotesStageView
+    <MaterialStageView
       text={text}
       characterCount={characterCount}
       mode={mode}

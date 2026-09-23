@@ -10,7 +10,7 @@ import {
   RUN_FINISHED,
   RUN_STARTED,
   SECRET_EXPLANATION,
-  STATE_WITH_NOTES,
+  STATE_WITH_MATERIAL,
 } from "@/features/agent/services/__tests__/quiz-fixtures";
 import { syncStateFromTools } from "@/features/agent/services/state-sync";
 import { runSubmittedQuiz } from "@/features/agent/services/submit-quiz";
@@ -76,7 +76,7 @@ const generateQuiz = async (ctx: SupervisorRunContext) => {
 
 describe("answer key before submit (M4.7)", () => {
   it("never appears in a tool result, state delta or state", async () => {
-    const { ctx } = createTestContext(STATE_WITH_NOTES);
+    const { ctx } = createTestContext(STATE_WITH_MATERIAL);
     const { events, states } = await generateQuiz(ctx);
 
     const deltas = events.filter(({ type }) => type === EventType.STATE_DELTA);
@@ -90,7 +90,7 @@ describe("answer key before submit (M4.7)", () => {
   });
 
   it("is revealed only after Submit, in the evaluation", async () => {
-    const { ctx, setState } = createTestContext(STATE_WITH_NOTES);
+    const { ctx, setState } = createTestContext(STATE_WITH_MATERIAL);
     const { states } = await generateQuiz(ctx);
     const quizzed = states.at(-1);
     if (!quizzed?.quiz) {

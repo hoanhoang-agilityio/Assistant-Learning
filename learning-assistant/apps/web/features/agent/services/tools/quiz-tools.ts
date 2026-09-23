@@ -18,7 +18,7 @@ import {
 } from "@/features/agent/services/tools/run-subagent";
 import type { SupervisorRunContext } from "@/features/agent/types/agents";
 import { validateSubmission } from "@/features/agent/utils/submission";
-import { getActiveNotes } from "@/utils/learning-state";
+import { getActiveMaterial } from "@/utils/learning-state";
 
 /**
  * Grades the quiz. The Submit button runs this straight from the wrapper with
@@ -40,7 +40,7 @@ export const runEvaluateStep = async (
       quiz: check.quiz,
       answers: check.answers,
       answerKeys,
-      notes: state.notes ? getActiveNotes(state.notes) : "",
+      material: state.material ? getActiveMaterial(state.material) : "",
       settings,
       signal,
     }),
@@ -57,14 +57,14 @@ export const createQuizTools = (
     parameters: ToolParamSchemas.generateQuiz,
     execute: async (): Promise<ToolResult<"generateQuiz">> => {
       const { settings, getState, signal, answerKeys } = ctx;
-      const { notes } = getState();
-      if (!notes) {
-        return fail(TOOL_ERRORS.noNotesForQuiz);
+      const { material } = getState();
+      if (!material) {
+        return fail(TOOL_ERRORS.noMaterialForQuiz);
       }
 
       return runSubagent("generateQuiz", { signal }, async () => {
         const draft = await runQuiz({
-          notes: getActiveNotes(notes),
+          material: getActiveMaterial(material),
           count: settings.questionCount,
           settings,
           signal,

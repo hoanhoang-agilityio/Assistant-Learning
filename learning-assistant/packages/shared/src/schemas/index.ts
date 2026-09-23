@@ -2,7 +2,7 @@ export * from "./display";
 export * from "./evaluation";
 export * from "./feedback-surface";
 export * from "./learning-state";
-export * from "./notes";
+export * from "./material";
 export * from "./quiz";
 export * from "./research";
 export * from "./settings";

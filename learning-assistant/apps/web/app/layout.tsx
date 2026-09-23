@@ -23,7 +23,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Learning Assistant",
   description:
-    "Research a topic, turn it into notes, take a quiz and get personalised feedback.",
+    "Research a topic, turn it into learning material, take a quiz and get personalised feedback.",
 };
 
 /**

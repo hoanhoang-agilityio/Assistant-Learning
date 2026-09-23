@@ -11,7 +11,7 @@ import { ResearchResultSchema } from "./research";
 /** Supervisor tools that run a subagent and write its result to state. */
 export const SUBAGENT_TOOLS = [
   "research",
-  "makeNotes",
+  "makeMaterial",
   "simplify",
   "generateQuiz",
   "evaluate",
@@ -40,7 +40,7 @@ export const ToolResultSchemas = {
   research: createResultSchema(
     z.object({ topic: z.string().min(1), research: ResearchResultSchema }),
   ),
-  makeNotes: createResultSchema(z.object({ markdown: MarkdownSchema })),
+  makeMaterial: createResultSchema(z.object({ markdown: MarkdownSchema })),
   simplify: createResultSchema(
     z.discriminatedUnion("scope", [
       z.object({ scope: z.literal("all"), markdown: MarkdownSchema }),

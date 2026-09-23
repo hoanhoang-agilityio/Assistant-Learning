@@ -2,7 +2,7 @@
 export const LEARNING_AGENT_ID = "learning";
 
 /**
- * The frontend tool that asks the student to confirm a new topic when notes
+ * The frontend tool that asks the student to confirm a new topic when learning material
  * or a quiz exist. It is human-in-the-loop: the chat renders it, and the
  * student's choice is its result.
  */

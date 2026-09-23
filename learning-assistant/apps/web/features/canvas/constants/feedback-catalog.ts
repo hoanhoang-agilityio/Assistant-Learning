@@ -34,7 +34,7 @@ export const FEEDBACK_COMPONENT_DEFINITIONS = {
     }),
   },
   ReviewLink: {
-    description: "Opens the notes to review one concept.",
+    description: "Opens the learning material to review one concept.",
     props: z.object({ label: z.string(), concept: z.string() }),
   },
   NextStepList: {

@@ -11,11 +11,13 @@ export const ToolParamSchemas = {
   research: z.object({
     topic: z.string().min(1).describe("Short noun phrase for the topic"),
   }),
-  makeNotes: z.object({}),
+  makeMaterial: z.object({}),
   simplify: z.object({
     scope: z
       .enum(["all", "selection"])
-      .describe("Simplify the whole set of notes or only the selected text"),
+      .describe(
+        "Simplify the whole learning material or only the selected text",
+      ),
     selection: z
       .string()
       .min(1)

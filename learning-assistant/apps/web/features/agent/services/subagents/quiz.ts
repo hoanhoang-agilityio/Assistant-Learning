@@ -10,8 +10,8 @@ import { generateStructured } from "@/features/agent/services/subagents/generate
 import type { RunSettings } from "@/types/llm";
 
 interface QuizParams {
-  /** The notes in the view the student is looking at. */
-  notes: string;
+  /** The learning material in the view the student is looking at. */
+  material: string;
   count: number;
   settings: RunSettings;
   signal?: AbortSignal;
@@ -22,12 +22,12 @@ const createQuizDraftSchema = (count: number) =>
   z.object({ questions: z.array(QuizDraftQuestionSchema).length(count) });
 
 /**
- * Quiz Agent: `count` multiple-choice questions from the notes, with the
+ * Quiz Agent: `count` multiple-choice questions from the learning material, with the
  * answers still in them (the `generateQuiz` tool seals those). A reply that
  * fails the schema, including the wrong number of questions, is retried once.
  */
 export const runQuiz = async ({
-  notes,
+  material,
   count,
   settings,
   signal,
@@ -40,7 +40,7 @@ export const runQuiz = async ({
       return await generateStructured({
         settings,
         system: createQuizSystem(settings.learningLevel),
-        prompt: createQuizPrompt(notes, count),
+        prompt: createQuizPrompt(material, count),
         schema,
         signal,
       });

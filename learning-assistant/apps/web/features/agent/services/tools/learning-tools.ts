@@ -5,7 +5,7 @@ import {
   TOOL_DESCRIPTIONS,
   TOOL_ERRORS,
 } from "@/features/agent/constants/tools";
-import { runMakeNotes } from "@/features/agent/services/subagents/notes";
+import { runMakeMaterial } from "@/features/agent/services/subagents/material";
 import { runResearch } from "@/features/agent/services/subagents/research";
 import { runSimplify } from "@/features/agent/services/subagents/simplify";
 import { createQuizTools } from "@/features/agent/services/tools/quiz-tools";
@@ -14,10 +14,10 @@ import {
   runSubagent,
 } from "@/features/agent/services/tools/run-subagent";
 import type { SupervisorRunContext } from "@/features/agent/types/agents";
-import { getActiveNotes } from "@/utils/learning-state";
+import { getActiveMaterial } from "@/utils/learning-state";
 
-/** Research, notes and simplify. */
-const createNotesTools = ({
+/** Research, learning material and simplify. */
+const createMaterialTools = ({
   settings,
   getState,
   signal,
@@ -35,16 +35,16 @@ const createNotesTools = ({
   }),
 
   defineTool({
-    name: "makeNotes",
-    description: TOOL_DESCRIPTIONS.makeNotes,
-    parameters: ToolParamSchemas.makeNotes,
-    execute: async (): Promise<ToolResult<"makeNotes">> => {
+    name: "makeMaterial",
+    description: TOOL_DESCRIPTIONS.makeMaterial,
+    parameters: ToolParamSchemas.makeMaterial,
+    execute: async (): Promise<ToolResult<"makeMaterial">> => {
       const { research } = getState();
       if (!research) {
         return fail(TOOL_ERRORS.noResearch);
       }
-      return runSubagent("makeNotes", { signal }, async () => ({
-        markdown: await runMakeNotes({ research, settings, signal }),
+      return runSubagent("makeMaterial", { signal }, async () => ({
+        markdown: await runMakeMaterial({ research, settings, signal }),
       }));
     },
   }),
@@ -54,16 +54,16 @@ const createNotesTools = ({
     description: TOOL_DESCRIPTIONS.simplify,
     parameters: ToolParamSchemas.simplify,
     execute: async ({ scope, selection }): Promise<ToolResult<"simplify">> => {
-      const { notes } = getState();
-      if (!notes) {
-        return fail(TOOL_ERRORS.noNotes);
+      const { material } = getState();
+      if (!material) {
+        return fail(TOOL_ERRORS.noMaterial);
       }
-      const text = getActiveNotes(notes);
+      const text = getActiveMaterial(material);
 
       if (scope === "all") {
         return runSubagent("simplify", { signal }, async () => ({
           scope,
-          markdown: await runSimplify({ notes: text, settings, signal }),
+          markdown: await runSimplify({ material: text, settings, signal }),
         }));
       }
 
@@ -77,7 +77,7 @@ const createNotesTools = ({
         scope,
         selection,
         markdown: await runSimplify({
-          notes: text,
+          material: text,
           selection,
           settings,
           signal,
@@ -94,4 +94,4 @@ const createNotesTools = ({
  */
 export const createLearningTools = (
   ctx: SupervisorRunContext,
-): ToolDefinition[] => [...createNotesTools(ctx), ...createQuizTools(ctx)];
+): ToolDefinition[] => [...createMaterialTools(ctx), ...createQuizTools(ctx)];

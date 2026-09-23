@@ -1,8 +1,8 @@
 import { RefreshCw } from "lucide-react";
 
-import { QUIZ_OUTDATED_TEXT } from "@/features/canvas/constants/notes";
+import { QUIZ_OUTDATED_TEXT } from "@/features/canvas/constants/material";
 
-/** Shown after a notes change cleared the quiz and its results. */
+/** Shown after a learning material change cleared the quiz and its results. */
 export const QuizOutdatedBanner = () => (
   <div
     role="status"

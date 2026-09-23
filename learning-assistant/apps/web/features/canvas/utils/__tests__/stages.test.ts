@@ -28,8 +28,8 @@ const withResearch: LearningState = {
 
 const withQuizRunning: LearningState = {
   ...withResearch,
-  notes: { original: "# Notes", simplified: null, view: "original" },
-  stage: "notes",
+  material: { original: "# Notes", simplified: null, view: "original" },
+  stage: "material",
   status: { running: "quiz" },
 };
 
@@ -48,7 +48,7 @@ describe("getRunningStage", () => {
         ...initialLearningState,
         status: { running: "simplify" },
       }),
-    ).toBe("notes");
+    ).toBe("material");
     expect(getRunningStage(withQuizRunning)).toBe("quiz");
   });
 });
@@ -57,7 +57,7 @@ describe("isStageUnlocked", () => {
   it("unlocks a stage once its data exists", () => {
     expect(isStageUnlocked(initialLearningState, "research")).toBe(false);
     expect(isStageUnlocked(withResearch, "research")).toBe(true);
-    expect(isStageUnlocked(withResearch, "notes")).toBe(false);
+    expect(isStageUnlocked(withResearch, "material")).toBe(false);
   });
 
   it("unlocks the stage that is being built", () => {
@@ -81,8 +81,10 @@ describe("getFollowedStage", () => {
 
 describe("getAdjacentStage", () => {
   it("skips to the nearest unlocked stage", () => {
-    expect(getAdjacentStage(withQuizRunning, "research", "next")).toBe("notes");
-    expect(getAdjacentStage(withQuizRunning, "quiz", "prev")).toBe("notes");
+    expect(getAdjacentStage(withQuizRunning, "research", "next")).toBe(
+      "material",
+    );
+    expect(getAdjacentStage(withQuizRunning, "quiz", "prev")).toBe("material");
   });
 
   it("returns null at either end", () => {
@@ -102,7 +104,7 @@ describe("calculateStageProgress", () => {
 
 describe("getStepperSteps", () => {
   it("flags each stage from the state and the active stage", () => {
-    const steps = getStepperSteps(withQuizRunning, "notes");
+    const steps = getStepperSteps(withQuizRunning, "material");
     const flags = Object.fromEntries(
       steps.map(({ id, isActive, isUnlocked, isCompleted, isBuilding }) => [
         id,
@@ -112,7 +114,7 @@ describe("getStepperSteps", () => {
 
     expect(steps.map(({ id }) => id)).toEqual([
       "research",
-      "notes",
+      "material",
       "quiz",
       "evaluation",
       "score",
@@ -124,7 +126,7 @@ describe("getStepperSteps", () => {
       isCompleted: true,
       isBuilding: false,
     });
-    expect(flags.notes).toEqual({
+    expect(flags.material).toEqual({
       isActive: true,
       isUnlocked: true,
       isCompleted: false,

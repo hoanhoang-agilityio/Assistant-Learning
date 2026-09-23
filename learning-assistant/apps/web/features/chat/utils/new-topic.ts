@@ -8,9 +8,9 @@ import {
 import { CURRENT_TOPIC_FALLBACK } from "@/features/chat/constants/new-topic";
 import { hasQuizData } from "@/utils/learning-state";
 
-/** Notes or a quiz exist, so a new topic would throw work away. */
+/** Learning material or a quiz exists, so a new topic would throw work away. */
 export const hasTopicWork = (state: LearningState): boolean =>
-  state.notes !== null || hasQuizData(state);
+  state.material !== null || hasQuizData(state);
 
 /**
  * The state after the student confirms a new topic: every stage is cleared.

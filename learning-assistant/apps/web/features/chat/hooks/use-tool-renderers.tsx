@@ -30,11 +30,11 @@ export const useToolRenderers = () => {
 
   useRenderTool(
     {
-      name: "makeNotes",
+      name: "makeMaterial",
       agentId: LEARNING_AGENT_ID,
-      parameters: ToolParamSchemas.makeNotes,
+      parameters: ToolParamSchemas.makeMaterial,
       render: ({ status, result }) => (
-        <ToolProgress tool="makeNotes" status={status} result={result} />
+        <ToolProgress tool="makeMaterial" status={status} result={result} />
       ),
     },
     [],

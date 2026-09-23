@@ -11,7 +11,7 @@ export const FEEDBACK_SURFACE_ID = "feedback";
 
 /**
  * A2UI actions on the Feedback surface, handled on the client. A ReviewLink
- * sends `review_concept` with `{ concept }` and the canvas opens the notes.
+ * sends `review_concept` with `{ concept }` and the canvas opens the learning material.
  */
 export const FEEDBACK_ACTIONS = {
   reviewConcept: "review_concept",
@@ -60,7 +60,7 @@ export const FEEDBACK_CATALOG = {
     ReviewLink: {
       type: "object",
       description:
-        "Points the student to the part of their notes about one concept to review.",
+        "Points the student to the part of their learning material about one concept to review.",
       properties: {
         label: { type: "string", description: 'e.g. "Review closures"' },
         concept: { type: "string", description: "The concept name, exactly" },

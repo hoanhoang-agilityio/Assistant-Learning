@@ -6,7 +6,7 @@ import { ResearchResultSchema } from "./research";
 export const STAGES = [
   "idle",
   "research",
-  "notes",
+  "material",
   "quiz",
   "evaluation",
   "score",
@@ -15,7 +15,7 @@ export const STAGES = [
 
 export const RUNNING_TASKS = [
   "research",
-  "notes",
+  "material",
   "simplify",
   "quiz",
   "evaluate",
@@ -23,7 +23,7 @@ export const RUNNING_TASKS = [
 
 export const TIERS = ["Novice", "Practitioner", "Master"] as const;
 
-/** State built from the quiz. It goes out of date when the notes change. */
+/** State built from the quiz. It goes out of date when the learning material changes. */
 export const QUIZ_STATE_KEYS = [
   "quiz",
   "evaluation",
@@ -45,7 +45,7 @@ export const StatusSchema = z.object({
   failed: RunningTaskSchema.optional(),
 });
 
-export const NotesSchema = z.object({
+export const MaterialSchema = z.object({
   original: z.string(),
   simplified: z.string().nullable(),
   view: z.enum(["original", "simplified"]),
@@ -99,15 +99,15 @@ export const LearningStateSchema = z.object({
   status: StatusSchema,
   topic: z.string().nullable(),
   research: ResearchResultSchema.nullable(),
-  notes: NotesSchema.nullable(),
+  material: MaterialSchema.nullable(),
   quiz: QuizSchema.nullable(),
   evaluation: EvaluationSchema.nullable(),
   score: ScoreSchema.nullable(),
   feedback: FeedbackSchema.nullable(),
   reflection: ReflectionSchema.nullable(),
   /**
-   * The student edited the notes after a quiz existed, so the quiz and its
-   * results were cleared. Reset when a new quiz, notes or research arrive.
+   * The student edited the learning material after a quiz existed, so the quiz and its
+   * results were cleared. Reset when a new quiz, learning material or research arrive.
    */
   quizOutdated: z.boolean(),
 });
@@ -116,7 +116,7 @@ export type Stage = z.infer<typeof StageSchema>;
 export type RunningTask = z.infer<typeof RunningTaskSchema>;
 export type Tier = z.infer<typeof TierSchema>;
 export type Status = z.infer<typeof StatusSchema>;
-export type Notes = z.infer<typeof NotesSchema>;
+export type Material = z.infer<typeof MaterialSchema>;
 export type Quiz = z.infer<typeof QuizSchema>;
 export type Evaluation = z.infer<typeof EvaluationSchema>;
 export type Score = z.infer<typeof ScoreSchema>;
@@ -129,7 +129,7 @@ export const initialLearningState: LearningState = {
   status: { running: null },
   topic: null,
   research: null,
-  notes: null,
+  material: null,
   quiz: null,
   evaluation: null,
   score: null,
