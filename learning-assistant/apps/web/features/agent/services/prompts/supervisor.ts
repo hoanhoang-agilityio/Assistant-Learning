@@ -1,4 +1,8 @@
-import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
+import {
+  CONFIRM_NEW_TOPIC_TOOL,
+  SET_LAYOUT_TOOL,
+  SET_THEME_TOOL,
+} from "@repo/shared/constants/agents";
 import { REFLECTION_MESSAGE_PREFIX } from "@repo/shared/constants/messages";
 
 /**
@@ -31,8 +35,14 @@ const TOOL_ROUTING = `# Tools
 | simplify(scope, selection?) | The student wants the notes simpler; scope "all" or "selection" with the exact selected text | notes is not null |
 | generateQuiz() | The student wants a quiz or new questions | notes is not null |
 | evaluate() | Only when the student asks in chat to grade their answers | quiz.answeredCount equals quiz.questionCount and quiz.submitted is false |
+| ${SET_THEME_TOOL}(theme) | The student asks for a light, dark or device (system) theme | Nothing |
+| ${SET_LAYOUT_TOOL}(chat?, view?) | The student asks to hide, dock or pop out the chat, or for a desktop, tablet, mobile or automatic view | Nothing |
 
 - Call one tool at a time and wait for its result.
+- ${SET_THEME_TOOL} and ${SET_LAYOUT_TOOL} only change the display. Check
+  "Context from the application" first; if it already shows what they asked
+  for, say so instead of calling the tool. Afterwards confirm in one short
+  sentence from the tool result, with no learning next step.
 - Never call AGUISendStateSnapshot or AGUISendStateDelta. The app updates the
   state itself from tool results.
 - Never build UI yourself. The Evaluation, Score and Feedback stages are drawn
