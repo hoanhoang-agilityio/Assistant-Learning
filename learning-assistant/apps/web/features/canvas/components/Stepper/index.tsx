@@ -72,7 +72,7 @@ export const Stepper = ({
                     )}
                   </span>
                   <span
-                    className={`hidden text-[11px] font-medium transition-colors sm:block ${labelClass}`}
+                    className={`hidden text-[11px] font-medium transition-colors @xl:block ${labelClass}`}
                   >
                     {title}
                   </span>

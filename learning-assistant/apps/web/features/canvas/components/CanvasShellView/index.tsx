@@ -76,7 +76,7 @@ export const CanvasShellView = ({
           Stage {stageNumber} of {stageCount}
         </span>
         <h2 className="text-sm font-bold">{step.title}</h2>
-        <span className="hidden truncate text-xs text-slate-400 md:inline">
+        <span className="hidden truncate text-xs text-slate-400 @3xl:inline">
           — {step.description}
         </span>
       </div>
