@@ -7,6 +7,7 @@ import {
   useApiKeyStore,
   useSealedApiKey,
 } from "@/features/api-key/hooks/use-api-key-store";
+import { useResolvedTheme } from "@/features/settings/hooks/use-resolved-theme";
 import {
   useSettings,
   useSettingsStore,
@@ -44,7 +45,7 @@ export const useAppShell = () => {
     }
   }, [isHydrated, sealedKey, router]);
 
-  useThemeClass(settings.theme, isHydrated);
+  useThemeClass(useResolvedTheme(), isHydrated);
 
   const headers = useMemo(
     (): Record<string, string> =>

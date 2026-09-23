@@ -4,7 +4,11 @@ import "@/app/globals.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
-import { SETTINGS_STORAGE_KEY } from "@/constants/settings";
+import {
+  DARK_SCHEME_QUERY,
+  DARK_THEME_CLASS,
+  SETTINGS_STORAGE_KEY,
+} from "@/constants/settings";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,11 +28,16 @@ export const metadata: Metadata = {
 
 /**
  * Applies the saved theme before first paint, so a dark-mode user never sees
- * a light flash. Reads the settings store's persisted JSON directly.
+ * a light flash. Reads the settings store's persisted JSON directly; no saved
+ * theme, or `system`, follows the device.
  */
 const THEME_SCRIPT = `(function(){try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(
   SETTINGS_STORAGE_KEY,
-)})||"{}");if(s&&s.state&&s.state.settings&&s.state.settings.theme==="dark"){document.documentElement.classList.add("dark")}}catch(e){}})()`;
+)})||"{}");var t=s&&s.state&&s.state.settings&&s.state.settings.theme;if(t==="dark"||(t!=="light"&&matchMedia(${JSON.stringify(
+  DARK_SCHEME_QUERY,
+)}).matches)){document.documentElement.classList.add(${JSON.stringify(
+  DARK_THEME_CLASS,
+)})}}catch(e){}})()`;
 
 const RootLayout = ({
   children,

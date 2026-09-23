@@ -5,7 +5,7 @@ import {
   CHAT_WIDTH,
   DEFAULT_LAYOUT,
 } from "@/constants/layout";
-import { clampChatWidth, parseLayout } from "@/utils/layout";
+import { clampChatWidth, parseLayout, resolveDisplay } from "@/utils/layout";
 
 describe("clampChatWidth", () => {
   it("keeps a width inside the limits", () => {
@@ -35,9 +35,55 @@ describe("parseLayout", () => {
   });
 
   it("keeps valid fields and replaces invalid ones", () => {
-    expect(parseLayout({ chatWidth: "wide", isChatOpen: false })).toEqual({
+    expect(
+      parseLayout({ chatWidth: "wide", chatMode: "popup", viewMode: "tv" }),
+    ).toEqual({
       chatWidth: DEFAULT_LAYOUT.chatWidth,
-      isChatOpen: false,
+      chatMode: "popup",
+      viewMode: DEFAULT_LAYOUT.viewMode,
     });
+  });
+
+  it("keeps a collapsed chat saved before chat modes existed", () => {
+    expect(parseLayout({ isChatOpen: false }).chatMode).toBe("hidden");
+  });
+});
+
+describe("resolveDisplay", () => {
+  it("docks the chat on a wide window", () => {
+    expect(resolveDisplay(DEFAULT_LAYOUT, 1440)).toEqual({
+      frameWidth: null,
+      width: 1440,
+      isCompact: false,
+      chat: "docked",
+    });
+  });
+
+  it("shows a docked chat as a popup on a narrow window", () => {
+    expect(resolveDisplay(DEFAULT_LAYOUT, 600).chat).toBe("popup");
+  });
+
+  it("frames a previewed device layout on a wider window", () => {
+    expect(
+      resolveDisplay({ ...DEFAULT_LAYOUT, viewMode: "mobile" }, 1440),
+    ).toMatchObject({ frameWidth: 390, isCompact: true, chat: "popup" });
+  });
+
+  it("does not frame a device layout wider than the window", () => {
+    expect(
+      resolveDisplay({ ...DEFAULT_LAYOUT, viewMode: "tablet" }, 500),
+    ).toMatchObject({ frameWidth: null, width: 500 });
+  });
+
+  it("keeps the chat docked in the desktop view", () => {
+    expect(
+      resolveDisplay({ ...DEFAULT_LAYOUT, viewMode: "desktop" }, 600).chat,
+    ).toBe("docked");
+  });
+
+  it("keeps a hidden chat hidden", () => {
+    expect(
+      resolveDisplay({ ...DEFAULT_LAYOUT, chatMode: "hidden" }, 600).chat,
+    ).toBe("hidden");
   });
 });

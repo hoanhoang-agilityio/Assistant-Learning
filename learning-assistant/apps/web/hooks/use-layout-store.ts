@@ -7,14 +7,16 @@ import { clampChatWidth, parseLayout } from "@/utils/layout";
 import { safeLocalStorage } from "@/utils/safe-storage";
 
 /**
- * Chat width and open/closed state, saved to `localStorage`. Like the
+ * Chat width, chat mode and view mode, saved to `localStorage`. Like the
  * settings store it hydrates manually, from `AppShell`, so the server render
- * and the first client render agree.
+ * and the first client render agree. Whether the popup is expanded is not
+ * saved.
  */
 export const useLayoutStore = create<LayoutStore>()(
   persist(
     (set) => ({
       layout: DEFAULT_LAYOUT,
+      isPopupOpen: false,
       actions: {
         setChatWidth: (width, containerWidth) =>
           set(({ layout }) => ({
@@ -27,10 +29,14 @@ export const useLayoutStore = create<LayoutStore>()(
           set(({ layout }) => ({
             layout: { ...layout, chatWidth: DEFAULT_LAYOUT.chatWidth },
           })),
-        toggleChat: () =>
-          set(({ layout }) => ({
-            layout: { ...layout, isChatOpen: !layout.isChatOpen },
+        setChatMode: (chatMode) =>
+          set(({ layout, isPopupOpen }) => ({
+            layout: { ...layout, chatMode },
+            isPopupOpen: chatMode === "popup" || isPopupOpen,
           })),
+        setViewMode: (viewMode) =>
+          set(({ layout }) => ({ layout: { ...layout, viewMode } })),
+        setPopupOpen: (isPopupOpen) => set({ isPopupOpen }),
       },
     }),
     {
@@ -51,5 +57,8 @@ export const useLayoutStore = create<LayoutStore>()(
 );
 
 export const useLayout = () => useLayoutStore((store) => store.layout);
+
+export const useIsPopupOpen = () =>
+  useLayoutStore((store) => store.isPopupOpen);
 
 export const useLayoutActions = () => useLayoutStore((store) => store.actions);

@@ -5,6 +5,7 @@ import {
 } from "@repo/shared/schemas";
 
 import { DEFAULT_SETTINGS } from "@/constants/settings";
+import type { ResolvedTheme } from "@/features/settings/types/settings";
 
 /**
  * Reads persisted settings. Each field that is missing or invalid falls back
@@ -27,6 +28,29 @@ export const parseSettings = (raw: unknown): Settings => {
     learningLevel: pick("learningLevel"),
     theme: pick("theme"),
   };
+};
+
+/** `system` becomes the device's preference; light and dark stay as they are. */
+export const resolveTheme = (
+  theme: Settings["theme"],
+  prefersDark: boolean,
+): ResolvedTheme => {
+  if (theme === "system") {
+    return prefersDark ? "dark" : "light";
+  }
+  return theme;
+};
+
+/** The `setTheme` tool result: what the student now sees. */
+export const describeTheme = (
+  theme: Settings["theme"],
+  prefersDark: boolean,
+): string => {
+  const onScreen = resolveTheme(theme, prefersDark);
+  if (theme === "system") {
+    return `Theme set to system: it follows the device, which is ${onScreen} right now.`;
+  }
+  return `Theme set to ${onScreen}.`;
 };
 
 export const clampQuestionCount = (count: number): number => {

@@ -4,8 +4,10 @@ export interface SettingsActions {
   setQuestionCount: (count: number) => void;
   setLearningLevel: (level: LearningLevel) => void;
   setTheme: (theme: Theme) => void;
-  toggleTheme: () => void;
 }
+
+/** The theme actually on screen: `system` resolved against the device. */
+export type ResolvedTheme = Exclude<Theme, "system">;
 
 export interface SettingsStore {
   settings: Settings;

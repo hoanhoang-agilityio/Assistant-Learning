@@ -5,7 +5,8 @@ export const LEARNING_LEVELS = [
   "intermediate",
   "advanced",
 ] as const;
-export const THEMES = ["light", "dark"] as const;
+/** `system` follows the device's light/dark preference. */
+export const THEMES = ["system", "light", "dark"] as const;
 
 export const QUESTION_COUNT = { min: 3, max: 20, default: 5 } as const;
 

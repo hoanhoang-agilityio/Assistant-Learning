@@ -33,11 +33,6 @@ export const useSettingsStore = create<SettingsStore>()(
           setLearningLevel: (learningLevel) =>
             update((settings) => ({ ...settings, learningLevel })),
           setTheme: (theme) => update((settings) => ({ ...settings, theme })),
-          toggleTheme: () =>
-            update((settings) => ({
-              ...settings,
-              theme: settings.theme === "dark" ? "light" : "dark",
-            })),
         },
       };
     },
