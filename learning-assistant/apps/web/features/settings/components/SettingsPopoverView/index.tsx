@@ -1,15 +1,21 @@
 import {
+  CHAT_MODES,
+  type ChatMode,
   LEARNING_LEVELS,
   type LearningLevel,
   QUESTION_COUNT,
   type Settings as UserSettings,
   type Theme,
   THEMES,
+  VIEW_MODES,
+  type ViewMode,
 } from "@repo/shared/schemas";
 import {
   GraduationCap,
   KeyRound,
+  LayoutPanelLeft,
   ListChecks,
+  MonitorSmartphone,
   Palette,
   Settings,
   Sliders,
@@ -35,11 +41,15 @@ export interface SettingsPopoverViewProps {
   /** Wraps the button and the panel; clicks outside it close the popover. */
   containerRef: RefObject<HTMLDivElement | null>;
   settings: UserSettings;
+  chatMode: ChatMode;
+  viewMode: ViewMode;
   onToggle: () => void;
   onClose: () => void;
   onQuestionCountChange: (count: number) => void;
   onLearningLevelChange: (level: LearningLevel) => void;
   onThemeChange: (theme: Theme) => void;
+  onChatModeChange: (mode: ChatMode) => void;
+  onViewModeChange: (mode: ViewMode) => void;
 }
 
 /** Header button + popover for the API key, quiz and display settings. */
@@ -47,11 +57,15 @@ export const SettingsPopoverView = ({
   isOpen,
   containerRef,
   settings,
+  chatMode,
+  viewMode,
   onToggle,
   onClose,
   onQuestionCountChange,
   onLearningLevelChange,
   onThemeChange,
+  onChatModeChange,
+  onViewModeChange,
 }: SettingsPopoverViewProps) => {
   const panelId = useId();
 
@@ -77,7 +91,7 @@ export const SettingsPopoverView = ({
           id={panelId}
           role="dialog"
           aria-label="Settings"
-          className="absolute right-0 z-50 mt-3 w-80 rounded-xl border border-slate-200 bg-white p-4 text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+          className="absolute right-0 z-50 mt-3 w-80 max-w-[calc(100cqw-2rem)] rounded-xl border border-slate-200 bg-white p-4 text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
         >
           <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-700">
             <h3 className="flex items-center gap-2 text-sm font-semibold">
@@ -154,7 +168,7 @@ export const SettingsPopoverView = ({
                 <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
                   <Palette className="h-3.5 w-3.5" /> Theme
                 </span>
-                <div className="grid grid-cols-2 gap-1">
+                <div className="grid grid-cols-3 gap-1">
                   {THEMES.map((theme) => (
                     <button
                       key={theme}
@@ -167,6 +181,44 @@ export const SettingsPopoverView = ({
                     </button>
                   ))}
                 </div>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend className={LABEL_CLASS}>
+                <LayoutPanelLeft className="h-3.5 w-3.5" /> Chat
+              </legend>
+              <div className="grid grid-cols-3 gap-1">
+                {CHAT_MODES.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={chatMode === mode}
+                    onClick={() => onChatModeChange(mode)}
+                    className={segmentClass(chatMode === mode)}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend className={LABEL_CLASS}>
+                <MonitorSmartphone className="h-3.5 w-3.5" /> View
+              </legend>
+              <div className="grid grid-cols-4 gap-1">
+                {VIEW_MODES.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={viewMode === mode}
+                    onClick={() => onViewModeChange(mode)}
+                    className={segmentClass(viewMode === mode)}
+                  >
+                    {mode}
+                  </button>
+                ))}
               </div>
             </fieldset>
           </div>
