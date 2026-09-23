@@ -1,12 +1,16 @@
-import {
-  useSettings,
-  useSettingsActions,
-} from "@/features/settings/hooks/use-settings-store";
+import { useResolvedTheme } from "@/features/settings/hooks/use-resolved-theme";
+import { useSettingsActions } from "@/features/settings/hooks/use-settings-store";
 
-/** The current theme and a handler that flips it. */
+/**
+ * Whether the screen is dark, and a handler that switches to the other
+ * theme. Toggling leaves `system` for an explicit light or dark.
+ */
 export const useThemeToggle = () => {
-  const { theme } = useSettings();
-  const { toggleTheme } = useSettingsActions();
+  const isDark = useResolvedTheme() === "dark";
+  const { setTheme } = useSettingsActions();
 
-  return { isDark: theme === "dark", handleToggleTheme: toggleTheme };
+  return {
+    isDark,
+    handleToggleTheme: () => setTheme(isDark ? "light" : "dark"),
+  };
 };
