@@ -4,13 +4,16 @@ import { useNewTopicTool } from "@/features/chat/hooks/use-new-topic-tool";
 import { useStageSuggestions } from "@/features/chat/hooks/use-stage-suggestions";
 import { useToolRenderers } from "@/features/chat/hooks/use-tool-renderers";
 import { hasTopicWork } from "@/features/chat/utils/new-topic";
+import { useThemeTool } from "@/features/settings/hooks/use-theme-tool";
 import { useDisplay } from "@/hooks/use-display";
+import { useDisplayContext } from "@/hooks/use-display-context";
+import { useLayoutTool } from "@/hooks/use-layout-tool";
 import { useLearningAgent } from "@/hooks/use-learning-agent";
 
 /**
  * Registers the hooks that need the CopilotKit provider, once for the app.
- * `Workspace` never unmounts, so the tool renderers and the new-topic
- * confirmation stay registered.
+ * `Workspace` never unmounts, so the tool renderers, the new-topic
+ * confirmation and the display tools stay registered.
  */
 export const useWorkspace = () => {
   const { state } = useLearningAgent();
@@ -20,6 +23,9 @@ export const useWorkspace = () => {
   useToolRenderers();
   useNewTopicTool(hasTopicWork(state));
   useStageSuggestions(state.stage);
+  useThemeTool();
+  useLayoutTool();
+  useDisplayContext();
 
   return { display, panelsRef };
 };
