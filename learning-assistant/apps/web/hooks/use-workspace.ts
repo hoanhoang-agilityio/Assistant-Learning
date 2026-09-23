@@ -14,12 +14,12 @@ import { useLearningAgent } from "@/hooks/use-learning-agent";
  */
 export const useWorkspace = () => {
   const { state } = useLearningAgent();
-  const { isChatOpen } = useLayout();
+  const { chatMode } = useLayout();
   const panelsRef = useRef<HTMLDivElement>(null);
 
   useToolRenderers();
   useNewTopicTool(hasTopicWork(state));
   useStageSuggestions(state.stage);
 
-  return { isChatOpen, panelsRef };
+  return { isChatOpen: chatMode !== "hidden", panelsRef };
 };
