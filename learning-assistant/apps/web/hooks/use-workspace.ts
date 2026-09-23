@@ -4,6 +4,7 @@ import { useNewTopicTool } from "@/features/chat/hooks/use-new-topic-tool";
 import { useStageSuggestions } from "@/features/chat/hooks/use-stage-suggestions";
 import { useToolRenderers } from "@/features/chat/hooks/use-tool-renderers";
 import { hasTopicWork } from "@/features/chat/utils/new-topic";
+import { useLearningSettingsTool } from "@/features/settings/hooks/use-learning-settings-tool";
 import { useThemeTool } from "@/features/settings/hooks/use-theme-tool";
 import { useDisplay } from "@/hooks/use-display";
 import { useDisplayContext } from "@/hooks/use-display-context";
@@ -25,6 +26,7 @@ export const useWorkspace = () => {
   useStageSuggestions(state.stage);
   useThemeTool();
   useLayoutTool();
+  useLearningSettingsTool();
   useDisplayContext();
 
   return { display, panelsRef };

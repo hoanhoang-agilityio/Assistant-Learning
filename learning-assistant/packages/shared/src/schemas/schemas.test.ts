@@ -5,6 +5,7 @@ import {
   LearningStateSchema,
   QuizDraftSchema,
   QuizSchema,
+  SetLearningSettingsParamsSchema,
   SettingsSchema,
 } from ".";
 
@@ -85,4 +86,24 @@ describe("SettingsSchema", () => {
       SettingsSchema.safeParse({ ...settings, questionCount }).success,
     ).toBe(false);
   });
+});
+
+describe("SetLearningSettingsParamsSchema", () => {
+  it.each([{ questionCount: 10 }, { learningLevel: "advanced" }])(
+    "accepts a partial change %o",
+    (params) => {
+      expect(SetLearningSettingsParamsSchema.safeParse(params).success).toBe(
+        true,
+      );
+    },
+  );
+
+  it.each([{}, { questionCount: 21 }, { learningLevel: "expert" }])(
+    "rejects %o",
+    (params) => {
+      expect(SetLearningSettingsParamsSchema.safeParse(params).success).toBe(
+        false,
+      );
+    },
+  );
 });

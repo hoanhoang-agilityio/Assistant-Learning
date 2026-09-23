@@ -62,3 +62,10 @@ export const clampQuestionCount = (count: number): number => {
     Math.max(QUESTION_COUNT.min, Math.round(count)),
   );
 };
+
+/** The `setLearningSettings` tool result: the settings now in the store. */
+export const describeLearningSettings = ({
+  questionCount,
+  learningLevel,
+}: Settings): string =>
+  `Quizzes now have ${questionCount} questions; the learning level is ${learningLevel}.`;

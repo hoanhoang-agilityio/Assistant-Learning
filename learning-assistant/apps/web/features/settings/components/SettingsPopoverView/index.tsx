@@ -22,12 +22,34 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { type RefObject, useId } from "react";
+import { type ReactNode, type RefObject, useId } from "react";
 
 import { API_KEY_ROUTE } from "@/constants/routes";
 
 const LABEL_CLASS =
   "mb-1 flex items-center gap-1 font-medium text-slate-600 dark:text-slate-300";
+
+interface SettingsGroupProps {
+  id: string;
+  label: string;
+  children: ReactNode;
+}
+
+/** A labelled block of related settings, separated from the one above. */
+const SettingsGroup = ({ id, label, children }: SettingsGroupProps) => (
+  <section
+    aria-labelledby={id}
+    className="space-y-3 border-t border-slate-100 pt-3 first:border-t-0 first:pt-0 dark:border-slate-700"
+  >
+    <h4
+      id={id}
+      className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase dark:text-slate-500"
+    >
+      {label}
+    </h4>
+    {children}
+  </section>
+);
 
 const segmentClass = (isSelected: boolean) =>
   `rounded border px-2 py-1 text-center text-[11px] capitalize transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
@@ -108,119 +130,127 @@ export const SettingsPopoverView = ({
           </div>
 
           <div className="space-y-4 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1 font-medium text-slate-600 dark:text-slate-300">
-                <KeyRound className="h-3.5 w-3.5" /> OpenAI API key
-              </span>
-              <Link
-                href={API_KEY_ROUTE}
-                className="rounded border border-slate-200 px-2 py-1 text-[11px] transition-all hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-700"
-              >
-                Change
-              </Link>
-            </div>
-
-            <div>
-              <label htmlFor={`${panelId}-count`} className={LABEL_CLASS}>
-                <ListChecks className="h-3.5 w-3.5" /> Quiz Questions
-                <span className="ml-auto font-semibold text-indigo-600 tabular-nums dark:text-indigo-400">
-                  {settings.questionCount}
-                </span>
-              </label>
-              <input
-                id={`${panelId}-count`}
-                type="range"
-                min={QUESTION_COUNT.min}
-                max={QUESTION_COUNT.max}
-                step={1}
-                value={settings.questionCount}
-                onChange={(e) => onQuestionCountChange(Number(e.target.value))}
-                className="w-full cursor-pointer accent-indigo-600"
-              />
-              <div className="flex justify-between text-[10px] text-slate-400">
-                <span>{QUESTION_COUNT.min}</span>
-                <span>{QUESTION_COUNT.max}</span>
-              </div>
-            </div>
-
-            <fieldset>
-              <legend className={LABEL_CLASS}>
-                <GraduationCap className="h-3.5 w-3.5" /> Learning Level
-              </legend>
-              <div className="grid grid-cols-3 gap-1">
-                {LEARNING_LEVELS.map((level) => (
-                  <button
-                    key={level}
-                    type="button"
-                    aria-pressed={settings.learningLevel === level}
-                    onClick={() => onLearningLevelChange(level)}
-                    className={segmentClass(settings.learningLevel === level)}
-                  >
-                    {level}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-
-            <fieldset className="border-t border-slate-100 pt-3 dark:border-slate-700">
-              <legend className="sr-only">Theme</legend>
+            <SettingsGroup id={`${panelId}-account`} label="Account">
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                  <Palette className="h-3.5 w-3.5" /> Theme
+                <span className="flex items-center gap-1 font-medium text-slate-600 dark:text-slate-300">
+                  <KeyRound className="h-3.5 w-3.5" /> OpenAI API key
                 </span>
+                <Link
+                  href={API_KEY_ROUTE}
+                  className="rounded border border-slate-200 px-2 py-1 text-[11px] transition-all hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-700"
+                >
+                  Change
+                </Link>
+              </div>
+            </SettingsGroup>
+
+            <SettingsGroup id={`${panelId}-learning`} label="Learning">
+              <div>
+                <label htmlFor={`${panelId}-count`} className={LABEL_CLASS}>
+                  <ListChecks className="h-3.5 w-3.5" /> Quiz Questions
+                  <span className="ml-auto font-semibold text-indigo-600 tabular-nums dark:text-indigo-400">
+                    {settings.questionCount}
+                  </span>
+                </label>
+                <input
+                  id={`${panelId}-count`}
+                  type="range"
+                  min={QUESTION_COUNT.min}
+                  max={QUESTION_COUNT.max}
+                  step={1}
+                  value={settings.questionCount}
+                  onChange={(e) =>
+                    onQuestionCountChange(Number(e.target.value))
+                  }
+                  className="w-full cursor-pointer accent-indigo-600"
+                />
+                <div className="flex justify-between text-[10px] text-slate-400">
+                  <span>{QUESTION_COUNT.min}</span>
+                  <span>{QUESTION_COUNT.max}</span>
+                </div>
+              </div>
+
+              <fieldset>
+                <legend className={LABEL_CLASS}>
+                  <GraduationCap className="h-3.5 w-3.5" /> Learning Level
+                </legend>
                 <div className="grid grid-cols-3 gap-1">
-                  {THEMES.map((theme) => (
+                  {LEARNING_LEVELS.map((level) => (
                     <button
-                      key={theme}
+                      key={level}
                       type="button"
-                      aria-pressed={settings.theme === theme}
-                      onClick={() => onThemeChange(theme)}
-                      className={segmentClass(settings.theme === theme)}
+                      aria-pressed={settings.learningLevel === level}
+                      onClick={() => onLearningLevelChange(level)}
+                      className={segmentClass(settings.learningLevel === level)}
                     >
-                      {theme}
+                      {level}
                     </button>
                   ))}
                 </div>
-              </div>
-            </fieldset>
+              </fieldset>
+            </SettingsGroup>
 
-            <fieldset>
-              <legend className={LABEL_CLASS}>
-                <LayoutPanelLeft className="h-3.5 w-3.5" /> Chat
-              </legend>
-              <div className="grid grid-cols-3 gap-1">
-                {CHAT_MODES.map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    aria-pressed={chatMode === mode}
-                    onClick={() => onChatModeChange(mode)}
-                    className={segmentClass(chatMode === mode)}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <SettingsGroup id={`${panelId}-display`} label="Display">
+              <fieldset>
+                <legend className="sr-only">Theme</legend>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <Palette className="h-3.5 w-3.5" /> Theme
+                  </span>
+                  <div className="grid grid-cols-3 gap-1">
+                    {THEMES.map((theme) => (
+                      <button
+                        key={theme}
+                        type="button"
+                        aria-pressed={settings.theme === theme}
+                        onClick={() => onThemeChange(theme)}
+                        className={segmentClass(settings.theme === theme)}
+                      >
+                        {theme}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </fieldset>
 
-            <fieldset>
-              <legend className={LABEL_CLASS}>
-                <MonitorSmartphone className="h-3.5 w-3.5" /> View
-              </legend>
-              <div className="grid grid-cols-4 gap-1">
-                {VIEW_MODES.map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    aria-pressed={viewMode === mode}
-                    onClick={() => onViewModeChange(mode)}
-                    className={segmentClass(viewMode === mode)}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+              <fieldset>
+                <legend className={LABEL_CLASS}>
+                  <LayoutPanelLeft className="h-3.5 w-3.5" /> Chat
+                </legend>
+                <div className="grid grid-cols-3 gap-1">
+                  {CHAT_MODES.map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={chatMode === mode}
+                      onClick={() => onChatModeChange(mode)}
+                      className={segmentClass(chatMode === mode)}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend className={LABEL_CLASS}>
+                  <MonitorSmartphone className="h-3.5 w-3.5" /> View
+                </legend>
+                <div className="grid grid-cols-4 gap-1">
+                  {VIEW_MODES.map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={viewMode === mode}
+                      onClick={() => onViewModeChange(mode)}
+                      className={segmentClass(viewMode === mode)}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            </SettingsGroup>
           </div>
         </div>
       )}

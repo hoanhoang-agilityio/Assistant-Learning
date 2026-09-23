@@ -5,7 +5,7 @@ import { getActiveMaterial } from "@/utils/learning-state";
 
 /**
  * Trims the state to what the Supervisor needs to choose the next step, plus
- * the settings it must respect (so it never guesses a question count).
+ * the settings it must respect (so it never guesses a question count or level).
  */
 export const toSupervisorState = (
   {
@@ -21,9 +21,9 @@ export const toSupervisorState = (
     reflection,
     quizOutdated,
   }: LearningState,
-  { questionCount }: Settings,
+  { questionCount, learningLevel }: Settings,
 ): SupervisorState => ({
-  settings: { questionCount },
+  settings: { questionCount, learningLevel },
   stage,
   status,
   topic,
