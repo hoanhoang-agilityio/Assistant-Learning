@@ -1,4 +1,5 @@
 import type { Reflection } from "@repo/shared/schemas";
+import { readLearningState } from "@repo/shared/utils/learning-state";
 import { useState } from "react";
 
 import { useSendMessage } from "@/features/canvas/hooks/use-send-message";
@@ -7,7 +8,6 @@ import {
   toReflection,
 } from "@/features/canvas/utils/feedback";
 import { useLearningAgent } from "@/hooks/use-learning-agent";
-import { readLearningState } from "@/utils/learning-state";
 
 /**
  * The reflection form. Saving writes `reflection` to the agent's state, then

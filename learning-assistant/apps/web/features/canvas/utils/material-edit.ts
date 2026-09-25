@@ -4,8 +4,10 @@ import {
   QUIZ_STATE_KEYS,
   STAGES,
 } from "@repo/shared/schemas";
-
-import { getActiveMaterial, hasQuizData } from "@/utils/learning-state";
+import {
+  getActiveMaterial,
+  hasQuizData,
+} from "@repo/shared/utils/learning-state";
 
 const MATERIAL_STAGE_INDEX = STAGES.indexOf("material");
 
