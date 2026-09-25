@@ -6,6 +6,7 @@ import {
   SET_LAYOUT_TOOL,
   SET_LEARNING_SETTINGS_TOOL,
   SET_THEME_TOOL,
+  TOOL_STOPPED_ERROR,
   UPDATE_BOARD_SURFACE_TOOL,
 } from "@repo/shared/constants/agents";
 import type { SubagentTool } from "@repo/shared/schemas";
@@ -44,7 +45,7 @@ export const TOOL_ERRORS = {
     "This quiz was already graded. The student can Retake it or ask for new questions.",
   staleQuiz:
     "The answers were for a quiz that has since been replaced. The student should answer the current quiz.",
-  stopped: "The student stopped this step.",
+  stopped: TOOL_STOPPED_ERROR,
 } as const;
 
 /**

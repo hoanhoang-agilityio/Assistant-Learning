@@ -1,3 +1,4 @@
+import { TOOL_STOPPED_ERROR } from "@repo/shared/constants/agents";
 import {
   BoardRemovalResultSchema,
   BoardSurfaceResultSchema,
@@ -86,7 +87,8 @@ export const parseRemovedTitles = (
 
 /**
  * A tool call still streaming counts as running while the agent runs, and as
- * stopped once it doesn't. A finished call is failed or done by its result.
+ * stopped once it doesn't. A finished call is stopped, failed or done by its
+ * result.
  */
 export const getToolPhase = (
   status: ToolCallStatus,
@@ -96,8 +98,22 @@ export const getToolPhase = (
   if (status !== "complete") {
     return isRunning ? "running" : "stopped";
   }
+  if (error === TOOL_STOPPED_ERROR) {
+    return "stopped";
+  }
   return error ? "failed" : "done";
 };
+
+/**
+ * A chat tool call the student stopped: cut off while streaming, or finished
+ * with the stopped result. Same rules as a subagent card's phase.
+ */
+export const isToolStopped = (
+  status: ToolCallStatus,
+  isRunning: boolean,
+  result: string | undefined,
+): boolean =>
+  getToolPhase(status, isRunning, parseToolError(result)) === "stopped";
 
 /** The progress card's headline, with `detail` (e.g. the topic) when given. */
 export const formatToolTitle = (

@@ -9,6 +9,7 @@ import {
 import jsonPatch, { type Operation } from "fast-json-patch";
 import { describe, expect, it } from "vitest";
 
+import { TOOL_ERRORS } from "../../constants/tools";
 import {
   applyBoardDraft,
   applyDraft,
@@ -264,6 +265,23 @@ describe("applyToolResult", () => {
     expect(patch).toEqual([
       { op: "add", path: "/status", value: { running: null } },
     ]);
+  });
+
+  it("clears a stopped task without an error and keeps the content", () => {
+    const before: LearningState = { ...withMaterial, stage: "quiz" };
+    const running: LearningState = {
+      ...createStartUpdate(before, "generateQuiz").state,
+      draft: { task: "quiz", questions: [] },
+    };
+    const { state, patch } = applyToolResult(
+      running,
+      "generateQuiz",
+      JSON.stringify({ ok: false, error: TOOL_ERRORS.stopped }),
+    );
+
+    expect(state).toEqual({ ...before, status: { running: null } });
+    expect(state.status).not.toHaveProperty("error");
+    expect(applyPatch(running, patch)).toEqual(state);
   });
 
   it("fails simplify when the selection is gone", () => {

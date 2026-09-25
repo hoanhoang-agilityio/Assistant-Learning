@@ -28,7 +28,7 @@ export const useToolProgress = (
   return {
     phase,
     title: formatToolTitle(tool, phase, detail),
-    error,
+    error: phase === "failed" ? error : null,
     seconds,
     handleStop,
   };
