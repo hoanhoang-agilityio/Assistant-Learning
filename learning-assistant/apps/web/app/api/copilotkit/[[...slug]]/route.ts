@@ -2,12 +2,14 @@ import {
   CopilotRuntime,
   createCopilotRuntimeHandler,
 } from "@copilotkit/runtime/v2";
+import {
+  createLearningTools,
+  LearningSupervisorAgent,
+  SUPERVISOR_PROMPT,
+} from "@repo/agent";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 
 import { COPILOT_RUNTIME_URL } from "@/constants/copilot";
-import { SUPERVISOR_PROMPT } from "@/features/agent/services/prompts/supervisor";
-import { LearningSupervisorAgent } from "@/features/agent/services/supervisor-agent";
-import { createLearningTools } from "@/features/agent/services/tools/learning-tools";
 import { readApiKeyFromRequest } from "@/features/api-key/services/request-api-key";
 
 const runtime = new CopilotRuntime({
@@ -25,7 +27,7 @@ const runtime = new CopilotRuntime({
   // carries into a chat surface (Board results go to state instead). No
   // render tool is injected: the Supervisor's own `renderSurface` is typed
   // to the app's catalogs, and the Evaluator composes the Feedback surface
-  // itself (`subagents/feedback-surface.ts`).
+  // itself (`@repo/agent`'s `subagents/feedback-surface.ts`).
   a2ui: {
     agents: [LEARNING_AGENT_ID],
     injectA2UITool: false,
