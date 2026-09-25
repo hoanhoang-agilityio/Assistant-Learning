@@ -31,6 +31,8 @@ const toInputs = ({ params }: Readonly<TracedCall<unknown>>) => ({
 const toOutputs = (text: string, toolCalls: ToolCallPart[], usage?: Usage) => {
   const inputTokens = usage?.inputTokens.total ?? 0;
   const outputTokens = usage?.outputTokens.total ?? 0;
+  // Cached input is served faster; reasoning is output the student never
+  // sees but waits for before the first visible token.
   return {
     role: "assistant",
     content: text,
@@ -43,6 +45,10 @@ const toOutputs = (text: string, toolCalls: ToolCallPart[], usage?: Usage) => {
       input_tokens: inputTokens,
       output_tokens: outputTokens,
       total_tokens: inputTokens + outputTokens,
+      input_token_details: { cache_read: usage?.inputTokens.cacheRead ?? 0 },
+      output_token_details: {
+        reasoning: usage?.outputTokens.reasoning ?? 0,
+      },
     },
   };
 };
