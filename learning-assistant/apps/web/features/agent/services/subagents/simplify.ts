@@ -15,6 +15,8 @@ interface SimplifyParams {
   selection?: string;
   settings: RunSettings;
   signal?: AbortSignal;
+  /** Called with the rewrite written so far. */
+  onDraft?: (markdown: string) => void;
 }
 
 /**
@@ -26,6 +28,7 @@ export const runSimplify = async ({
   selection,
   settings,
   signal,
+  onDraft,
 }: SimplifyParams): Promise<string> => {
   const { markdown } = await generateStructured({
     settings,
@@ -36,6 +39,7 @@ export const runSimplify = async ({
         : createSimplifySelectionPrompt(selection, material),
     schema: MaterialResultSchema,
     signal,
+    onPartial: onDraft ? ({ markdown }) => onDraft(markdown ?? "") : undefined,
   });
   return markdown;
 };

@@ -2,6 +2,7 @@ import {
   type EvaluationFeedback,
   EvaluationFeedbackSchema,
 } from "@repo/shared/schemas";
+import type { DeepPartial } from "ai";
 
 import {
   createEvaluatorPrompt,
@@ -15,6 +16,8 @@ interface EvaluatorParams {
   input: EvaluatorInput;
   settings: RunSettings;
   signal?: AbortSignal;
+  /** Called with the explanations and summary written so far. */
+  onPartial?: (partial: DeepPartial<EvaluationFeedback>) => void;
 }
 
 /**
@@ -25,6 +28,7 @@ export const runEvaluator = ({
   input,
   settings,
   signal,
+  onPartial,
 }: EvaluatorParams): Promise<EvaluationFeedback> =>
   generateStructured({
     settings,
@@ -32,4 +36,5 @@ export const runEvaluator = ({
     prompt: createEvaluatorPrompt(input),
     schema: EvaluationFeedbackSchema,
     signal,
+    onPartial,
   });

@@ -1,4 +1,5 @@
 import {
+  type ResearchDraft,
   type ResearchResult,
   ResearchResultSchema,
 } from "@repo/shared/schemas";
@@ -11,6 +12,7 @@ import {
 import { searchTavily } from "@/features/agent/services/search/tavily";
 import { generateStructured } from "@/features/agent/services/subagents/generate-structured";
 import type { SearchResult } from "@/features/agent/types/agents";
+import { toResearchDraft } from "@/features/agent/utils/drafts";
 import type { Env } from "@/types/env";
 import type { RunSettings } from "@/types/llm";
 
@@ -18,13 +20,15 @@ import type { RunSettings } from "@/types/llm";
  * The model writes the reading only. Sources come from the search results in
  * code, so a cited URL is always one that was actually retrieved.
  */
-const ResearchDraftSchema = ResearchResultSchema.omit({ sources: true });
+const ResearchReadingSchema = ResearchResultSchema.omit({ sources: true });
 
 interface ResearchParams {
   topic: string;
   settings: RunSettings;
   env: Env;
   signal?: AbortSignal;
+  /** Called with the research written so far. */
+  onDraft?: (draft: ResearchDraft) => void;
 }
 
 /** Web results when `TAVILY_API_KEY` is set; none when it is missing or fails. */
@@ -54,17 +58,19 @@ export const runResearch = async ({
   settings,
   env,
   signal,
+  onDraft,
 }: ResearchParams): Promise<ResearchResult> => {
   const results = await findSources(topic, env, signal);
-  const draft = await generateStructured({
+  const sources = results.map(({ title, url }) => ({ title, url }));
+  const reading = await generateStructured({
     settings,
     system: createResearchSystem(settings.learningLevel),
     prompt: createResearchPrompt(topic, results),
-    schema: ResearchDraftSchema,
+    schema: ResearchReadingSchema,
     signal,
+    onPartial: onDraft
+      ? (partial) => onDraft(toResearchDraft(partial, sources))
+      : undefined,
   });
-  return {
-    ...draft,
-    sources: results.map(({ title, url }) => ({ title, url })),
-  };
+  return { ...reading, sources };
 };

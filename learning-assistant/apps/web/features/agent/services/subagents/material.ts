@@ -14,6 +14,8 @@ interface MaterialParams {
   research: ResearchResult;
   settings: RunSettings;
   signal?: AbortSignal;
+  /** Called with the markdown written so far. */
+  onDraft?: (markdown: string) => void;
 }
 
 /** Material Agent: markdown learning material from the research. */
@@ -21,6 +23,7 @@ export const runMakeMaterial = async ({
   research,
   settings,
   signal,
+  onDraft,
 }: MaterialParams): Promise<string> => {
   const { markdown } = await generateStructured({
     settings,
@@ -28,6 +31,7 @@ export const runMakeMaterial = async ({
     prompt: createMaterialPrompt(research),
     schema: MaterialResultSchema,
     signal,
+    onPartial: onDraft ? ({ markdown }) => onDraft(markdown ?? "") : undefined,
   });
   return markdown;
 };
