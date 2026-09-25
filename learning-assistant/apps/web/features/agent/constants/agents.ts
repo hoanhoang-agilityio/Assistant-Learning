@@ -13,6 +13,21 @@ export const QUIZ_SUBMIT_TURN = "Submitted the quiz.";
 /** Upper bound on LLM steps (tool calls and replies) in one Supervisor run. */
 export const SUPERVISOR_MAX_STEPS = 8;
 
+/**
+ * Internal `CUSTOM` events that carry streamed output to `syncStateFromTools`,
+ * which turns them into state and never forwards them.
+ */
+export const DRAFT_EVENTS = {
+  stage: "learning.stageDraft",
+  board: "learning.boardDraft",
+} as const;
+
+/**
+ * Least time between two streamed drafts of the same output. Each one sends
+ * the whole draft, so this bounds the traffic while text streams in.
+ */
+export const DRAFT_INTERVAL_MS = 120;
+
 /** `status.running` while each subagent tool runs. */
 export const SUBAGENT_TASK: Record<SubagentTool, RunningTask> = {
   research: "research",
@@ -72,3 +87,10 @@ export const QUIZ_ATTEMPTS = 2;
 
 /** Feedback surface attempts: the first try plus one retry with the errors. */
 export const FEEDBACK_SURFACE_ATTEMPTS = 2;
+
+/**
+ * Every agent context entry CopilotKit's A2UI support adds starts with this:
+ * the catalog, its schemas and generic generation and design guidelines
+ * (about 3,000 tokens). The Supervisor does not need them.
+ */
+export const A2UI_CONTEXT_PREFIX = "A2UI ";
