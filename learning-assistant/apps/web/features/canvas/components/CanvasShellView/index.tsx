@@ -1,7 +1,8 @@
-import type { LearningState } from "@repo/shared/schemas";
+import type { Draft, LearningState } from "@repo/shared/schemas";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { QuizOutdatedBanner } from "@/features/canvas/components/QuizOutdatedBanner";
+import { StageDraft } from "@/features/canvas/components/StageDraft";
 import { StageEmpty } from "@/features/canvas/components/StageEmpty";
 import { StageError } from "@/features/canvas/components/StageError";
 import { StagePreview } from "@/features/canvas/components/StagePreview";
@@ -24,6 +25,8 @@ export interface CanvasShellViewProps {
   /** Stepper bar fill, in percent. */
   progress: number;
   isBuilding: boolean;
+  /** What the running subagent has written so far, shown instead of the skeleton. */
+  draft: Draft | null;
   hasData: boolean;
   error: string | null;
   /** The failed task can be repeated. */
@@ -49,6 +52,7 @@ export const CanvasShellView = ({
   steps,
   progress,
   isBuilding,
+  draft,
   hasData,
   error,
   canRetry,
@@ -114,7 +118,11 @@ export const CanvasShellView = ({
         )}
         {isQuizOutdated && <QuizOutdatedBanner />}
         {isBuilding ? (
-          <StageSkeleton step={step} />
+          draft ? (
+            <StageDraft stage={activeStage} step={step} draft={draft} />
+          ) : (
+            <StageSkeleton step={step} />
+          )
         ) : hasData ? (
           <StagePreview stage={activeStage} state={state} />
         ) : (

@@ -1,6 +1,7 @@
 import type { LearningState, Stage } from "@repo/shared/schemas";
 
 import {
+  DRAFT_STAGES,
   RUNNING_TASK_STAGE,
   STAGE_STEPS,
 } from "@/features/canvas/constants/stages";
@@ -40,12 +41,20 @@ export const hasStageData = (
   return state[getStageStep(stage).dataKey] != null;
 };
 
+/** The stage's subagent is running, or the running task's draft fills it. */
+export const isStageBuilding = (
+  state: LearningState,
+  stage: CanvasStage,
+): boolean =>
+  getRunningStage(state) === stage ||
+  (state.draft !== null && DRAFT_STAGES[state.draft.task].includes(stage));
+
 /** A stage can be opened once its data exists, or while it is being built. */
 export const isStageUnlocked = (
   state: LearningState,
   stage: CanvasStage,
 ): boolean => {
-  return hasStageData(state, stage) || getRunningStage(state) === stage;
+  return hasStageData(state, stage) || isStageBuilding(state, stage);
 };
 
 /**
@@ -86,7 +95,6 @@ export const getStepperSteps = (
   state: LearningState,
   activeStage: CanvasStage,
 ): StepperStep[] => {
-  const runningStage = getRunningStage(state);
   return STAGE_STEPS.map(({ id, title, icon }) => {
     const isActive = id === activeStage;
     return {
@@ -96,7 +104,7 @@ export const getStepperSteps = (
       isActive,
       isUnlocked: isStageUnlocked(state, id),
       isCompleted: hasStageData(state, id) && !isActive,
-      isBuilding: runningStage === id,
+      isBuilding: isStageBuilding(state, id),
     };
   });
 };

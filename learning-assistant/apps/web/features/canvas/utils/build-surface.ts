@@ -2,6 +2,7 @@ import type { SurfaceTemplate } from "@repo/shared/a2ui/surface-template";
 import { MASTERED_PERCENT } from "@repo/shared/constants/scoring";
 import type {
   Evaluation,
+  QuestionDraft,
   Quiz,
   ResearchResult,
   Score,
@@ -104,6 +105,34 @@ export const createQuizDataModel = (
     isLocked,
   };
 };
+
+/** Id prefix of a question still being written; the real ids come with the quiz. */
+const DRAFT_QUESTION_ID_PREFIX = "draft-";
+
+/**
+ * The Quiz template's data model while the questions are written: locked,
+ * with nothing to answer or submit yet.
+ */
+export const createQuizDraftDataModel = (
+  questions: QuestionDraft[],
+): QuizDataModel => ({
+  quizId: "",
+  questions: questions.map(({ concept, question, options }, index) => ({
+    id: `${DRAFT_QUESTION_ID_PREFIX}${index}`,
+    number: index + 1,
+    concept,
+    question,
+    options,
+    selectedIndex: null,
+    result: null,
+  })),
+  answers: {},
+  answeredCount: 0,
+  total: questions.length,
+  canSubmit: false,
+  isSubmitted: false,
+  isLocked: true,
+});
 
 /**
  * The Evaluation template's data model: accuracy, questions answered and the

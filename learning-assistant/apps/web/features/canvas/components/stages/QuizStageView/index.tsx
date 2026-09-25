@@ -6,7 +6,8 @@ import type { QuizDataModel } from "@/features/canvas/types/a2ui";
 
 export interface QuizStageViewProps {
   dataModel: QuizDataModel;
-  onAction: (message: A2UIClientEventMessage) => void;
+  /** Omitted while the questions are still being written. */
+  onAction?: (message: A2UIClientEventMessage) => void;
 }
 
 /** The fixed quiz surface: question cards, then Submit, Retake, New questions. */
