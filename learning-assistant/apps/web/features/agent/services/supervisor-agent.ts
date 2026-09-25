@@ -8,7 +8,16 @@ import {
   type RunStartedEvent,
 } from "@ag-ui/client";
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
-import { filter, type Observable, of } from "rxjs";
+import type { Draft } from "@repo/shared/schemas";
+import {
+  filter,
+  finalize,
+  map,
+  mergeWith,
+  type Observable,
+  of,
+  Subject,
+} from "rxjs";
 
 import { OPENAI_CALL_OPTIONS } from "@/constants/openai";
 import {
@@ -17,15 +26,26 @@ import {
   SUPERVISOR_MAX_STEPS,
 } from "@/features/agent/constants/agents";
 import { SealedAnswerKeyStore } from "@/features/agent/services/answer-key/sealed-answer-key-store";
+import { muteRepliesAfterCards } from "@/features/agent/services/card-replies";
+import {
+  streamBoardDrafts,
+  throttleDrafts,
+  toStageDraftEvent,
+} from "@/features/agent/services/drafts";
 import { explainRunErrors } from "@/features/agent/services/run-errors";
 import { traceTurn } from "@/features/agent/services/run-trace";
 import { syncStateFromTools } from "@/features/agent/services/state-sync";
 import { runSubmittedQuiz } from "@/features/agent/services/submit-quiz";
 import { toSupervisorState } from "@/features/agent/services/supervisor-state";
+import {
+  closeLostToolCalls,
+  repairToolHistory,
+} from "@/features/agent/services/tool-history";
 import type {
   LearningSupervisorAgentConfig,
   SupervisorRunContext,
 } from "@/features/agent/types/agents";
+import { dropA2UIContext } from "@/features/agent/utils/agent-context";
 import { formatOpenAIError } from "@/features/agent/utils/openai-errors";
 import { parseSubmitAction } from "@/features/agent/utils/submit-action";
 import { createLanguageModel } from "@/services/llm/language-model";
@@ -44,8 +64,14 @@ const isInnerStateEvent = (event: BaseEvent) =>
 /**
  * Thin wrapper around `BuiltInAgent`. On each run it reads
  * `forwardedProps.settings` and the user's API key (`config.apiKey`), builds an inner agent for the OpenAI model, passes it a trimmed state and pipes its events through,
- * adding a `STATE_DELTA` for each subagent tool result. A quiz Submit
- * (`forwardedProps.a2uiAction`) is graded before the Supervisor runs. A failed
+ * adding a `STATE_DELTA` for each subagent tool result and a result for any
+ * server tool call the AI SDK rejected (see `tool-history.ts`). A tool's chat
+ * card is its only reply: text after a successful card tool is dropped (see
+ * `card-replies.ts`). Subagent
+ * output and Board views stream to the canvas as drafts while they are
+ * written (see `drafts.ts`). A quiz Submit
+ * (`forwardedProps.a2uiAction`) is graded in code; the Supervisor runs only
+ * to explain a failed grading. A failed
  * run leaves a readable message in the chat.
  */
 export class LearningSupervisorAgent extends AbstractAgent {
@@ -81,6 +107,7 @@ export class LearningSupervisorAgent extends AbstractAgent {
     const initial = readLearningState(input.state);
     let current = initial;
     this.abortController = new AbortController();
+    const drafts = new Subject<Draft>();
 
     const ctx: SupervisorRunContext = {
       settings,
@@ -90,6 +117,7 @@ export class LearningSupervisorAgent extends AbstractAgent {
       answerKeys:
         this.config.answerKeys ??
         new SealedAnswerKeyStore(env[QUIZ_SEAL_SECRET_ENV_KEY]),
+      reportDraft: throttleDrafts((draft) => drafts.next(draft)),
     };
 
     const inner = new BuiltInAgent({
@@ -101,11 +129,13 @@ export class LearningSupervisorAgent extends AbstractAgent {
     });
     this.inner = inner;
 
-    // The Supervisor sees the trimmed state as of when it starts.
+    // The Supervisor sees the trimmed state as of when it starts, a history
+    // in which every tool call has a result, and no generic A2UI context.
     const runSupervisor = (messages: Message[]) =>
       inner.run({
         ...input,
-        messages,
+        messages: repairToolHistory(messages),
+        context: dropA2UIContext(input.context),
         state: toSupervisorState(current, settings),
       });
 
@@ -124,6 +154,12 @@ export class LearningSupervisorAgent extends AbstractAgent {
       input,
       events.pipe(
         filter((event) => !isInnerStateEvent(event)),
+        muteRepliesAfterCards(input.messages),
+        closeLostToolCalls(new Set(input.tools.map(({ name }) => name))),
+        // Drafts are reported while a tool runs, so they end with the run.
+        finalize(() => drafts.complete()),
+        mergeWith(drafts.pipe(map(toStageDraftEvent))),
+        streamBoardDrafts(),
         syncStateFromTools(initial, (next) => {
           current = next;
         }),

@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS } from "@/constants/settings";
 import { toSupervisorState } from "@/features/agent/services/supervisor-state";
 
 describe("toSupervisorState", () => {
-  it("keeps short summaries and drops the full learning material and quiz", () => {
+  it("keeps short summaries and drops the full learning material, quiz and Board views", () => {
     const state: LearningState = {
       ...initialLearningState,
       stage: "quiz",
@@ -29,6 +29,14 @@ describe("toSupervisorState", () => {
         answerKeySealed: "sealed",
         submitted: false,
       },
+      board: [
+        {
+          id: "board-1",
+          title: "HTTP methods",
+          operations: [{ version: "v0.9", createSurface: { surfaceId: "x" } }],
+          revision: 1,
+        },
+      ],
     };
 
     const trimmed = toSupervisorState(state, DEFAULT_SETTINGS);
@@ -49,8 +57,10 @@ describe("toSupervisorState", () => {
       hasFeedback: false,
       hasReflection: false,
       quizOutdated: false,
+      board: [{ id: "board-1", title: "HTTP methods" }],
     });
     expect(JSON.stringify(trimmed)).not.toContain("Bindings");
+    expect(JSON.stringify(trimmed)).not.toContain("createSurface");
     expect(JSON.stringify(trimmed)).not.toContain("sealed");
   });
 });

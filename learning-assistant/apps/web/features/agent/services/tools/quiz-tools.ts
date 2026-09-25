@@ -26,7 +26,7 @@ import { getActiveMaterial } from "@/utils/learning-state";
  * answers in state.
  */
 export const runEvaluateStep = async (
-  { settings, getState, signal, answerKeys }: SupervisorRunContext,
+  { settings, getState, signal, answerKeys, reportDraft }: SupervisorRunContext,
   submission?: QuizSubmission,
 ): Promise<ToolResult<"evaluate">> => {
   const state = getState();
@@ -43,6 +43,7 @@ export const runEvaluateStep = async (
       material: state.material ? getActiveMaterial(state.material) : "",
       settings,
       signal,
+      onDraft: (draft) => reportDraft({ task: "evaluate", ...draft }),
     }),
   );
 };
@@ -56,7 +57,7 @@ export const createQuizTools = (
     description: TOOL_DESCRIPTIONS.generateQuiz,
     parameters: ToolParamSchemas.generateQuiz,
     execute: async (): Promise<ToolResult<"generateQuiz">> => {
-      const { settings, getState, signal, answerKeys } = ctx;
+      const { settings, getState, signal, answerKeys, reportDraft } = ctx;
       const { material } = getState();
       if (!material) {
         return fail(TOOL_ERRORS.noMaterialForQuiz);
@@ -68,6 +69,7 @@ export const createQuizTools = (
           count: settings.questionCount,
           settings,
           signal,
+          onDraft: (questions) => reportDraft({ task: "quiz", questions }),
         });
         return { quiz: await createSealedQuiz(draft, answerKeys) };
       });

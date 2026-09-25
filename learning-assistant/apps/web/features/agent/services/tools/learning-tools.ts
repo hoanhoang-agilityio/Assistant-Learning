@@ -13,6 +13,7 @@ import {
   fail,
   runSubagent,
 } from "@/features/agent/services/tools/run-subagent";
+import { createSurfaceTools } from "@/features/agent/services/tools/surface-tools";
 import type { SupervisorRunContext } from "@/features/agent/types/agents";
 import { getActiveMaterial } from "@/utils/learning-state";
 
@@ -22,6 +23,7 @@ const createMaterialTools = ({
   getState,
   signal,
   env,
+  reportDraft,
 }: SupervisorRunContext): ToolDefinition[] => [
   defineTool({
     name: "research",
@@ -30,7 +32,13 @@ const createMaterialTools = ({
     execute: ({ topic }): Promise<ToolResult<"research">> =>
       runSubagent("research", { signal }, async () => ({
         topic,
-        research: await runResearch({ topic, settings, env, signal }),
+        research: await runResearch({
+          topic,
+          settings,
+          env,
+          signal,
+          onDraft: (research) => reportDraft({ task: "research", research }),
+        }),
       })),
   }),
 
@@ -44,7 +52,12 @@ const createMaterialTools = ({
         return fail(TOOL_ERRORS.noResearch);
       }
       return runSubagent("makeMaterial", { signal }, async () => ({
-        markdown: await runMakeMaterial({ research, settings, signal }),
+        markdown: await runMakeMaterial({
+          research,
+          settings,
+          signal,
+          onDraft: (markdown) => reportDraft({ task: "material", markdown }),
+        }),
       }));
     },
   }),
@@ -63,7 +76,12 @@ const createMaterialTools = ({
       if (scope === "all") {
         return runSubagent("simplify", { signal }, async () => ({
           scope,
-          markdown: await runSimplify({ material: text, settings, signal }),
+          markdown: await runSimplify({
+            material: text,
+            settings,
+            signal,
+            onDraft: (markdown) => reportDraft({ task: "simplify", markdown }),
+          }),
         }));
       }
 
@@ -81,6 +99,12 @@ const createMaterialTools = ({
           selection,
           settings,
           signal,
+          // The draft is the whole material with the selection rewritten so far.
+          onDraft: (markdown) =>
+            reportDraft({
+              task: "simplify",
+              markdown: text.replace(selection, () => markdown),
+            }),
         }),
       }));
     },
@@ -88,10 +112,14 @@ const createMaterialTools = ({
 ];
 
 /**
- * The subagent tools for one run. They read the settings and the live state
- * from `ctx`, check their prerequisites, and return a result the wrapper
- * writes into state.
+ * The server tools for one run. The subagent tools read the settings and the
+ * live state from `ctx`, check their prerequisites, and return a result the
+ * wrapper writes into state; the surface tools draw in the chat or on the Board.
  */
 export const createLearningTools = (
   ctx: SupervisorRunContext,
-): ToolDefinition[] => [...createMaterialTools(ctx), ...createQuizTools(ctx)];
+): ToolDefinition[] => [
+  ...createMaterialTools(ctx),
+  ...createQuizTools(ctx),
+  ...createSurfaceTools(ctx),
+];
