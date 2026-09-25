@@ -1,3 +1,4 @@
+import { HOME_ROUTE } from "@repo/shared/constants/routes";
 import {
   ArrowLeft,
   Eye,
@@ -9,7 +10,6 @@ import {
 import Link from "next/link";
 import { type ChangeEvent, useId } from "react";
 
-import { HOME_ROUTE } from "@/constants/routes";
 import {
   API_KEY_FIELD,
   API_KEY_PREFIX,

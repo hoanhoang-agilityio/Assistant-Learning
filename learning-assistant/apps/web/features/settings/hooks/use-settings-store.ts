@@ -1,8 +1,9 @@
+import { DEFAULT_SETTINGS } from "@repo/shared/constants/settings";
 import type { Settings } from "@repo/shared/schemas";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from "@/constants/settings";
+import { SETTINGS_STORAGE_KEY } from "@/constants/settings";
 import type { SettingsStore } from "@/features/settings/types/settings";
 import {
   clampQuestionCount,

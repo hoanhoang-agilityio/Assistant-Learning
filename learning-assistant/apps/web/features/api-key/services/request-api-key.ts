@@ -1,9 +1,10 @@
+import type { Env } from "@repo/shared/types/env";
+
 import {
   API_KEY_HEADER,
   API_KEY_SEAL_SECRET_ENV_KEY,
 } from "@/features/api-key/constants/api-key";
 import { unsealApiKey } from "@/features/api-key/services/sealed-api-key";
-import type { Env } from "@/types/env";
 
 /**
  * The user's OpenAI API key for this request: the sealed key from its header,

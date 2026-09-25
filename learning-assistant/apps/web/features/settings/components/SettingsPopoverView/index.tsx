@@ -1,3 +1,4 @@
+import { API_KEY_ROUTE } from "@repo/shared/constants/routes";
 import {
   CHAT_MODES,
   type ChatMode,
@@ -23,8 +24,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, type RefObject, useId } from "react";
-
-import { API_KEY_ROUTE } from "@/constants/routes";
 
 const LABEL_CLASS =
   "mb-1 flex items-center gap-1 font-medium text-slate-600 dark:text-slate-300";

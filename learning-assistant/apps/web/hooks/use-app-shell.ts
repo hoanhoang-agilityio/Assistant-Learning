@@ -1,7 +1,7 @@
+import { API_KEY_ROUTE } from "@repo/shared/constants/routes";
 import { useRouter } from "next/navigation";
 import { useLayoutEffect, useMemo, useState } from "react";
 
-import { API_KEY_ROUTE } from "@/constants/routes";
 import { API_KEY_HEADER } from "@/features/api-key/constants/api-key";
 import {
   useApiKeyStore,

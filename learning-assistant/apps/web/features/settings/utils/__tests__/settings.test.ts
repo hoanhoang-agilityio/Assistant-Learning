@@ -1,6 +1,6 @@
+import { DEFAULT_SETTINGS } from "@repo/shared/constants/settings";
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SETTINGS } from "@/constants/settings";
 import {
   clampQuestionCount,
   describeLearningSettings,
