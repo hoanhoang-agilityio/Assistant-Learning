@@ -9,7 +9,7 @@ import {
 } from "@repo/agent";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 
-import { COPILOT_RUNTIME_URL } from "@/constants/copilot";
+import { COPILOT_RUNTIME_URL, IS_DEVELOPMENT } from "@/constants/copilot";
 import { readApiKeyFromRequest } from "@/features/api-key/services/request-api-key";
 
 const runtime = new CopilotRuntime({
@@ -32,6 +32,10 @@ const runtime = new CopilotRuntime({
     agents: [LEARNING_AGENT_ID],
     injectA2UITool: false,
   },
+  // Dev only, opt-in: logs every AG-UI event the runtime streams, one line
+  // each, to the `next dev` terminal. Off by default because each token delta
+  // is its own line.
+  debug: IS_DEVELOPMENT && process.env.COPILOTKIT_DEBUG === "true",
 });
 
 const handler = createCopilotRuntimeHandler({
