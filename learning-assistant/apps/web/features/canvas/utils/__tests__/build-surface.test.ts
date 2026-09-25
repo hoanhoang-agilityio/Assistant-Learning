@@ -20,6 +20,7 @@ import {
   buildSurface,
   createEvaluationDataModel,
   createQuizDataModel,
+  createQuizDraftDataModel,
   createResearchDataModel,
   createScoreDataModel,
   formatNextTier,
@@ -208,6 +209,32 @@ describe("createQuizDataModel", () => {
       correctIndex: 0,
       isCorrect: false,
       explanation: "No.",
+    });
+  });
+});
+
+describe("createQuizDraftDataModel", () => {
+  it("numbers the questions so far and locks the quiz", () => {
+    const model = createQuizDraftDataModel([
+      { concept: "Light", question: "What do plants absorb?", options: ["A"] },
+    ]);
+
+    expect(model.questions).toEqual([
+      {
+        id: "draft-0",
+        number: 1,
+        concept: "Light",
+        question: "What do plants absorb?",
+        options: ["A"],
+        selectedIndex: null,
+        result: null,
+      },
+    ]);
+    expect(model).toMatchObject({
+      total: 1,
+      canSubmit: false,
+      isSubmitted: false,
+      isLocked: true,
     });
   });
 });
