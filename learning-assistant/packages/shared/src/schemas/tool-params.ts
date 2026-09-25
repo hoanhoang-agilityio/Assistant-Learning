@@ -18,9 +18,11 @@ export const ToolParamSchemas = {
       .describe(
         "Simplify the whole learning material or only the selected text",
       ),
+    // No `.min(1)`: for scope "all" the model sends `selection: ""`, which a
+    // minimum would reject before the tool runs. The tool itself refuses an
+    // empty selection when scope is "selection".
     selection: z
       .string()
-      .min(1)
       .optional()
       .describe("The selected text, exactly as it appears; only for selection"),
   }),

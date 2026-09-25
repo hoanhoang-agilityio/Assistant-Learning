@@ -7,6 +7,7 @@ import {
   QuizSchema,
   SetLearningSettingsParamsSchema,
   SettingsSchema,
+  ToolParamSchemas,
 } from ".";
 
 const draftQuestion = {
@@ -106,4 +107,14 @@ describe("SetLearningSettingsParamsSchema", () => {
       );
     },
   );
+});
+
+describe("ToolParamSchemas.simplify", () => {
+  it.each([
+    { scope: "all" },
+    { scope: "all", selection: "" },
+    { scope: "selection", selection: "A closure captures bindings." },
+  ])("accepts %o", (params) => {
+    expect(ToolParamSchemas.simplify.safeParse(params).success).toBe(true);
+  });
 });
