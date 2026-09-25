@@ -91,6 +91,38 @@ describe("runEvaluation", () => {
     });
   });
 
+  it("streams the grade first, then the Evaluator's writing", async () => {
+    const { ids, params } = await setup();
+    vi.mocked(runEvaluator).mockImplementation(async ({ onPartial }) => {
+      onPartial?.({
+        explanations: [{ qid: ids[2], explanation: "Scope is" }],
+        summary: "Great",
+      });
+      return { explanations: [], summary: "Great work." };
+    });
+    vi.mocked(runFeedbackSurface).mockImplementation(async ({ onDraft }) => {
+      onDraft?.(OPERATIONS as never);
+      return OPERATIONS as never;
+    });
+    const onDraft = vi.fn();
+
+    await runEvaluation({ ...params, onDraft });
+
+    const drafts = onDraft.mock.calls.map(([draft]) => draft);
+    expect(drafts).toHaveLength(3);
+    expect(drafts[0]).toMatchObject({
+      evaluation: { correct: 2, total: 3 },
+      score: { percent: 67, tier: "Practitioner" },
+      feedback: { a2uiOperations: [], summary: "" },
+    });
+    expect(drafts[1].evaluation.perQuestion[2].explanation).toBe("Scope is");
+    expect(drafts[1].feedback.summary).toBe("Great");
+    expect(drafts[2].feedback).toEqual({
+      a2uiOperations: OPERATIONS,
+      summary: "Great",
+    });
+  });
+
   it("keeps the grade when both Evaluator calls fail", async () => {
     const { params } = await setup();
     vi.mocked(runEvaluator).mockRejectedValue(new Error("rate limited"));

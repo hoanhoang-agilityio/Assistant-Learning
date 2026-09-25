@@ -1,5 +1,10 @@
-import type { Quiz, ToolResultData } from "@repo/shared/schemas";
+import type {
+  EvaluationFeedback,
+  Quiz,
+  ToolResultData,
+} from "@repo/shared/schemas";
 import { getTier } from "@repo/shared/utils/tier";
+import type { DeepPartial } from "ai";
 
 import { runEvaluator } from "@/features/agent/services/subagents/evaluator";
 import { runFeedbackSurface } from "@/features/agent/services/subagents/feedback-surface";
@@ -22,7 +27,23 @@ interface EvaluateParams {
   material: string;
   settings: RunSettings;
   signal?: AbortSignal;
+  /**
+   * Streams the grading: called with the whole evaluation and score as soon
+   * as they are graded, then again as the explanations, the summary and the
+   * Feedback surface are written.
+   */
+  onDraft?: (draft: Omit<ToolResultData<"evaluate">, "answers">) => void;
 }
+
+/** The explanations written so far that are complete enough to show. */
+const toWrittenExplanations = (
+  partial: DeepPartial<EvaluationFeedback> | null,
+): EvaluationFeedback["explanations"] =>
+  (partial?.explanations ?? []).flatMap((item) =>
+    item?.qid && item.explanation
+      ? [{ qid: item.qid, explanation: item.explanation }]
+      : [],
+  );
 
 /**
  * Runs one Evaluator call and returns `fallback` if it fails, so a model
@@ -50,7 +71,7 @@ const runOrFallback = async <T>(
  * unsealed) and grade in code, then ask the Evaluator Agent, in parallel, for
  * the explanations and summary, and for the dynamic Feedback surface. When
  * either call fails, the answer key's explanations and a summary written from
- * the score take its place.
+ * the score take its place. With `onDraft`, both calls stream.
  */
 export const runEvaluation = async ({
   quiz,
@@ -59,6 +80,7 @@ export const runEvaluation = async ({
   material,
   settings,
   signal,
+  onDraft,
 }: EvaluateParams): Promise<ToolResultData<"evaluate">> => {
   const key = await answerKeys.unseal(quiz.id, quiz.answerKeySealed);
   const score = scoreQuiz(quiz.questions, answers, key);
@@ -75,16 +97,65 @@ export const runEvaluation = async ({
     material,
   };
 
+  const toResult = (
+    written: DeepPartial<EvaluationFeedback> | null,
+    a2uiOperations: unknown[],
+    summary: string,
+  ) => ({
+    evaluation: {
+      correct: score.correct,
+      total: score.total,
+      percent: score.percent,
+      weakestConcept: score.weakestConcept,
+      perQuestion: mergeExplanations(
+        input.questions,
+        toWrittenExplanations(written),
+      ),
+      mastery: score.mastery,
+    },
+    score: { percent: score.percent, tier },
+    feedback: { a2uiOperations, summary },
+  });
+
+  // Both calls stream into one draft, sent whole each time.
+  let partial: DeepPartial<EvaluationFeedback> | null = null;
+  let draftOperations: unknown[] = [];
+  const reportDraft = () =>
+    onDraft?.(toResult(partial, draftOperations, partial?.summary ?? ""));
+  reportDraft();
+
   const [written, a2uiOperations] = await Promise.all([
     runOrFallback(
       "Explanations",
-      () => runEvaluator({ input, settings, signal }),
+      () =>
+        runEvaluator({
+          input,
+          settings,
+          signal,
+          onPartial: onDraft
+            ? (next) => {
+                partial = next;
+                reportDraft();
+              }
+            : undefined,
+        }),
       null,
       signal,
     ),
     runOrFallback(
       "Feedback surface",
-      () => runFeedbackSurface({ input, settings, signal }),
+      () =>
+        runFeedbackSurface({
+          input,
+          settings,
+          signal,
+          onDraft: onDraft
+            ? (operations) => {
+                draftOperations = operations;
+                reportDraft();
+              }
+            : undefined,
+        }),
       [],
       signal,
     ),
@@ -92,18 +163,10 @@ export const runEvaluation = async ({
 
   return {
     answers,
-    evaluation: {
-      correct: score.correct,
-      total: score.total,
-      percent: score.percent,
-      weakestConcept: score.weakestConcept,
-      perQuestion: mergeExplanations(input.questions, written?.explanations),
-      mastery: score.mastery,
-    },
-    score: { percent: score.percent, tier },
-    feedback: {
+    ...toResult(
+      written,
       a2uiOperations,
-      summary: written?.summary.trim() || formatFeedbackSummary(score, tier),
-    },
+      written?.summary.trim() || formatFeedbackSummary(score, tier),
+    ),
   };
 };
