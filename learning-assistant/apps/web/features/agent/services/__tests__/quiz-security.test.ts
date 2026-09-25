@@ -150,10 +150,7 @@ describe("answer key before submit (M4.7)", () => {
     });
     expect(graded.score?.tier).toBe("Practitioner");
 
-    // The Supervisor ran once, after grading, with the evaluate call in its
-    // history, so it can write the summary.
-    expect(runSupervisor).toHaveBeenCalledTimes(1);
-    const messages = runSupervisor.mock.calls[0]?.[0] ?? [];
-    expect(messages.map(({ role }) => role)).toEqual(["assistant", "tool"]);
+    // The evaluate card is the whole reply: the Supervisor does not run.
+    expect(runSupervisor).not.toHaveBeenCalled();
   });
 });

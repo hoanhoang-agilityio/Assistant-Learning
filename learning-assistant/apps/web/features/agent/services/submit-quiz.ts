@@ -3,6 +3,7 @@ import {
   EventType,
   type Message,
   type RunAgentInput,
+  type RunFinishedEvent,
   type RunStartedEvent,
   type ToolCallArgsEvent,
   type ToolCallEndEvent,
@@ -29,9 +30,9 @@ interface SubmittedQuizParams {
 /**
  * A Submit press. The quiz is graded in code first, as an `evaluate` tool call
  * the wrapper makes itself (so the chat shows its progress card and the state
- * sync writes the result like any other tool). Then the Supervisor runs with
- * that call in its history, only to write the chat summary. The LLM never
- * decides whether to grade.
+ * sync writes the result like any other tool). Its card is the whole reply:
+ * the Supervisor runs, with that call in its history, only to explain a
+ * failed grading. The LLM never decides whether to grade.
  */
 export const runSubmittedQuiz = ({
   input,
@@ -63,7 +64,16 @@ export const runSubmittedQuiz = ({
     toolCallId,
   };
 
-  const toResultEvents = (content: string): Observable<BaseEvent> => {
+  const finished: RunFinishedEvent = {
+    type: EventType.RUN_FINISHED,
+    threadId: input.threadId,
+    runId: input.runId,
+  };
+
+  const toResultEvents = (
+    ok: boolean,
+    content: string,
+  ): Observable<BaseEvent> => {
     const result: ToolCallResultEvent = {
       type: EventType.TOOL_CALL_RESULT,
       messageId: crypto.randomUUID(),
@@ -71,6 +81,9 @@ export const runSubmittedQuiz = ({
       content,
       role: "tool",
     };
+    if (ok) {
+      return of(result, finished);
+    }
     const messages: Message[] = [
       ...input.messages,
       {
@@ -101,7 +114,7 @@ export const runSubmittedQuiz = ({
   return concat(
     of(started, toolStart, toolArgs, toolEnd),
     defer(() => runEvaluateStep(ctx, submission)).pipe(
-      concatMap((result) => toResultEvents(JSON.stringify(result))),
+      concatMap((result) => toResultEvents(result.ok, JSON.stringify(result))),
     ),
   );
 };
