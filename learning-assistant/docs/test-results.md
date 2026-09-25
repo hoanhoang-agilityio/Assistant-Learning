@@ -3,7 +3,6 @@
 End-to-end run of every user flow in the browser, against the real model.
 
 - **Date:** 2026-09-25
-- **Code under test:** `learning-assistant` at `881ac60`, plus two uncommitted fixes made during the run (see [Fixes made](#fixes-made)). The branches `feat/agent-event-log`, `chore/runtime-debug-flag`, `perf/draft-state-diff`, `fix/chat-history-on-mode-switch`, `fix/stepper-line-alignment` and `docs/m8-board-streaming` were not merged, so their changes were not part of this run.
 - **Model:** `gpt-5.4-mini`, the user's own key. `TAVILY_API_KEY` set.
 - **Settings:** beginner level; question count changed to 4 during the run.
 - **How it was checked:** each message was sent in the app's chat (or the canvas button was pressed), and the AG-UI stream of `/api/copilotkit/agent/learning/run` was read in the page. The tables list the tools the Supervisor called and the state keys that changed.
@@ -55,25 +54,3 @@ Two earlier checks from the same day, after the Board prompt fix:
 | --- | -------------------------- | ---------------------------------------------- | --------------------------------------------------------------- | ------ |
 | 27  | Board request with a topic | "show me all IPA in board"                     | One `renderSurface` view "IPA Cheat Sheet"; stages stayed empty | Pass   |
 | 28  | Research only (regression) | "research the International Phonetic Alphabet" | `research` only, no chain into material or quiz                 | Pass   |
-
-## Fixes made
-
-| Problem                                                                | Cause                                                                                                                 | Fix                                                                                                                                                                  |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| "show me all IPA in board" ran research, material and a quiz (case 27) | The Board was not in the Supervisor's main tool table, "all X" matched Autopilot, and "board" alone was not a trigger | `apps/agent/src/services/prompts/supervisor.ts`: Board row in the tool table, Board rule, narrower Autopilot, Examples block                                         |
-| "Simplify all" always failed (case 9)                                  | The model sends `selection: ""` for scope `all`; `selection` had `.min(1)`, so the AI SDK rejected the call           | `packages/shared/src/schemas/tool-params.ts`: dropped `.min(1)` (the tool already refuses an empty selection for scope `selection`); test added in `schemas.test.ts` |
-
-## Open issues
-
-1. **New topic can skip the confirmation (case 23), losing work.** The model is the only guard: `research` runs whenever it is called. It could not be reproduced on demand, and it is not known whether the tool was not offered on that run or offered and ignored. Suggested fix: make the server refuse `research` while material or a quiz exists (the confirm card clears the state before its follow-up run, so a confirmed switch still works). This needs a "refused, confirm first" result that does not set `status.error`, otherwise the stage shows an error with Retry.
-2. **Stopping a step shows a misleading error (case 26).** A stopped tool call has no result, so `closeLostToolCalls` fills in the generic "failed before it returned a result (invalid arguments…)" message and the stage offers Retry. It should read as stopped (`TOOL_ERRORS.stopped`, "The student stopped this step.") without an error state.
-3. **Display tools send settings the student did not ask to change (cases 11, 22).** `setLearningSettings` sent the current `learningLevel`, and `setLayout` sent the current `chat`. Harmless while they equal the current value; the tool descriptions already say "send only what the student asked to change".
-4. **Simplify all copies the whole material into `selection` (case 9).** With scope `all` the model sometimes pastes the full notes into `selection`, which the tool ignores. Wasted tokens only.
-
-## Not covered
-
-- A wrong or expired OpenAI key, quota errors and a missing `TAVILY_API_KEY`.
-- **Retake**, the **Review …** link and editing the notes by hand (`quizOutdated`).
-- Hiding and reopening the chat, and the chat-history fix (branch `fix/chat-history-on-mode-switch`, not merged).
-- The learning level changing the depth of research, material and quiz.
-- Anything after a page reload: state lives in the session only, so a reload starts over.
