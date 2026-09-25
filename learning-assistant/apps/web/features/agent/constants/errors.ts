@@ -41,3 +41,11 @@ export const OPENAI_ERROR_MATCHERS: readonly {
 
 /** The opening of the chat message a failed run leaves. */
 export const RUN_ERROR_INTRO = "Sorry, that did not work.";
+
+/**
+ * The result given to a server tool call that never returned one: the model
+ * sent invalid arguments or named a tool that does not exist. It keeps the
+ * history valid, since the next request fails if any call has no result.
+ */
+export const LOST_TOOL_RESULT =
+  "This tool call failed before it returned a result (invalid arguments or an unknown tool). Check the tool's arguments and try again.";
