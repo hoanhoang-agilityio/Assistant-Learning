@@ -1,4 +1,6 @@
+import { MAX_BOARD_SURFACES } from "@repo/shared/a2ui/board-catalog";
 import {
+  type BoardSurface,
   initialLearningState,
   type LearningState,
   type SubagentTool,
@@ -7,6 +9,10 @@ import jsonPatch, { type Operation } from "fast-json-patch";
 import { describe, expect, it } from "vitest";
 
 import {
+  applyBoardDraft,
+  applyDraft,
+  applyRemovalResult,
+  applySurfaceResult,
   applyToolResult,
   createStartUpdate,
   interruptTask,
@@ -267,9 +273,112 @@ describe("applyToolResult", () => {
   });
 });
 
+describe("applyDraft", () => {
+  it("writes the running task's draft", () => {
+    const running = createStartUpdate(initialLearningState, "makeMaterial");
+    const draft = { task: "material" as const, markdown: "# Clo" };
+    const update = applyDraft(running.state, draft);
+
+    expect(update?.patch).toEqual([
+      { op: "add", path: "/draft", value: draft },
+    ]);
+  });
+
+  it("ignores a draft for a task that is not running", () => {
+    expect(
+      applyDraft(initialLearningState, { task: "material", markdown: "x" }),
+    ).toBeNull();
+  });
+
+  it("is cleared by the task's result", () => {
+    const running = createStartUpdate(withMaterial, "makeMaterial").state;
+    const drafted = applyDraft(running, { task: "material", markdown: "# C" });
+    const done = applyToolResult(
+      drafted?.state ?? running,
+      "makeMaterial",
+      serializeSuccess({ markdown: "# Closures" }),
+    );
+
+    expect(done.state.draft).toBeNull();
+  });
+});
+
+const ROOT = { id: "root", component: "Stack", children: ["p1", "p2"] };
+const PARAGRAPH = { id: "p1", component: "Paragraph", text: "Hello" };
+
+describe("applyBoardDraft", () => {
+  const renderCall = (args: unknown) => ({
+    toolCallId: "c1",
+    toolCallName: "renderSurface",
+    args,
+  });
+
+  it("drafts a new canvas view from the components written so far", () => {
+    const update = applyBoardDraft(
+      initialLearningState,
+      renderCall({
+        target: "canvas",
+        title: "Overview",
+        components: [ROOT, PARAGRAPH, { id: "p2", component: "Parag" }],
+      }),
+    );
+
+    expect(update?.state.boardDraft).toMatchObject({
+      id: "board-draft-c1",
+      title: "Overview",
+    });
+    expect(update?.state.boardDraft?.operations[1]).toMatchObject({
+      updateComponents: {
+        surfaceId: "board-draft-c1",
+        components: [{ ...ROOT, children: ["p1"] }, PARAGRAPH],
+      },
+    });
+  });
+
+  it("waits for the target, the title and the root", () => {
+    for (const args of [
+      { target: "chat", title: "Card", components: [ROOT] },
+      { target: "canvas", title: "", components: [ROOT] },
+      { target: "canvas", title: "Overview", components: [PARAGRAPH] },
+      "not an object",
+    ]) {
+      expect(
+        applyBoardDraft(initialLearningState, renderCall(args)),
+      ).toBeNull();
+    }
+  });
+
+  it("drafts a revision under the id of the view it revises", () => {
+    const state = {
+      ...initialLearningState,
+      board: [createSurface("board-1")],
+    };
+    const call = (surfaceId: string) => ({
+      toolCallId: "c2",
+      toolCallName: "updateBoardSurface",
+      args: { surfaceId, title: "Revised", components: [ROOT] },
+    });
+
+    expect(applyBoardDraft(state, call("board-1"))?.state.boardDraft?.id).toBe(
+      "board-1",
+    );
+    expect(applyBoardDraft(state, call("board-"))).toBeNull();
+  });
+});
+
 describe("interruptTask", () => {
   it("returns null when nothing is running", () => {
     expect(interruptTask(initialLearningState)).toBeNull();
+  });
+
+  it("clears a Board view left half-written", () => {
+    const state = {
+      ...initialLearningState,
+      boardDraft: { id: "board-draft-c1", title: "Overview", operations: [] },
+    };
+    expect(interruptTask(state)?.patch).toEqual([
+      { op: "add", path: "/boardDraft", value: null },
+    ]);
   });
 
   it("clears a task left running", () => {
@@ -282,5 +391,121 @@ describe("interruptTask", () => {
       error: "The quiz step did not finish.",
       failed: "quiz",
     });
+  });
+});
+
+const createSurface = (id: string): BoardSurface => ({
+  id,
+  title: `View ${id}`,
+  operations: [{ version: "v0.9", createSurface: { surfaceId: id } }],
+  revision: 1,
+});
+
+describe("applySurfaceResult", () => {
+  it("adds a canvas view to the Board and patches only the board", () => {
+    const surface = createSurface("board-1");
+    const update = applySurfaceResult(
+      initialLearningState,
+      JSON.stringify({ surface }),
+    );
+
+    expect(update?.state.board).toEqual([surface]);
+    expect(update?.patch).toEqual([
+      { op: "add", path: "/board", value: [surface] },
+    ]);
+  });
+
+  it("replaces a view with the same id and keeps the newest last", () => {
+    const state = {
+      ...initialLearningState,
+      board: [createSurface("a"), createSurface("b")],
+    };
+    const revised = { ...createSurface("a"), title: "Revised", revision: 2 };
+    const update = applySurfaceResult(
+      state,
+      JSON.stringify({ surface: revised }),
+    );
+
+    expect(update?.state.board.map(({ id }) => id)).toEqual(["b", "a"]);
+    expect(update?.state.board[1]).toMatchObject({
+      title: "Revised",
+      revision: 2,
+    });
+  });
+
+  it("drops the oldest views past the limit", () => {
+    const state = {
+      ...initialLearningState,
+      board: Array.from({ length: MAX_BOARD_SURFACES }, (_, index) =>
+        createSurface(`s${index}`),
+      ),
+    };
+    const update = applySurfaceResult(
+      state,
+      JSON.stringify({ surface: createSurface("new") }),
+    );
+
+    expect(update?.state.board).toHaveLength(MAX_BOARD_SURFACES);
+    expect(update?.state.board[0]?.id).toBe("s1");
+    expect(update?.state.board.at(-1)?.id).toBe("new");
+  });
+
+  it("clears the Board draft, even when the result is an error", () => {
+    const state = {
+      ...initialLearningState,
+      boardDraft: { id: "board-draft-c1", title: "Overview", operations: [] },
+    };
+    const surface = createSurface("board-1");
+
+    expect(
+      applySurfaceResult(state, JSON.stringify({ surface }))?.state,
+    ).toMatchObject({ board: [surface], boardDraft: null });
+    expect(
+      applySurfaceResult(state, JSON.stringify({ error: "bad tree" }))?.patch,
+    ).toEqual([{ op: "add", path: "/boardDraft", value: null }]);
+  });
+
+  it("ignores chat results, errors and unreadable content", () => {
+    for (const content of [
+      JSON.stringify({ a2ui_operations: [] }),
+      JSON.stringify({ error: "bad tree" }),
+      "not json",
+    ]) {
+      expect(applySurfaceResult(initialLearningState, content)).toBeNull();
+    }
+  });
+});
+
+describe("applyRemovalResult", () => {
+  it("takes the removed views off the Board", () => {
+    const state = {
+      ...initialLearningState,
+      board: [createSurface("a"), createSurface("b"), createSurface("c")],
+    };
+    const update = applyRemovalResult(
+      state,
+      JSON.stringify({
+        removed: [
+          { id: "a", title: "View a" },
+          { id: "c", title: "View c" },
+        ],
+      }),
+    );
+
+    expect(update?.state.board.map(({ id }) => id)).toEqual(["b"]);
+    expect(update?.patch).toEqual([
+      { op: "add", path: "/board", value: update?.state.board },
+    ]);
+  });
+
+  it("ignores errors, unreadable content and ids already gone", () => {
+    const state = { ...initialLearningState, board: [createSurface("a")] };
+    for (const content of [
+      JSON.stringify({ error: "no such view" }),
+      "not json",
+      JSON.stringify({ removed: [{ id: "gone", title: "Gone" }] }),
+    ]) {
+      expect(applyRemovalResult(state, content)).toBeNull();
+    }
   });
 });

@@ -1,9 +1,20 @@
+import { assembleOps } from "@ag-ui/a2ui-toolkit";
 import {
+  BOARD_CATALOG_ID,
+  BOARD_SURFACE_ID_PREFIX,
+  MAX_BOARD_SURFACES,
+} from "@repo/shared/a2ui/board-catalog";
+import { RENDER_SURFACE_TOOL } from "@repo/shared/constants/agents";
+import {
+  BoardRemovalResultSchema,
+  BoardSurfaceResultSchema,
+  type Draft,
   type LearningState,
   type Material,
   type RunningTask,
   SUBAGENT_TOOLS,
   type SubagentTool,
+  SurfaceComponentSchema,
   type ToolResult,
   type ToolResultData,
   ToolResultSchemas,
@@ -15,9 +26,11 @@ import {
   SUBAGENT_TASK,
 } from "@/features/agent/constants/agents";
 import type {
+  BoardDraftEvent,
   StatePatchOperation,
   StateUpdate,
 } from "@/features/agent/types/agents";
+import { toDraftComponents } from "@/features/agent/utils/surface-draft";
 import { getActiveMaterial, hasQuizData } from "@/utils/learning-state";
 
 export const isSubagentTool = (name: string): name is SubagentTool =>
@@ -48,6 +61,7 @@ const createFailureUpdate = (
   createStateUpdate(state, {
     ...state,
     status: { running: null, error, failed },
+    draft: null,
   });
 
 const clearLaterStages = (
@@ -162,6 +176,7 @@ export const createStartUpdate = (
   createStateUpdate(state, {
     ...state,
     status: { running: SUBAGENT_TASK[tool] },
+    draft: null,
   });
 
 /**
@@ -214,19 +229,138 @@ export const applyToolResult = (
     ...next,
     stage: SUBAGENT_STAGE[tool],
     status: { running: null },
+    draft: null,
   });
 };
 
 /**
- * The run is ending while a task is still marked running (the tool threw or
- * the run failed). Clears it so the stage does not show a skeleton forever.
- * Returns `null` when nothing is running.
+ * A running subagent streamed more of its output. Ignored unless its task
+ * is still the one running, so a late draft never outlives the result.
  */
-export const interruptTask = (state: LearningState): StateUpdate | null =>
-  state.status.running === null
+export const applyDraft = (
+  state: LearningState,
+  draft: Draft,
+): StateUpdate | null =>
+  state.status.running === draft.task
+    ? createStateUpdate(state, { ...state, draft })
+    : null;
+
+/**
+ * More of a `renderSurface` (canvas) or `updateBoardSurface` call's
+ * arguments arrived. The complete components so far become the Board draft:
+ * a new view gets an id of its own, a revision takes the id of the view it
+ * revises. `null` until there is something to draw: a root, a title, and for
+ * a revision a view that exists.
+ */
+export const applyBoardDraft = (
+  state: LearningState,
+  { toolCallId, toolCallName, args }: BoardDraftEvent,
+): StateUpdate | null => {
+  if (typeof args !== "object" || args === null) {
+    return null;
+  }
+  const { target, surfaceId, title, components } = args as Record<
+    string,
+    unknown
+  >;
+  const id =
+    toolCallName === RENDER_SURFACE_TOOL
+      ? target === "canvas"
+        ? `${BOARD_SURFACE_ID_PREFIX}draft-${toolCallId}`
+        : null
+      : state.board.find((surface) => surface.id === surfaceId)?.id;
+  const drawn = toDraftComponents(components, SurfaceComponentSchema);
+  if (!id || typeof title !== "string" || title === "" || !drawn) {
+    return null;
+  }
+  const operations = assembleOps({
+    intent: "create",
+    surfaceId: id,
+    catalogId: BOARD_CATALOG_ID,
+    components: drawn,
+  });
+  return createStateUpdate(state, {
+    ...state,
+    boardDraft: { id, title, operations },
+  });
+};
+
+const parseSurfaceResult = (content: string) => {
+  try {
+    const parsed = BoardSurfaceResultSchema.safeParse(JSON.parse(content));
+    return parsed.success ? parsed.data.surface : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * A `renderSurface` or `updateBoardSurface` call returned, so its draft
+ * goes. A Board view is added as the newest; a revised one replaces the
+ * view with its id and moves to newest, so the canvas opens on it. The
+ * oldest past the limit is dropped. A chat result or an error changes
+ * nothing but the draft, so this returns `null` when there was none.
+ */
+export const applySurfaceResult = (
+  state: LearningState,
+  content: string,
+): StateUpdate | null => {
+  const surface = parseSurfaceResult(content);
+  if (!surface) {
+    return state.boardDraft === null
+      ? null
+      : createStateUpdate(state, { ...state, boardDraft: null });
+  }
+  const board = [
+    ...state.board.filter(({ id }) => id !== surface.id),
+    surface,
+  ].slice(-MAX_BOARD_SURFACES);
+  return createStateUpdate(state, { ...state, board, boardDraft: null });
+};
+
+/**
+ * A `deleteBoardSurface` call returned: its views leave the Board. An error
+ * or unreadable content changes nothing, so this returns `null`.
+ */
+export const applyRemovalResult = (
+  state: LearningState,
+  content: string,
+): StateUpdate | null => {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(content);
+  } catch {
+    return null;
+  }
+  const parsed = BoardRemovalResultSchema.safeParse(raw);
+  if (!parsed.success) {
+    return null;
+  }
+  const removed = new Set(parsed.data.removed.map(({ id }) => id));
+  const board = state.board.filter(({ id }) => !removed.has(id));
+  return board.length === state.board.length
     ? null
-    : createFailureUpdate(
-        state,
-        state.status.running,
-        `The ${state.status.running} step did not finish.`,
-      );
+    : createStateUpdate(state, { ...state, board });
+};
+
+/**
+ * The run is ending while a task is still marked running (the tool threw or
+ * the run failed), or a Board view was left half-written. Clears them so the
+ * canvas does not show a skeleton or a draft forever. Returns `null` when
+ * nothing is left.
+ */
+export const interruptTask = (state: LearningState): StateUpdate | null => {
+  const { running } = state.status;
+  if (running === null && state.boardDraft === null) {
+    return null;
+  }
+  const next =
+    running === null
+      ? state
+      : createFailureUpdate(
+          state,
+          running,
+          `The ${running} step did not finish.`,
+        ).state;
+  return createStateUpdate(state, { ...next, boardDraft: null });
+};
