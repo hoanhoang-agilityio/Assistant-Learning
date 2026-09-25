@@ -84,6 +84,17 @@ export const getToolPhase = (
   return error ? "failed" : "done";
 };
 
+/**
+ * A chat tool call the student stopped: cut off while streaming, or finished
+ * with the stopped result. Same rules as a subagent card's phase.
+ */
+export const isToolStopped = (
+  status: ToolCallStatus,
+  isRunning: boolean,
+  result: string | undefined,
+): boolean =>
+  getToolPhase(status, isRunning, parseToolError(result)) === "stopped";
+
 /** The progress card's headline, with `detail` (e.g. the topic) when given. */
 export const formatToolTitle = (
   tool: SubagentTool,
