@@ -40,7 +40,7 @@ With tracing on, each turn of the conversation is one `learning` trace. Its Supe
 
 ## Model
 
-Every agent uses OpenAI's `gpt-5.4-mini` with low reasoning effort, called with the user's own key. Both are set in [apps/web/constants/openai.ts](./apps/web/constants/openai.ts).
+Every agent uses OpenAI's `gpt-5.4-mini` with low reasoning effort, called with the user's own key. Both are set in [apps/agent/src/constants/openai.ts](./apps/agent/src/constants/openai.ts).
 
 Settings hold the question count (3–20), the learning level, the theme, and a link to change the API key. They are saved in the browser and sent with every run. If OpenAI rejects the key, the quota runs out or the model is not available, the chat and the canvas explain what to fix.
 
@@ -62,19 +62,19 @@ Commits go through Husky: lint-staged formats and lints staged files, and commit
 ## Architecture
 
 ```text
-apps/web/                  Next.js app (UI, CopilotKit runtime, agents)
+apps/web/                  Next.js app (UI, CopilotKit runtime)
   app/api/copilotkit/      CopilotRuntime route that registers the agent
-  features/agent/          Supervisor wrapper, subagents, tools, prompts, scoring
   features/canvas/         Stepper, stages, A2UI catalog and surfaces
   features/chat/           Chat panel, tool progress cards, new-topic confirmation
   features/settings/       Settings store and popover
   components/layout/       App shell, header, workspace, resize handle
+apps/agent/                @repo/agent: Supervisor wrapper, subagents, tools, prompts, scoring
 packages/shared/           zod schemas, A2UI templates and shared constants
 packages/eslint-config/    ESLint presets
 packages/typescript-config/ tsconfig presets
 ```
 
-Everything runs inside the Next.js app. `CopilotRuntime` hosts one agent, `LearningSupervisorAgent`. It is a thin wrapper around CopilotKit's `BuiltInAgent`, and on each run it does four things:
+Everything runs inside the Next.js app: the runtime route imports `@repo/agent`, so the agent runs in the same process. `CopilotRuntime` hosts one agent, `LearningSupervisorAgent`. It is a thin wrapper around CopilotKit's `BuiltInAgent`, and on each run it does four things:
 
 1. Reads the user's settings from `forwardedProps` and builds the Supervisor with the user's OpenAI key.
 2. Gives the Supervisor its subagent tools (`research`, `makeMaterial`, `simplify`, `generateQuiz`, `evaluate`), each running a focused `generateObject` call.
