@@ -1,5 +1,6 @@
 import { useRef } from "react";
 
+import { useChatUiTools } from "@/features/chat/hooks/use-chat-ui-tools";
 import { useNewTopicTool } from "@/features/chat/hooks/use-new-topic-tool";
 import { useStageSuggestions } from "@/features/chat/hooks/use-stage-suggestions";
 import { useToolRenderers } from "@/features/chat/hooks/use-tool-renderers";
@@ -27,6 +28,7 @@ export const useWorkspace = () => {
   useThemeTool();
   useLayoutTool();
   useLearningSettingsTool();
+  useChatUiTools();
   useDisplayContext();
 
   return { display, panelsRef };

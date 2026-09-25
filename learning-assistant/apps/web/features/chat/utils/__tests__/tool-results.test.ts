@@ -4,7 +4,9 @@ import {
   formatQuizSize,
   formatToolTitle,
   getToolPhase,
+  isBoardSurfaceResult,
   parseEvaluateScore,
+  parseRemovedTitles,
   parseToolError,
 } from "@/features/chat/utils/tool-results";
 
@@ -123,5 +125,52 @@ describe("parseEvaluateScore", () => {
     JSON.stringify({ ok: false, error: "No quiz" }),
   ])("is null for %s", (result) => {
     expect(parseEvaluateScore(result)).toBeNull();
+  });
+});
+
+describe("isBoardSurfaceResult", () => {
+  it("accepts a result that added a Board view", () => {
+    expect(
+      isBoardSurfaceResult(
+        JSON.stringify({
+          surface: {
+            id: "board-1",
+            title: "Overview",
+            operations: [],
+            revision: 1,
+          },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects chat results, errors and missing results", () => {
+    expect(isBoardSurfaceResult(JSON.stringify({ a2ui_operations: [] }))).toBe(
+      false,
+    );
+    expect(isBoardSurfaceResult(JSON.stringify({ error: "bad" }))).toBe(false);
+    expect(isBoardSurfaceResult("not json")).toBe(false);
+    expect(isBoardSurfaceResult(undefined)).toBe(false);
+  });
+});
+
+describe("parseRemovedTitles", () => {
+  it("returns the titles a removal took off the Board", () => {
+    expect(
+      parseRemovedTitles(
+        JSON.stringify({
+          removed: [
+            { id: "a", title: "Cheat sheet" },
+            { id: "b", title: "Plan" },
+          ],
+        }),
+      ),
+    ).toEqual(["Cheat sheet", "Plan"]);
+  });
+
+  it("returns null for errors and missing results", () => {
+    expect(parseRemovedTitles(JSON.stringify({ error: "x" }))).toBeNull();
+    expect(parseRemovedTitles(JSON.stringify({ removed: [] }))).toBeNull();
+    expect(parseRemovedTitles(undefined)).toBeNull();
   });
 });
