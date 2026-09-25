@@ -17,6 +17,8 @@ The end-to-end flow is **Research → Learning Material → Quiz → Evaluation 
 | Submit answers, get a score and detailed feedback      | Deterministic scoring in code + Evaluator Agent |
 | Pick the question count, learning level and theme      | Settings popover → `forwardedProps.settings`    |
 | Review the whole flow                                  | Stepper canvas with six stages                  |
+| Ask a side question and get a visual answer (M8)       | Supervisor → chat cards or `renderSurface`      |
+| Build a cheat sheet or overview to keep (M8)           | Supervisor → `renderSurface` → canvas Board     |
 
 **Scope.** v1 is TypeScript only in `apps/web`, keeps state for the session only, and has no auth or database. v2 moves the agents to Python (LangGraph + FastAPI) and adds Clerk auth, Postgres persistence, long-term memory and multiple conversations. v1 includes the seams that make that migration cheap.
 
@@ -83,7 +85,7 @@ The Supervisor is the only agent that talks to the user and the only thing that 
 - **Autopilot.** "Do the whole thing" chains research → learning material → quiz, then stops, because the user has to answer the quiz.
 - **New topic.** When learning material or a quiz already exists, the user confirms before anything is reset. The confirmation is human-in-the-loop, via `useHumanInTheLoop`. Chat history is kept.
 
-**Submitting the quiz.** The Submit button is an A2UI action (`submit_quiz`) that carries the answers. The wrapper sees it in `forwardedProps.a2uiAction` and runs `evaluate` directly, without waiting for the LLM to choose the tool. The Supervisor LLM then writes a short summary in the chat.
+**Submitting the quiz.** The Submit button is an A2UI action (`submit_quiz`) that carries the answers. The wrapper sees it in `forwardedProps.a2uiAction` and runs `evaluate` directly, without waiting for the LLM to choose the tool. Since M8 the `evaluate` card is the whole reply: a successful grading ends the run, and the Supervisor LLM runs only to explain a failed one.
 
 **Scoring.** Scoring is done in code: each answer is compared with the unsealed `correctIndex`. Mastery for each concept, the weakest concept and the tier are computed in code too: under 50% is Novice, under 80% is Practitioner, and 80% or more is Master. The Evaluator LLM writes only the explanations and the feedback.
 
@@ -107,7 +109,12 @@ Agent state is the single source of truth for the canvas. The server changes it 
                 mastery[{ concept, percent }] } | null,
   score: { percent, tier: "Novice"|"Practitioner"|"Master" } | null,
   feedback: { a2uiOperations: unknown[], summary: string } | null,
-  reflection: { rating, text } | null
+  reflection: { rating, text } | null,
+  quizOutdated: boolean,
+  // M8
+  board: { id, title, operations: unknown[], revision }[],   // oldest first, at most 8
+  draft: { task: RunningTask, ...output so far } | null,    // the running subagent's partial output
+  boardDraft: { id, title, operations: unknown[] } | null   // a Board view being written
 }
 ```
 
@@ -119,6 +126,7 @@ Agent state is the single source of truth for the canvas. The server changes it 
 | Answer key                    | `answerKeySealed` is AES-GCM-encrypted `{correctIndex[], explanations[]}` using `QUIZ_SEAL_SECRET`. It is unsealed only inside `evaluate`. Behind an `AnswerKeyStore` interface. |
 | Correct answers on the client | Appear only in `evaluation.perQuestion` after submit.                                                                                                                            |
 | Errors                        | A failed subagent sets `status.error`. The stage shows Retry, and the Supervisor explains the failure in chat.                                                                   |
+| Board and drafts (M8)         | Written only by the wrapper: `board` from surface tool results, `draft` and `boardDraft` from streamed output. The LLM sees `board` as `{ id, title }[]` only.                   |
 
 ## UI and A2UI
 
@@ -153,18 +161,100 @@ The app uses OpenAI only. The user enters their own OpenAI API key on `/api-key`
 
 **Other environment variables.** `TAVILY_API_KEY` is optional and turns on web research. `QUIZ_SEAL_SECRET` is required and is the key for sealing the answer key.
 
+## M8: Visual answers, the Board and streaming
+
+M8 changes how the Supervisor answers, in three parts. A chat answer can be a visual card instead of prose. The canvas gets a **Board**, a tab next to the stages that holds views the Supervisor composes and can later edit or delete. Subagent output and Board views **stream** to the canvas while they are being written, instead of appearing only when they are finished.
+
+```mermaid
+flowchart LR
+  S[Supervisor LLM] -- showConceptCard / showComparison<br/>showSteps / showCodeExample --> C[Chat card]
+  S -- "renderSurface(chat)" --> M[A2UI middleware] --> C
+  S -- "renderSurface(canvas)<br/>update / deleteBoardSurface" --> Y[syncStateFromTools]
+  T[Subagents] -- reportDraft --> Y
+  Y -- STATE_DELTA<br/>board, draft, boardDraft --> V[Canvas: stages + Board]
+```
+
+### Visual answers in the chat
+
+| Tool                                                  | Kind                 | Pick it when                                             |
+| ----------------------------------------------------- | -------------------- | -------------------------------------------------------- |
+| `showConceptCard(term, definition, example?)`         | Frontend, fixed card | "What is X?" about one term                              |
+| `showComparison(left, right, rows[2–6], verdict?)`    | Frontend, fixed card | "X vs Y", "what is the difference"                       |
+| `showSteps(title, steps[2–8])`                        | Frontend, fixed card | "How does X work", when the order matters                |
+| `showCodeExample(title, language, code, explanation)` | Frontend, fixed card | "Show me an example"                                     |
+| `renderSurface(target: "chat", title, components)`    | Server, dynamic A2UI | None of the cards fits, and the answer mixes a few parts |
+
+- The four cards are frontend tools with no handler, registered with `useComponent`. Their argument schemas (`@repo/shared/schemas/chat-cards.ts`) are also the card props, so the model's arguments are drawn as they are.
+- `renderSurface` takes a flat A2UI v0.9 component list with literal values and no data bindings. The server checks the tree against the target's catalog with `@ag-ui/a2ui-toolkit`: one root, every child resolved, no cycles, and no Board-only component in the chat. An invalid tree returns the errors so the model can fix them and call again. Surface ids are assigned by the server, never by the model.
+- A chat result is an `a2ui_operations` envelope. The A2UI middleware turns it into an activity, which the chat draws with its own catalog.
+- Plain chat stays plain: greetings, short answers and next-step suggestions get no visual. A visual never repeats the learning material, research, quiz or feedback, which stay in the stages.
+
+| Catalog | Id                            | Components                                                                                                                                         |
+| ------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chat    | `learning-assistant/chat/v1`  | Panel (root), Section, Paragraph, BulletList, Callout, Table, Timeline, Meter, TagList                                                             |
+| Board   | `learning-assistant/board/v1` | Every chat component, plus Stack (root), Columns, ArticleCard, InsightCallout, Flashcards, StatTiles, CodeBlock, KeyValueList, ProsCons, Checklist |
+
+Both catalogs are defined in `@repo/shared/a2ui/` for the server and registered as React components under the same ids in `features/chat` and `features/canvas`.
+
+### The Board
+
+The canvas has two tabs: **Learning path** (the six stages) and **Board**. Both stay mounted, so switching tabs keeps the current stage and anything typed in it.
+
+| Tool                                                 | Does                                                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------ |
+| `renderSurface(target: "canvas", title, components)` | Adds a view to the Board                                                 |
+| `readBoardSurface(surfaceId)`                        | Returns a view's title and components so it can be edited. Shows nothing |
+| `updateBoardSurface(surfaceId, title, components)`   | Replaces a view's whole component list and keeps its id                  |
+| `deleteBoardSurface(surfaceIds)`                     | Removes whole views; passing every id clears the Board                   |
+
+- A canvas result is `{ surface }` rather than an envelope, so the middleware leaves it out of the chat, and `syncStateFromTools` writes it to `state.board`.
+- The Board holds at most 8 views, and the oldest is dropped first. A revised view replaces the old one, gets `revision + 1` and moves to newest. Its operations are always a full `createSurface`, never an A2UI update, and the client redraws it from scratch.
+- The Supervisor sees the Board only as `{ id, title }[]`. To edit, it picks the view the student names by title, or the newest if they name none, reads it, and sends back the whole list with only the requested change. An unknown id returns an error that lists the ids that exist.
+- The canvas follows the agent. A view that starts streaming, is added or is revised opens the Board. A removal does not, because it is announced in the chat. A learning task starting opens the stages.
+- Each view has its own `A2UIProvider`, so a view that fails to draw does not break the others.
+- CodeBlock highlights with shiki (`github-dark`). shiki is imported on first use with the JavaScript regex engine, grammars load per language, and an unknown language stays plain. A copy button is included.
+- The Board is kept apart from the stages: no learning tool clears it. "New topic" resets the whole state, and so it clears the Board as well.
+
+### Streaming to the canvas
+
+`generateStructured` uses `streamText` + `Output.object` when it gets an `onPartial` callback. Each subagent passes its partial output to `ctx.reportDraft`, which is throttled to one draft per 120 ms (`DRAFT_INTERVAL_MS`). Every draft carries everything so far, so a dropped draft loses nothing.
+
+Drafts reach the state sync as internal `CUSTOM` events (`learning.stageDraft`, `learning.boardDraft`). `syncStateFromTools` turns them into `STATE_DELTA`s on `state.draft` and `state.boardDraft` and does not forward the events themselves.
+
+| Task                   | Draft                                                                                                                                     | Stages it fills             |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `research`             | Every field so far; the sources are known before writing starts                                                                           | Research                    |
+| `material`, `simplify` | The markdown so far; for a selection, the whole material with the selection rewritten so far                                              | Material                    |
+| `quiz`                 | The questions so far: concept, question and options only. The answer and explanation stay on the server                                   | Quiz                        |
+| `evaluate`             | The evaluation and score are complete from the start because grading is in code; the explanations, summary and Feedback surface stream in | Evaluation, Score, Feedback |
+
+- A draft is applied only while its task is still the one running, so a late draft never outlives the result. The draft is cleared when a task starts, returns, fails or is interrupted.
+- A Board draft is parsed from the partial JSON arguments of `renderSurface` or `updateBoardSurface`. `toDraftComponents` keeps a component only when it passes the schema, is the first one with its id, and has children that are already written. Nothing is drawn until there is a root and a title. A new view gets the id `board-draft-<toolCallId>`, and a revision hides the view it replaces.
+- On the canvas, a stage with a draft counts as building (`DRAFT_STAGES`). It shows the output so far with a "Writing…" note instead of a skeleton.
+
+### Quieter chat, sturdier runs
+
+- **The card is the reply.** Every tool shows its own status or answer card, so the prompt tells the Supervisor to call tools without a preamble and to write nothing after a success. `muteRepliesAfterCards` enforces this in code by dropping any text that starts after a successful result from a tool in `CARD_TOOLS`. A failure still lets the explanation through. Autopilot ends after `generateQuiz` without a closing message.
+- **Lost tool calls.** When the AI SDK rejects a tool call (invalid arguments or an unknown tool), `BuiltInAgent` emits no result, and the next request fails with a missing tool result error. `closeLostToolCalls` adds `{ ok: false, error: LOST_TOOL_RESULT }` for such server calls before the run ends. `repairToolHistory` fills the same gap in older threads before each run.
+- **Smaller context.** `dropA2UIContext` removes CopilotKit's generic `A2UI …` context entries (about 3,000 tokens) from the Supervisor's input, because the Supervisor's own `renderSurface` schema already defines the components. The chat provider sets `includeSchema: false`.
+- **Tracing.** LangSmith runs record cached input tokens and reasoning tokens.
+
+**Testing.** Vitest covers card-reply muting, lost-tool-call repair, draft throttling and parsing, partial surface components, Board result/removal state deltas, surface tool validation, A2UI operation parsing, and code highlighting.
+
 ## v1 delivery
 
-v1 ships as six milestone commits on the `learning-assistant` branch. No PR is opened until it is requested. The task-level breakdown is in [v1-tasks.md](./v1-tasks.md).
+v1 shipped as six milestone commits on the `learning-assistant` branch; M7 and M8 extend it. No PR is opened until it is requested. The task-level breakdown is in [v1-tasks.md](./v1-tasks.md).
 
-| #   | Milestone                                                                                  | Done when                                                                                           |
-| --- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| 1   | Shared schemas, JSON Schema export, wrapper agent, runtime + A2UI middleware               | A chat message reaches the Supervisor with the chosen model; a tool result produces a `STATE_DELTA` |
-| 2   | Settings popover, app shell, layout, CopilotChat restyle, stepper                          | The reference layout renders with live settings and dark mode                                       |
-| 3   | Research + Learning Material (editor, Simplify, two-way sync), fixed A2UI Research surface | Research → Learning Material works end to end, including edits and Simplify                         |
-| 4   | Quiz + answer-key sealing + `submit_quiz` routing                                          | Answers stay hidden until submit; Retake and New questions work                                     |
-| 5   | Evaluation, Score, dynamic Feedback surface, reflection form                               | Submit shows score, tier, mastery and AI feedback                                                   |
-| 6   | Cleanup: delete `apps/docs`, remove the Clerk mention from metadata, README                | Lint, type-check and tests pass                                                                     |
+| #   | Milestone                                                                                  | Done when                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Shared schemas, JSON Schema export, wrapper agent, runtime + A2UI middleware               | A chat message reaches the Supervisor with the chosen model; a tool result produces a `STATE_DELTA`                                |
+| 2   | Settings popover, app shell, layout, CopilotChat restyle, stepper                          | The reference layout renders with live settings and dark mode                                                                      |
+| 3   | Research + Learning Material (editor, Simplify, two-way sync), fixed A2UI Research surface | Research → Learning Material works end to end, including edits and Simplify                                                        |
+| 4   | Quiz + answer-key sealing + `submit_quiz` routing                                          | Answers stay hidden until submit; Retake and New questions work                                                                    |
+| 5   | Evaluation, Score, dynamic Feedback surface, reflection form                               | Submit shows score, tier, mastery and AI feedback                                                                                  |
+| 6   | Cleanup: delete `apps/docs`, remove the Clerk mention from metadata, README                | Lint, type-check and tests pass                                                                                                    |
+| 7   | Dynamic Research surface (planned): [m7-dynamic-research.md](./m7-dynamic-research.md)     | Research surfaces differ by topic; layout changes cost no model call                                                               |
+| 8   | Visual chat answers, the canvas Board, streaming drafts, card-only replies                 | A side question gets a card; a cheat sheet lands on the Board and can be edited and deleted; every stage fills in as it is written |
 
 **Testing.** Vitest covers the pure logic: scoring, mastery, tiers, sealing round-trips, template and data binding, and turning tool results into state deltas. Playwright is out of scope for v1.
 
@@ -253,7 +343,7 @@ The Supervisor prompt reads the profile and the relevant weak concepts. The Quiz
 
 ## Decision log
 
-We agreed these decisions in the design review on 2026-09-18. Where a later decision replaced an earlier one, the row says so.
+We agreed these decisions in the design review on 2026-09-18; Q40–Q46 were added with M8 on 2026-09-24. Where a later decision replaced an earlier one, the row says so.
 
 | #   | Decision                                                                                                         |
 | --- | ---------------------------------------------------------------------------------------------------------------- |
@@ -296,3 +386,10 @@ We agreed these decisions in the design review on 2026-09-18. Where a later deci
 | Q37 | Short-term summarisation; long-term profile, concepts and topics in the store; Memory panel                      |
 | Q38 | Conversation sidebar, History page; delete is permanent                                                          |
 | Q39 | On delete, recompute topics and concept mastery; keep profile memories                                           |
+| Q40 | M8: side questions can be answered with four fixed chat cards or a free-form `renderSurface` in the chat         |
+| Q41 | M8: `renderSurface` is the app's own typed tool, validated per catalog; the generic `render_a2ui` stays off      |
+| Q42 | M8: a canvas Board, kept apart from the stages, holds at most 8 editable, deletable views                        |
+| Q43 | M8: subagent output and Board views stream to the canvas as drafts; a quiz draft never holds the answer          |
+| Q44 | M8: a tool's chat card is the whole reply, enforced in code; a submitted quiz gets no Supervisor summary         |
+| Q45 | M8: tool calls the AI SDK rejects get a failure result, so the thread never breaks                               |
+| Q46 | M8: shiki, lazy-loaded, highlights Board code (reverses M7.3's "no highlighting dependency")                     |
