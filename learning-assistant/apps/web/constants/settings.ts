@@ -1,11 +1,3 @@
-import { QUESTION_COUNT, type Settings } from "@repo/shared/schemas";
-
-export const DEFAULT_SETTINGS: Settings = {
-  questionCount: QUESTION_COUNT.default,
-  learningLevel: "beginner",
-  theme: "system",
-};
-
 /** Matches when the device prefers a dark theme. */
 export const DARK_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 
