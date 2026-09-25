@@ -1,4 +1,6 @@
 import {
+  BoardRemovalResultSchema,
+  BoardSurfaceResultSchema,
   type Score,
   type SubagentTool,
   ToolResultSchemas,
@@ -28,6 +30,35 @@ export const parseToolError = (result: string | undefined): string | null => {
         : "Something went wrong.";
     }
     return null;
+  } catch {
+    return null;
+  }
+};
+
+/** A `renderSurface` result that added a view to the Board. */
+export const isBoardSurfaceResult = (result: string | undefined): boolean => {
+  if (!result) {
+    return false;
+  }
+  try {
+    return BoardSurfaceResultSchema.safeParse(JSON.parse(result)).success;
+  } catch {
+    return false;
+  }
+};
+
+/** The titles of the views a `deleteBoardSurface` result removed, or `null`. */
+export const parseRemovedTitles = (
+  result: string | undefined,
+): string[] | null => {
+  if (!result) {
+    return null;
+  }
+  try {
+    const parsed = BoardRemovalResultSchema.safeParse(JSON.parse(result));
+    return parsed.success
+      ? parsed.data.removed.map(({ title }) => title)
+      : null;
   } catch {
     return null;
   }

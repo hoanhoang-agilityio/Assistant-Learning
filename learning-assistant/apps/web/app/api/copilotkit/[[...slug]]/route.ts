@@ -21,9 +21,11 @@ const runtime = new CopilotRuntime({
     }),
   }),
   // The A2UI middleware delivers surface actions (the quiz Submit) to the
-  // agent. The Supervisor gets no render tool: the Evaluator composes the
-  // Feedback surface itself (`subagents/feedback-surface.ts`), so the
-  // Feedback catalog is not injected into the Supervisor's context either.
+  // agent, and turns the `a2ui_operations` a chat `renderSurface` result
+  // carries into a chat surface (Board results go to state instead). No
+  // render tool is injected: the Supervisor's own `renderSurface` is typed
+  // to the app's catalogs, and the Evaluator composes the Feedback surface
+  // itself (`subagents/feedback-surface.ts`).
   a2ui: {
     agents: [LEARNING_AGENT_ID],
     injectA2UITool: false,
