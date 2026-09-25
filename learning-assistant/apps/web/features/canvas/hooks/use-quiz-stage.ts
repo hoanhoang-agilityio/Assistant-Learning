@@ -1,6 +1,7 @@
 import type { A2UIClientEventMessage } from "@copilotkit/a2ui-renderer";
 import { QUIZ_ACTIONS } from "@repo/shared/a2ui/quiz-actions";
 import type { Evaluation, LearningState, Quiz } from "@repo/shared/schemas";
+import { readLearningState } from "@repo/shared/utils/learning-state";
 import { useMemo } from "react";
 
 import { NEW_QUESTIONS_MESSAGE } from "@/features/canvas/constants/quiz";
@@ -13,7 +14,6 @@ import {
   selectAnswer,
 } from "@/features/canvas/utils/quiz-answers";
 import { useLearningAgent } from "@/hooks/use-learning-agent";
-import { readLearningState } from "@/utils/learning-state";
 
 /**
  * The Quiz surface's data model and its actions. A choice and Retake change

@@ -1,5 +1,9 @@
 import type { Material } from "@repo/shared/schemas";
 import {
+  getActiveMaterial,
+  readLearningState,
+} from "@repo/shared/utils/learning-state";
+import {
   type SyntheticEvent,
   useCallback,
   useEffect,
@@ -23,7 +27,6 @@ import {
 } from "@/features/canvas/utils/material-edit";
 import { formatSimplifySelectionMessage } from "@/features/canvas/utils/material-messages";
 import { useLearningAgent } from "@/hooks/use-learning-agent";
-import { getActiveMaterial, readLearningState } from "@/utils/learning-state";
 
 /**
  * The Learning Material editor. Keystrokes stay in a local draft and are written to the

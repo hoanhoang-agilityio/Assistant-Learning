@@ -4,9 +4,9 @@ import {
   type NewTopicDecision,
   NewTopicDecisionSchema,
 } from "@repo/shared/schemas";
+import { hasQuizData } from "@repo/shared/utils/learning-state";
 
 import { CURRENT_TOPIC_FALLBACK } from "@/features/chat/constants/new-topic";
-import { hasQuizData } from "@/utils/learning-state";
 
 /** Learning material or a quiz exists, so a new topic would throw work away. */
 export const hasTopicWork = (state: LearningState): boolean =>
