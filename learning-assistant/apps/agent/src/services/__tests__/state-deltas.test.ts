@@ -284,6 +284,54 @@ describe("applyDraft", () => {
     ]);
   });
 
+  it("sends only what changed while the same task's draft grows", () => {
+    const running = createStartUpdate(initialLearningState, "research").state;
+    const sources = [{ title: "MDN", url: "https://developer.mozilla.org" }];
+    const first = applyDraft(running, {
+      task: "research",
+      research: { ...research, summary: "Functions", keyTerms: [], sources },
+    });
+    const next = {
+      task: "research" as const,
+      research: {
+        ...research,
+        keyTerms: [{ term: "Scope", definition: "Where names live." }],
+        sources,
+      },
+    };
+    const second = applyDraft(first?.state ?? running, next);
+
+    expect(second?.patch).toEqual([
+      {
+        op: "add",
+        path: "/draft/research/keyTerms/0",
+        value: { term: "Scope", definition: "Where names live." },
+      },
+      {
+        op: "replace",
+        path: "/draft/research/summary",
+        value: research.summary,
+      },
+    ]);
+    expect(applyPatch(first?.state, second?.patch ?? [])).toEqual(
+      second?.state,
+    );
+  });
+
+  it("sends the whole draft when a new task's draft starts", () => {
+    const material = createStartUpdate(withMaterial, "makeMaterial").state;
+    const drafted = applyDraft(material, { task: "material", markdown: "# C" });
+    const simplifying = {
+      ...(drafted?.state ?? material),
+      status: { running: "simplify" as const },
+    };
+    const draft = { task: "simplify" as const, markdown: "Short" };
+
+    expect(applyDraft(simplifying, draft)?.patch).toEqual([
+      { op: "add", path: "/draft", value: draft },
+    ]);
+  });
+
   it("ignores a draft for a task that is not running", () => {
     expect(
       applyDraft(initialLearningState, { task: "material", markdown: "x" }),
@@ -333,6 +381,28 @@ describe("applyBoardDraft", () => {
         components: [{ ...ROOT, children: ["p1"] }, PARAGRAPH],
       },
     });
+  });
+
+  it("sends only the new components while the same view grows", () => {
+    const first = applyBoardDraft(
+      initialLearningState,
+      renderCall({ target: "canvas", title: "Overview", components: [ROOT] }),
+    );
+    const second = applyBoardDraft(
+      first?.state ?? initialLearningState,
+      renderCall({
+        target: "canvas",
+        title: "Overview",
+        components: [ROOT, PARAGRAPH],
+      }),
+    );
+
+    expect(
+      second?.patch.every(({ path }) => path.startsWith("/boardDraft/")),
+    ).toBe(true);
+    expect(applyPatch(first?.state, second?.patch ?? [])).toEqual(
+      second?.state,
+    );
   });
 
   it("waits for the target, the title and the root", () => {

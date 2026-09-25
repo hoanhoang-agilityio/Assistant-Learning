@@ -11,16 +11,16 @@ import type {
   Status,
 } from "@repo/shared/schemas";
 import type { Env } from "@repo/shared/types/env";
+import type { Operation } from "fast-json-patch";
 
 import type { AnswerKeyStore } from "./answer-key";
 import type { RunSettings } from "./llm";
 
-/** A JSON Patch operation. The wrapper only emits top-level `add`s. */
-export interface StatePatchOperation {
-  op: "add";
-  path: `/${keyof LearningState}`;
-  value: unknown;
-}
+/**
+ * A JSON Patch operation. The wrapper emits top-level `add`s, and the diff
+ * inside a draft that grows.
+ */
+export type StatePatchOperation = Operation;
 
 /** The next state, and the patch that turns the previous state into it. */
 export interface StateUpdate {
