@@ -1,10 +1,10 @@
+import { hasTopicWork } from "@repo/shared/utils/learning-state";
 import { useRef } from "react";
 
 import { useChatUiTools } from "@/features/chat/hooks/use-chat-ui-tools";
 import { useNewTopicTool } from "@/features/chat/hooks/use-new-topic-tool";
 import { useStageSuggestions } from "@/features/chat/hooks/use-stage-suggestions";
 import { useToolRenderers } from "@/features/chat/hooks/use-tool-renderers";
-import { hasTopicWork } from "@/features/chat/utils/new-topic";
 import { useLearningSettingsTool } from "@/features/settings/hooks/use-learning-settings-tool";
 import { useThemeTool } from "@/features/settings/hooks/use-theme-tool";
 import { useDisplay } from "@/hooks/use-display";

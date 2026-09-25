@@ -1,7 +1,16 @@
-import type { SubagentTool, ToolResultData } from "@repo/shared/schemas";
+import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
+import type {
+  SubagentTool,
+  ToolResultData,
+  TopicConfirmationRequired,
+} from "@repo/shared/schemas";
 import { traceable } from "langsmith/traceable";
 
-import { TOOL_ERRORS, TOOL_FAILURE_PREFIX } from "../../constants/tools";
+import {
+  TOOL_ERRORS,
+  TOOL_FAILURE_PREFIX,
+  TOPIC_CONFIRMATION_INSTRUCTION,
+} from "../../constants/tools";
 import type { SupervisorRunContext } from "../../types/agents";
 import { formatOpenAIError } from "../../utils/openai-errors";
 
@@ -11,6 +20,19 @@ interface ToolFailure {
 }
 
 export const fail = (error: string): ToolFailure => ({ ok: false, error });
+
+/**
+ * `research` refuses until the student confirms the new topic. Unlike
+ * `fail`, the wrapper leaves the state as it is and the chat shows no error.
+ */
+export const requireTopicConfirmation = (
+  topic: string,
+): TopicConfirmationRequired => ({
+  ok: false,
+  requires: CONFIRM_NEW_TOPIC_TOOL,
+  topic,
+  instruction: TOPIC_CONFIRMATION_INSTRUCTION,
+});
 
 /**
  * Runs a subagent and turns any throw into `{ ok: false, error }`. Tools never

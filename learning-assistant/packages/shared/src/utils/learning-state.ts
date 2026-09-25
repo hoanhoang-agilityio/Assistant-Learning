@@ -28,3 +28,7 @@ export const getActiveMaterial = (material: Material): string =>
 /** A quiz or anything built from it exists. */
 export const hasQuizData = (state: LearningState): boolean =>
   QUIZ_STATE_KEYS.some((key) => state[key] !== null);
+
+/** Learning material or a quiz exists, so a new topic would throw work away. */
+export const hasTopicWork = (state: LearningState): boolean =>
+  state.material !== null || hasQuizData(state);

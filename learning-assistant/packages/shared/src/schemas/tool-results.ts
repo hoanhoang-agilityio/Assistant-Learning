@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { CONFIRM_NEW_TOPIC_TOOL } from "../constants/agents";
 import {
   EvaluationSchema,
   FeedbackSchema,
@@ -33,13 +34,29 @@ const createResultSchema = <T extends z.ZodType>(data: T) =>
 const MarkdownSchema = z.string().min(1);
 
 /**
+ * `research` refused to replace existing learning material or a quiz. Not a
+ * failure: nothing changed, and `instruction` tells the Supervisor to ask the
+ * student with `confirmNewTopic` first.
+ */
+export const TopicConfirmationRequiredSchema = z.object({
+  ok: z.literal(false),
+  requires: z.literal(CONFIRM_NEW_TOPIC_TOOL),
+  topic: z.string().min(1),
+  instruction: z.string().min(1),
+});
+
+/**
  * What each subagent tool returns. Tools never throw: a failure comes back as
- * `{ ok: false, error }` so the wrapper can set `status.error`.
+ * `{ ok: false, error }` so the wrapper can set `status.error`. `research`
+ * can also refuse until the student confirms a new topic.
  */
 export const ToolResultSchemas = {
-  research: createResultSchema(
-    z.object({ topic: z.string().min(1), research: ResearchResultSchema }),
-  ),
+  research: z.union([
+    createResultSchema(
+      z.object({ topic: z.string().min(1), research: ResearchResultSchema }),
+    ),
+    TopicConfirmationRequiredSchema,
+  ]),
   makeMaterial: createResultSchema(z.object({ markdown: MarkdownSchema })),
   simplify: createResultSchema(
     z.discriminatedUnion("scope", [
@@ -73,3 +90,7 @@ export type ToolResultData<T extends SubagentTool> = Extract<
   ToolResult<T>,
   { ok: true }
 >["data"];
+
+export type TopicConfirmationRequired = z.infer<
+  typeof TopicConfirmationRequiredSchema
+>;

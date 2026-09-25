@@ -4,11 +4,12 @@ import { getActiveMaterial } from "@repo/shared/utils/learning-state";
 
 import { TOOL_DESCRIPTIONS, TOOL_ERRORS } from "../../constants/tools";
 import type { SupervisorRunContext } from "../../types/agents";
+import { needsTopicConfirmation } from "../state-deltas";
 import { runMakeMaterial } from "../subagents/material";
 import { runResearch } from "../subagents/research";
 import { runSimplify } from "../subagents/simplify";
 import { createQuizTools } from "./quiz-tools";
-import { fail, runSubagent } from "./run-subagent";
+import { fail, requireTopicConfirmation, runSubagent } from "./run-subagent";
 import { createSurfaceTools } from "./surface-tools";
 
 /** Research, learning material and simplify. */
@@ -23,8 +24,12 @@ const createMaterialTools = ({
     name: "research",
     description: TOOL_DESCRIPTIONS.research,
     parameters: ToolParamSchemas.research,
-    execute: ({ topic }): Promise<ToolResult<"research">> =>
-      runSubagent("research", { signal }, async () => ({
+    execute: async ({ topic }): Promise<ToolResult<"research">> => {
+      // The model alone cannot be trusted to ask before replacing work.
+      if (needsTopicConfirmation("research", getState())) {
+        return requireTopicConfirmation(topic);
+      }
+      return runSubagent("research", { signal }, async () => ({
         topic,
         research: await runResearch({
           topic,
@@ -33,7 +38,8 @@ const createMaterialTools = ({
           signal,
           onDraft: (research) => reportDraft({ task: "research", research }),
         }),
-      })),
+      }));
+    },
   }),
 
   defineTool({

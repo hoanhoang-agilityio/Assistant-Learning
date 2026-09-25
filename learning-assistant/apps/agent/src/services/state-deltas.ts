@@ -22,6 +22,7 @@ import {
 import {
   getActiveMaterial,
   hasQuizData,
+  hasTopicWork,
 } from "@repo/shared/utils/learning-state";
 
 import {
@@ -38,6 +39,16 @@ import { toDraftComponents } from "../utils/surface-draft";
 
 export const isSubagentTool = (name: string): name is SubagentTool =>
   (SUBAGENT_TOOLS as readonly string[]).includes(name);
+
+/**
+ * `research` would replace learning material or a quiz, so it refuses until
+ * the student confirms the new topic. A confirmed switch clears the state
+ * before the next run, so it passes.
+ */
+export const needsTopicConfirmation = (
+  tool: SubagentTool,
+  state: LearningState,
+): boolean => tool === "research" && hasTopicWork(state);
 
 /** One `add` per top-level key whose value changed. */
 const createStatePatch = (
@@ -187,7 +198,8 @@ export const createStartUpdate = (
  * JSON-serialised tool result). On success the data is written to state, later
  * stages are cleared and the canvas moves to the tool's stage; on failure
  * `status.error` and `status.failed` are set and the rest of the state is
- * kept.
+ * kept. A refusal that waits for the student's confirmation only ends the
+ * running task: it is not an error.
  */
 export const applyToolResult = (
   state: LearningState,
@@ -213,6 +225,9 @@ export const applyToolResult = (
       task,
       `The ${tool} step returned an invalid result.`,
     );
+  }
+  if ("requires" in result) {
+    return createStateUpdate(state, { ...state, status: { running: null } });
   }
   if (!result.ok) {
     return createFailureUpdate(state, task, result.error);

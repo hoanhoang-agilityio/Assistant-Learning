@@ -1,4 +1,5 @@
 import { MAX_BOARD_SURFACES } from "@repo/shared/a2ui/board-catalog";
+import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
 import {
   type BoardSurface,
   initialLearningState,
@@ -17,6 +18,7 @@ import {
   createStartUpdate,
   interruptTask,
   isSubagentTool,
+  needsTopicConfirmation,
 } from "../state-deltas";
 
 const research = {
@@ -76,6 +78,33 @@ describe("isSubagentTool", () => {
   it("accepts subagent tools only", () => {
     expect(isSubagentTool("research")).toBe(true);
     expect(isSubagentTool("AGUISendStateDelta")).toBe(false);
+  });
+});
+
+describe("needsTopicConfirmation", () => {
+  it("holds research back while learning material or a quiz exists", () => {
+    expect(needsTopicConfirmation("research", withMaterial)).toBe(true);
+    expect(
+      needsTopicConfirmation("research", { ...withMaterial, material: null }),
+    ).toBe(true);
+  });
+
+  it("lets research run from an empty or cleared state", () => {
+    expect(needsTopicConfirmation("research", initialLearningState)).toBe(
+      false,
+    );
+    expect(
+      needsTopicConfirmation("research", {
+        ...initialLearningState,
+        topic: "Closures",
+        research,
+      }),
+    ).toBe(false);
+  });
+
+  it("never holds back the other tools", () => {
+    expect(needsTopicConfirmation("makeMaterial", withMaterial)).toBe(false);
+    expect(needsTopicConfirmation("generateQuiz", withMaterial)).toBe(false);
   });
 });
 
@@ -215,6 +244,26 @@ describe("applyToolResult", () => {
 
     expect(state).toEqual({ ...withMaterial, status });
     expect(patch).toEqual([{ op: "add", path: "/status", value: status }]);
+  });
+
+  it("keeps the data and sets no error when research waits for confirmation", () => {
+    const running = createStartUpdate(withMaterial, "research").state;
+    const { state, patch } = applyToolResult(
+      running,
+      "research",
+      JSON.stringify({
+        ok: false,
+        requires: CONFIRM_NEW_TOPIC_TOOL,
+        topic: "Black holes",
+        instruction: "Confirm first.",
+      }),
+    );
+
+    expect(state).toEqual({ ...withMaterial, status: { running: null } });
+    expect(state.status.error).toBeUndefined();
+    expect(patch).toEqual([
+      { op: "add", path: "/status", value: { running: null } },
+    ]);
   });
 
   it("fails simplify when the selection is gone", () => {

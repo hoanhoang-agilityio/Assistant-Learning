@@ -25,14 +25,17 @@ import {
   createStartUpdate,
   interruptTask,
   isSubagentTool,
+  needsTopicConfirmation,
 } from "./state-deltas";
 
 /**
  * Keeps the client's state in step with subagent tools. Emits a `STATE_DELTA`
  * after a subagent's `TOOL_CALL_START` (status running) and after its
  * `TOOL_CALL_RESULT` (result, stage and status), and clears a task left
- * running before the run finishes or fails. A `renderSurface` result for the
- * canvas, or an `updateBoardSurface` result, writes its view to the Board;
+ * running before the run finishes or fails. A `research` call that must wait
+ * for the student to confirm a new topic changes nothing, so the canvas does
+ * not move. A `renderSurface` result for the canvas, or an
+ * `updateBoardSurface` result, writes its view to the Board;
  * a `deleteBoardSurface` result takes its views off. The internal draft
  * events (`DRAFT_EVENTS`) become `state.draft` and `state.boardDraft`, so the
  * canvas shows output as it streams; they are not forwarded. `onStateChange`
@@ -86,7 +89,10 @@ export const syncStateFromTools = (
           removalCalls.add(toolCallId);
           return [event];
         }
-        if (!isSubagentTool(toolCallName)) {
+        if (
+          !isSubagentTool(toolCallName) ||
+          needsTopicConfirmation(toolCallName, state)
+        ) {
           return [event];
         }
         runningTools.set(toolCallId, toolCallName);
