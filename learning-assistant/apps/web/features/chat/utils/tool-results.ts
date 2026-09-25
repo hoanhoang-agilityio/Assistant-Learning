@@ -1,3 +1,4 @@
+import { TOOL_STOPPED_ERROR } from "@repo/shared/constants/agents";
 import {
   BoardRemovalResultSchema,
   BoardSurfaceResultSchema,
@@ -66,7 +67,8 @@ export const parseRemovedTitles = (
 
 /**
  * A tool call still streaming counts as running while the agent runs, and as
- * stopped once it doesn't. A finished call is failed or done by its result.
+ * stopped once it doesn't. A finished call is stopped, failed or done by its
+ * result.
  */
 export const getToolPhase = (
   status: ToolCallStatus,
@@ -75,6 +77,9 @@ export const getToolPhase = (
 ): ToolPhase => {
   if (status !== "complete") {
     return isRunning ? "running" : "stopped";
+  }
+  if (error === TOOL_STOPPED_ERROR) {
+    return "stopped";
   }
   return error ? "failed" : "done";
 };

@@ -1,3 +1,4 @@
+import { TOOL_STOPPED_ERROR } from "@repo/shared/constants/agents";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -32,6 +33,7 @@ describe("getToolPhase", () => {
     ["executing", false, null, "stopped"],
     ["complete", false, null, "done"],
     ["complete", true, "Search failed.", "failed"],
+    ["complete", false, TOOL_STOPPED_ERROR, "stopped"],
   ] as const)(
     "%s, running %s, error %j → %s",
     (status, isRunning, error, phase) => {

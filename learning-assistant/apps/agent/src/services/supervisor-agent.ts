@@ -148,7 +148,10 @@ export class LearningSupervisorAgent extends AbstractAgent {
       events.pipe(
         filter((event) => !isInnerStateEvent(event)),
         muteRepliesAfterCards(input.messages),
-        closeLostToolCalls(new Set(input.tools.map(({ name }) => name))),
+        closeLostToolCalls(
+          new Set(input.tools.map(({ name }) => name)),
+          ctx.signal,
+        ),
         // Drafts are reported while a tool runs, so they end with the run.
         finalize(() => drafts.complete()),
         mergeWith(drafts.pipe(map(toStageDraftEvent))),

@@ -8,6 +8,7 @@ import {
 import { concatMap, type OperatorFunction } from "rxjs";
 
 import { LOST_TOOL_RESULT } from "../constants/errors";
+import { TOOL_ERRORS } from "../constants/tools";
 
 /**
  * What a lost tool call returns. `{ ok: false, error }` is the shape the
@@ -20,15 +21,27 @@ const LOST_RESULT_CONTENT = JSON.stringify({
 });
 
 /**
+ * What a call cut off by Stop returns: the same error `runSubagent` gives a
+ * stopped step, so the state and the chat card show it as stopped.
+ */
+const STOPPED_RESULT_CONTENT = JSON.stringify({
+  ok: false,
+  error: TOOL_ERRORS.stopped,
+});
+
+/**
  * `BuiltInAgent` emits no `TOOL_CALL_RESULT` when the AI SDK rejects a tool
  * call (invalid arguments, unknown tool name). The model is told within the
  * run, but the client keeps a tool call without a result, and the next
  * request then fails with a missing tool result error. This adds a failure
  * result for each such call before the run ends. Calls to the client's own
- * tools (`clientToolNames`) are left alone: the client answers those.
+ * tools (`clientToolNames`) are left alone: the client answers those. A run
+ * aborted by Stop (`signal`) ends with its running call unanswered too; that
+ * call gets the stopped result instead of a failure.
  */
 export const closeLostToolCalls = (
   clientToolNames: ReadonlySet<string>,
+  signal?: AbortSignal,
 ): OperatorFunction<BaseEvent, BaseEvent> => {
   const open = new Set<string>();
 
@@ -46,11 +59,14 @@ export const closeLostToolCalls = (
         return [event];
       case EventType.RUN_FINISHED:
       case EventType.RUN_ERROR: {
+        const content = signal?.aborted
+          ? STOPPED_RESULT_CONTENT
+          : LOST_RESULT_CONTENT;
         const results: ToolCallResultEvent[] = [...open].map((toolCallId) => ({
           type: EventType.TOOL_CALL_RESULT,
           messageId: crypto.randomUUID(),
           toolCallId,
-          content: LOST_RESULT_CONTENT,
+          content,
         }));
         open.clear();
         return [...results, event];

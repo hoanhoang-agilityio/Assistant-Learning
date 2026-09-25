@@ -43,3 +43,9 @@ export const UPDATE_BOARD_SURFACE_TOOL = "updateBoardSurface";
 
 /** Server tool: removes Board views; the chat, not the Board, says so. */
 export const DELETE_BOARD_SURFACE_TOOL = "deleteBoardSurface";
+
+/**
+ * The error a server tool's result carries when the student pressed Stop.
+ * The canvas and the chat card show it as stopped, not as a failure.
+ */
+export const TOOL_STOPPED_ERROR = "The student stopped this step.";

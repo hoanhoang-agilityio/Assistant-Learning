@@ -8,6 +8,7 @@ import { firstValueFrom, from, toArray } from "rxjs";
 import { describe, expect, it } from "vitest";
 
 import { LOST_TOOL_RESULT } from "../../constants/errors";
+import { TOOL_ERRORS } from "../../constants/tools";
 import { closeLostToolCalls, repairToolHistory } from "../tool-history";
 
 const start = (toolCallId: string, toolCallName: string) =>
@@ -25,10 +26,28 @@ const finished = {
   runId: "r",
 } as BaseEvent;
 
-const run = (events: BaseEvent[], clientTools: string[] = []) =>
+const run = (
+  events: BaseEvent[],
+  clientTools: string[] = [],
+  signal?: AbortSignal,
+) =>
   firstValueFrom(
-    from(events).pipe(closeLostToolCalls(new Set(clientTools)), toArray()),
+    from(events).pipe(
+      closeLostToolCalls(new Set(clientTools), signal),
+      toArray(),
+    ),
   );
+
+const createAbortedSignal = () => {
+  const controller = new AbortController();
+  controller.abort();
+  return controller.signal;
+};
+
+const readResultContent = (events: BaseEvent[]) =>
+  events
+    .filter(({ type }) => type === EventType.TOOL_CALL_RESULT)
+    .map((event) => JSON.parse((event as ToolCallResultEvent).content));
 
 describe("closeLostToolCalls", () => {
   it("adds a failure result for a server call that never returned", async () => {
@@ -62,6 +81,30 @@ describe("closeLostToolCalls", () => {
     expect(
       events.filter(({ type }) => type === EventType.TOOL_CALL_RESULT),
     ).toHaveLength(1);
+  });
+
+  it("gives a call cut off by Stop the stopped result", async () => {
+    const events = await run(
+      [start("a", "generateQuiz"), finished],
+      [],
+      createAbortedSignal(),
+    );
+
+    expect(readResultContent(events)).toEqual([
+      { ok: false, error: TOOL_ERRORS.stopped },
+    ]);
+  });
+
+  it("keeps the failure result while the run is not aborted", async () => {
+    const events = await run(
+      [start("a", "generateQuiz"), finished],
+      [],
+      new AbortController().signal,
+    );
+
+    expect(readResultContent(events)).toEqual([
+      { ok: false, error: LOST_TOOL_RESULT },
+    ]);
   });
 });
 
