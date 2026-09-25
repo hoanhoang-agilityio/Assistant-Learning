@@ -77,7 +77,9 @@ export const UPDATE_BOARD_SURFACE_TOOL_DESCRIPTION =
   "it moves to the top of the Board. Send the whole list (read it first " +
   "with readBoardSurface), " +
   "with the Board components renderSurface allows for the canvas. Use it " +
-  "when the student asks to change a view, not to make a new one.";
+  "only when the student asks to change a view that is already there, " +
+  "never to turn a view into one about a different subject; a new view is " +
+  "renderSurface.";
 
 /** What the Supervisor LLM reads about `deleteBoardSurface`. */
 export const DELETE_BOARD_SURFACE_TOOL_DESCRIPTION =
