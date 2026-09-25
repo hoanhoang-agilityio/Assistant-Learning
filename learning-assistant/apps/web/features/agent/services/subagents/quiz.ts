@@ -1,4 +1,8 @@
-import { type QuizDraft, QuizDraftQuestionSchema } from "@repo/shared/schemas";
+import {
+  type QuestionDraft,
+  type QuizDraft,
+  QuizDraftQuestionSchema,
+} from "@repo/shared/schemas";
 import { z } from "zod";
 
 import { QUIZ_ATTEMPTS } from "@/features/agent/constants/agents";
@@ -7,6 +11,7 @@ import {
   createQuizSystem,
 } from "@/features/agent/services/prompts/subagents";
 import { generateStructured } from "@/features/agent/services/subagents/generate-structured";
+import { toQuestionDrafts } from "@/features/agent/utils/drafts";
 import type { RunSettings } from "@/types/llm";
 
 interface QuizParams {
@@ -15,6 +20,8 @@ interface QuizParams {
   count: number;
   settings: RunSettings;
   signal?: AbortSignal;
+  /** Called with the questions written so far, without their answers. */
+  onDraft?: (questions: QuestionDraft[]) => void;
 }
 
 /** A draft with exactly `count` questions, each with a concept and 4 options. */
@@ -31,6 +38,7 @@ export const runQuiz = async ({
   count,
   settings,
   signal,
+  onDraft,
 }: QuizParams): Promise<QuizDraft> => {
   const schema = createQuizDraftSchema(count);
   let lastError: unknown;
@@ -43,6 +51,9 @@ export const runQuiz = async ({
         prompt: createQuizPrompt(material, count),
         schema,
         signal,
+        onPartial: onDraft
+          ? (partial) => onDraft(toQuestionDrafts(partial))
+          : undefined,
       });
     } catch (error) {
       if (signal?.aborted) {
