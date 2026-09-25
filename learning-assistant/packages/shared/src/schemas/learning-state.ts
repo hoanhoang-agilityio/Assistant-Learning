@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { OptionIndexSchema, QuizQuestionSchema } from "./quiz";
-import { ResearchResultSchema } from "./research";
+import { ResearchResultSchema, SourceSchema } from "./research";
 
 export const STAGES = [
   "idle",
@@ -88,6 +88,66 @@ export const FeedbackSchema = z.object({
   summary: z.string(),
 });
 
+/** A view the Supervisor composed on the canvas Board with `renderSurface`. */
+export const BoardSurfaceSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  /** A2UI v0.9 operations that create and fill the surface. */
+  operations: z.array(z.unknown()),
+  /** 1 when made, +1 on each `updateBoardSurface`; the client redraws on a change. */
+  revision: z.int().min(1),
+});
+
+/**
+ * A Board view while the Supervisor is still writing it: the components
+ * complete so far. `id` is the view it revises, or a new id for a new view.
+ */
+export const BoardDraftSchema = BoardSurfaceSchema.pick({
+  id: true,
+  title: true,
+  operations: true,
+});
+
+/** Research as it streams in: every field so far, possibly empty. */
+export const ResearchDraftSchema = z.object({
+  title: z.string(),
+  summary: z.string(),
+  keyInsight: z.string(),
+  keyTerms: z.array(z.object({ term: z.string(), definition: z.string() })),
+  sources: z.array(SourceSchema),
+});
+
+/** A quiz question as it streams in. It never holds the answer. */
+export const QuestionDraftSchema = z.object({
+  concept: z.string(),
+  question: z.string(),
+  options: z.array(z.string()),
+});
+
+/**
+ * What the running subagent has written so far, streamed to the canvas
+ * while it works. Cleared when the task finishes or fails.
+ */
+export const DraftSchema = z.discriminatedUnion("task", [
+  z.object({ task: z.literal("research"), research: ResearchDraftSchema }),
+  z.object({ task: z.literal("material"), markdown: z.string() }),
+  z.object({ task: z.literal("simplify"), markdown: z.string() }),
+  z.object({
+    task: z.literal("quiz"),
+    questions: z.array(QuestionDraftSchema),
+  }),
+  /**
+   * Graded in code, so the evaluation and score are whole from the start;
+   * the explanations, the summary and the Feedback surface stream in.
+   */
+  z.object({
+    task: z.literal("evaluate"),
+    evaluation: EvaluationSchema,
+    score: ScoreSchema,
+    feedback: FeedbackSchema,
+  }),
+]);
+
 export const ReflectionSchema = z.object({
   rating: z.int().min(1).max(5),
   text: z.string(),
@@ -110,6 +170,12 @@ export const LearningStateSchema = z.object({
    * results were cleared. Reset when a new quiz, learning material or research arrive.
    */
   quizOutdated: z.boolean(),
+  /** Board views, oldest first. Kept apart from the stages. */
+  board: z.array(BoardSurfaceSchema),
+  /** The running subagent's partial output. */
+  draft: DraftSchema.nullable(),
+  /** The Board view being written by `renderSurface` or `updateBoardSurface`. */
+  boardDraft: BoardDraftSchema.nullable(),
 });
 
 export type Stage = z.infer<typeof StageSchema>;
@@ -122,6 +188,11 @@ export type Evaluation = z.infer<typeof EvaluationSchema>;
 export type Score = z.infer<typeof ScoreSchema>;
 export type Feedback = z.infer<typeof FeedbackSchema>;
 export type Reflection = z.infer<typeof ReflectionSchema>;
+export type BoardSurface = z.infer<typeof BoardSurfaceSchema>;
+export type BoardDraft = z.infer<typeof BoardDraftSchema>;
+export type ResearchDraft = z.infer<typeof ResearchDraftSchema>;
+export type QuestionDraft = z.infer<typeof QuestionDraftSchema>;
+export type Draft = z.infer<typeof DraftSchema>;
 export type LearningState = z.infer<typeof LearningStateSchema>;
 
 export const initialLearningState: LearningState = {
@@ -136,4 +207,7 @@ export const initialLearningState: LearningState = {
   feedback: null,
   reflection: null,
   quizOutdated: false,
+  board: [],
+  draft: null,
+  boardDraft: null,
 };
