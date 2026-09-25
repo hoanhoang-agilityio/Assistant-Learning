@@ -53,6 +53,9 @@ importers:
       ai:
         specifier: 6.0.285
         version: 6.0.285(zod@4.6.5)
+      fast-json-patch:
+        specifier: 3.1.1
+        version: 3.1.1
       langsmith:
         specifier: 0.10.4
         version: 0.10.4(@opentelemetry/api@1.9.1)(ws@8.21.3)
@@ -75,9 +78,6 @@ importers:
       eslint:
         specifier: 10.9.1
         version: 10.9.1(jiti@2.7.0)(supports-color@7.2.0)
-      fast-json-patch:
-        specifier: 3.1.1
-        version: 3.1.1
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -87,6 +87,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@ag-ui/client':
+        specifier: 0.0.59
+        version: 0.0.59
       '@copilotkit/a2ui-renderer':
         specifier: 1.72.0
         version: 1.72.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)

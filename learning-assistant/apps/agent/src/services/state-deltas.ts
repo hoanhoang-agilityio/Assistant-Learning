@@ -24,6 +24,7 @@ import {
   hasQuizData,
   hasTopicWork,
 } from "@repo/shared/utils/learning-state";
+import { compare } from "fast-json-patch";
 
 import {
   SUBAGENT_CLEARS,
@@ -50,14 +51,48 @@ export const needsTopicConfirmation = (
   state: LearningState,
 ): boolean => tool === "research" && hasTopicWork(state);
 
-/** One `add` per top-level key whose value changed. */
+/**
+ * Whether `key` holds the same draft in both states, only further along: the
+ * same running task, or the same Board view being written.
+ */
+const isGrowingDraft = (
+  key: keyof LearningState,
+  prev: LearningState,
+  next: LearningState,
+): boolean => {
+  switch (key) {
+    case "draft":
+      return (
+        prev.draft?.task !== undefined && prev.draft.task === next.draft?.task
+      );
+    case "boardDraft":
+      return (
+        prev.boardDraft?.id !== undefined &&
+        prev.boardDraft.id === next.boardDraft?.id
+      );
+    default:
+      return false;
+  }
+};
+
+/**
+ * One `add` per top-level key whose value changed. A draft that grows is
+ * sent as the diff inside it instead, so each delta carries what was written
+ * since the last one rather than the whole draft again.
+ */
 const createStatePatch = (
   prev: LearningState,
   next: LearningState,
 ): StatePatchOperation[] =>
   (Object.keys(next) as (keyof LearningState)[])
     .filter((key) => prev[key] !== next[key])
-    .map((key) => ({ op: "add", path: `/${key}`, value: next[key] }));
+    .flatMap((key): StatePatchOperation[] =>
+      isGrowingDraft(key, prev, next)
+        ? compare(prev[key] as object, next[key] as object).map(
+            (operation) => ({ ...operation, path: `/${key}${operation.path}` }),
+          )
+        : [{ op: "add", path: `/${key}`, value: next[key] }],
+    );
 
 const createStateUpdate = (
   prev: LearningState,
