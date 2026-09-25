@@ -4,12 +4,29 @@ import {
   RENDER_SURFACE_TOOL,
   UPDATE_BOARD_SURFACE_TOOL,
 } from "@repo/shared/constants/agents";
-import { initialLearningState } from "@repo/shared/schemas";
+import { initialLearningState, type LearningState } from "@repo/shared/schemas";
 import { firstValueFrom, from, toArray } from "rxjs";
 import { describe, expect, it } from "vitest";
 
 import { DRAFT_EVENTS } from "../../constants/agents";
+import { LOST_TOOL_RESULT } from "../../constants/errors";
 import { syncStateFromTools } from "../state-sync";
+import { closeLostToolCalls } from "../tool-history";
+
+const quiz = {
+  id: "q1",
+  questions: [
+    {
+      id: "a",
+      concept: "Closures",
+      question: "What does a closure capture?",
+      options: ["Values", "Bindings", "Types", "Nothing"],
+    },
+  ],
+  answers: {},
+  answerKeySealed: "sealed",
+  submitted: false,
+};
 
 const run = (events: BaseEvent[]) =>
   firstValueFrom(
@@ -233,5 +250,45 @@ describe("syncStateFromTools", () => {
       EventType.STATE_DELTA,
       EventType.RUN_FINISHED,
     ]);
+  });
+});
+
+describe("closeLostToolCalls then syncStateFromTools", () => {
+  const before: LearningState = { ...initialLearningState, quiz };
+
+  /** The final state after a quiz call that never returned. */
+  const runLostQuizCall = async (signal: AbortSignal) => {
+    let state = before;
+    await firstValueFrom(
+      from([...started, createToolStartEvent("generateQuiz"), finished]).pipe(
+        closeLostToolCalls(new Set(), signal),
+        syncStateFromTools(before, (next) => {
+          state = next;
+        }),
+        toArray(),
+      ),
+    );
+    return state;
+  };
+
+  it("clears a stopped task without an error and keeps the old quiz", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    expect(await runLostQuizCall(controller.signal)).toEqual({
+      ...before,
+      status: { running: null },
+    });
+  });
+
+  it("still fails a lost call when the run was not stopped", async () => {
+    const state = await runLostQuizCall(new AbortController().signal);
+
+    expect(state.status).toEqual({
+      running: null,
+      error: LOST_TOOL_RESULT,
+      failed: "quiz",
+    });
+    expect(state.quiz).toEqual(quiz);
   });
 });

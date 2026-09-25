@@ -30,6 +30,7 @@ import {
   SUBAGENT_STAGE,
   SUBAGENT_TASK,
 } from "../constants/agents";
+import { TOOL_ERRORS } from "../constants/tools";
 import type {
   BoardDraftEvent,
   StatePatchOperation,
@@ -99,6 +100,14 @@ const createFailureUpdate = (
   createStateUpdate(state, {
     ...state,
     status: { running: null, error, failed },
+    draft: null,
+  });
+
+/** The student stopped the task: it is no longer running, and nothing failed. */
+const createStoppedUpdate = (state: LearningState): StateUpdate =>
+  createStateUpdate(state, {
+    ...state,
+    status: { running: null },
     draft: null,
   });
 
@@ -222,7 +231,7 @@ export const createStartUpdate = (
  * JSON-serialised tool result). On success the data is written to state, later
  * stages are cleared and the canvas moves to the tool's stage; on failure
  * `status.error` and `status.failed` are set and the rest of the state is
- * kept.
+ * kept. A step the student stopped only stops running: no error, no Retry.
  */
 export const applyToolResult = (
   state: LearningState,
@@ -250,7 +259,9 @@ export const applyToolResult = (
     );
   }
   if (!result.ok) {
-    return createFailureUpdate(state, task, result.error);
+    return result.error === TOOL_ERRORS.stopped
+      ? createStoppedUpdate(state)
+      : createFailureUpdate(state, task, result.error);
   }
 
   const next = applyData(

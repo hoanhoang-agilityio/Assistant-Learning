@@ -1,3 +1,4 @@
+import { TOOL_STOPPED_ERROR } from "@repo/shared/constants/agents";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -5,6 +6,7 @@ import {
   formatToolTitle,
   getToolPhase,
   isBoardSurfaceResult,
+  isToolStopped,
   parseEvaluateScore,
   parseRemovedTitles,
   parseToolError,
@@ -32,10 +34,32 @@ describe("getToolPhase", () => {
     ["executing", false, null, "stopped"],
     ["complete", false, null, "done"],
     ["complete", true, "Search failed.", "failed"],
+    ["complete", false, TOOL_STOPPED_ERROR, "stopped"],
   ] as const)(
     "%s, running %s, error %j → %s",
     (status, isRunning, error, phase) => {
       expect(getToolPhase(status, isRunning, error)).toBe(phase);
+    },
+  );
+});
+
+describe("isToolStopped", () => {
+  const STOPPED_RESULT = JSON.stringify({
+    ok: false,
+    error: TOOL_STOPPED_ERROR,
+  });
+  const BOARD_RESULT = JSON.stringify({ surface: { id: "board-1" } });
+
+  it.each([
+    ["inProgress", false, undefined, true],
+    ["inProgress", true, undefined, false],
+    ["complete", false, STOPPED_RESULT, true],
+    ["complete", false, BOARD_RESULT, false],
+    ["complete", false, undefined, false],
+  ] as const)(
+    "%s, running %s, result %j → %s",
+    (status, isRunning, result, expected) => {
+      expect(isToolStopped(status, isRunning, result)).toBe(expected);
     },
   );
 });

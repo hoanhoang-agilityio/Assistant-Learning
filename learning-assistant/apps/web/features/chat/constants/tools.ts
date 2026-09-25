@@ -75,18 +75,28 @@ export const CHAT_CARD_LABELS: Record<ChatCardKind, string> = {
 
 /** Chat card copy for `renderSurface`, by target. */
 export const RENDER_SURFACE_COPY = {
-  chat: { running: "Composing a view", done: "View ready" },
-  canvas: { running: "Composing a Board view", done: "Added to the Board" },
+  chat: {
+    running: "Composing a view",
+    done: "View ready",
+    stopped: "View stopped",
+  },
+  canvas: {
+    running: "Composing a Board view",
+    done: "Added to the Board",
+    stopped: "Board view stopped",
+  },
 } as const;
 
 /** Chat card copy for `updateBoardSurface`. */
 export const UPDATE_BOARD_SURFACE_COPY = {
   running: "Updating a Board view",
   done: "Board view updated",
+  stopped: "Board update stopped",
 } as const;
 
 /** Chat card copy for `deleteBoardSurface`. */
 export const DELETE_BOARD_SURFACE_COPY = {
   running: "Removing from the Board",
   done: "Removed from the Board",
+  stopped: "Board removal stopped",
 } as const;

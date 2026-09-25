@@ -16,11 +16,11 @@ import {
   UpdateBoardSurfaceArgsSchema,
 } from "@repo/shared/schemas";
 
-import { DisplayToolCard } from "@/components/common/DisplayToolCard";
 import { CodeExampleCard } from "@/features/chat/components/CodeExampleCard";
 import { ComparisonCard } from "@/features/chat/components/ComparisonCard";
 import { ConceptCard } from "@/features/chat/components/ConceptCard";
 import { StepsCard } from "@/features/chat/components/StepsCard";
+import { SurfaceToolCard } from "@/features/chat/components/SurfaceToolCard";
 import {
   CHAT_CARD_DESCRIPTIONS,
   DELETE_BOARD_SURFACE_COPY,
@@ -102,15 +102,14 @@ export const useChatUiTools = () => {
       // card; only a view added to the Board leaves one.
       render: ({ status, parameters, result }) => {
         const target = parameters.target ?? "chat";
-        if (
-          status === "complete" &&
-          (target === "chat" || !isBoardSurfaceResult(result))
-        ) {
-          return null;
-        }
+
         return (
-          <DisplayToolCard
+          <SurfaceToolCard
             status={status}
+            result={result}
+            isHiddenWhenDone={
+              target === "chat" || !isBoardSurfaceResult(result)
+            }
             detail={target === "canvas" ? parameters.title : undefined}
             copy={RENDER_SURFACE_COPY[target]}
           />
@@ -126,14 +125,15 @@ export const useChatUiTools = () => {
       name: UPDATE_BOARD_SURFACE_TOOL,
       agentId: LEARNING_AGENT_ID,
       parameters: UpdateBoardSurfaceArgsSchema,
-      render: ({ status, parameters, result }) =>
-        status === "complete" && !isBoardSurfaceResult(result) ? null : (
-          <DisplayToolCard
-            status={status}
-            detail={parameters.title}
-            copy={UPDATE_BOARD_SURFACE_COPY}
-          />
-        ),
+      render: ({ status, parameters, result }) => (
+        <SurfaceToolCard
+          status={status}
+          result={result}
+          isHiddenWhenDone={!isBoardSurfaceResult(result)}
+          detail={parameters.title}
+          copy={UPDATE_BOARD_SURFACE_COPY}
+        />
+      ),
     },
     [],
   );
@@ -146,12 +146,12 @@ export const useChatUiTools = () => {
       parameters: DeleteBoardSurfaceArgsSchema,
       render: ({ status, result }) => {
         const titles = parseRemovedTitles(result);
-        if (status === "complete" && !titles) {
-          return null;
-        }
+
         return (
-          <DisplayToolCard
+          <SurfaceToolCard
             status={status}
+            result={result}
+            isHiddenWhenDone={!titles}
             detail={titles?.join(", ")}
             copy={DELETE_BOARD_SURFACE_COPY}
           />

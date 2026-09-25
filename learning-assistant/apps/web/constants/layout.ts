@@ -46,6 +46,7 @@ export const SET_LAYOUT_TOOL_DESCRIPTION =
 export const DISPLAY_TOOL_COPY = {
   running: "Updating the display",
   done: "Display updated",
+  stopped: "Stopped",
 } as const;
 
 export const DISPLAY_CONTEXT_DESCRIPTION =
