@@ -1,5 +1,7 @@
 import type { ToolDefinition } from "@copilotkit/runtime/v2";
 import type {
+  BoardSurface,
+  Draft,
   Evaluation,
   LearningState,
   Material,
@@ -26,6 +28,13 @@ export interface StateUpdate {
   patch: StatePatchOperation[];
 }
 
+/** A surface tool call's arguments so far, parsed from partial JSON. */
+export interface BoardDraftEvent {
+  toolCallId: string;
+  toolCallName: string;
+  args: unknown;
+}
+
 /** What a run's tools can see: the user's settings and the full state. */
 export interface SupervisorRunContext {
   /** The user's settings and API key. The key must never reach state. */
@@ -41,6 +50,8 @@ export interface SupervisorRunContext {
   env: Env;
   /** Seals the quiz answer key and unseals it to grade the quiz. */
   answerKeys: AnswerKeyStore;
+  /** Streams a subagent's partial output to the canvas. */
+  reportDraft: (draft: Draft) => void;
 }
 
 /** A web search result given to the Research Agent. */
@@ -98,4 +109,6 @@ export interface SupervisorState {
   hasFeedback: boolean;
   hasReflection: boolean;
   quizOutdated: boolean;
+  /** Board views by name; their components stay on the canvas. */
+  board: Pick<BoardSurface, "id" | "title">[];
 }

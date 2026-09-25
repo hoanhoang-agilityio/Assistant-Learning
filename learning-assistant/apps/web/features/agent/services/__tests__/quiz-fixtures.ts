@@ -45,6 +45,7 @@ export const createTestContext = (initial: LearningState) => {
     signal: new AbortController().signal,
     env: {},
     answerKeys: new SealedAnswerKeyStore("test-secret"),
+    reportDraft: () => {},
   };
   return {
     ctx,
