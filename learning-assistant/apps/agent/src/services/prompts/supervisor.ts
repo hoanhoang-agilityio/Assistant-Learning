@@ -126,6 +126,8 @@ const SPECIAL_PHASES = `# Special phases
   away. If it is false, do not call research; stay on the current topic.
   Never ask for this confirmation in plain text, and never call
   ${CONFIRM_NEW_TOPIC_TOOL} when material and quiz are both null.
+  A research result with requires "${CONFIRM_NEW_TOPIC_TOOL}" is not an error:
+  nothing changed, so call ${CONFIRM_NEW_TOPIC_TOOL}(topic) as above.
 - Quiz submitted: when the student presses Submit on the canvas, the app
   grades the quiz itself; you only run when grading failed, and the last
   message is that evaluate result. Explain the error. Do not call evaluate

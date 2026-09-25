@@ -1,4 +1,7 @@
-import { TOOL_STOPPED_ERROR } from "@repo/shared/constants/agents";
+import {
+  CONFIRM_NEW_TOPIC_TOOL,
+  TOOL_STOPPED_ERROR,
+} from "@repo/shared/constants/agents";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,10 +10,34 @@ import {
   getToolPhase,
   isBoardSurfaceResult,
   isToolStopped,
+  isTopicConfirmationRequired,
   parseEvaluateScore,
   parseRemovedTitles,
   parseToolError,
 } from "@/features/chat/utils/tool-results";
+
+const CONFIRMATION_REQUIRED = JSON.stringify({
+  ok: false,
+  requires: CONFIRM_NEW_TOPIC_TOOL,
+  topic: "Black holes",
+  instruction: "Confirm first.",
+});
+
+describe("isTopicConfirmationRequired", () => {
+  it("is true for a research refusal that waits for confirmation", () => {
+    expect(isTopicConfirmationRequired(CONFIRMATION_REQUIRED)).toBe(true);
+  });
+
+  it.each([
+    undefined,
+    "",
+    "plain text",
+    '{"ok":false,"error":"Search failed."}',
+    '{"ok":true,"data":{}}',
+  ])("is false for %j", (result) => {
+    expect(isTopicConfirmationRequired(result)).toBe(false);
+  });
+});
 
 describe("parseToolError", () => {
   it("returns the error of a failed result", () => {
@@ -19,12 +46,15 @@ describe("parseToolError", () => {
     ).toBe("No learning material yet.");
   });
 
-  it.each([undefined, "", '{"ok":true,"data":{}}', "plain text"])(
-    "returns null for %j",
-    (result) => {
-      expect(parseToolError(result)).toBeNull();
-    },
-  );
+  it.each([
+    undefined,
+    "",
+    '{"ok":true,"data":{}}',
+    "plain text",
+    CONFIRMATION_REQUIRED,
+  ])("returns null for %j", (result) => {
+    expect(parseToolError(result)).toBeNull();
+  });
 });
 
 describe("getToolPhase", () => {

@@ -4,13 +4,8 @@ import {
   type NewTopicDecision,
   NewTopicDecisionSchema,
 } from "@repo/shared/schemas";
-import { hasQuizData } from "@repo/shared/utils/learning-state";
 
 import { CURRENT_TOPIC_FALLBACK } from "@/features/chat/constants/new-topic";
-
-/** Learning material or a quiz exists, so a new topic would throw work away. */
-export const hasTopicWork = (state: LearningState): boolean =>
-  state.material !== null || hasQuizData(state);
 
 /**
  * The state after the student confirms a new topic: every stage is cleared.

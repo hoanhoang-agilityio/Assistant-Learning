@@ -5,17 +5,37 @@ import {
   type Score,
   type SubagentTool,
   ToolResultSchemas,
+  TopicConfirmationRequiredSchema,
 } from "@repo/shared/schemas";
 
 import { TOOL_LABELS } from "@/features/chat/constants/tools";
 import type { ToolCallStatus, ToolPhase } from "@/features/chat/types/chat";
 
 /**
+ * A `research` result that waits for the student to confirm a new topic. The
+ * confirmation card follows it, so it is neither an error nor a success.
+ */
+export const isTopicConfirmationRequired = (
+  result: string | undefined,
+): boolean => {
+  if (!result) {
+    return false;
+  }
+  try {
+    return TopicConfirmationRequiredSchema.safeParse(JSON.parse(result))
+      .success;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Reads the error from a subagent tool's result string. Tools return
  * `{ ok: false, error }` instead of throwing; anything else counts as success.
+ * A refusal that waits for a new-topic confirmation is not an error.
  */
 export const parseToolError = (result: string | undefined): string | null => {
-  if (!result) {
+  if (!result || isTopicConfirmationRequired(result)) {
     return null;
   }
   try {

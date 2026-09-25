@@ -48,6 +48,12 @@ export const TOOL_ERRORS = {
   stopped: TOOL_STOPPED_ERROR,
 } as const;
 
+/**
+ * What `research` tells the Supervisor when it refuses to replace learning
+ * material or a quiz the student has not agreed to lose.
+ */
+export const TOPIC_CONFIRMATION_INSTRUCTION = `Nothing was researched and nothing changed: learning material or a quiz exists. Call ${CONFIRM_NEW_TOPIC_TOOL} with this topic and write nothing else; research it only after the student confirms.`;
+
 /** Prefix for an unexpected failure, followed by the error message. */
 export const TOOL_FAILURE_PREFIX: Record<SubagentTool, string> = {
   research: "Research failed",

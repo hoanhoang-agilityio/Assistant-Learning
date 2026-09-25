@@ -1,37 +1,11 @@
-import { initialLearningState, type LearningState } from "@repo/shared/schemas";
+import { initialLearningState } from "@repo/shared/schemas";
 import { describe, expect, it } from "vitest";
 
 import {
   createNewTopicDecision,
-  hasTopicWork,
   parseNewTopicDecision,
   resetForNewTopic,
 } from "@/features/chat/utils/new-topic";
-
-const withMaterial: LearningState = {
-  ...initialLearningState,
-  topic: "Closures",
-  material: { original: "# Notes", simplified: null, view: "original" },
-};
-
-describe("hasTopicWork", () => {
-  it("is false with only research or nothing", () => {
-    expect(hasTopicWork(initialLearningState)).toBe(false);
-    expect(hasTopicWork({ ...initialLearningState, topic: "Closures" })).toBe(
-      false,
-    );
-  });
-
-  it("is true once learning material or a quiz exists", () => {
-    expect(hasTopicWork(withMaterial)).toBe(true);
-    expect(
-      hasTopicWork({
-        ...initialLearningState,
-        score: { percent: 80, tier: "Master" },
-      }),
-    ).toBe(true);
-  });
-});
 
 describe("resetForNewTopic", () => {
   it("clears every stage", () => {
