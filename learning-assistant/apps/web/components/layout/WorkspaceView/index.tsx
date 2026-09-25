@@ -18,6 +18,10 @@ export interface WorkspaceViewProps {
  * Page layout: the header, then the chat and the canvas side by side. A
  * previewed device layout is drawn in a centred frame; its transform makes
  * the fixed-position popup anchor to the frame instead of the window.
+ *
+ * The docked chat and the popup both stay mounted and only hide: a
+ * `CopilotChat` without a `threadId` clears the agent's messages when it
+ * mounts, so remounting one on a mode switch would wipe the conversation.
  */
 export const WorkspaceView = ({ display, panelsRef }: WorkspaceViewProps) => {
   const { frameWidth, chat } = display;
@@ -42,11 +46,11 @@ export const WorkspaceView = ({ display, panelsRef }: WorkspaceViewProps) => {
         <Header />
         <div ref={panelsRef} className="flex flex-1 overflow-hidden">
           {chat === "hidden" && <ChatRail />}
-          {chat !== "popup" && <ChatPanel />}
+          <ChatPanel />
           {chat === "docked" && <ResizeHandle containerRef={panelsRef} />}
           <CanvasArea />
         </div>
-        {chat === "popup" && <ChatPopup />}
+        <ChatPopup />
       </div>
     </div>
   );
