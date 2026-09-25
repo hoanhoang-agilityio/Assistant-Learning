@@ -1,3 +1,4 @@
+import { HOME_ROUTE } from "@repo/shared/constants/routes";
 import { useRouter } from "next/navigation";
 import {
   type ChangeEvent,
@@ -6,7 +7,6 @@ import {
   useState,
 } from "react";
 
-import { HOME_ROUTE } from "@/constants/routes";
 import { INITIAL_API_KEY_FORM_STATE } from "@/features/api-key/constants/api-key";
 import {
   useApiKeyActions,

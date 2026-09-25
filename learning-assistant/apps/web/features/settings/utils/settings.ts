@@ -1,10 +1,10 @@
+import { DEFAULT_SETTINGS } from "@repo/shared/constants/settings";
 import {
   QUESTION_COUNT,
   type Settings,
   SettingsSchema,
 } from "@repo/shared/schemas";
 
-import { DEFAULT_SETTINGS } from "@/constants/settings";
 import type { ResolvedTheme } from "@/features/settings/types/settings";
 
 /**

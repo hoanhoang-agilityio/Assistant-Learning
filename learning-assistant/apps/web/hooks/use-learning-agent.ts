@@ -1,8 +1,7 @@
 import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
+import { readLearningState } from "@repo/shared/utils/learning-state";
 import { useCallback, useSyncExternalStore } from "react";
-
-import { readLearningState } from "@/utils/learning-state";
 
 const UPDATES = [
   UseAgentUpdate.OnStateChanged,
