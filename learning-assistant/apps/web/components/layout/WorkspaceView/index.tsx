@@ -2,7 +2,7 @@ import type { RefObject } from "react";
 
 import { Header } from "@/components/layout/Header";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
-import { CanvasShell } from "@/features/canvas/components/CanvasShell";
+import { CanvasArea } from "@/features/canvas/components/CanvasArea";
 import { ChatPanel } from "@/features/chat/components/ChatPanel";
 import { ChatPopup } from "@/features/chat/components/ChatPopup";
 import { ChatRail } from "@/features/chat/components/ChatRail";
@@ -44,7 +44,7 @@ export const WorkspaceView = ({ display, panelsRef }: WorkspaceViewProps) => {
           {chat === "hidden" && <ChatRail />}
           {chat !== "popup" && <ChatPanel />}
           {chat === "docked" && <ResizeHandle containerRef={panelsRef} />}
-          <CanvasShell />
+          <CanvasArea />
         </div>
         {chat === "popup" && <ChatPopup />}
       </div>
