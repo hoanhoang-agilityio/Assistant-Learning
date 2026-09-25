@@ -7,6 +7,7 @@ import {
   getFollowedStage,
   getRunningStage,
   getStepperSteps,
+  isStageBuilding,
   isStageUnlocked,
   toCanvasStage,
 } from "@/features/canvas/utils/stages";
@@ -50,6 +51,44 @@ describe("getRunningStage", () => {
       }),
     ).toBe("material");
     expect(getRunningStage(withQuizRunning)).toBe("quiz");
+  });
+});
+
+describe("isStageBuilding", () => {
+  it("covers every stage an evaluate draft fills", () => {
+    const evaluating: LearningState = {
+      ...withQuizRunning,
+      status: { running: "evaluate" },
+      draft: {
+        task: "evaluate",
+        evaluation: {
+          correct: 1,
+          total: 1,
+          percent: 100,
+          weakestConcept: null,
+          perQuestion: [],
+          mastery: [],
+        },
+        score: { percent: 100, tier: "Master" },
+        feedback: { a2uiOperations: [], summary: "" },
+      },
+    };
+
+    for (const stage of ["evaluation", "score", "feedback"] as const) {
+      expect(isStageBuilding(evaluating, stage)).toBe(true);
+      expect(isStageUnlocked(evaluating, stage)).toBe(true);
+    }
+    expect(isStageBuilding(evaluating, "quiz")).toBe(false);
+  });
+
+  it("covers only the running stage before a draft arrives", () => {
+    const evaluating = {
+      ...withQuizRunning,
+      status: { running: "evaluate" as const },
+    };
+
+    expect(isStageBuilding(evaluating, "evaluation")).toBe(true);
+    expect(isStageUnlocked(evaluating, "feedback")).toBe(false);
   });
 });
 

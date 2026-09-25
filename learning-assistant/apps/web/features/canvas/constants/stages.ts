@@ -74,5 +74,17 @@ export const RUNNING_TASK_STAGE: Record<RunningTask, CanvasStage> = {
   evaluate: "evaluation",
 };
 
+/**
+ * The stages each task's draft fills while it runs. Evaluate grades in code
+ * first, so its draft already has the score, and the feedback streams in.
+ */
+export const DRAFT_STAGES: Record<RunningTask, readonly CanvasStage[]> = {
+  research: ["research"],
+  material: ["material"],
+  simplify: ["material"],
+  quiz: ["quiz"],
+  evaluate: ["evaluation", "score", "feedback"],
+};
+
 /** The stage the canvas opens on before any work has been done. */
 export const FIRST_STAGE: CanvasStage = "research";

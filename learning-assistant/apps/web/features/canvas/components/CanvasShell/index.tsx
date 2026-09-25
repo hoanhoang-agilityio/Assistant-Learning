@@ -14,6 +14,7 @@ export const CanvasShell = () => {
     steps,
     progress,
     isBuilding,
+    draft,
     hasData,
     error,
     canRetry,
@@ -37,6 +38,7 @@ export const CanvasShell = () => {
       steps={steps}
       progress={progress}
       isBuilding={isBuilding}
+      draft={draft}
       hasData={hasData}
       error={error}
       canRetry={canRetry}
