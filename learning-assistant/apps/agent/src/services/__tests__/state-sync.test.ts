@@ -281,6 +281,28 @@ describe("closeLostToolCalls then syncStateFromTools", () => {
     });
   });
 
+  it("ignores a lost call once a later call finished its task", async () => {
+    let state = before;
+    await firstValueFrom(
+      from([
+        ...started,
+        { ...createToolStartEvent("generateQuiz"), toolCallId: "bad" },
+        createToolStartEvent("generateQuiz"),
+        createToolResultEvent({ ok: true, data: { quiz } }),
+        finished,
+      ]).pipe(
+        closeLostToolCalls(new Set(), new AbortController().signal),
+        syncStateFromTools(before, (next) => {
+          state = next;
+        }),
+        toArray(),
+      ),
+    );
+
+    expect(state.status).toEqual({ running: null });
+    expect(state.stage).toBe("quiz");
+  });
+
   it("still fails a lost call when the run was not stopped", async () => {
     const state = await runLostQuizCall(new AbortController().signal);
 

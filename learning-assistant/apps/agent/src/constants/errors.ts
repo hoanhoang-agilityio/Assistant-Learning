@@ -48,4 +48,4 @@ export const RUN_ERROR_INTRO = "Sorry, that did not work.";
  * history valid, since the next request fails if any call has no result.
  */
 export const LOST_TOOL_RESULT =
-  "This tool call failed before it returned a result (invalid arguments or an unknown tool). Check the tool's arguments and try again.";
+  "This tool call failed before it returned a result. Check the tool's arguments and try again.";

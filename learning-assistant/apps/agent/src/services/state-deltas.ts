@@ -31,6 +31,7 @@ import {
   SUBAGENT_STAGE,
   SUBAGENT_TASK,
 } from "../constants/agents";
+import { LOST_TOOL_RESULT } from "../constants/errors";
 import { TOOL_ERRORS } from "../constants/tools";
 import type {
   BoardDraftEvent,
@@ -242,9 +243,10 @@ export const createStartUpdate = (
  * JSON-serialised tool result). On success the data is written to state, later
  * stages are cleared and the canvas moves to the tool's stage; on failure
  * `status.error` and `status.failed` are set and the rest of the state is
- * kept. Two outcomes are not errors: a step the student stopped only stops
- * running (no Retry), and a refusal that waits for the student's
- * confirmation only ends the running task.
+ * kept. Three outcomes are not errors: a step the student stopped only stops
+ * running (no Retry), a refusal that waits for the student's confirmation
+ * only ends the running task, and a lost call (see `closeLostToolCalls`)
+ * changes nothing once a later call has finished its task, since it never ran.
  */
 export const applyToolResult = (
   state: LearningState,
@@ -275,9 +277,13 @@ export const applyToolResult = (
     return createStateUpdate(state, { ...state, status: { running: null } });
   }
   if (!result.ok) {
-    return result.error === TOOL_ERRORS.stopped
-      ? createStoppedUpdate(state)
-      : createFailureUpdate(state, task, result.error);
+    if (result.error === TOOL_ERRORS.stopped) {
+      return createStoppedUpdate(state);
+    }
+    if (result.error === LOST_TOOL_RESULT && state.status.running !== task) {
+      return createStateUpdate(state, state);
+    }
+    return createFailureUpdate(state, task, result.error);
   }
 
   const next = applyData(

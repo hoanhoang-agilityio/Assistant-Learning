@@ -9,6 +9,8 @@ import {
   type ToolCallResultEvent,
   type ToolCallStartEvent,
 } from "@ag-ui/client";
+import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
+import { NewTopicDecisionSchema } from "@repo/shared/schemas";
 import { concatMap, type OperatorFunction } from "rxjs";
 
 import { CARD_TOOLS } from "../constants/tools";
@@ -44,9 +46,26 @@ const isSuccess = (content: string): boolean => {
 };
 
 /**
- * Whether the history ends with a card tool's successful result. A frontend
- * tool (theme, layout, settings, chat cards, new topic) finishes on the
- * client, so its result starts the next run.
+ * The student kept the current topic. The card says only that, and the
+ * decision asks the Supervisor what they want to do next, so its reply must
+ * reach the chat.
+ */
+const isKeptTopic = (name: string, content: string): boolean => {
+  if (name !== CONFIRM_NEW_TOPIC_TOOL) {
+    return false;
+  }
+  try {
+    const decision = NewTopicDecisionSchema.safeParse(JSON.parse(content));
+    return decision.success && !decision.data.confirmed;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Whether the history ends with a card tool's successful result that needs
+ * no reply. A frontend tool (theme, layout, settings, chat cards, new topic)
+ * finishes on the client, so its result starts the next run.
  */
 const endsWithCardResult = (messages: Message[]): boolean => {
   const last = messages.at(-1);
@@ -61,7 +80,8 @@ const endsWithCardResult = (messages: Message[]): boolean => {
   return (
     call !== undefined &&
     CARD_TOOLS.has(call.function.name) &&
-    isSuccess(last.content)
+    isSuccess(last.content) &&
+    !isKeptTopic(call.function.name, last.content)
   );
 };
 
@@ -69,8 +89,8 @@ const endsWithCardResult = (messages: Message[]): boolean => {
  * Every card tool shows in the chat what it did, so the Supervisor adds no
  * reply after one succeeds. This drops any text message that starts while
  * the latest tool result (in `history` or in this run) is a card tool's
- * success. A failure, or any other tool's result, lets the reply through, so
- * errors are still explained. Tool calls always pass.
+ * success. A failure, a kept topic, or any other tool's result lets the reply
+ * through, so errors are still explained. Tool calls always pass.
  */
 export const muteRepliesAfterCards = (
   history: Message[],
