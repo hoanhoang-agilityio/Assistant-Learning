@@ -40,10 +40,11 @@ export const CHAT_VIEW_PROPS: Pick<
   },
   suggestionView: {
     className:
-      "suggestion-scroll flex flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-slate-100 px-4 py-2 dark:border-slate-800/80",
+      "suggestion-scroll flex flex-nowrap items-center gap-1.5 overflow-x-auto border-t border-slate-100 bg-white px-4 py-2 dark:border-slate-800/80 dark:bg-slate-900",
     suggestion: { className: SUGGESTION_PILL_CLASS },
   },
   input: {
-    className: "border-t border-slate-200 p-3 dark:border-slate-800",
+    className:
+      "pointer-events-auto border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900",
   },
 };
