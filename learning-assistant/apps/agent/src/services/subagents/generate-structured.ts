@@ -1,9 +1,14 @@
-import { type DeepPartial, generateText, Output, streamText } from "ai";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { parsePartialJson } from "@langchain/core/output_parsers";
+import { toJsonSchema } from "@langchain/core/utils/json_schema";
 import type { z } from "zod";
 
-import { OPENAI_CALL_OPTIONS } from "../../constants/openai";
-import type { RunSettings } from "../../types/llm";
-import { createLanguageModel } from "../llm/language-model";
+import {
+  SILENT_RUN_METADATA,
+  STRUCTURED_OUTPUT_NAME,
+} from "../../constants/openai";
+import type { DeepPartial, RunSettings } from "../../types/llm";
+import { createChatModel } from "../llm/chat-model";
 
 interface GenerateStructuredParams<T extends z.ZodType> {
   settings: RunSettings;
@@ -15,59 +20,55 @@ interface GenerateStructuredParams<T extends z.ZodType> {
   onPartial?: (partial: DeepPartial<z.infer<T>>) => void;
 }
 
-/**
- * Streams the output, reporting each partial object, and returns the
- * validated whole. A failed stream throws the provider's own error (a bad
- * key, a rate limit…) rather than the SDK's generic "no output".
- */
-const streamStructured = async <T extends z.ZodType>(
-  { settings, system, prompt, schema, signal }: GenerateStructuredParams<T>,
-  onPartial: (partial: DeepPartial<z.infer<T>>) => void,
-): Promise<unknown> => {
-  let streamError: unknown;
-  const result = streamText({
-    model: createLanguageModel(settings.apiKey),
-    providerOptions: OPENAI_CALL_OPTIONS,
-    system,
-    prompt,
-    output: Output.object({ schema }),
-    abortSignal: signal,
-    onError: ({ error }) => {
-      streamError = error;
-    },
-  });
-  try {
-    for await (const partial of result.partialOutputStream) {
-      onPartial(partial as DeepPartial<z.infer<T>>);
-    }
-    return await result.output;
-  } catch (error) {
-    throw streamError ?? error;
-  }
-};
+/** The request option that makes the model answer in `schema`'s JSON. */
+const toResponseFormat = (schema: z.ZodType) => ({
+  type: "json_schema" as const,
+  json_schema: {
+    name: STRUCTURED_OUTPUT_NAME,
+    strict: true,
+    schema: { ...toJsonSchema(schema), additionalProperties: false },
+  },
+});
 
 /**
  * One structured-output call to the OpenAI model. Every subagent is one of
- * these; with `onPartial` it streams. (`generateText` + `Output.object` is
- * the AI SDK 6 replacement for the deprecated `generateObject`.)
+ * these. The reply is streamed as raw JSON text and parsed as it grows,
+ * because `withStructuredOutput` yields only the finished object; with
+ * `onPartial` each parse is reported. The whole reply is then validated
+ * against `schema`. A failed or stopped (`signal`) call throws the
+ * provider's own error. The call is marked silent, so inside a tool its
+ * tokens stay out of the chat.
  */
-export const generateStructured = async <T extends z.ZodType>(
-  params: GenerateStructuredParams<T>,
-): Promise<z.infer<T>> => {
-  const { settings, system, prompt, schema, signal, onPartial } = params;
-  const output = onPartial
-    ? await streamStructured(params, onPartial)
-    : (
-        await generateText({
-          model: createLanguageModel(settings.apiKey),
-          providerOptions: OPENAI_CALL_OPTIONS,
-          system,
-          prompt,
-          output: Output.object({ schema }),
-          abortSignal: signal,
-        })
-      ).output;
-  // The SDK already validated `output`; parsing again gives it the schema's
-  // type, which the generic call cannot infer.
-  return schema.parse(output);
+export const generateStructured = async <T extends z.ZodType>({
+  settings,
+  system,
+  prompt,
+  schema,
+  signal,
+  onPartial,
+}: GenerateStructuredParams<T>): Promise<z.infer<T>> => {
+  const stream = await createChatModel(settings.apiKey).stream(
+    [new SystemMessage(system), new HumanMessage(prompt)],
+    {
+      signal,
+      metadata: SILENT_RUN_METADATA,
+      response_format: toResponseFormat(schema),
+    },
+  );
+
+  let text = "";
+  for await (const chunk of stream) {
+    if (!chunk.text) {
+      continue;
+    }
+    text += chunk.text;
+    const partial: unknown = onPartial ? parsePartialJson(text) : null;
+    if (partial !== null && typeof partial === "object") {
+      onPartial?.(partial as DeepPartial<z.infer<T>>);
+    }
+  }
+
+  // `JSON.parse`, not the partial parser: a reply cut short must fail here
+  // rather than pass as a shorter, valid-looking object.
+  return schema.parse(JSON.parse(text));
 };
