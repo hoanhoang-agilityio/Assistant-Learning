@@ -1,6 +1,7 @@
 import type { A2UIClientEventMessage } from "@copilotkit/a2ui-renderer";
 import { QUIZ_ACTIONS } from "@repo/shared/a2ui/quiz-actions";
 import type { Evaluation, LearningState, Quiz } from "@repo/shared/schemas";
+import { retakeQuiz } from "@repo/shared/utils/client-edits";
 import { readLearningState } from "@repo/shared/utils/learning-state";
 import { useMemo } from "react";
 
@@ -10,7 +11,6 @@ import { useSubmitQuiz } from "@/features/canvas/hooks/use-submit-quiz";
 import { createQuizDataModel } from "@/features/canvas/utils/build-surface";
 import {
   parseSelectAnswer,
-  retakeQuiz,
   selectAnswer,
 } from "@/features/canvas/utils/quiz-answers";
 import { useLearningAgent } from "@/hooks/use-learning-agent";

@@ -1,9 +1,5 @@
 import { QUIZ_ACTIONS } from "@repo/shared/a2ui/quiz-actions";
-import {
-  type LearningState,
-  OptionIndexSchema,
-  QUIZ_STATE_KEYS,
-} from "@repo/shared/schemas";
+import { type LearningState, OptionIndexSchema } from "@repo/shared/schemas";
 import { z } from "zod";
 
 import type { SelectAnswer } from "@/features/canvas/types/quiz";
@@ -45,25 +41,5 @@ export const selectAnswer = (
   return {
     ...state,
     quiz: { ...quiz, answers: { ...quiz.answers, [questionId]: optionIndex } },
-  };
-};
-
-/**
- * Retake: the same questions with no answers. The last attempt's results are
- * cleared and the canvas goes back to the Quiz stage.
- */
-export const retakeQuiz = (state: LearningState): LearningState => {
-  const { quiz } = state;
-  if (!quiz) {
-    return state;
-  }
-
-  return {
-    ...state,
-    ...Object.fromEntries(
-      QUIZ_STATE_KEYS.filter((key) => key !== "quiz").map((key) => [key, null]),
-    ),
-    quiz: { ...quiz, answers: {}, submitted: false },
-    stage: "quiz",
   };
 };

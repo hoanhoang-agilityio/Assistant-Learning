@@ -1,5 +1,9 @@
 import type { Material } from "@repo/shared/schemas";
 import {
+  applyMaterialEdit,
+  setMaterialView,
+} from "@repo/shared/utils/client-edits";
+import {
   getActiveMaterial,
   readLearningState,
 } from "@repo/shared/utils/learning-state";
@@ -21,10 +25,6 @@ import type {
   MaterialMode,
   MaterialView,
 } from "@/features/canvas/types/material";
-import {
-  applyMaterialEdit,
-  setMaterialView,
-} from "@/features/canvas/utils/material-edit";
 import { formatSimplifySelectionMessage } from "@/features/canvas/utils/material-messages";
 import { useLearningAgent } from "@/hooks/use-learning-agent";
 

@@ -25,6 +25,15 @@ export const getActiveMaterial = (material: Material): string =>
     ? material.simplified
     : material.original;
 
+/** The learning material with `text` in the view the student is looking at. */
+export const writeActiveMaterial = (
+  material: Material,
+  text: string,
+): Material =>
+  material.view === "simplified" && material.simplified !== null
+    ? { ...material, simplified: text }
+    : { ...material, original: text };
+
 /** A quiz or anything built from it exists. */
 export const hasQuizData = (state: LearningState): boolean =>
   QUIZ_STATE_KEYS.some((key) => state[key] !== null);

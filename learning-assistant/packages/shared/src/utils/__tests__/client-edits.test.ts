@@ -1,10 +1,16 @@
-import { initialLearningState, type LearningState } from "@repo/shared/schemas";
 import { describe, expect, it } from "vitest";
 
 import {
+  initialLearningState,
+  type LearningState,
+  type Quiz,
+} from "../../schemas";
+import {
   applyMaterialEdit,
+  replaceMaterial,
+  retakeQuiz,
   setMaterialView,
-} from "@/features/canvas/utils/material-edit";
+} from "../client-edits";
 
 const withMaterial: LearningState = {
   ...initialLearningState,
@@ -104,5 +110,80 @@ describe("setMaterialView", () => {
     const next = setMaterialView(withResults, "simplified");
     expect(next.material?.view).toBe("simplified");
     expect(next.quiz).toBe(withResults.quiz);
+  });
+});
+
+describe("replaceMaterial", () => {
+  it("treats a change of view alone as no edit", () => {
+    const state: LearningState = {
+      ...withResults,
+      material: { original: "# Notes", simplified: "# Easy", view: "original" },
+    };
+    const next = replaceMaterial(state, {
+      original: "# Notes",
+      simplified: "# Easy",
+      view: "simplified",
+    });
+
+    expect(next.material?.view).toBe("simplified");
+    expect(next.quiz).toBe(state.quiz);
+    expect(next.quizOutdated).toBe(false);
+  });
+
+  it("clears the quiz when either text differs", () => {
+    const next = replaceMaterial(withResults, {
+      original: "# Rewritten",
+      simplified: null,
+      view: "original",
+    });
+
+    expect(next).toMatchObject({ quiz: null, score: null, quizOutdated: true });
+    expect(next.stage).toBe("material");
+  });
+
+  it("returns the same state when nothing changed or there is nothing to replace", () => {
+    const { material } = withMaterial;
+    if (!material) {
+      throw new Error("The fixture has no learning material.");
+    }
+
+    expect(replaceMaterial(withMaterial, { ...material })).toBe(withMaterial);
+    expect(replaceMaterial(initialLearningState, material)).toBe(
+      initialLearningState,
+    );
+  });
+});
+
+describe("retakeQuiz", () => {
+  const QUIZ: Quiz = {
+    id: "quiz-1",
+    questions: [
+      {
+        id: "q1",
+        concept: "A",
+        question: "One?",
+        options: ["a", "b", "c", "d"],
+      },
+    ],
+    answers: { q1: 0 },
+    answerKeySealed: "sealed",
+    submitted: true,
+  };
+
+  it("clears the answers and the results, keeps the questions", () => {
+    const next = retakeQuiz({ ...withResults, quiz: QUIZ });
+
+    expect(next.quiz).toEqual({ ...QUIZ, answers: {}, submitted: false });
+    expect(next).toMatchObject({
+      stage: "quiz",
+      evaluation: null,
+      score: null,
+      feedback: null,
+      reflection: null,
+    });
+  });
+
+  it("returns the same state without a quiz", () => {
+    expect(retakeQuiz(initialLearningState)).toBe(initialLearningState);
   });
 });

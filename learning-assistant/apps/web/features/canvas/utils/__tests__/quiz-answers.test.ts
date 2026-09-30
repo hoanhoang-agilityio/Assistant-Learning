@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import {
   createSelectAnswerAction,
   parseSelectAnswer,
-  retakeQuiz,
   selectAnswer,
 } from "@/features/canvas/utils/quiz-answers";
 
@@ -76,30 +75,5 @@ describe("selectAnswer", () => {
     ["the same option", withQuiz(), "q1", 0],
   ])("returns the same state for %s", (_, state, questionId, optionIndex) => {
     expect(selectAnswer(state, { questionId, optionIndex })).toBe(state);
-  });
-});
-
-describe("retakeQuiz", () => {
-  it("clears the answers and the results, keeps the questions", () => {
-    const graded: LearningState = {
-      ...withQuiz({ answers: { q1: 0, q2: 1 }, submitted: true }),
-      stage: "evaluation",
-      score: { percent: 50, tier: "Practitioner" },
-      feedback: { a2uiOperations: [], summary: "Ok." },
-    };
-    const next = retakeQuiz(graded);
-
-    expect(next.quiz).toEqual({ ...QUIZ, answers: {}, submitted: false });
-    expect(next).toMatchObject({
-      stage: "quiz",
-      evaluation: null,
-      score: null,
-      feedback: null,
-      reflection: null,
-    });
-  });
-
-  it("returns the same state without a quiz", () => {
-    expect(retakeQuiz(initialLearningState)).toBe(initialLearningState);
   });
 });
