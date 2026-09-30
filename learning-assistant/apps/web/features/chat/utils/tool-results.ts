@@ -4,7 +4,7 @@ import {
   BoardSurfaceResultSchema,
   type Score,
   type SubagentTool,
-  ToolResultSchemas,
+  ToolSummarySchemas,
   TopicConfirmationRequiredSchema,
 } from "@repo/shared/schemas";
 
@@ -30,8 +30,9 @@ export const isTopicConfirmationRequired = (
 };
 
 /**
- * Reads the error from a subagent tool's result string. Tools return
- * `{ ok: false, error }` instead of throwing; anything else counts as success.
+ * Reads the error from a subagent tool's result string. A tool's result is a
+ * short summary (`ToolSummarySchemas`): `{ ok: false, error }` when it
+ * failed; anything else counts as success.
  * A refusal that waits for a new-topic confirmation is not an error.
  */
 export const parseToolError = (result: string | undefined): string | null => {
@@ -142,9 +143,11 @@ export const formatQuizSize = (
     return undefined;
   }
   try {
-    const parsed = ToolResultSchemas.generateQuiz.safeParse(JSON.parse(result));
+    const parsed = ToolSummarySchemas.generateQuiz.safeParse(
+      JSON.parse(result),
+    );
     return parsed.success && parsed.data.ok
-      ? `${parsed.data.data.quiz.questions.length} questions`
+      ? `${parsed.data.data.questionCount} questions`
       : undefined;
   } catch {
     return undefined;
@@ -159,7 +162,7 @@ export const parseEvaluateScore = (
     return null;
   }
   try {
-    const parsed = ToolResultSchemas.evaluate.safeParse(JSON.parse(result));
+    const parsed = ToolSummarySchemas.evaluate.safeParse(JSON.parse(result));
     return parsed.success && parsed.data.ok ? parsed.data.data.score : null;
   } catch {
     return null;

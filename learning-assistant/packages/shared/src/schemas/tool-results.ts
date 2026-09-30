@@ -81,6 +81,37 @@ export const ToolResultSchemas = {
   ),
 } as const satisfies Record<SubagentTool, z.ZodType>;
 
+/**
+ * What each subagent tool tells the Supervisor and its chat card once it has
+ * run on the LangChain graph: whether it worked, and a few facts about the
+ * result. The result itself goes to state and is never repeated in the
+ * thread, where every later model call would read it again.
+ */
+export const ToolSummarySchemas = {
+  research: z.union([
+    createResultSchema(
+      z.object({ topic: z.string().min(1), title: z.string().min(1) }),
+    ),
+    TopicConfirmationRequiredSchema,
+  ]),
+  makeMaterial: createResultSchema(z.object({ characters: z.int().min(1) })),
+  simplify: createResultSchema(
+    z.object({
+      scope: z.enum(["all", "selection"]),
+      characters: z.int().min(1),
+    }),
+  ),
+  generateQuiz: createResultSchema(z.object({ questionCount: z.int().min(1) })),
+  evaluate: createResultSchema(
+    z.object({
+      correct: EvaluationSchema.shape.correct,
+      total: EvaluationSchema.shape.total,
+      weakestConcept: EvaluationSchema.shape.weakestConcept,
+      score: ScoreSchema,
+    }),
+  ),
+} as const satisfies Record<SubagentTool, z.ZodType>;
+
 export type SubagentTool = z.infer<typeof SubagentToolSchema>;
 export type ToolResult<T extends SubagentTool> = z.infer<
   (typeof ToolResultSchemas)[T]
@@ -88,6 +119,15 @@ export type ToolResult<T extends SubagentTool> = z.infer<
 /** The `data` of a successful result. */
 export type ToolResultData<T extends SubagentTool> = Extract<
   ToolResult<T>,
+  { ok: true }
+>["data"];
+
+export type ToolSummary<T extends SubagentTool> = z.infer<
+  (typeof ToolSummarySchemas)[T]
+>;
+/** The `data` of a successful summary. */
+export type ToolSummaryData<T extends SubagentTool> = Extract<
+  ToolSummary<T>,
   { ok: true }
 >["data"];
 

@@ -121,24 +121,10 @@ describe("formatToolTitle", () => {
 });
 
 describe("formatQuizSize", () => {
-  const question = {
-    id: "q1",
-    concept: "A",
-    question: "One?",
-    options: ["a", "b", "c", "d"],
-  };
-  const quiz = {
-    id: "quiz-1",
-    questions: [question, { ...question, id: "q2" }],
-    answers: {},
-    answerKeySealed: "sealed",
-    submitted: false,
-  };
-
   it("counts the questions in a successful result", () => {
-    expect(formatQuizSize(JSON.stringify({ ok: true, data: { quiz } }))).toBe(
-      "2 questions",
-    );
+    expect(
+      formatQuizSize(JSON.stringify({ ok: true, data: { questionCount: 2 } })),
+    ).toBe("2 questions");
   });
 
   it.each([undefined, "not json", JSON.stringify({ ok: false, error: "x" })])(
@@ -151,19 +137,10 @@ describe("formatQuizSize", () => {
 
 describe("parseEvaluateScore", () => {
   const data = {
-    answers: { q1: 0 },
-    evaluation: {
-      correct: 1,
-      total: 1,
-      percent: 100,
-      weakestConcept: null,
-      perQuestion: [
-        { qid: "q1", correctIndex: 0, isCorrect: true, explanation: "" },
-      ],
-      mastery: [{ concept: "A", percent: 100 }],
-    },
+    correct: 1,
+    total: 1,
+    weakestConcept: null,
     score: { percent: 100, tier: "Master" },
-    feedback: { a2uiOperations: [], summary: "Great." },
   };
 
   it("reads the score from a successful result", () => {
