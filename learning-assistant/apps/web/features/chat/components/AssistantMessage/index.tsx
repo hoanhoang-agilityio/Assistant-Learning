@@ -6,7 +6,10 @@ import type { AssistantMessageLayout } from "@/features/chat/types/chat";
 
 /**
  * Assistant turn: avatar, a bubble for text, then tool progress cards. Passed
- * as the slot's `children` so CopilotKit keeps its own message wiring.
+ * as the slot's `children` so CopilotKit keeps its own message wiring. A turn
+ * with neither text nor a tool call draws nothing: after a tool whose card is
+ * the whole reply, the Supervisor answers with an empty message, which stays
+ * in the thread.
  */
 export const renderAssistantMessage: AssistantMessageLayout = ({
   markdownRenderer,
@@ -16,6 +19,11 @@ export const renderAssistantMessage: AssistantMessageLayout = ({
   toolbarVisible,
 }) => {
   const hasContent = Boolean(message.content?.trim());
+  const hasToolCalls = Boolean(message.toolCalls?.length);
+  if (!hasContent && !hasToolCalls) {
+    return null;
+  }
+
   return (
     <div className="flex justify-start gap-3 pt-4" data-message-id={message.id}>
       <BotAvatar />
