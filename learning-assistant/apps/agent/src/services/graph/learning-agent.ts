@@ -37,7 +37,9 @@ export const createGraphAgent = (
     deploymentUrl: IN_PROCESS_DEPLOYMENT_URL,
     client: client as unknown as LangGraphAgentConfig["client"],
   });
-  agent.use((input, next) => next.run(input).pipe(toClientEvents()));
+  agent.use((input, next) =>
+    next.run(input).pipe(toClientEvents(input.messages)),
+  );
   return agent;
 };
 
@@ -58,6 +60,7 @@ export const createLearningAgent = ({
 
   const graph = createLearningGraph({
     model: createChatModel(trimmedKey),
+    apiKey: trimmedKey,
     checkpointer,
   });
   return createGraphAgent(graph, userId);

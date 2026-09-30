@@ -1,12 +1,19 @@
 import {
   type BaseEvent,
+  type CustomEvent,
   EventType,
+  type Message,
+  type MessagesSnapshotEvent,
   type StateSnapshotEvent,
 } from "@ag-ui/client";
-import { filter, map, type OperatorFunction, pipe, takeWhile } from "rxjs";
+import { filter, map, Observable, type OperatorFunction, pipe } from "rxjs";
 
-import { CLIENT_VISIBLE_STATE_KEYS } from "../../constants/graph";
+import {
+  CLIENT_VISIBLE_STATE_KEYS,
+  MANUAL_STATE_EVENT,
+} from "../../constants/graph";
 import { formatOpenAIError } from "../../utils/openai-errors";
+import { muteCardReplies, muteRepliesAfterCards } from "../card-replies";
 import { explainRunErrors } from "../run-errors";
 
 /** An event as `LangGraphAgent` emits it, with the graph event it came from. */
@@ -48,21 +55,82 @@ const dropRepeatedSnapshots = (): OperatorFunction<BaseEvent, BaseEvent> => {
 };
 
 /**
- * Turns `LangGraphAgent`'s events into what the browser may receive.
- *
- * The adapter attaches the graph's own event to each one (`rawEvent`) and
- * also sends every graph event as `RAW`. Together they carry the whole graph
- * state and every model input, server-only keys included, so both are
- * removed. A failed run gets a readable message in the chat, and ends at its
- * `RUN_ERROR`: the adapter goes on to send snapshots and `RUN_FINISHED`,
- * which the AG-UI protocol does not allow after an error.
+ * The adapter turns a state a tool sends mid-run into a snapshot, and also
+ * forwards it as a custom event: the same state twice.
  */
-export const toClientEvents = (): OperatorFunction<BaseEvent, BaseEvent> =>
+const isManualStateEcho = (event: BaseEvent): boolean =>
+  event.type === EventType.CUSTOM &&
+  (event as CustomEvent).name === MANUAL_STATE_EVENT;
+
+const SNAPSHOT_EVENTS: readonly string[] = [
+  EventType.STATE_SNAPSHOT,
+  EventType.MESSAGES_SNAPSHOT,
+];
+
+/**
+ * Moves a `RUN_ERROR` to the end of the run. The adapter goes on after an
+ * error: it sends the thread's saved state and messages, then
+ * `RUN_FINISHED`, which the AG-UI protocol does not allow after an error.
+ * The snapshots are kept, so the canvas shows what was saved rather than a
+ * step that looked like it was still running; everything else after the
+ * error is dropped, and the error itself comes last.
+ */
+const endWithRunError =
+  (): OperatorFunction<BaseEvent, BaseEvent> => (source) =>
+    new Observable((subscriber) => {
+      let failure: BaseEvent | undefined;
+
+      return source.subscribe({
+        next: (event) => {
+          if (event.type === EventType.RUN_ERROR) {
+            failure ??= event;
+          } else if (!failure || SNAPSHOT_EVENTS.includes(event.type)) {
+            subscriber.next(event);
+          }
+        },
+        error: (error: unknown) => subscriber.error(error),
+        complete: () => {
+          if (failure) {
+            subscriber.next(failure);
+          }
+          subscriber.complete();
+        },
+      });
+    });
+
+const isMessagesSnapshot = (event: BaseEvent): event is MessagesSnapshotEvent =>
+  event.type === EventType.MESSAGES_SNAPSHOT;
+
+/**
+ * Turns `LangGraphAgent`'s events into what the browser may receive.
+ * `history` is the messages the run started with.
+ *
+ * - The adapter attaches the graph's own event to each one (`rawEvent`) and
+ *   also sends every graph event as `RAW`. Together they carry the whole
+ *   graph state and every model input, server-only keys and the quiz's
+ *   answers included, so both are removed. So is its copy, as a custom
+ *   event, of each state a tool sends mid-run.
+ * - A tool's chat card is its whole reply: text the Supervisor writes after
+ *   one succeeds is dropped, from the stream and from message snapshots.
+ * - A failed run ends with a readable message in the chat, then its
+ *   `RUN_ERROR`.
+ */
+export const toClientEvents = (
+  history: Message[],
+): OperatorFunction<BaseEvent, BaseEvent> =>
   pipe(
-    filter(({ type }) => type !== EventType.RAW),
+    filter(
+      (event) => event.type !== EventType.RAW && !isManualStateEcho(event),
+    ),
     map(({ rawEvent: _rawEvent, ...event }: GraphBackedEvent) => event),
     map((event) => (isStateSnapshot(event) ? toVisibleSnapshot(event) : event)),
     dropRepeatedSnapshots(),
+    muteRepliesAfterCards(history),
+    map((event) =>
+      isMessagesSnapshot(event)
+        ? { ...event, messages: muteCardReplies(event.messages) }
+        : event,
+    ),
+    endWithRunError(),
     explainRunErrors(formatOpenAIError),
-    takeWhile(({ type }) => type !== EventType.RUN_ERROR, true),
   );

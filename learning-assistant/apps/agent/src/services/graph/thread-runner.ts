@@ -57,6 +57,7 @@ export class LearningThreadRunner extends InMemoryAgentRunner {
   private createReader(): LangGraphAgent {
     const graph = createLearningGraph({
       model: createChatModel(NO_API_KEY),
+      apiKey: NO_API_KEY,
       checkpointer: this.checkpointer,
     });
     return createGraphAgent(graph, RELOAD_RUN_ID);
@@ -69,7 +70,7 @@ export class LearningThreadRunner extends InMemoryAgentRunner {
         () => subscriber.complete(),
         (error: unknown) => subscriber.error(error),
       );
-    }).pipe(toClientEvents());
+    }).pipe(toClientEvents([]));
   }
 
   private async emitCheckpoint(

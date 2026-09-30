@@ -13,6 +13,7 @@ import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
 import { NewTopicDecisionSchema } from "@repo/shared/schemas";
 import { concatMap, type OperatorFunction } from "rxjs";
 
+import { RUN_ERROR_INTRO } from "../constants/errors";
 import { CARD_TOOLS } from "../constants/tools";
 
 type TextEvent =
@@ -86,6 +87,23 @@ const endsWithCardResult = (messages: Message[]): boolean => {
 };
 
 /**
+ * The messages of a snapshot with the same rule applied as to the stream
+ * (see `muteRepliesAfterCards`): an assistant message that follows a card
+ * tool's successful result keeps its tool calls and loses its text. The
+ * thread itself keeps what the Supervisor wrote. The message a failed run
+ * left in the chat is not the Supervisor's reply, so it stays.
+ */
+export const muteCardReplies = (messages: Message[]): Message[] =>
+  messages.map((message, index) =>
+    message.role === "assistant" &&
+    message.content &&
+    !message.content.startsWith(RUN_ERROR_INTRO) &&
+    endsWithCardResult(messages.slice(0, index))
+      ? { ...message, content: "" }
+      : message,
+  );
+
+/**
  * Every card tool shows in the chat what it did, so the Supervisor adds no
  * reply after one succeeds. This drops any text message that starts while
  * the latest tool result (in `history` or in this run) is a card tool's
@@ -119,6 +137,9 @@ export const muteRepliesAfterCards = (
         if (CARD_TOOLS.has(toolCallName)) {
           cardCalls.add(toolCallId);
         }
+        // What follows depends on this call's result. A call that fails
+        // before it runs returns none, and its explanation must get through.
+        muted = false;
         return [event];
       }
       case EventType.TOOL_CALL_RESULT: {

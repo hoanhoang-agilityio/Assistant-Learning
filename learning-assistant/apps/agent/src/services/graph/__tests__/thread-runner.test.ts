@@ -30,6 +30,7 @@ const RUN_CONTEXT: RunContext = {
   userId: "user_1",
   settings: DEFAULT_SETTINGS,
   appContext: [],
+  submit: null,
 };
 
 let checkpointer: MemorySaver;
@@ -50,6 +51,7 @@ beforeEach(() => {
 const runElsewhere = async () => {
   const graph = createLearningGraph({
     model: new ScriptedModel(() => ({ text: REPLY })),
+    apiKey: "sk-test",
     checkpointer,
   });
   await graph.invoke(
