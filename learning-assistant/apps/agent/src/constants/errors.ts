@@ -54,3 +54,11 @@ export const RUN_ERROR_INTRO = "Sorry, that did not work.";
  */
 export const LOST_TOOL_RESULT =
   "This tool call failed before it returned a result. Check the tool's arguments and try again.";
+
+/**
+ * The result the Supervisor reads for a tool call that never got one: the
+ * student stopped it, or never answered its card. Nothing is said about
+ * trying again, so an unrelated next message does not restart it.
+ */
+export const UNANSWERED_TOOL_RESULT =
+  "This tool call never returned a result: the student stopped it or left it unanswered. Do not repeat it unless they ask for it again.";
