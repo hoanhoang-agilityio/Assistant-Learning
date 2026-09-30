@@ -2,32 +2,44 @@ import {
   CopilotRuntime,
   createCopilotRuntimeHandler,
 } from "@copilotkit/runtime/v2";
-import {
-  createLearningTools,
-  LearningSupervisorAgent,
-  SUPERVISOR_PROMPT,
-} from "@repo/agent";
+import { createLearningAgent, LearningThreadRunner } from "@repo/agent";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 
-import { COPILOT_RUNTIME_URL, IS_DEVELOPMENT } from "@/constants/copilot";
+import {
+  COPILOT_RUNTIME_URL,
+  FORWARD_HEADERS_POLICY,
+  IS_DEVELOPMENT,
+} from "@/constants/copilot";
 import { readApiKeyFromRequest } from "@/features/api-key/services/request-api-key";
 import { createThreadGuardHooks } from "@/features/threads/services/runtime-thread-guard";
 import { threadOwnerStore } from "@/features/threads/services/thread-owners";
-import { getSignedInUserId, withSignedInUser } from "@/services/auth";
+import {
+  createUnauthorizedResponse,
+  getSignedInUserId,
+  withSignedInUser,
+} from "@/services/auth";
 
 const runtime = new CopilotRuntime({
   // Built per request so each run uses the caller's own OpenAI key, sent
   // sealed in a header and opened only here on the server, and the user id
-  // from the Clerk session (the handler below already turned away anyone
-  // signed out), never one the client sent.
-  agents: async ({ request }) => ({
-    [LEARNING_AGENT_ID]: new LearningSupervisorAgent({
-      prompt: SUPERVISOR_PROMPT,
-      tools: createLearningTools,
-      apiKey: readApiKeyFromRequest(request),
-      userId: (await getSignedInUserId()) ?? undefined,
-    }),
-  }),
+  // from the Clerk session, never one the client sent. The agent runs its
+  // LangChain graph in this process.
+  agents: async ({ request }) => {
+    const userId = await getSignedInUserId();
+    if (!userId) {
+      throw createUnauthorizedResponse();
+    }
+    return {
+      [LEARNING_AGENT_ID]: createLearningAgent({
+        apiKey: readApiKeyFromRequest(request),
+        userId,
+      }),
+    };
+  },
+  // Reload rebuilds a thread from its checkpoint when the runtime holds no
+  // events for it.
+  runner: new LearningThreadRunner(),
+  forwardHeaders: FORWARD_HEADERS_POLICY,
   // The A2UI middleware delivers surface actions (the quiz Submit) to the
   // agent, and turns the `a2ui_operations` a chat `renderSurface` result
   // carries into a chat surface (Board results go to state instead). No
