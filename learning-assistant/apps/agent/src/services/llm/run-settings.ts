@@ -1,10 +1,8 @@
-import { API_KEY_ROUTE } from "@repo/shared/constants/routes";
 import { DEFAULT_SETTINGS } from "@repo/shared/constants/settings";
 import { SettingsSchema } from "@repo/shared/schemas";
 
+import { MISSING_API_KEY_ERROR } from "../../constants/errors";
 import type { RunSettingsResult } from "../../types/llm";
-
-const MISSING_API_KEY_ERROR = `No OpenAI API key is saved. Enter one on the API key page (${API_KEY_ROUTE}).`;
 
 /**
  * Turns `forwardedProps.settings` and the user's saved key into settings that

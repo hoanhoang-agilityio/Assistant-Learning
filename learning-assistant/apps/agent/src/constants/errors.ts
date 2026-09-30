@@ -1,3 +1,5 @@
+import { API_KEY_ROUTE } from "@repo/shared/constants/routes";
+
 import type { OpenAIErrorKind } from "../types/errors";
 
 /**
@@ -38,6 +40,9 @@ export const OPENAI_ERROR_MATCHERS: readonly {
       /fetch failed|cannot connect|econnrefused|econnreset|enotfound|etimedout|network/i,
   },
 ];
+
+/** A run was asked for without a saved OpenAI API key. */
+export const MISSING_API_KEY_ERROR = `No OpenAI API key is saved. Enter one on the API key page (${API_KEY_ROUTE}).`;
 
 /** The opening of the chat message a failed run leaves. */
 export const RUN_ERROR_INTRO = "Sorry, that did not work.";
