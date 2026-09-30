@@ -81,7 +81,7 @@ flowchart LR
 | D7 | Existing sessions | Nothing to migrate: v1 keeps no persisted data |
 | D8 | Short-term memory | Accepted: two states, full `messages` plus `summary` for agent context (E1) |
 | D9 | Hosting | H1, single instance (or sticky by thread): `/connect` replay and `/stop` use in-process runner memory (F-10) |
-| D10 | State ownership | Split `LearningState` into client-owned top-level keys (quiz answers, material edits and view, reflection) and server-owned keys; the schema whitelists are per top-level key, so nested client fields (today `quiz.answers`) must move up. **M2: the whitelists are enforced** (`apps/agent/src/constants/graph.ts`); only `reflection` is client-writable. The quiz answers and material edits move up in M3, with the tools that read them (A3, A4, FE4) |
+| D10 | State ownership | Split `LearningState` into client-owned top-level keys (quiz answers, material edits and view, reflection) and server-owned keys; the schema whitelists are per top-level key, so nested client fields (today `quiz.answers`) must move up. **Done in M3, without moving fields up.** The in-process client never writes a browser key as it is: it takes the server's state from the checkpoint and applies only the edits the browser may make (`applyClientEdits`: `quiz.answers` for the quiz the server holds, the learning material's text and view, the reflection), each with what follows from it (an edit clears the quiz, changed answers on a graded quiz are a retake). The browser runs the same functions on its own copy at once (`@repo/shared/utils/client-edits`), so the canvas hooks did not change. The adapter's whitelist (`quiz`, `material`, `reflection`) only cuts the input down before that |
 
 ## 5. Work breakdown
 
@@ -107,13 +107,13 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | --- | --- |
 | A1 | `generateStructured` on LangChain: `ChatOpenAI` gpt-5.4-mini, low reasoning, `useResponsesApi: true`; raw stream with `response_format: json_schema`, partial-JSON parse, zod-validate the final; abort via signal; inner calls tagged `emit-messages: false`, `emit-tool-calls: false`. **Done in M2**, same signature, so the five subagents already call it (181 partials on the research schema against the real model) |
 | A2 | Supervisor `createAgent`: state schema from `LearningState` (D10 split), `SUPERVISOR_PROMPT` kept, tool names unchanged so renderers keep working. Route pieces from §3: in-process client, schema whitelists, event filter, header deny-list, `CheckpointRunner`. **Done in M2** (`apps/agent/src/services/graph`), with no server tools yet (A3, A6) and `MemorySaver` until C2. The graph is built per request (the model holds the user's key); see "Found in M2" below |
-| A3 | Five subagent tools with prerequisites and state effects (stage, what each clears, `status.error`/`failed`); each returns `Command` with a `ToolMessage`. Parallel tool calls off (two writes to one key kill the run, F-7) |
-| A4 | Quiz: keep sealing; port the quiz-security tests; no correct answer in any state or event before Submit |
-| A5 | Submit routing from `a2uiAction` in run `context`: grade in code, model only explains failures. Decide what to do with the synthetic `ai`+`tool` pair the A2UI middleware appends (it holds the answers and stays in history) |
+| A3 | Five subagent tools with prerequisites and state effects (stage, what each clears, `status.error`/`failed`); each returns `Command` with a `ToolMessage`. Parallel tool calls off (two writes to one key kill the run, F-7). **Done in M3** (`services/graph/tools`). The `ToolMessage` is a short summary (`ToolSummarySchemas`), not the result: the result goes to state only, so the thread no longer carries the research, the material and the quiz into every later model call |
+| A4 | Quiz: keep sealing; port the quiz-security tests; no correct answer in any state or event before Submit. **Done in M3**: route-level tests search the whole event stream and the checkpoint |
+| A5 | Submit routing from `a2uiAction` in run `context`: grade in code, model only explains failures. Decide what to do with the synthetic `ai`+`tool` pair the A2UI middleware appends (it holds the answers and stays in history). **Done in M3** (`quiz-submit.ts`): the first model call of a Submit run is answered by a model that only calls `evaluate`; a graded quiz ends the run there. The synthetic pair is dropped before it reaches the thread |
 | A6 | Chat cards, `renderSurface`, Board read/update/delete, catalog validation, `a2ui_operations` results (verified pattern) |
-| A7 | Card-only replies; `toolErrorMiddleware` so a failing tool does not end the run; readable run errors (`explainRunErrors` stays). Keep `repairToolHistory` (Stop leaves unanswered tool calls that OpenAI rejects). Delete only the workarounds that stop being needed |
-| A8 | Draft streaming for every stage (manual state emit, throttled 120 ms) and the Board (from `TOOL_CALL_ARGS`; try a `STATE_DELTA` for `boardDraft` from the route middleware) |
-| A9 | Call limit (`modelCallLimitMiddleware`), Stop (tools honour `config.signal`), retries |
+| A7 | Card-only replies; `toolErrorMiddleware` so a failing tool does not end the run; readable run errors (`explainRunErrors` stays). Keep `repairToolHistory` (Stop leaves unanswered tool calls that OpenAI rejects). Delete only the workarounds that stop being needed. **Done in M3**: replies after a card are dropped from the stream and from message snapshots (the thread keeps them); open tool calls are answered for the model only (`answerOpenToolCalls`). The AI SDK workarounds are still in the tree, unused, until A11 |
+| A8 | Draft streaming for every stage (manual state emit, throttled 120 ms) and the Board (from `TOOL_CALL_ARGS`; try a `STATE_DELTA` for `boardDraft` from the route middleware). **Stages done in M3; the Board part moves to M4 with its tools (A6)** |
+| A9 | Call limit (`modelCallLimitMiddleware`), Stop (tools honour `config.signal`), retries. **Done in M3**: 8 model calls per run, then the run ends; Stop ends the run without an error and saves nothing of the step. Retries are the OpenAI client's defaults plus the quiz and feedback-surface retries that were already there |
 | A10 | LangSmith tracing with `thread_id` and the current turn names; nothing secret in `context` |
 | A11 | Remove `ai`, `@ai-sdk/openai`, `BuiltInAgent` wrapper, and its tests when parity is confirmed |
 | A12 | App context: the in-process client passes `useAgentContext` entries as run context; the context builder renders them without CopilotKit's A2UI entries. **Done in M2**: `supervisorContextMiddleware` appends the entries and the trimmed state to the system message on each model call, and writes nothing to the thread |
@@ -128,6 +128,19 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | M2-4 | With input whitelists the adapter also drops `copilotkit` (frontend tools) and `ag-ui` (context entries) from the run input | Both are listed as input keys next to the client-writable state keys |
 | M2-5 | After a `RUN_ERROR` the adapter still sends snapshots and `RUN_FINISHED` (F-9) | The event filter ends the stream at `RUN_ERROR`, after a readable chat message |
 | M2-6 | Reload needs a graph to read the checkpoint, but `/connect` has no request, so no user key | The runner builds a read-only graph with a placeholder key; its model is never called |
+
+**Found in M3**:
+
+| # | Finding | What the code does |
+| --- | --- | --- |
+| M3-1 | The adapter's input whitelist is per top-level key, but nothing forces the in-process client to write what passes it | The client builds the run input itself (`createRunInput`), so client fields can stay nested (D10) and a forged key is ignored even if the whitelist lets it through |
+| M3-2 | LangGraph's default of 25 steps per run counts every middleware hook; research → material → quiz hit it | `recursionLimit` 150; the cap on model calls is what bounds a run |
+| M3-3 | A tool's mid-run state reaches the browser twice: as a snapshot and as a `CUSTOM` event with the same state | The event filter drops the `CUSTOM` copy |
+| M3-4 | A snapshot sent mid-tool keeps being shown until the graph reports the saved state, so a draft could outlive its result | Snapshots are sent one after another, and the last one a tool sends is the state it is about to save |
+| M3-5 | Stop surfaced as a run error ("This operation was aborted") when it landed during a model call | The in-process client ends a stopped run without an error event; the adapter then sends what was saved |
+| M3-6 | A run error right after a successful card left its chat message muted in the next message snapshot | The mute skips the message a failed run leaves |
+| M3-7 | The model trusted an old `evaluate` result in the thread over the state after the student edited the material | The state section now says it outranks earlier messages |
+| M3-8 | Confirming a new topic cleared only the browser's copy of the state | The run that starts with the card's confirmed result starts from the initial state |
 
 ### B. Clerk (Next.js backend is the authority)
 
@@ -196,7 +209,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | M0 | Spikes, decisions D1–D10 | Done except Clerk (findings in v2-spike-findings.md) |
 | M1 | B1–B4, B10 | Sign-in required; every route checks the session on the backend |
 | M2 | A1–A2, A12 | A chat message runs through the LangChain agent end to end, in the browser. **Done.** Until M3 the Supervisor has only the frontend tools: research, learning material, the quiz, cards and the Board are off on this branch |
-| M3 | A3–A5, A7–A9 | Research → Score works with quiz security and streaming |
+| M3 | A3–A5, A7–A9 | Research → Score works with quiz security and streaming. **Done**, in the browser too: research, learning material, quiz, Submit, score and feedback, retake, an edit of the material, a new topic, Stop. Cards and the Board are still off (M4) |
 | M4 | A6, A10 | Cards, Board, tracing at parity; then A11 removes the AI SDK code |
 | M5 | C1–C7, FE1–FE3, B6–B8 | Multiple conversations, resume, delete |
 | M6 | E1–E6 | Short- and long-term memory |
@@ -209,7 +222,8 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | The in-process client is our code against `@ag-ui/langgraph` internals (11 SDK methods, event shapes) | An adapter upgrade can break the agent | Pin `@ag-ui/langgraph`; route-level tests (F4); keep the client small |
 | `useAgentContext` does not reach the model via `copilotkitMiddleware` | Agent blind to what is on screen | A12 |
 | No dual engine means no fallback if parity is late | Regression for users | Work on a branch; merge only at parity; keep the old code in git history |
-| Full-state `STATE_SNAPSHOT` on every draft emit (no deltas) | Bigger streams as Board and material grow | Throttle; keep drafts small; measure in M3 |
+| Full-state `STATE_SNAPSHOT` on every draft emit (no deltas) | Bigger streams as Board and material grow | Throttle; keep drafts small. Measured in M3 against the real model: research → material → quiz in one run sent 45 snapshots, about 260 KB with the adapter's duplicate `CUSTOM` events, which are now dropped (not re-measured; roughly half). If the Board makes this too big in M4, send deltas from the event filter |
+| A stale browser overwrites newer learning material (a dropped stream, then an edit) | A simplify result lost, the quiz cleared | The browser's material is taken as an edit whenever its text differs. Add a revision the browser must echo if this shows up |
 | Browser receives all graph state via `RAW`/`rawEvent` | Server-only data and model inputs leak | Route filter (verified); F4 test |
 | Client state overwrites the checkpoint | Edits lost or server keys forged | D10 + schema whitelists (verified) |
 | Reload and Stop bound to one process | Blank thread or ignored Stop on another instance | D9; `CheckpointRunner` for reload |
