@@ -128,7 +128,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | B4 | The runtime route builds the agent per request with the verified `userId` as trusted run context; the client cannot supply or override it |
 | B5 | ~~Agent service reachable only from Next~~ Not needed with H1 |
 | B6 | Lazy user row on first request; Clerk webhook `user.deleted` (signature verified) cascades conversations, checkpoints, memory, stored key |
-| B7 | Thread ownership: look up a client `thread_id` in `conversations` for this user before any run, `/connect`, `/stop`, read or delete. Never trust it as is |
+| B7 | Thread ownership: look up a client `thread_id` in `conversations` for this user before any run, `/connect`, `/stop`, read or delete. Never trust it as is. **Interim done in M1** (`features/threads`): the runtime's own thread endpoints (list, messages, events, state, `/connect`, `/stop`, and `threads/clear`, which wiped every user's threads) knew no users; runtime hooks now keep an in-memory owner per thread, answer 404 for anyone else and filter the list. M5 swaps the in-memory owners for `conversations` |
 | B8 | Rate limits per user id |
 | B9 | Decide the BYOK page's fate (D1) |
 | B10 | Auth tests: no session → 401 on every route, other user's thread → 404, deleted user |
@@ -204,7 +204,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | Reload and Stop bound to one process | Blank thread or ignored Stop on another instance | D9; `CheckpointRunner` for reload |
 | Full history grows in the checkpoint and in each `MESSAGES_SNAPSHOT` | Larger checkpoints and streams over time | Fine at this scale; cap or archive old threads later |
 | Summary drifts or drops facts | Agent forgets earlier details | Rolling summary refreshed from the old summary plus the new chunk; recent messages stay verbatim |
-| Cross-user thread access | Data leak | B7 + B10 |
+| Cross-user thread access (the runtime's thread endpoints are unscoped) | Data leak | Interim B7 guard (M1, tested with two users) → `conversations` in M5; B10 |
 | User key in traces | Secret leak | D1: key only inside the model instance (verified not in traces) |
 | Two copies of `@ag-ui/langgraph` (0.0.42 via sdk-js, 0.0.43 via runtime) | Subtle mismatches | Align versions when adding `@copilotkit/sdk-js`; pnpm override if needed |
 | LangSmith trace cap already hit once | No tracing | Sample the traces |
