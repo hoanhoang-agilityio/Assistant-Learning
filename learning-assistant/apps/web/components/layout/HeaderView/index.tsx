@@ -1,3 +1,4 @@
+import { UserButton } from "@clerk/nextjs";
 import { Moon, Sparkles, Sun } from "lucide-react";
 
 import { SettingsPopover } from "@/features/settings/components/SettingsPopover";
@@ -8,7 +9,7 @@ export interface HeaderViewProps {
 }
 
 /**
- * App title, theme toggle and the settings popover. Breakpoints are container
+ * App title, theme toggle, the settings popover and Clerk's user menu. Breakpoints are container
  * queries, so a previewed device frame gets the narrow header too. While the
  * settings popover is open the header rises above the chat popup (z 1200),
  * which otherwise covers it; only then, so a full-screen popup on a phone
@@ -40,6 +41,7 @@ export const HeaderView = ({ isDark, onToggleTheme }: HeaderViewProps) => (
         {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
       </button>
       <SettingsPopover />
+      <UserButton />
     </div>
   </header>
 );

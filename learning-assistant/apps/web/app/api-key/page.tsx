@@ -1,10 +1,14 @@
+import { CenteredPage } from "@/components/layout/CenteredPage";
 import { ApiKeyForm } from "@/features/api-key/components/ApiKeyForm";
+import { requireSignedInUser } from "@/services/auth";
 
-const ApiKeyPage = () => {
+const ApiKeyPage = async () => {
+  await requireSignedInUser();
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4 font-sans text-slate-800 dark:bg-slate-900 dark:text-slate-100">
+    <CenteredPage>
       <ApiKeyForm />
-    </main>
+    </CenteredPage>
   );
 };
 
