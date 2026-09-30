@@ -11,6 +11,8 @@ import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 
 import { COPILOT_RUNTIME_URL, IS_DEVELOPMENT } from "@/constants/copilot";
 import { readApiKeyFromRequest } from "@/features/api-key/services/request-api-key";
+import { createThreadGuardHooks } from "@/features/threads/services/runtime-thread-guard";
+import { threadOwnerStore } from "@/features/threads/services/thread-owners";
 import { getSignedInUserId, withSignedInUser } from "@/services/auth";
 
 const runtime = new CopilotRuntime({
@@ -45,9 +47,14 @@ const runtime = new CopilotRuntime({
 const handleRuntime = createCopilotRuntimeHandler({
   runtime,
   basePath: COPILOT_RUNTIME_URL,
+  // Each thread belongs to the user who started it.
+  hooks: createThreadGuardHooks({
+    getUserId: getSignedInUserId,
+    owners: threadOwnerStore,
+  }),
 });
 
-/** Every runtime endpoint (run, connect, stop, info) needs a signed-in user. */
+/** Every runtime endpoint (run, connect, stop, info, threads) needs a signed-in user. */
 const handler = withSignedInUser(handleRuntime);
 
 export const GET = handler;
