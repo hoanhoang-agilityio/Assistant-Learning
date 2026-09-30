@@ -5,6 +5,12 @@ import {
   runA2UIGenerationWithRecovery,
 } from "@ag-ui/a2ui-toolkit";
 import {
+  type AIMessageChunk,
+  HumanMessage,
+  SystemMessage,
+} from "@langchain/core/messages";
+import { parsePartialJson } from "@langchain/core/output_parsers";
+import {
   FEEDBACK_CATALOG,
   FEEDBACK_CATALOG_ID,
   FEEDBACK_SURFACE_ID,
@@ -14,14 +20,13 @@ import {
   FeedbackComponentSchema,
   FeedbackSurfaceArgsSchema,
 } from "@repo/shared/schemas";
-import { generateText, parsePartialJson, streamText, tool } from "ai";
 
 import { FEEDBACK_SURFACE_ATTEMPTS } from "../../constants/agents";
-import { OPENAI_CALL_OPTIONS } from "../../constants/openai";
+import { SILENT_RUN_METADATA } from "../../constants/openai";
 import type { RunSettings } from "../../types/llm";
 import type { EvaluatorInput } from "../../types/scoring";
 import { toDraftComponents } from "../../utils/surface-draft";
-import { createLanguageModel } from "../llm/language-model";
+import { createChatModel } from "../llm/chat-model";
 import {
   createFeedbackSurfacePrompt,
   createFeedbackSurfaceSystem,
@@ -37,11 +42,11 @@ interface FeedbackSurfaceParams {
 
 const RENDER_TOOL_NAME = RENDER_A2UI_TOOL_DEF.function.name;
 
-const RENDER_TOOLS = {
-  [RENDER_TOOL_NAME]: tool({
-    description: RENDER_A2UI_TOOL_DEF.function.description,
-    inputSchema: FeedbackSurfaceArgsSchema,
-  }),
+/** The one tool the model must call: its schema allows Feedback components only. */
+const RENDER_TOOL = {
+  name: RENDER_TOOL_NAME,
+  description: RENDER_A2UI_TOOL_DEF.function.description,
+  schema: FeedbackSurfaceArgsSchema,
 };
 
 /** The surface id and catalog are the app's, never the model's. */
@@ -53,46 +58,14 @@ const createFeedbackOperations = (components: FeedbackComponent[]) =>
     components,
   });
 
-type RenderCallOptions = Parameters<
-  typeof generateText<typeof RENDER_TOOLS>
->[0];
-
-/**
- * Streams the render call: each time its arguments grow, the components
- * complete so far are drawn. Returns the call's tool calls; a failed stream
- * throws the provider's own error.
- */
-const streamRenderCall = async (
-  options: RenderCallOptions,
-  onDraft: (operations: A2UIOperation[]) => void,
-) => {
-  let streamError: unknown;
-  const result = streamText({
-    ...options,
-    onError: ({ error }) => {
-      streamError = error;
-    },
-  });
-  let text = "";
-  try {
-    for await (const part of result.fullStream) {
-      if (part.type !== "tool-input-delta") {
-        continue;
-      }
-      text += part.delta;
-      const { value } = await parsePartialJson(text);
-      const components = toDraftComponents(
-        (value as { components?: unknown } | undefined)?.components,
-        FeedbackComponentSchema,
-      );
-      if (components) {
-        onDraft(createFeedbackOperations(components));
-      }
-    }
-    return await result.toolCalls;
-  } catch (error) {
-    throw streamError ?? error;
-  }
+/** The components of a `render_a2ui` call still being written that can be drawn. */
+const toDraftOperations = (argsText: string): A2UIOperation[] | null => {
+  const args: unknown = parsePartialJson(argsText);
+  const components = toDraftComponents(
+    (args as { components?: unknown } | null)?.components,
+    FeedbackComponentSchema,
+  );
+  return components ? createFeedbackOperations(components) : null;
 };
 
 /**
@@ -101,8 +74,9 @@ const streamRenderCall = async (
  * toolkit validates the tree against the catalog and retries once with the
  * errors. Returns the A2UI operations for `feedback.a2uiOperations`; throws
  * when no attempt is valid, so the caller keeps the plain summary instead.
- * With `onDraft`, each attempt streams and its components are drawn as they
- * arrive.
+ * Each attempt streams; with `onDraft`, its components are drawn as they
+ * arrive. The calls are marked silent, so inside a tool their tool call stays
+ * out of the chat.
  */
 export const runFeedbackSurface = async ({
   input,
@@ -110,23 +84,40 @@ export const runFeedbackSurface = async ({
   signal,
   onDraft,
 }: FeedbackSurfaceParams): Promise<A2UIOperation[]> => {
+  const model = createChatModel(settings.apiKey).bindTools([RENDER_TOOL], {
+    tool_choice: RENDER_TOOL_NAME,
+  });
+
   const invokeSubagent = async (system: string) => {
-    const options: RenderCallOptions = {
-      model: createLanguageModel(settings.apiKey),
-      providerOptions: OPENAI_CALL_OPTIONS,
-      system,
-      prompt: createFeedbackSurfacePrompt(input),
-      tools: RENDER_TOOLS,
-      toolChoice: { type: "tool", toolName: RENDER_TOOL_NAME },
-      abortSignal: signal,
-    };
-    const toolCalls = onDraft
-      ? await streamRenderCall(options, onDraft)
-      : (await generateText(options)).toolCalls;
-    const call = toolCalls.find(
-      ({ toolName, invalid }) => toolName === RENDER_TOOL_NAME && !invalid,
+    const stream = await model.stream(
+      [
+        new SystemMessage(system),
+        new HumanMessage(createFeedbackSurfacePrompt(input)),
+      ],
+      { signal, metadata: SILENT_RUN_METADATA },
     );
-    const parsed = FeedbackSurfaceArgsSchema.safeParse(call?.input);
+
+    let reply: AIMessageChunk | undefined;
+    let argsText = "";
+    for await (const chunk of stream) {
+      reply = reply ? reply.concat(chunk) : chunk;
+      const delta = (chunk.tool_call_chunks ?? [])
+        .map(({ args }) => args ?? "")
+        .join("");
+      if (!delta) {
+        continue;
+      }
+      argsText += delta;
+      const operations = onDraft ? toDraftOperations(argsText) : null;
+      if (operations) {
+        onDraft?.(operations);
+      }
+    }
+
+    const call = reply?.tool_calls?.find(
+      ({ name }) => name === RENDER_TOOL_NAME,
+    );
+    const parsed = FeedbackSurfaceArgsSchema.safeParse(call?.args);
     return parsed.success ? parsed.data : null;
   };
 

@@ -2,9 +2,8 @@ import {
   type EvaluationFeedback,
   EvaluationFeedbackSchema,
 } from "@repo/shared/schemas";
-import type { DeepPartial } from "ai";
 
-import type { RunSettings } from "../../types/llm";
+import type { DeepPartial, RunSettings } from "../../types/llm";
 import type { EvaluatorInput } from "../../types/scoring";
 import {
   createEvaluatorPrompt,

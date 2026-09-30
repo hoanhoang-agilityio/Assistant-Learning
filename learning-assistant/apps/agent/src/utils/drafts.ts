@@ -5,7 +5,8 @@ import type {
   ResearchResult,
   Source,
 } from "@repo/shared/schemas";
-import type { DeepPartial } from "ai";
+
+import type { DeepPartial } from "../types/llm";
 
 const isPresent = <T>(value: T | undefined): value is T => value !== undefined;
 

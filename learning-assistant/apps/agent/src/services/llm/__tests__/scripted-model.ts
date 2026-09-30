@@ -13,6 +13,8 @@ import { ChatGenerationChunk, type ChatResult } from "@langchain/core/outputs";
 
 /** What the model answers on one call: text, tool calls, or both. */
 export interface ScriptedTurn {
+  /** Wait this long before answering; a stopped run ends the wait. */
+  delayMs?: number;
   text?: string;
   toolCalls?: { name: string; args: Record<string, unknown>; id?: string }[];
 }
@@ -21,10 +23,34 @@ export interface ScriptedTurn {
 export interface ScriptedCall {
   messages: BaseMessage[];
   options: BaseChatModelCallOptions;
+  /** The names of the tools bound to the model when it was called. */
+  tools: string[];
+  /** How many calls this model had answered before this one. */
+  index: number;
 }
+
+/** Decides what the model answers to one call. */
+export type Script = (
+  messages: BaseMessage[],
+  call: ScriptedCall,
+) => ScriptedTurn;
 
 const TEXT_PIECE = /.{1,8}/gs;
 const ARGS_PIECE = /.{1,24}/gs;
+
+/** Resolves after `ms`, or rejects as soon as `signal` is aborted. */
+const waitFor = (ms: number, signal?: AbortSignal): Promise<void> =>
+  new Promise((resolve, reject) => {
+    if (ms === 0) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(new Error("This operation was aborted"));
+    });
+  });
 
 const toToolName = (tool: BindToolsInput): string => {
   if ("name" in tool && typeof tool.name === "string") {
@@ -44,19 +70,26 @@ const toToolName = (tool: BindToolsInput): string => {
 export class ScriptedModel extends BaseChatModel {
   calls: ScriptedCall[] = [];
   boundTools: string[] = [];
+  /** The options of the last `bindTools` call, e.g. `tool_choice`. */
+  boundOptions: Record<string, unknown> = {};
 
-  constructor(
-    private script: (messages: BaseMessage[], call: number) => ScriptedTurn,
-  ) {
+  private script: Script;
+
+  constructor(script: Script) {
     super({});
+    this.script = script;
   }
 
   _llmType(): string {
     return "scripted";
   }
 
-  bindTools(tools: BindToolsInput[]): this {
+  bindTools(
+    tools: BindToolsInput[],
+    options: Record<string, unknown> = {},
+  ): this {
     this.boundTools = tools.map(toToolName);
+    this.boundOptions = options;
     return this;
   }
 
@@ -64,8 +97,14 @@ export class ScriptedModel extends BaseChatModel {
     messages: BaseMessage[],
     options: BaseChatModelCallOptions,
   ): ScriptedTurn {
-    this.calls.push({ messages, options });
-    return this.script(messages, this.calls.length - 1);
+    const call: ScriptedCall = {
+      messages,
+      options,
+      tools: this.boundTools,
+      index: this.calls.length,
+    };
+    this.calls.push(call);
+    return this.script(messages, call);
   }
 
   async _generate(
@@ -91,6 +130,7 @@ export class ScriptedModel extends BaseChatModel {
     runManager?: CallbackManagerForLLMRun,
   ): AsyncGenerator<ChatGenerationChunk> {
     const turn = this.next(messages, options);
+    await waitFor(turn.delayMs ?? 0, options.signal);
     const id = `msg_${this.calls.length}_${Date.now()}`;
     const toChunk = async (message: AIMessageChunk, text = "") => {
       const chunk = new ChatGenerationChunk({ text, message });

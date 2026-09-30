@@ -4,10 +4,9 @@ import type {
   ToolResultData,
 } from "@repo/shared/schemas";
 import { getTier } from "@repo/shared/utils/tier";
-import type { DeepPartial } from "ai";
 
 import type { AnswerKeyStore } from "../types/answer-key";
-import type { RunSettings } from "../types/llm";
+import type { DeepPartial, RunSettings } from "../types/llm";
 import type { EvaluatorInput } from "../types/scoring";
 import { createGradedQuestions, mergeExplanations } from "../utils/evaluation";
 import { formatFeedbackSummary } from "../utils/feedback-summary";

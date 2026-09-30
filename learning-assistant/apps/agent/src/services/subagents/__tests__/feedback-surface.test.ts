@@ -3,22 +3,16 @@ import {
   FEEDBACK_SURFACE_ID,
 } from "@repo/shared/a2ui/feedback-catalog";
 import type { FeedbackComponent } from "@repo/shared/schemas";
-import { generateText, streamText } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SILENT_RUN_METADATA } from "../../../constants/openai";
 import type { EvaluatorInput } from "../../../types/scoring";
 import { TEST_RUN_SETTINGS } from "../../__tests__/quiz-fixtures";
+import { ScriptedModel } from "../../llm/__tests__/scripted-model";
+import { createChatModel } from "../../llm/chat-model";
 import { runFeedbackSurface } from "../feedback-surface";
 
-vi.mock("ai", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("ai")>()),
-  generateText: vi.fn(),
-  streamText: vi.fn(),
-}));
-
-vi.mock("../../llm/language-model", () => ({
-  createLanguageModel: vi.fn(() => ({})),
-}));
+vi.mock("../../llm/chat-model", () => ({ createChatModel: vi.fn() }));
 
 const INPUT: EvaluatorInput = {
   questions: [],
@@ -57,44 +51,62 @@ const VALID: FeedbackComponent[] = [
   },
 ];
 
-/** A `generateText` reply whose only tool call has these components. */
-const replyWith = (components: FeedbackComponent[]) =>
-  ({
+/** Makes the Evaluator's model answer each call with the next `render_a2ui` call. */
+const replyWith = (...attempts: FeedbackComponent[][]): ScriptedModel => {
+  const model = new ScriptedModel((_messages, { index }) => ({
     toolCalls: [
       {
-        toolName: "render_a2ui",
-        input: { surfaceId: "anything", components },
+        name: "render_a2ui",
+        args: {
+          surfaceId: "anything",
+          components: attempts[Math.min(index, attempts.length - 1)],
+        },
       },
     ],
-  }) as unknown as Awaited<ReturnType<typeof generateText>>;
+  }));
+  vi.mocked(createChatModel).mockReturnValue(model as never);
+  return model;
+};
+
+const OPERATIONS = [
+  {
+    version: "v0.9",
+    createSurface: {
+      surfaceId: FEEDBACK_SURFACE_ID,
+      catalogId: FEEDBACK_CATALOG_ID,
+    },
+  },
+  {
+    version: "v0.9",
+    updateComponents: { surfaceId: FEEDBACK_SURFACE_ID, components: VALID },
+  },
+];
 
 describe("runFeedbackSurface", () => {
-  beforeEach(() => vi.mocked(generateText).mockReset());
+  beforeEach(() => vi.mocked(createChatModel).mockReset());
 
   it("turns a valid render_a2ui call into operations on the app's surface", async () => {
-    vi.mocked(generateText).mockResolvedValue(replyWith(VALID));
+    const model = replyWith(VALID);
 
     const operations = await runFeedbackSurface({
       input: INPUT,
       settings: TEST_RUN_SETTINGS,
     });
 
-    expect(operations).toEqual([
-      {
-        version: "v0.9",
-        createSurface: {
-          surfaceId: FEEDBACK_SURFACE_ID,
-          catalogId: FEEDBACK_CATALOG_ID,
-        },
-      },
-      {
-        version: "v0.9",
-        updateComponents: { surfaceId: FEEDBACK_SURFACE_ID, components: VALID },
-      },
-    ]);
-    expect(vi.mocked(generateText).mock.calls[0]?.[0].toolChoice).toEqual({
-      type: "tool",
-      toolName: "render_a2ui",
+    expect(operations).toEqual(OPERATIONS);
+    expect(createChatModel).toHaveBeenCalledWith(TEST_RUN_SETTINGS.apiKey);
+    expect(model.boundTools).toEqual(["render_a2ui"]);
+    expect(model.boundOptions).toEqual({ tool_choice: "render_a2ui" });
+  });
+
+  it("keeps the call out of the chat", async () => {
+    const model = replyWith(VALID);
+    const stream = vi.spyOn(model, "stream");
+
+    await runFeedbackSurface({ input: INPUT, settings: TEST_RUN_SETTINGS });
+
+    expect(stream.mock.calls[0]?.[1]).toMatchObject({
+      metadata: SILENT_RUN_METADATA,
     });
   });
 
@@ -104,29 +116,16 @@ describe("runFeedbackSurface", () => {
         ? { ...component, children: ["chip", "missing"] }
         : component,
     );
-    vi.mocked(generateText)
-      .mockResolvedValueOnce(replyWith(dangling))
-      .mockResolvedValueOnce(replyWith(VALID));
+    const model = replyWith(dangling, VALID);
 
     await runFeedbackSurface({ input: INPUT, settings: TEST_RUN_SETTINGS });
 
-    expect(generateText).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(generateText).mock.calls[1]?.[0].system).toContain(
-      "missing",
-    );
+    expect(model.calls).toHaveLength(2);
+    expect(model.calls[1]?.messages[0]?.text).toContain("missing");
   });
 
   it("with onDraft, draws the components complete so far as they stream", async () => {
-    const args = JSON.stringify({ surfaceId: "anything", components: VALID });
-    // Cut after the root and chip, before the step list is written.
-    const cut = args.indexOf('{"id":"steps"');
-    vi.mocked(streamText).mockReturnValue({
-      fullStream: (async function* () {
-        yield { type: "tool-input-delta", id: "t1", delta: args.slice(0, cut) };
-        yield { type: "tool-input-delta", id: "t1", delta: args.slice(cut) };
-      })(),
-      toolCalls: Promise.resolve(replyWith(VALID).toolCalls),
-    } as never);
+    replyWith(VALID);
     const onDraft = vi.fn();
 
     const operations = await runFeedbackSurface({
@@ -135,15 +134,19 @@ describe("runFeedbackSurface", () => {
       onDraft,
     });
 
-    expect(generateText).not.toHaveBeenCalled();
-    expect(onDraft.mock.calls[0]?.[0][1]).toEqual({
-      version: "v0.9",
-      updateComponents: {
-        surfaceId: FEEDBACK_SURFACE_ID,
-        components: [{ ...VALID[0], children: ["chip"] }, VALID[1]],
+    const drafts = onDraft.mock.calls.map(([draft]) => draft);
+    // The root and the chip are written, the step list is not yet.
+    expect(drafts).toContainEqual([
+      OPERATIONS[0],
+      {
+        version: "v0.9",
+        updateComponents: {
+          surfaceId: FEEDBACK_SURFACE_ID,
+          components: [{ ...VALID[0], children: ["chip"] }, VALID[1]],
+        },
       },
-    });
-    expect(onDraft.mock.calls.at(-1)?.[0]).toEqual(operations);
+    ]);
+    expect(drafts.at(-1)).toEqual(operations);
   });
 
   it("throws when no attempt produces a valid surface", async () => {
@@ -151,7 +154,7 @@ describe("runFeedbackSurface", () => {
       ...component,
       id: `x-${component.id}`,
     }));
-    vi.mocked(generateText).mockResolvedValue(replyWith(noRoot));
+    replyWith(noRoot);
 
     await expect(
       runFeedbackSurface({ input: INPUT, settings: TEST_RUN_SETTINGS }),

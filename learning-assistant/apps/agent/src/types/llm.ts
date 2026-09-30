@@ -6,9 +6,12 @@ import type { Settings } from "@repo/shared/schemas";
  */
 export type RunSettings = Settings & { apiKey: string };
 
-/** A value still being written: any field may be missing, at any depth. */
+/**
+ * A value still being written: any field may be missing, at any depth, and
+ * so may an item of a list.
+ */
 export type DeepPartial<T> = T extends readonly (infer Item)[]
-  ? DeepPartial<Item>[]
+  ? (DeepPartial<Item> | undefined)[]
   : T extends object
     ? { [Key in keyof T]?: DeepPartial<T[Key]> }
     : T;
