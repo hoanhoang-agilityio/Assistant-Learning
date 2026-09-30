@@ -124,7 +124,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | --- | --- |
 | B1 | Clerk app and env vars (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, webhook secret) |
 | B2 | `ClerkProvider`, sign-in/sign-up pages, user button in Header |
-| B3 | `clerkMiddleware` protects pages and `/api/*`; every route handler and the runtime route also call `auth()` and reject with 401. The middleware alone is not the check |
+| B3 | `proxy.ts` (Next 16's name for middleware) runs `clerkMiddleware()` only to make the session readable; it checks nothing (Clerk now advises against route protection there and deprecated `createRouteMatcher`). Pages call `requireSignedInUser`, route handlers go through `withSignedInUser` (401), server actions check `getSignedInUserId` |
 | B4 | The runtime route builds the agent per request with the verified `userId` as trusted run context; the client cannot supply or override it |
 | B5 | ~~Agent service reachable only from Next~~ Not needed with H1 |
 | B6 | Lazy user row on first request; Clerk webhook `user.deleted` (signature verified) cascades conversations, checkpoints, memory, stored key |

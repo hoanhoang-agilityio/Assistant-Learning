@@ -13,13 +13,13 @@ pnpm install
 cp apps/web/.env.example apps/web/.env
 ```
 
-Fill in `apps/web/.env` (see below). At minimum, set `API_KEY_SEAL_SECRET` and `QUIZ_SEAL_SECRET`. Then start the app:
+Fill in `apps/web/.env` (see below). At minimum, set `API_KEY_SEAL_SECRET`, `QUIZ_SEAL_SECRET` and the two Clerk keys (create an application at <https://dashboard.clerk.com>, then copy its keys from **API Keys**). Then start the app:
 
 ```bash
 pnpm dev
 ```
 
-Open <http://localhost:3000>. You are sent to the API key page first: enter your own OpenAI API key. The server checks it with OpenAI, then returns it sealed (AES-256-GCM with `API_KEY_SEAL_SECRET`). The browser keeps only the sealed key, in `sessionStorage`, so it is cleared when the tab closes. Without a saved key, the assistant sends you back to the key page. After you change `.env`, restart the dev server.
+Open <http://localhost:3000>. You are asked to sign in first (Clerk); every page and API route needs a signed-in user. Then you are sent to the API key page: enter your own OpenAI API key. The server checks it with OpenAI, then returns it sealed (AES-256-GCM with `API_KEY_SEAL_SECRET`). The browser keeps only the sealed key, in `sessionStorage`, so it is cleared when the tab closes. Without a saved key, the assistant sends you back to the key page. After you change `.env`, restart the dev server.
 
 ## Using the app
 
@@ -101,20 +101,22 @@ While a step runs, its chat card has a **Stop** button. If a step fails, the sta
 
 ## Environment variables
 
-All variables live in `apps/web/.env` and are read on the server only.
+All variables live in `apps/web/.env` and are read on the server only, except `NEXT_PUBLIC_*`, which the browser also sees.
 
-| Variable                  | Required | What it does                                                                                                                         |
-| ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `API_KEY_SEAL_SECRET`     | Yes      | Secret used to encrypt the user's OpenAI key, so the browser never stores the plain key. Generate one with `openssl rand -base64 32` |
-| `QUIZ_SEAL_SECRET`        | Yes      | Secret used to encrypt the quiz answer key until Submit. Generate one with `openssl rand -base64 32`                                 |
-| `TAVILY_API_KEY`          | No       | Turns on web research with cited sources. Without it, research uses only the model's own knowledge and lists no sources              |
-| `NEXT_PUBLIC_RUNTIME_URL` | No       | Base path of the CopilotKit runtime route. Defaults to `/api/copilotkit`                                                             |
-| `LANGSMITH_TRACING`       | No       | Set to `true` to send every LLM call to LangSmith                                                                                    |
-| `LANGSMITH_API_KEY`       | No       | LangSmith API key. Required when `LANGSMITH_TRACING` is `true`                                                                       |
-| `LANGSMITH_PROJECT`       | No       | LangSmith project the traces go to. Defaults to `default`                                                                            |
-| `LANGSMITH_ENDPOINT`      | No       | LangSmith API URL. Defaults to `https://api.smith.langchain.com`; use `https://eu.api.smith.langchain.com` for the EU region         |
+| Variable                            | Required | What it does                                                                                                                         |
+| ----------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes      | Clerk publishable key (`pk_…`), used by the sign-in UI in the browser                                                                |
+| `CLERK_SECRET_KEY`                  | Yes      | Clerk secret key (`sk_…`). The server verifies every session with it; it never reaches the browser                                   |
+| `API_KEY_SEAL_SECRET`               | Yes      | Secret used to encrypt the user's OpenAI key, so the browser never stores the plain key. Generate one with `openssl rand -base64 32` |
+| `QUIZ_SEAL_SECRET`                  | Yes      | Secret used to encrypt the quiz answer key until Submit. Generate one with `openssl rand -base64 32`                                 |
+| `TAVILY_API_KEY`                    | No       | Turns on web research with cited sources. Without it, research uses only the model's own knowledge and lists no sources              |
+| `NEXT_PUBLIC_RUNTIME_URL`           | No       | Base path of the CopilotKit runtime route. Defaults to `/api/copilotkit`                                                             |
+| `LANGSMITH_TRACING`                 | No       | Set to `true` to send every LLM call to LangSmith                                                                                    |
+| `LANGSMITH_API_KEY`                 | No       | LangSmith API key. Required when `LANGSMITH_TRACING` is `true`                                                                       |
+| `LANGSMITH_PROJECT`                 | No       | LangSmith project the traces go to. Defaults to `default`                                                                            |
+| `LANGSMITH_ENDPOINT`                | No       | LangSmith API URL. Defaults to `https://api.smith.langchain.com`; use `https://eu.api.smith.langchain.com` for the EU region         |
 
-With tracing on, each turn of the conversation is one `learning` trace. Its Supervisor steps (`supervisor`) and subagent tool calls (`research`, `makeMaterial`, `generateQuiz`…) are nested under it, each subagent with its own LLM calls. Every trace carries the chat's `thread_id`, so LangSmith's **Threads** tab groups a conversation's turns together.
+With tracing on, each turn of the conversation is one `learning` trace. Its Supervisor steps (`supervisor`) and subagent tool calls (`research`, `makeMaterial`, `generateQuiz`…) are nested under it, each subagent with its own LLM calls. Every trace carries the chat's `thread_id`, so LangSmith's **Threads** tab groups a conversation's turns together, and the signed-in Clerk `user_id`.
 
 ## Model
 
