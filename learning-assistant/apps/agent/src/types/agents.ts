@@ -70,6 +70,8 @@ export interface LearningSupervisorAgentConfig {
   tools?: (ctx: SupervisorRunContext) => ToolDefinition[];
   /** The user's OpenAI API key for this request, opened from its sealed header. */
   apiKey?: string;
+  /** The signed-in user's id from the verified session, for trace metadata. */
+  userId?: string;
   /**
    * Server env for optional keys such as `TAVILY_API_KEY` and
    * `QUIZ_SEAL_SECRET`. Defaults to `process.env`.

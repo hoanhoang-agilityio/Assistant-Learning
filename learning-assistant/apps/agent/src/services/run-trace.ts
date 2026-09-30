@@ -31,7 +31,8 @@ const toTurnInputs = (input: RunAgentInput, action?: string): TurnMessages => {
 
 /**
  * Runs one turn of the conversation as a single LangSmith trace, tagged with
- * the AG-UI `threadId` so the Threads view groups a conversation's turns. The
+ * the AG-UI `threadId` so the Threads view groups a conversation's turns, and
+ * with the signed-in `userId` when there is one. The
  * events are subscribed inside the trace, so every Supervisor step and
  * subagent span of the turn nests under it. `action` stands in for the
  * student's message when a button, not a message, started the turn. A
@@ -41,6 +42,7 @@ export const traceTurn = (
   input: RunAgentInput,
   events: Observable<BaseEvent>,
   action?: string,
+  userId?: string,
 ): Observable<BaseEvent> =>
   new Observable<BaseEvent>((subscriber) => {
     let stop = () => {};
@@ -90,7 +92,11 @@ export const traceTurn = (
       {
         name: LEARNING_AGENT_ID,
         run_type: "chain",
-        metadata: { thread_id: input.threadId, run_id: input.runId },
+        metadata: {
+          thread_id: input.threadId,
+          run_id: input.runId,
+          ...(userId ? { user_id: userId } : {}),
+        },
         processInputs: ({ messages }) => ({ messages }),
       },
     );

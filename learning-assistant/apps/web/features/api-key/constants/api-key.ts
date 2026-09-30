@@ -57,6 +57,7 @@ export const API_KEY_ERRORS = {
     "OpenAI could not check the key right now. Try again in a moment.",
   missingSecret:
     "API key storage is currently unavailable. Please contact the administrator.",
+  signedOut: "Your session has ended. Sign in again to save your key.",
 } as const;
 
 export const INITIAL_API_KEY_FORM_STATE: ApiKeyFormState = { error: null };

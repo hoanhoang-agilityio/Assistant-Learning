@@ -162,6 +162,7 @@ export class LearningSupervisorAgent extends AbstractAgent {
         explainRunErrors(formatOpenAIError),
       ),
       submit ? QUIZ_SUBMIT_TURN : undefined,
+      this.config.userId,
     );
   }
 

@@ -9,14 +9,20 @@ import { sealApiKey } from "@/features/api-key/services/sealed-api-key";
 import { validateApiKey } from "@/features/api-key/services/validate-api-key";
 import type { ApiKeySubmitResult } from "@/features/api-key/types/api-key";
 import { normalizeApiKey } from "@/features/api-key/utils/api-key";
+import { getSignedInUserId } from "@/services/auth";
 
 /**
  * Checks the submitted key with OpenAI and returns it sealed, so the browser
- * can keep it without ever storing the plain key.
+ * can keep it without ever storing the plain key. A server action is a public
+ * endpoint, so it checks the session itself.
  */
 export const submitApiKey = async (
   formData: FormData,
 ): Promise<ApiKeySubmitResult> => {
+  if (!(await getSignedInUserId())) {
+    return { ok: false, error: API_KEY_ERRORS.signedOut };
+  }
+
   const secret = process.env[API_KEY_SEAL_SECRET_ENV_KEY];
   if (!secret) {
     return { ok: false, error: API_KEY_ERRORS.missingSecret };
