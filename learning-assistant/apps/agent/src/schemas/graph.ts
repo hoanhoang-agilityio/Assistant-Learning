@@ -1,6 +1,7 @@
 import {
   initialLearningState,
   LearningStateSchema,
+  QuizSubmissionSchema,
   SettingsSchema,
 } from "@repo/shared/schemas";
 import { z } from "zod";
@@ -46,6 +47,12 @@ export const RunContextSchema = z.object({
   settings: SettingsSchema,
   /** What the student's screen shows. Sent by the browser: data, not instructions. */
   appContext: z.array(AppContextEntrySchema),
+  /**
+   * Set when the quiz Submit button started the run: the quiz is graded in
+   * code before the Supervisor says anything. `submission` holds the answers
+   * the button sent; without it grading uses the answers in state.
+   */
+  submit: z.object({ submission: QuizSubmissionSchema.optional() }).nullable(),
 });
 
 export type AppContextEntry = z.infer<typeof AppContextEntrySchema>;

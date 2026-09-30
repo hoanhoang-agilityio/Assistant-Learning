@@ -1,13 +1,14 @@
 import { initialLearningState, type LearningState } from "@repo/shared/schemas";
 
 /**
- * State keys the browser may write. The browser sends its whole state as a
- * run's input, which would overwrite the checkpoint key by key; the input is
- * cut down to these, so it cannot replace what the server wrote. Whole
- * top-level keys only: a client field nested in a server key (the answers
- * in `quiz`, an edit of `material`) has to move up before it can be listed.
+ * State keys the adapter keeps in a run's input. The browser sends its whole
+ * state, which would overwrite the checkpoint key by key; everything but
+ * these is cut before the in-process client sees it. The client then takes
+ * only a few fields from them (see `applyClientEdits`), never a key as it is.
  */
-export const CLIENT_WRITABLE_STATE_KEYS = [
+export const CLIENT_INPUT_STATE_KEYS = [
+  "quiz",
+  "material",
   "reflection",
 ] as const satisfies readonly (keyof LearningState)[];
 
@@ -41,6 +42,23 @@ export const RELOAD_RUN_ID = "reload";
  * is never called.
  */
 export const NO_API_KEY = "not-used";
+
+/**
+ * The tool call the A2UI middleware adds to the messages for a surface
+ * action such as the quiz Submit (`@ag-ui/a2ui-middleware`'s own name).
+ */
+export const A2UI_ACTION_TOOL = "log_a2ui_event";
+
+/** The custom graph event the AG-UI adapter turns into a state snapshot. */
+export const MANUAL_STATE_EVENT = "manually_emit_state";
+
+/**
+ * Graph steps allowed in one run. Every model call and tool call is a step,
+ * and so is each middleware hook around them, so LangGraph's default of 25
+ * ends a three-tool run early. What really bounds a run is the cap on model
+ * calls (`SUPERVISOR_MAX_STEPS`); this only has to stay above it.
+ */
+export const GRAPH_RECURSION_LIMIT = 150;
 
 /** Headings of what the Supervisor's prompt calls by name. */
 export const APP_CONTEXT_HEADING = "## Context from the application";

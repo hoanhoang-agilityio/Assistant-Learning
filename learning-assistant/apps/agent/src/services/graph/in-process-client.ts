@@ -1,17 +1,19 @@
 import type { StateSnapshot } from "@langchain/langgraph";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
-import { initialLearningState } from "@repo/shared/schemas";
 import { v4 as uuidv4 } from "uuid";
 
 import {
   APP_CONTEXT_INPUT_KEY,
+  CLIENT_INPUT_STATE_KEYS,
   CLIENT_VISIBLE_STATE_KEYS,
-  CLIENT_WRITABLE_STATE_KEYS,
   FRONTEND_TOOLS_INPUT_KEY,
+  GRAPH_RECURSION_LIMIT,
 } from "../../constants/graph";
 import type { RunContext } from "../../schemas/graph";
 import { getErrorMessage } from "../../utils/openai-errors";
 import { readAppContext, readRunSettings } from "../../utils/run-context";
+import { createRunInput } from "../../utils/run-input";
+import { parseSubmitAction } from "../../utils/submit-action";
 import type { LearningGraph } from "./learning-graph";
 
 interface InProcessClientOptions {
@@ -28,6 +30,8 @@ interface RunPayload {
   input?: Record<string, unknown> | null;
   /** `forwardedProps.settings`, as the browser sent it. */
   settings?: unknown;
+  /** `forwardedProps.a2uiAction`: a surface action, such as the quiz Submit. */
+  a2uiAction?: unknown;
 }
 
 /** A drawable graph as JSON: the adapter reads node ids and edges. */
@@ -36,11 +40,7 @@ interface GraphJson {
   edges: unknown[];
 }
 
-/**
- * A run's input as the graph types it. The adapter's input is untyped: the
- * browser's state cut down to the keys it may write, which the graph's
- * state schema then validates.
- */
+/** A run's input as the graph types it; `createRunInput` builds it untyped. */
 type GraphInput = Parameters<LearningGraph["graph"]["streamEvents"]>[0];
 
 interface UpdateStateOptions {
@@ -96,11 +96,16 @@ const toThreadState = ({
  * LangGraph server. Only the methods `LangGraphAgent` calls exist.
  *
  * It is also the trust boundary between the browser and the graph:
- * - The run's `context` is built here: the verified `userId`, the settings
- *   and the `useAgentContext` entries. Nothing else the browser sent
- *   (`config`, `context`, `command`, any other forwarded prop) is passed on.
- * - The schemas it reports make the adapter cut the browser's state down to
- *   the keys it may write, and the snapshots down to the keys it may see.
+ * - The run's `context` is built here: the verified `userId`, the settings,
+ *   the `useAgentContext` entries and a quiz Submit. Nothing else the
+ *   browser sent (`config`, `context`, `command`, any other forwarded prop)
+ *   is passed on.
+ * - The run's input is built here too (`createRunInput`): the new messages,
+ *   and the server's own state changed only by the edits the browser may
+ *   make. The browser's state is never written as it is.
+ * - The schemas it reports make the adapter cut the browser's state down
+ *   before it arrives, and the snapshots down to the keys the browser may
+ *   see.
  */
 export const createInProcessClient = ({
   graph,
@@ -126,7 +131,7 @@ export const createInProcessClient = ({
       },
       getSchemas: async () => ({
         input_schema: toSchema([
-          ...CLIENT_WRITABLE_STATE_KEYS,
+          ...CLIENT_INPUT_STATE_KEYS,
           FRONTEND_TOOLS_INPUT_KEY,
           APP_CONTEXT_INPUT_KEY,
         ]),
@@ -183,7 +188,7 @@ export const createInProcessClient = ({
       stream: async function* (
         threadId: string,
         _assistantId: string,
-        { input, settings }: RunPayload,
+        { input, settings, a2uiAction }: RunPayload,
       ) {
         const runId = uuidv4();
         const abort = new AbortController();
@@ -195,6 +200,7 @@ export const createInProcessClient = ({
           appContext: readAppContext(
             (input?.[APP_CONTEXT_INPUT_KEY] as { context?: unknown })?.context,
           ),
+          submit: parseSubmitAction({ a2uiAction }),
         };
 
         try {
@@ -202,19 +208,18 @@ export const createInProcessClient = ({
             event: "metadata",
             data: { run_id: runId, thread_id: threadId },
           };
+          const before = await compiled.getState(toThreadConfig(threadId));
+          const run = createRunInput({ before: before.values ?? {}, input });
           // The state the run starts from. The adapter builds each snapshot
           // from the values it has seen so far; without this, the first
           // ones hold only the keys a node has just written, and the
           // canvas would go blank until the run ends.
-          const before = await compiled.getState(toThreadConfig(threadId));
-          yield {
-            event: "values",
-            data: { ...initialLearningState, ...before.values },
-          };
-          const events = compiled.streamEvents(input as GraphInput, {
+          yield { event: "values", data: { ...before.values, ...run.state } };
+          const events = compiled.streamEvents(run.input as GraphInput, {
             ...toThreadConfig(threadId),
             version: "v2",
             streamMode: "values",
+            recursionLimit: GRAPH_RECURSION_LIMIT,
             runId,
             runName: LEARNING_AGENT_ID,
             signal: abort.signal,
@@ -230,7 +235,10 @@ export const createInProcessClient = ({
           const { values } = await compiled.getState(toThreadConfig(threadId));
           yield { event: "values", data: values };
         } catch (error) {
-          yield { event: "error", data: { message: getErrorMessage(error) } };
+          // A stopped run ends quietly: the adapter then sends what was saved.
+          if (!abort.signal.aborted) {
+            yield { event: "error", data: { message: getErrorMessage(error) } };
+          }
         } finally {
           // Also reached when the adapter stops reading: end the graph too.
           abort.abort();

@@ -1,0 +1,129 @@
+import { AIMessage, type BaseMessage } from "@langchain/core/messages";
+import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
+import {
+  initialLearningState,
+  type LearningState,
+  NewTopicDecisionSchema,
+} from "@repo/shared/schemas";
+import { readLearningState } from "@repo/shared/utils/learning-state";
+
+import { A2UI_ACTION_TOOL, FRONTEND_TOOLS_INPUT_KEY } from "../constants/graph";
+import { applyClientEdits } from "./client-edits";
+
+/** A message as the AG-UI adapter hands it over: a plain LangChain-style object. */
+interface IncomingMessage {
+  type?: string;
+  content?: unknown;
+  tool_call_id?: string;
+  tool_calls?: { id?: string; name?: string }[];
+}
+
+interface RunInputParams {
+  /** The thread's checkpointed values before the run; empty for a new thread. */
+  before: Record<string, unknown>;
+  /** The adapter's input: the browser's new messages and state. */
+  input: Record<string, unknown> | null | undefined;
+}
+
+interface RunInput {
+  /** The state the run starts from, after the browser's edits. */
+  state: LearningState;
+  /** What is written to the graph: the new messages and the state keys that changed. */
+  input: Record<string, unknown>;
+}
+
+const toMessages = (raw: unknown): IncomingMessage[] =>
+  Array.isArray(raw) ? (raw as IncomingMessage[]) : [];
+
+const isActionCall = ({ type, tool_calls: calls = [] }: IncomingMessage) =>
+  type === "ai" &&
+  calls.length > 0 &&
+  calls.every(({ name }) => name === A2UI_ACTION_TOOL);
+
+/**
+ * The messages without the pair the A2UI middleware adds for a surface
+ * action (the quiz Submit): a tool call the Supervisor never made, and a
+ * result that repeats the action. The action reaches the graph in the run
+ * context instead, so the thread keeps only what was said and done.
+ */
+export const dropActionMessages = (
+  messages: IncomingMessage[],
+): IncomingMessage[] => {
+  const actionCallIds = new Set(
+    messages
+      .filter(isActionCall)
+      .flatMap(({ tool_calls: calls = [] }) => calls.map(({ id }) => id)),
+  );
+  return messages.filter(
+    (message) =>
+      !isActionCall(message) &&
+      !(message.type === "tool" && actionCallIds.has(message.tool_call_id)),
+  );
+};
+
+const findToolName = (
+  toolCallId: string | undefined,
+  checkpointed: BaseMessage[],
+  incoming: IncomingMessage[],
+): string | undefined =>
+  [
+    ...checkpointed.flatMap((message) =>
+      AIMessage.isInstance(message) ? (message.tool_calls ?? []) : [],
+    ),
+    ...incoming.flatMap(({ tool_calls: calls = [] }) => calls),
+  ].find(({ id }) => id !== undefined && id === toolCallId)?.name;
+
+/**
+ * Whether the run starts with the student confirming a new topic: its last
+ * new message is the `confirmNewTopic` card's result, and it says confirmed.
+ */
+export const isNewTopicConfirmed = (
+  checkpointed: BaseMessage[],
+  incoming: IncomingMessage[],
+): boolean => {
+  const last = incoming.at(-1);
+  if (
+    last?.type !== "tool" ||
+    typeof last.content !== "string" ||
+    findToolName(last.tool_call_id, checkpointed, incoming) !==
+      CONFIRM_NEW_TOPIC_TOOL
+  ) {
+    return false;
+  }
+  try {
+    const decision = NewTopicDecisionSchema.safeParse(JSON.parse(last.content));
+    return decision.success && decision.data.confirmed;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Builds what a run writes to the graph from what the browser sent. The
+ * browser's state is never written as it is: the server's state is taken
+ * from the checkpoint, cleared if the student has just confirmed a new
+ * topic, and then changed only by the edits the browser is allowed to make
+ * (`applyClientEdits`). Only the keys that end up different are written.
+ */
+export const createRunInput = ({ before, input }: RunInputParams): RunInput => {
+  const messages = dropActionMessages(toMessages(input?.messages));
+  const server = readLearningState(before);
+  const checkpointed = (before.messages ?? []) as BaseMessage[];
+
+  const base = isNewTopicConfirmed(checkpointed, messages)
+    ? initialLearningState
+    : server;
+  const state = applyClientEdits(base, input);
+  const changed = (Object.keys(state) as (keyof LearningState)[]).filter(
+    (key) => state[key] !== server[key],
+  );
+
+  return {
+    state,
+    input: {
+      messages,
+      [FRONTEND_TOOLS_INPUT_KEY]: input?.[FRONTEND_TOOLS_INPUT_KEY],
+      ...Object.fromEntries(changed.map((key) => [key, state[key]])),
+    },
+  };
+};
