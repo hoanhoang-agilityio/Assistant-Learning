@@ -1,9 +1,15 @@
 import "@copilotkit/react-core/v2/styles.css";
 import "@/app/globals.css";
 
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import {
+  AFTER_SIGN_OUT_PATH,
+  SIGN_IN_PATH,
+  SIGN_UP_PATH,
+} from "@/constants/auth";
 import {
   DARK_SCHEME_QUERY,
   DARK_THEME_CLASS,
@@ -50,7 +56,13 @@ const RootLayout = ({
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
+        <ClerkProvider
+          signInUrl={SIGN_IN_PATH}
+          signUpUrl={SIGN_UP_PATH}
+          afterSignOutUrl={AFTER_SIGN_OUT_PATH}
+        >
+          {children}
+        </ClerkProvider>
       </body>
     </html>
   );

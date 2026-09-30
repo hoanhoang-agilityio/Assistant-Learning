@@ -37,3 +37,6 @@ yarn-error.log*
 next-env.d.ts
 
 refer-ui
+
+# Clerk keyless-mode keys (dev only)
+.clerk/
