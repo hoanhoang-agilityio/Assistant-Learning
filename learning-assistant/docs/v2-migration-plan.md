@@ -81,7 +81,7 @@ flowchart LR
 | D7 | Existing sessions | Nothing to migrate: v1 keeps no persisted data |
 | D8 | Short-term memory | Accepted: two states, full `messages` plus `summary` for agent context (E1) |
 | D9 | Hosting | H1, single instance (or sticky by thread): `/connect` replay and `/stop` use in-process runner memory (F-10) |
-| D10 | State ownership | Split `LearningState` into client-owned top-level keys (quiz answers, material edits and view, reflection) and server-owned keys; the schema whitelists are per top-level key, so nested client fields (today `quiz.answers`) must move up |
+| D10 | State ownership | Split `LearningState` into client-owned top-level keys (quiz answers, material edits and view, reflection) and server-owned keys; the schema whitelists are per top-level key, so nested client fields (today `quiz.answers`) must move up. **M2: the whitelists are enforced** (`apps/agent/src/constants/graph.ts`); only `reflection` is client-writable. The quiz answers and material edits move up in M3, with the tools that read them (A3, A4, FE4) |
 
 ## 5. Work breakdown
 
@@ -105,8 +105,8 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 
 | # | Task |
 | --- | --- |
-| A1 | `generateStructured` on LangChain: `ChatOpenAI` gpt-5.4-mini, low reasoning, `useResponsesApi: true`; raw stream with `response_format: json_schema`, partial-JSON parse, zod-validate the final; abort via signal; inner calls tagged `emit-messages: false`, `emit-tool-calls: false` |
-| A2 | Supervisor `createAgent`: state schema from `LearningState` (D10 split), `SUPERVISOR_PROMPT` kept, tool names unchanged so renderers keep working. Route pieces from §3: in-process client, schema whitelists, event filter, header deny-list, `CheckpointRunner` |
+| A1 | `generateStructured` on LangChain: `ChatOpenAI` gpt-5.4-mini, low reasoning, `useResponsesApi: true`; raw stream with `response_format: json_schema`, partial-JSON parse, zod-validate the final; abort via signal; inner calls tagged `emit-messages: false`, `emit-tool-calls: false`. **Done in M2**, same signature, so the five subagents already call it (181 partials on the research schema against the real model) |
+| A2 | Supervisor `createAgent`: state schema from `LearningState` (D10 split), `SUPERVISOR_PROMPT` kept, tool names unchanged so renderers keep working. Route pieces from §3: in-process client, schema whitelists, event filter, header deny-list, `CheckpointRunner`. **Done in M2** (`apps/agent/src/services/graph`), with no server tools yet (A3, A6) and `MemorySaver` until C2. The graph is built per request (the model holds the user's key); see "Found in M2" below |
 | A3 | Five subagent tools with prerequisites and state effects (stage, what each clears, `status.error`/`failed`); each returns `Command` with a `ToolMessage`. Parallel tool calls off (two writes to one key kill the run, F-7) |
 | A4 | Quiz: keep sealing; port the quiz-security tests; no correct answer in any state or event before Submit |
 | A5 | Submit routing from `a2uiAction` in run `context`: grade in code, model only explains failures. Decide what to do with the synthetic `ai`+`tool` pair the A2UI middleware appends (it holds the answers and stays in history) |
@@ -116,7 +116,18 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | A9 | Call limit (`modelCallLimitMiddleware`), Stop (tools honour `config.signal`), retries |
 | A10 | LangSmith tracing with `thread_id` and the current turn names; nothing secret in `context` |
 | A11 | Remove `ai`, `@ai-sdk/openai`, `BuiltInAgent` wrapper, and its tests when parity is confirmed |
-| A12 | App context: the in-process client passes `useAgentContext` entries as run context; the context builder renders them without CopilotKit's A2UI entries |
+| A12 | App context: the in-process client passes `useAgentContext` entries as run context; the context builder renders them without CopilotKit's A2UI entries. **Done in M2**: `supervisorContextMiddleware` appends the entries and the trimmed state to the system message on each model call, and writes nothing to the thread |
+
+**Found in M2** (all covered by route-level tests in `apps/agent/src/services/graph/__tests__`):
+
+| # | Finding | What the code does |
+| --- | --- | --- |
+| M2-1 | The adapter builds each `STATE_SNAPSHOT` from the `values` chunks it has seen. The spike client sent one only at the end, so every snapshot before it held just the keys a node had written: the canvas would go blank during each run | The in-process client sends the state the run starts from first, then the graph's own `values` stream |
+| M2-2 | The adapter always adds `messages` (raw LangChain messages, with provider metadata) and `tools` to the output keys, and sends a snapshot at every graph step: 17 for one chat turn | The event filter keeps only the `LearningState` keys and drops a snapshot equal to the last one sent: 1 per turn while nothing changes |
+| M2-3 | The spike client passed the browser's `forwardedProps.command` on as a LangGraph `Command`, so `command.update` could write any state key, and spread `forwardedProps.config` into the run config | The client ignores `command`, `config` and `context`; it reads only `settings` and the `useAgentContext` entries |
+| M2-4 | With input whitelists the adapter also drops `copilotkit` (frontend tools) and `ag-ui` (context entries) from the run input | Both are listed as input keys next to the client-writable state keys |
+| M2-5 | After a `RUN_ERROR` the adapter still sends snapshots and `RUN_FINISHED` (F-9) | The event filter ends the stream at `RUN_ERROR`, after a readable chat message |
+| M2-6 | Reload needs a graph to read the checkpoint, but `/connect` has no request, so no user key | The runner builds a read-only graph with a placeholder key; its model is never called |
 
 ### B. Clerk (Next.js backend is the authority)
 
@@ -184,7 +195,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | --- | --- | --- |
 | M0 | Spikes, decisions D1–D10 | Done except Clerk (findings in v2-spike-findings.md) |
 | M1 | B1–B4, B10 | Sign-in required; every route checks the session on the backend |
-| M2 | A1–A2, A12 | A chat message runs through the LangChain agent end to end, in the browser |
+| M2 | A1–A2, A12 | A chat message runs through the LangChain agent end to end, in the browser. **Done.** Until M3 the Supervisor has only the frontend tools: research, learning material, the quiz, cards and the Board are off on this branch |
 | M3 | A3–A5, A7–A9 | Research → Score works with quiz security and streaming |
 | M4 | A6, A10 | Cards, Board, tracing at parity; then A11 removes the AI SDK code |
 | M5 | C1–C7, FE1–FE3, B6–B8 | Multiple conversations, resume, delete |
