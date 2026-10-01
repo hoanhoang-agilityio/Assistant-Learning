@@ -2,14 +2,15 @@
 
 import { BotAvatar } from "@/features/chat/components/BotAvatar";
 import { ASSISTANT_BUBBLE_CLASS } from "@/features/chat/constants/chat";
+import { TOOLS_WITHOUT_CARD } from "@/features/chat/constants/tools";
 import type { AssistantMessageLayout } from "@/features/chat/types/chat";
 
 /**
  * Assistant turn: avatar, a bubble for text, then tool progress cards. Passed
  * as the slot's `children` so CopilotKit keeps its own message wiring. A turn
- * with neither text nor a tool call draws nothing: after a tool whose card is
- * the whole reply, the Supervisor answers with an empty message, which stays
- * in the thread.
+ * with neither text nor a tool call that has a card draws nothing: after a
+ * tool whose card is the whole reply, the Supervisor answers with an empty
+ * message, which stays in the thread, and reading a Board view shows nothing.
  */
 export const renderAssistantMessage: AssistantMessageLayout = ({
   markdownRenderer,
@@ -19,7 +20,11 @@ export const renderAssistantMessage: AssistantMessageLayout = ({
   toolbarVisible,
 }) => {
   const hasContent = Boolean(message.content?.trim());
-  const hasToolCalls = Boolean(message.toolCalls?.length);
+  const hasToolCalls = Boolean(
+    message.toolCalls?.some(
+      ({ function: fn }) => !TOOLS_WITHOUT_CARD.has(fn.name),
+    ),
+  );
   if (!hasContent && !hasToolCalls) {
     return null;
   }

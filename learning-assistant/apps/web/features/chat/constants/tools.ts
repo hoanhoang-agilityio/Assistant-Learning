@@ -1,3 +1,4 @@
+import { READ_BOARD_SURFACE_TOOL } from "@repo/shared/constants/agents";
 import type { SubagentTool } from "@repo/shared/schemas";
 
 import type { ChatCardKind } from "@/features/chat/types/chat";
@@ -100,3 +101,8 @@ export const DELETE_BOARD_SURFACE_COPY = {
   done: "Removed from the Board",
   stopped: "Board removal stopped",
 } as const;
+
+/** Tools whose calls draw nothing in the chat. */
+export const TOOLS_WITHOUT_CARD: ReadonlySet<string> = new Set([
+  READ_BOARD_SURFACE_TOOL,
+]);
