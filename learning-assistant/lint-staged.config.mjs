@@ -19,4 +19,7 @@ export default {
   "packages/{eslint-config,typescript-config}/**/*.{js,mjs,cjs,json,md}":
     "prettier --write",
   "packages/shared/**/*.{json,md}": "prettier --write",
+
+  "packages/db/**/*.{js,jsx,mjs,cjs,ts,tsx}": lintAndFormat("@repo/db"),
+  "packages/db/**/*.{json,md}": "prettier --write",
 };

@@ -1,0 +1,22 @@
+# Local Postgres for the learning assistant: `docker compose up -d`, then
+# `pnpm db:migrate`. The password is a local-only default; set
+# POSTGRES_PASSWORD (and DATABASE_URL to match) to use another.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: learning
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-learning}
+      POSTGRES_DB: learning_assistant
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U learning -d learning_assistant"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
