@@ -15,6 +15,7 @@ import {
 import { formatOpenAIError } from "../../utils/openai-errors";
 import { muteCardReplies, muteRepliesAfterCards } from "../card-replies";
 import { explainRunErrors } from "../run-errors";
+import { streamBoardDrafts } from "./board-drafts";
 
 /** An event as `LangGraphAgent` emits it, with the graph event it came from. */
 type GraphBackedEvent = BaseEvent & { rawEvent?: unknown };
@@ -38,12 +39,17 @@ const toVisibleSnapshot = (event: StateSnapshotEvent): StateSnapshotEvent => ({
 
 /**
  * Drops a state snapshot equal to the last one sent. The adapter sends one
- * at every step of the graph, changed or not.
+ * at every step of the graph, changed or not. After a delta the browser's
+ * state is no longer the last snapshot, so the next one always goes.
  */
 const dropRepeatedSnapshots = (): OperatorFunction<BaseEvent, BaseEvent> => {
   let lastSnapshot: string | undefined;
 
   return filter((event) => {
+    if (event.type === EventType.STATE_DELTA) {
+      lastSnapshot = undefined;
+      return true;
+    }
     if (!isStateSnapshot(event)) {
       return true;
     }
@@ -110,6 +116,8 @@ const isMessagesSnapshot = (event: BaseEvent): event is MessagesSnapshotEvent =>
  *   graph state and every model input, server-only keys and the quiz's
  *   answers included, so both are removed. So is its copy, as a custom
  *   event, of each state a tool sends mid-run.
+ * - A Board view streams to the canvas while the Supervisor writes it (see
+ *   `streamBoardDrafts`).
  * - A tool's chat card is its whole reply: text the Supervisor writes after
  *   one succeeds is dropped, from the stream and from message snapshots.
  * - A failed run ends with a readable message in the chat, then its
@@ -124,6 +132,7 @@ export const toClientEvents = (
     ),
     map(({ rawEvent: _rawEvent, ...event }: GraphBackedEvent) => event),
     map((event) => (isStateSnapshot(event) ? toVisibleSnapshot(event) : event)),
+    streamBoardDrafts(),
     dropRepeatedSnapshots(),
     muteRepliesAfterCards(history),
     map((event) =>

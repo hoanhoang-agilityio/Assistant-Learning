@@ -11,3 +11,10 @@ export interface SubagentToolDeps {
   /** Seals the quiz answer key and unseals it to grade the quiz. */
   answerKeys: AnswerKeyStore;
 }
+
+/** A Board tool call's arguments so far, parsed from partial JSON. */
+export interface SurfaceCallArgs {
+  toolCallId: string;
+  toolCallName: string;
+  args: unknown;
+}
