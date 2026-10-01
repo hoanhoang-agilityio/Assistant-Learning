@@ -1,10 +1,5 @@
-import { AIMessage, type BaseMessage } from "@langchain/core/messages";
-import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
-import {
-  initialLearningState,
-  type LearningState,
-  NewTopicDecisionSchema,
-} from "@repo/shared/schemas";
+import type { BaseMessage } from "@langchain/core/messages";
+import type { LearningState } from "@repo/shared/schemas";
 import { readLearningState } from "@repo/shared/utils/learning-state";
 
 import { A2UI_ACTION_TOOL, FRONTEND_TOOLS_INPUT_KEY } from "../constants/graph";
@@ -62,43 +57,6 @@ export const dropActionMessages = (
   );
 };
 
-const findToolName = (
-  toolCallId: string | undefined,
-  checkpointed: BaseMessage[],
-  incoming: IncomingMessage[],
-): string | undefined =>
-  [
-    ...checkpointed.flatMap((message) =>
-      AIMessage.isInstance(message) ? (message.tool_calls ?? []) : [],
-    ),
-    ...incoming.flatMap(({ tool_calls: calls = [] }) => calls),
-  ].find(({ id }) => id !== undefined && id === toolCallId)?.name;
-
-/**
- * Whether the run starts with the student confirming a new topic: its last
- * new message is the `confirmNewTopic` card's result, and it says confirmed.
- */
-export const isNewTopicConfirmed = (
-  checkpointed: BaseMessage[],
-  incoming: IncomingMessage[],
-): boolean => {
-  const last = incoming.at(-1);
-  if (
-    last?.type !== "tool" ||
-    typeof last.content !== "string" ||
-    findToolName(last.tool_call_id, checkpointed, incoming) !==
-      CONFIRM_NEW_TOPIC_TOOL
-  ) {
-    return false;
-  }
-  try {
-    const decision = NewTopicDecisionSchema.safeParse(JSON.parse(last.content));
-    return decision.success && decision.data.confirmed;
-  } catch {
-    return false;
-  }
-};
-
 /**
  * The text of the student's newest message in the run, or `null` when it
  * brought none (a Submit press, a frontend tool's result). The browser sends
@@ -128,19 +86,14 @@ export const findUserText = (
 /**
  * Builds what a run writes to the graph from what the browser sent. The
  * browser's state is never written as it is: the server's state is taken
- * from the checkpoint, cleared if the student has just confirmed a new
- * topic, and then changed only by the edits the browser is allowed to make
- * (`applyClientEdits`). Only the keys that end up different are written.
+ * from the checkpoint and changed only by the edits the browser is allowed
+ * to make (`applyClientEdits`). Only the keys that end up different are
+ * written.
  */
 export const createRunInput = ({ before, input }: RunInputParams): RunInput => {
   const messages = dropActionMessages(toMessages(input?.messages));
   const server = readLearningState(before);
-  const checkpointed = (before.messages ?? []) as BaseMessage[];
-
-  const base = isNewTopicConfirmed(checkpointed, messages)
-    ? initialLearningState
-    : server;
-  const state = applyClientEdits(base, input);
+  const state = applyClientEdits(server, input);
   const changed = (Object.keys(state) as (keyof LearningState)[]).filter(
     (key) => state[key] !== server[key],
   );

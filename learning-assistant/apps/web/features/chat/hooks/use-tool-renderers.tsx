@@ -6,14 +6,14 @@ import { FeedbackReadyCard } from "@/features/chat/components/FeedbackReadyCard"
 import { ToolProgress } from "@/features/chat/components/ToolProgress";
 import {
   formatQuizSize,
-  isTopicConfirmationRequired,
+  isNewConversationRequired,
 } from "@/features/chat/utils/tool-results";
 
 /**
  * Progress cards for every subagent tool. Called once from the app shell so
  * the renderers never unmount while a tool call is on screen. A `research`
- * call refused until the student confirms a new topic shows no card: the
- * confirmation card that follows says what happens.
+ * call refused because this conversation already has a topic shows no card:
+ * the Supervisor's reply says to press "New topic".
  */
 export const useToolRenderers = () => {
   useRenderTool(
@@ -22,7 +22,7 @@ export const useToolRenderers = () => {
       agentId: LEARNING_AGENT_ID,
       parameters: ToolParamSchemas.research,
       render: ({ status, parameters, result }) =>
-        isTopicConfirmationRequired(result) ? null : (
+        isNewConversationRequired(result) ? null : (
           <ToolProgress
             tool="research"
             status={status}

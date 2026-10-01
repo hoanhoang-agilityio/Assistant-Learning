@@ -2,28 +2,28 @@ import { TOOL_STOPPED_ERROR } from "@repo/shared/constants/agents";
 import {
   BoardRemovalResultSchema,
   BoardSurfaceResultSchema,
+  NewConversationRequiredSchema,
   type Score,
   type SubagentTool,
   ToolSummarySchemas,
-  TopicConfirmationRequiredSchema,
 } from "@repo/shared/schemas";
 
 import { TOOL_LABELS } from "@/features/chat/constants/tools";
 import type { ToolCallStatus, ToolPhase } from "@/features/chat/types/chat";
 
 /**
- * A `research` result that waits for the student to confirm a new topic. The
- * confirmation card follows it, so it is neither an error nor a success.
+ * A `research` result refusing a second topic in this conversation. The
+ * Supervisor's reply that follows points to "New topic", so it is neither
+ * an error nor a success.
  */
-export const isTopicConfirmationRequired = (
+export const isNewConversationRequired = (
   result: string | undefined,
 ): boolean => {
   if (!result) {
     return false;
   }
   try {
-    return TopicConfirmationRequiredSchema.safeParse(JSON.parse(result))
-      .success;
+    return NewConversationRequiredSchema.safeParse(JSON.parse(result)).success;
   } catch {
     return false;
   }
@@ -33,10 +33,10 @@ export const isTopicConfirmationRequired = (
  * Reads the error from a subagent tool's result string. A tool's result is a
  * short summary (`ToolSummarySchemas`): `{ ok: false, error }` when it
  * failed; anything else counts as success.
- * A refusal that waits for a new-topic confirmation is not an error.
+ * A refusal that asks for a new conversation is not an error.
  */
 export const parseToolError = (result: string | undefined): string | null => {
-  if (!result || isTopicConfirmationRequired(result)) {
+  if (!result || isNewConversationRequired(result)) {
     return null;
   }
   try {

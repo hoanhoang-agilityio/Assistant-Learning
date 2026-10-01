@@ -1,5 +1,4 @@
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
-import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
+import { HumanMessage } from "@langchain/core/messages";
 import { initialLearningState } from "@repo/shared/schemas";
 import { describe, expect, it } from "vitest";
 
@@ -8,7 +7,6 @@ import {
   createRunInput,
   dropActionMessages,
   findUserText,
-  isNewTopicConfirmed,
 } from "../run-input";
 
 const MATERIAL = { original: "# Notes", simplified: null, view: "original" };
@@ -22,19 +20,6 @@ const SAVED = {
 };
 
 const human = (content: string) => ({ id: content, type: "human", content });
-
-const confirmCall = new AIMessage({
-  content: "",
-  tool_calls: [
-    { id: "call_confirm", name: CONFIRM_NEW_TOPIC_TOOL, args: { topic: "x" } },
-  ],
-});
-
-const decision = (confirmed: boolean) => ({
-  type: "tool",
-  tool_call_id: "call_confirm",
-  content: JSON.stringify({ confirmed, instruction: "…" }),
-});
 
 describe("dropActionMessages", () => {
   it("drops the pair the A2UI middleware adds for a surface action", () => {
@@ -60,30 +45,6 @@ describe("dropActionMessages", () => {
     ];
 
     expect(dropActionMessages(messages)).toEqual(messages);
-  });
-});
-
-describe("isNewTopicConfirmed", () => {
-  it("is true when the run starts with the card's confirmed result", () => {
-    expect(isNewTopicConfirmed([confirmCall], [decision(true)])).toBe(true);
-  });
-
-  it.each([
-    ["the student kept the topic", [confirmCall], [decision(false)]],
-    ["the result answers another tool", [], [decision(true)]],
-    [
-      "a message follows the result",
-      [confirmCall],
-      [decision(true), human("hi")],
-    ],
-    [
-      "the result is not a decision",
-      [confirmCall],
-      [{ ...decision(true), content: "yes" }],
-    ],
-    ["there are no new messages", [confirmCall], []],
-  ])("is false when %s", (_, checkpointed, incoming) => {
-    expect(isNewTopicConfirmed(checkpointed, incoming)).toBe(false);
   });
 });
 
@@ -140,18 +101,13 @@ describe("createRunInput", () => {
     expect(Object.keys(run.input)).toEqual(["messages", "copilotkit"]);
   });
 
-  it("clears the state when the student has just confirmed a new topic", () => {
+  it("never clears the server's work for a browser that sends an empty state", () => {
     const run = createRunInput({
-      before: { ...SAVED, messages: [confirmCall] },
-      input: { messages: [decision(true)] },
+      before: SAVED,
+      input: { ...initialLearningState, messages: [human("hi")] },
     });
 
-    expect(run.state).toEqual(initialLearningState);
-    expect(run.input).toMatchObject({
-      stage: "idle",
-      topic: null,
-      material: null,
-    });
+    expect(run.state).toMatchObject({ stage: "material", material: MATERIAL });
   });
 
   it("drops a surface action's messages", () => {

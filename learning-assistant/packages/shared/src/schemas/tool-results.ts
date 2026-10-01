@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import {
-  CONFIRM_NEW_TOPIC_TOOL,
-  NEW_CONVERSATION_REQUIREMENT,
-} from "../constants/agents";
+import { NEW_CONVERSATION_REQUIREMENT } from "../constants/agents";
 import {
   EvaluationSchema,
   FeedbackSchema,
@@ -44,14 +41,6 @@ const MarkdownSchema = z.string().min(1);
 export const NewConversationRequiredSchema = z.object({
   ok: z.literal(false),
   requires: z.literal(NEW_CONVERSATION_REQUIREMENT),
-  topic: z.string().min(1),
-  instruction: z.string().min(1),
-});
-
-/** The refusal the new-topic card answered. It goes with the card. */
-export const TopicConfirmationRequiredSchema = z.object({
-  ok: z.literal(false),
-  requires: z.literal(CONFIRM_NEW_TOPIC_TOOL),
   topic: z.string().min(1),
   instruction: z.string().min(1),
 });

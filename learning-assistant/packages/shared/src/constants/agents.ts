@@ -8,12 +8,6 @@ export const LEARNING_AGENT_ID = "learning";
  */
 export const NEW_CONVERSATION_REQUIREMENT = "newConversation";
 
-/**
- * The new-topic confirmation card's frontend tool. The agent no longer
- * calls it; it goes with the card.
- */
-export const CONFIRM_NEW_TOPIC_TOOL = "confirmNewTopic";
-
 /** Frontend tool: switches the theme (system, light or dark). */
 export const SET_THEME_TOOL = "setTheme";
 

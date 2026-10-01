@@ -1,5 +1,5 @@
 import {
-  CONFIRM_NEW_TOPIC_TOOL,
+  NEW_CONVERSATION_REQUIREMENT,
   TOOL_STOPPED_ERROR,
 } from "@repo/shared/constants/agents";
 import { describe, expect, it } from "vitest";
@@ -9,23 +9,23 @@ import {
   formatToolTitle,
   getToolPhase,
   isBoardSurfaceResult,
+  isNewConversationRequired,
   isToolStopped,
-  isTopicConfirmationRequired,
   parseEvaluateScore,
   parseRemovedTitles,
   parseToolError,
 } from "@/features/chat/utils/tool-results";
 
-const CONFIRMATION_REQUIRED = JSON.stringify({
+const NEW_CONVERSATION_REQUIRED = JSON.stringify({
   ok: false,
-  requires: CONFIRM_NEW_TOPIC_TOOL,
+  requires: NEW_CONVERSATION_REQUIREMENT,
   topic: "Black holes",
-  instruction: "Confirm first.",
+  instruction: "Press New topic.",
 });
 
-describe("isTopicConfirmationRequired", () => {
-  it("is true for a research refusal that waits for confirmation", () => {
-    expect(isTopicConfirmationRequired(CONFIRMATION_REQUIRED)).toBe(true);
+describe("isNewConversationRequired", () => {
+  it("is true for a research refusal that asks for a new conversation", () => {
+    expect(isNewConversationRequired(NEW_CONVERSATION_REQUIRED)).toBe(true);
   });
 
   it.each([
@@ -35,7 +35,7 @@ describe("isTopicConfirmationRequired", () => {
     '{"ok":false,"error":"Search failed."}',
     '{"ok":true,"data":{}}',
   ])("is false for %j", (result) => {
-    expect(isTopicConfirmationRequired(result)).toBe(false);
+    expect(isNewConversationRequired(result)).toBe(false);
   });
 });
 
@@ -51,7 +51,7 @@ describe("parseToolError", () => {
     "",
     '{"ok":true,"data":{}}',
     "plain text",
-    CONFIRMATION_REQUIRED,
+    NEW_CONVERSATION_REQUIRED,
   ])("returns null for %j", (result) => {
     expect(parseToolError(result)).toBeNull();
   });
