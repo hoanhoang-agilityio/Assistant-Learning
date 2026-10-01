@@ -38,7 +38,14 @@ vi.mock("../../llm/chat-model", () => ({ createChatModel: vi.fn() }));
 
 const REPLY = "Hello! What would you like to learn today?";
 
-const SERVER_ONLY_KEYS = ["messages", "tools", "copilotkit", "ag-ui"];
+const SERVER_ONLY_KEYS = [
+  "messages",
+  "tools",
+  "copilotkit",
+  "ag-ui",
+  "summary",
+  "summarizedUpTo",
+];
 
 const SET_THEME: Tool = {
   name: SET_THEME_TOOL,

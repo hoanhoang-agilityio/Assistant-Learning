@@ -11,7 +11,7 @@ const { shape } = LearningStateSchema;
 /**
  * The graph's state: every `LearningState` key, each starting from the
  * initial state, so a new thread holds a valid state from its first
- * checkpoint. `createAgent` adds `messages`.
+ * checkpoint, and the conversation's summary. `createAgent` adds `messages`.
  */
 export const LearningGraphStateSchema = z.object({
   stage: shape.stage.default(initialLearningState.stage),
@@ -28,6 +28,14 @@ export const LearningGraphStateSchema = z.object({
   board: shape.board.default(initialLearningState.board),
   draft: shape.draft.default(initialLearningState.draft),
   boardDraft: shape.boardDraft.default(initialLearningState.boardDraft),
+  /**
+   * The messages up to `summarizedUpTo`, folded into a few paragraphs. The
+   * Supervisor reads it in place of them; `messages` keeps them all. Server
+   * only: not a `LearningState` key, so the browser never sees it.
+   */
+  summary: z.string().nullable().default(null),
+  /** The id of the last message `summary` covers; `null` before the first summary. */
+  summarizedUpTo: z.string().nullable().default(null),
 });
 
 /** One `useAgentContext` entry: what it describes, and its value as text. */
