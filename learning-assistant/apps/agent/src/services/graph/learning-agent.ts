@@ -10,7 +10,6 @@ import { createChatModel } from "../llm/chat-model";
 import { toClientEvents } from "./client-events";
 import { createInProcessClient } from "./in-process-client";
 import { createLearningGraph, type LearningGraph } from "./learning-graph";
-import { NO_RECORDS } from "./no-records";
 import { UnavailableAgent } from "./unavailable-agent";
 
 interface LearningAgentOptions {
@@ -20,8 +19,8 @@ interface LearningAgentOptions {
   userId: string;
   /** Where threads are kept. */
   checkpointer: BaseCheckpointSaver;
-  /** Where each conversation's runs and completed stages are kept. Defaults to nowhere. */
-  records?: LearningRecords;
+  /** Where each conversation's runs and completed stages are kept. */
+  records: LearningRecords;
 }
 
 /**
@@ -56,7 +55,7 @@ export const createLearningAgent = ({
   apiKey,
   userId,
   checkpointer,
-  records = NO_RECORDS,
+  records,
 }: LearningAgentOptions): AbstractAgent => {
   const trimmedKey = apiKey?.trim();
   if (!trimmedKey) {

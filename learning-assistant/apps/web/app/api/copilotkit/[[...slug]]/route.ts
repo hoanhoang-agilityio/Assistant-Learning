@@ -13,6 +13,7 @@ import {
 } from "@/constants/copilot";
 import { readApiKeyFromRequest } from "@/features/api-key/services/request-api-key";
 import { conversationOwners } from "@/features/conversations/services/conversation-owners";
+import { conversationRecords } from "@/features/conversations/services/conversation-records";
 import { createThreadGuardHooks } from "@/features/conversations/services/runtime-thread-guard";
 import {
   createUnauthorizedResponse,
@@ -25,7 +26,8 @@ const runtime = new CopilotRuntime({
   // Built per request so each run uses the caller's own OpenAI key, sent
   // sealed in a header and opened only here on the server, and the user id
   // from the Clerk session, never one the client sent. The agent runs its
-  // LangChain graph in this process; threads are kept in Postgres.
+  // LangChain graph in this process; threads are kept in Postgres, and each
+  // run and completed stage is recorded with its conversation.
   agents: async ({ request }) => {
     const userId = await getSignedInUserId();
     if (!userId) {
@@ -36,6 +38,7 @@ const runtime = new CopilotRuntime({
         apiKey: readApiKeyFromRequest(request),
         userId,
         checkpointer: getThreadCheckpointer(),
+        records: conversationRecords,
       }),
     };
   },
