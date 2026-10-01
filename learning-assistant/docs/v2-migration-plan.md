@@ -1,6 +1,6 @@
 # v2 Migration Plan: single LangChain.js agent + Clerk + conversations + memory
 
-2026-10-01 · M5 done · Spikes done, see [v2-spike-findings.md](./v2-spike-findings.md). Parked variant: `v2-migration-plan-python.md` (referenced earlier, not in the repo).
+2026-10-01 · M6 done · Spikes done, see [v2-spike-findings.md](./v2-spike-findings.md). Parked variant: `v2-migration-plan-python.md` (referenced earlier, not in the repo).
 
 ## 1. Goal and scope
 
@@ -73,7 +73,7 @@ flowchart LR
 | # | Question | Recommendation |
 | --- | --- | --- |
 | D1 | OpenAI key | Keep BYOK, stored encrypted per Clerk user, resolved server-side by `userId`. Build `ChatOpenAI` per request with the key in the instance. **Never put the key in run `context` or `configurable`: context is recorded in every LLM trace (S8).** Or one server key if BYOK can go |
-| D2 | Long-term memory storage | Typed tables written by code (matches the "drop mem0" decision). `PostgresStore` exists in JS if free-form memories are ever needed |
+| D2 | Long-term memory storage | Typed tables written by code (matches the "drop mem0" decision). `PostgresStore` exists in JS if free-form memories are ever needed. **Done in M6**: `learner_profiles`, `concept_memories`, `topic_memories` in `@repo/db`, no store |
 | D3 | Subagent shape | Each is one structured-output call inside a tool, streamed as raw text with `response_format: json_schema` + partial-JSON parsing (`withStructuredOutput` does not stream partials) |
 | D4 | Answer key | Keep AES-GCM sealing in state. Safe in checkpoints and in `STATE_SNAPSHOT`; relies on the `RAW`/`rawEvent` filter for everything else |
 | D5 | New topic | New conversation (design Q34); drop the `confirmNewTopic` card. **Done in M5**: `research` refuses a second topic in a conversation (`requires: "newConversation"`), and the Supervisor points the student to "New topic" |
@@ -175,7 +175,7 @@ Not done in M5: `/conversations/[id]/state` and `/messages` (reload goes through
 | B3 | `proxy.ts` (Next 16's name for middleware) runs `clerkMiddleware()` only to make the session readable; it checks nothing (Clerk now advises against route protection there and deprecated `createRouteMatcher`). Pages call `requireSignedInUser`, route handlers go through `withSignedInUser` (401), server actions check `getSignedInUserId` |
 | B4 | The runtime route builds the agent per request with the verified `userId` as trusted run context; the client cannot supply or override it |
 | B5 | ~~Agent service reachable only from Next~~ Not needed with H1 |
-| B6 | Lazy user row on first request; Clerk webhook `user.deleted` (signature verified) cascades conversations, checkpoints, memory, stored key. **Done in M5** (`services/users.ts`, `services/clerk-webhook.ts`): memory and a stored key do not exist yet |
+| B6 | Lazy user row on first request; Clerk webhook `user.deleted` (signature verified) cascades conversations, checkpoints, memory, stored key. **Done in M5** (`services/users.ts`, `services/clerk-webhook.ts`); memory cascades with the user row since M6. A stored key does not exist yet |
 | B7 | Thread ownership: look up a client `thread_id` in `conversations` for this user before any run, `/connect`, `/stop`, read or delete. Never trust it as is. **Interim done in M1** (`features/threads`): the runtime's own thread endpoints (list, messages, events, state, `/connect`, `/stop`, and `threads/clear`, which wiped every user's threads) knew no users; runtime hooks now keep an in-memory owner per thread, answer 404 for anyone else and filter the list. **Done in M5** (`features/conversations`): owners come from `conversations`, and a thread no conversation has is a 404 too |
 | B8 | Rate limits per user id. **Done in M5**: 20 runs and 60 changes per minute, in process memory (D9) |
 | B9 | Decide the BYOK page's fate (D1) |
@@ -190,7 +190,7 @@ Not done in M5: `/conversations/[id]/state` and `/messages` (reload goes through
 | C3 | Domain rows written by tool bodies when a stage completes, from the tool's own output, never from round-tripped client state. **Done in M5** (`LearningRecords`, injected; M5-7, M5-8) |
 | C4 | Route handlers: `GET/POST/PATCH/DELETE /api/conversations`, `/conversations/[id]/state`, `/messages`, `/attempts`, `PATCH /attempts/[id]/answers` (debounced, no agent run). Reload of the open thread goes through `/connect` + `CheckpointRunner`. **Done in M5** except `/state`, `/messages` and the answers `PATCH` |
 | C5 | Auto-title; status rules (active, completed, abandoned computed on read). **Done in M5**: titled by the first message, then by the research unless renamed |
-| C6 | Delete: rows cascade + `checkpointer.deleteThread(id)`, then recompute memory. **Done in M5**, without memory (M6) |
+| C6 | Delete: rows cascade + `checkpointer.deleteThread(id)`, then recompute memory. **Done in M5**; since M6 the delete also drops the topic and rebuilds concept mastery in the same transaction |
 | C7 | Settings move to `user_settings`; localStorage stays as first-paint cache. **Done in M5** (`useSettingsSync`) |
 
 ### FE. Frontend
@@ -207,15 +207,31 @@ Not done in M5: `/conversations/[id]/state` and `/messages` (reload goes through
 
 | # | Task |
 | --- | --- |
-| E1 | Two message states per thread. `messages`: full history, append only, never trimmed (UI, resume, memory extraction). `summary` + `summarizedUpTo`: rolling summary of older messages, used only to build the agent's context; server-only (not in the output keys) |
-| E1a | Context builder in `wrapModelCall` (declares `summary`/`summarizedUpTo` in its `stateSchema`): system prompt + `summary` + messages after `summarizedUpTo` verbatim + trimmed state + app context; repairs unanswered tool calls. Does not write back to `messages`. Not the built-in summarisation middleware, which removes messages |
-| E1b | Summariser: runs after the turn when unsummarised tokens pass a budget; small model; folds the old summary and the new chunk into one; never cuts between a tool call and its results; keeps the current turn whole |
-| E1c | Summary is data: excludes quiz answers (including the synthetic Submit messages), prompt marks it as a record, not instructions |
-| E2 | Long-term profile (level, style, language): extracted after a run, user-editable |
-| E3 | Concepts and topics: written by code after each submitted attempt |
-| E4 | Read once per turn, rendered into the prompt within a token cap; stored memory treated as data, not instructions |
-| E5 | Memory panel API, delete, recompute on conversation delete |
-| E6 | Tests: no cross-user leakage; deleted memory never reaches the prompt; `messages` is never mutated by summarising; boundary never splits a tool call from its result; summary is idempotent when rerun |
+| E1 | Two message states per thread. `messages`: full history, append only, never trimmed (UI, resume, memory extraction). `summary` + `summarizedUpTo`: rolling summary of older messages, used only to build the agent's context; server-only (not in the output keys). **Done in M6**: both are graph state keys (`schemas/graph.ts`), not `LearningState` keys, so no snapshot or reload carries them |
+| E1a | Context builder in `wrapModelCall` (declares `summary`/`summarizedUpTo` in its `stateSchema`): system prompt + `summary` + messages after `summarizedUpTo` verbatim + trimmed state + app context; repairs unanswered tool calls. Does not write back to `messages`. Not the built-in summarisation middleware, which removes messages. **Done in M6** in `supervisorContextMiddleware`: prompt, then memory, summary, app context, state (least changing first) |
+| E1b | Summariser: runs after the turn when unsummarised tokens pass a budget; small model; folds the old summary and the new chunk into one; never cuts between a tool call and its results; keeps the current turn whole. **Done in M6** (`conversationSummaryMiddleware`, `afterAgent`): over 3,000 estimated tokens it folds everything before the last 3 turns, cutting only at a student's message; a failed fold is logged and retried next turn. The model is `OPENAI_MODEL` (already the mini) |
+| E1c | Summary is data: excludes quiz answers (including the synthetic Submit messages), prompt marks it as a record, not instructions. **Done in M6**: the transcript drops any surface action, the summariser is told never to write answers, and the Supervisor reads it under "Earlier in this conversation" as a record |
+| E2 | Long-term profile (level, style, language): extracted after a run, user-editable. **Done in M6**: after each run with a student message, one silent structured call notes what the message says (`learnProfile`); only changed, non-null fields are saved. Editable with `PATCH /api/memory` |
+| E3 | Concepts and topics: written by code after each submitted attempt. **Done in M6** inside `recordEvaluation`'s transaction: concept correct/total counts (normalised names) and the conversation's topic with best/latest score |
+| E4 | Read once per turn, rendered into the prompt within a token cap; stored memory treated as data, not instructions. **Done in M6**: the in-process client reads it into run context (`memory`); the prompt gets the profile, up to 5 concepts under 70% and 5 recent topics within 1,200 characters, one line each. The Quiz Agent also gets up to 3 weak concepts and spends about a fifth of the questions on them when the material covers them (design.md) |
+| E5 | Memory panel API, delete, recompute on conversation delete. **Done in M6** (API only; the panel is FE5): `GET /api/memory`, `PATCH /api/memory`, `DELETE /api/memory/[kind]/[id]` for a profile field, a concept or a topic |
+| E6 | Tests: no cross-user leakage; deleted memory never reaches the prompt; `messages` is never mutated by summarising; boundary never splits a tool call from its result; summary is idempotent when rerun. **Done in M6**: route-level (`conversation-summary.test.ts`, `long-term-memory.test.ts`), unit (`utils/__tests__/conversation-summary.test.ts`, `student-memory.test.ts`), PGlite (`@repo/db` `memory.test.ts`) and web route tests (`app/api/memory`) |
+
+**Found in M6**:
+
+| # | Finding | What the code does |
+| --- | --- | --- |
+| M6-1 | `createAgent` routes every way a run ends (a reply, a frontend tool, the call cap) through the `afterAgent` hooks; only Stop skips them | The summary is folded in `afterAgent`, so it is saved in the run's own checkpoint and never races a later run. The cost: when the budget is passed, `RUN_FINISHED` waits for the fold (the reply has already streamed) |
+| M6-2 | Memory in graph state would be checkpointed: a deleted memory would stay in every old checkpoint, and in the next run until refreshed | Memory goes in run `context`, read once per run by the in-process client. Context is in traces; this is learning data, not a secret (unlike the key, D1) |
+| M6-3 | Profile learning needs a model call, and the adapter sends `RUN_FINISHED` only when the client's stream ends | The client starts it after the run is saved and does not wait for it (D9: one process). Without a `memory` the agent reads and learns nothing, so tests with one scripted model see no extra calls |
+| M6-4 | `quiz_attempts` keeps each concept's percent, not per-question results | Concept counts come from questions + mastery (`countConceptResults`, shared), both when an attempt is graded and when a delete rebuilds them, so the two never disagree |
+| M6-5 | A rebuild from the remaining attempts would bring back a concept the student deleted | The rebuild only updates or drops concepts that still exist; a new graded attempt can add it again |
+| M6-6 | A null from the profile learner means "nothing new"; a null in `PATCH` means "forget it" | `toProfileUpdate` drops nulls and unchanged fields; `ProfileUpdateSchema` keeps null as forget |
+| M6-7 | One existing test (nine Board turns, about 3 s alone) passed Vitest's 5 s default under the turbo run's parallel load | It has a 15 s timeout |
+| M6-8 | `apps/web/.env` had no `DATABASE_URL` | Added locally (gitignored) from `.env.example` |
+| M6-9 | A `next dev` started before M5 kept M2's `MemorySaver` under the same `globalThis` key (`__learningThreadCheckpointer`), and `??=` kept it through every reload: that server never checkpointed to Postgres, while the domain rows did land | Restarted the dev server. Restart `next dev` after a change to what a `globalThis` key holds |
+
+Not done in M6: the Memory panel and History page (FE5, M7); a profile field the student set can be overwritten by what a later message says. Topics are remembered only once a quiz is graded.
 
 ### F. Testing and docs
 
@@ -236,7 +252,7 @@ Not done in M5: `/conversations/[id]/state` and `/messages` (reload goes through
 | M3 | A3–A5, A7–A9 | Research → Score works with quiz security and streaming. **Done**, in the browser too: research, learning material, quiz, Submit, score and feedback, retake, an edit of the material, a new topic, Stop. Cards and the Board are still off (M4) |
 | M4 | A6, A10 | Cards, Board, tracing at parity; then A11 removes the AI SDK code. **Done**, in the browser too: concept and comparison cards, a chat surface, a Board view streamed and saved, an edit, a removal, and research on the new model class |
 | M5 | C1–C7, FE1–FE3, B6–B8 | Multiple conversations, resume, delete. **Done**, in the browser too: three conversations, switching and a reload after a server restart restore chat, canvas and Board, rename, delete (rows and checkpoints), and another user's conversation answers 404 on every route |
-| M6 | E1–E6 | Short- and long-term memory |
+| M6 | E1–E6 | Short- and long-term memory. **Done**, in the browser too: with the summary budget lowered for the check, a first message set the profile (beginner, analogies), a Vietnamese one added the language and the replies followed both; Autopilot and a Submit wrote four concepts and the topic; a later turn folded the first two into a Vietnamese summary without answers, `messages` kept all 15, the Supervisor answered from the summary, and a replay of every run carried none of it; deleting the conversation removed its checkpoints, topic and concepts and kept the profile |
 | M7 | FE4–FE5, F | History page, tests, docs |
 
 ## 7. Risks
@@ -253,6 +269,8 @@ Not done in M5: `/conversations/[id]/state` and `/messages` (reload goes through
 | Reload and Stop bound to one process | Blank thread or ignored Stop on another instance | D9; `CheckpointRunner` for reload |
 | Full history grows in the checkpoint and in each `MESSAGES_SNAPSHOT` | Larger checkpoints and streams over time | Fine at this scale; cap or archive old threads later |
 | Summary drifts or drops facts | Agent forgets earlier details | Rolling summary refreshed from the old summary plus the new chunk; recent messages stay verbatim |
+| Profile learning is one model call per student message | Cost on the user's key | Small structured call, after the run; gate it (e.g. only messages over a few words, or reflections) if it shows in usage |
+| Memory text in the prompt (stored from the student's own words) | Prompt injection across conversations | One line per item, under a heading marked as data, capped at 1,200 characters; the student can see and delete all of it |
 | Cross-user thread access (the runtime's thread endpoints are unscoped) | Data leak | Interim B7 guard (M1, tested with two users) → `conversations` in M5; B10 |
 | User key in traces | Secret leak | D1: key only inside the model instance (verified not in traces) |
 | Two copies of `@ag-ui/langgraph` (0.0.42 via sdk-js, 0.0.43 via runtime) | Subtle mismatches | Resolved in M5: `@copilotkit/sdk-js` removed, one copy without an override |
