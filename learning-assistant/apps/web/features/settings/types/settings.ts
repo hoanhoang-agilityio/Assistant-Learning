@@ -4,6 +4,8 @@ export interface SettingsActions {
   setQuestionCount: (count: number) => void;
   setLearningLevel: (level: LearningLevel) => void;
   setTheme: (theme: Theme) => void;
+  /** Takes the settings saved on the server in place of this browser's. */
+  replaceSettings: (settings: Settings) => void;
 }
 
 /** The theme actually on screen: `system` resolved against the device. */

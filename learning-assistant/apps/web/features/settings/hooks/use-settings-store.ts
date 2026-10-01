@@ -12,8 +12,9 @@ import {
 import { safeLocalStorage } from "@/utils/safe-storage";
 
 /**
- * User settings, saved to `localStorage` and sent to the agent in
- * `forwardedProps.settings` on every run. Hydration is manual
+ * User settings, sent to the agent in `forwardedProps.settings` on every
+ * run. Saved to the user's account (`useSettingsSync`); `localStorage`
+ * keeps a copy so the first paint already has them. Hydration is manual
  * (`skipHydration`) so the server render and the first client render agree;
  * `AppShell` rehydrates before paint.
  */
@@ -34,6 +35,7 @@ export const useSettingsStore = create<SettingsStore>()(
           setLearningLevel: (learningLevel) =>
             update((settings) => ({ ...settings, learningLevel })),
           setTheme: (theme) => update((settings) => ({ ...settings, theme })),
+          replaceSettings: (settings) => set({ settings }),
         },
       };
     },

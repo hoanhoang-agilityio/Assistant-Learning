@@ -12,14 +12,15 @@ import {
   useSettings,
   useSettingsStore,
 } from "@/features/settings/hooks/use-settings-store";
+import { useSettingsSync } from "@/features/settings/hooks/use-settings-sync";
 import { useThemeClass } from "@/features/settings/hooks/use-theme-class";
 import { useLayoutStore } from "@/hooks/use-layout-store";
 
 /**
  * Loads the saved API key, settings and layout, sends the user to the key page
- * when no key is saved, keeps the theme class in sync, and builds what the
- * provider sends on every request: the sealed key as a header and the settings
- * as `properties`.
+ * when no key is saved, keeps the theme class and the account's settings in
+ * sync, and builds what the provider sends on every request: the sealed key
+ * as a header and the settings as `properties`.
  */
 export const useAppShell = () => {
   const router = useRouter();
@@ -46,6 +47,7 @@ export const useAppShell = () => {
   }, [isHydrated, sealedKey, router]);
 
   useThemeClass(useResolvedTheme(), isHydrated);
+  useSettingsSync(isHydrated);
 
   const headers = useMemo(
     (): Record<string, string> =>
