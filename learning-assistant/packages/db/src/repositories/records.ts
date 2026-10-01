@@ -11,8 +11,9 @@ import type {
 import { getStoredStatus } from "@repo/shared/utils/conversations";
 import { and, desc, eq, max, sql } from "drizzle-orm";
 
-import type { Database } from "../client";
+import type { Database, Transaction } from "../client";
 import { conversations, material, quizAttempts, research } from "../schema";
+import { rememberGradedAttempt } from "./memory";
 
 interface ResearchRecord {
   topic: string;
@@ -26,8 +27,6 @@ interface EvaluationRecord {
   score: Score;
   feedback: Feedback;
 }
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** The conversation moved to `stage`; it is active (or completed) and touched now. */
 const moveConversation = (
@@ -131,7 +130,8 @@ export const recordQuiz = async (
 
 /**
  * The quiz was graded. It closes the attempt the quiz started; a retake of
- * a quiz already graded is a new attempt.
+ * a quiz already graded is a new attempt. The student's concept mastery
+ * and topic scores take the result in (E3).
  */
 export const recordEvaluation = async (
   db: Database,
@@ -178,6 +178,16 @@ export const recordEvaluation = async (
         ...graded,
       });
     }
+    await rememberGradedAttempt(
+      tx,
+      conversationId,
+      {
+        questions: quiz.questions,
+        mastery: evaluation.mastery,
+        percent: graded.scorePct,
+      },
+      now,
+    );
     await moveConversation(tx, conversationId, "evaluation", now);
   });
 };

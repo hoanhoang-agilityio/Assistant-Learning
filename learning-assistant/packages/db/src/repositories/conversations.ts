@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import type { Database } from "../client";
 import { conversations, quizAttempts, users } from "../schema";
+import { recomputeConceptMemories } from "./memory";
 
 type ConversationRow = typeof conversations.$inferSelect;
 
@@ -201,7 +202,11 @@ export const renameConversation = async (
   return summary ?? null;
 };
 
-/** Deletes the conversation and, by cascade, its rows. False when it is not theirs. */
+/**
+ * Deletes the conversation and, by cascade, its rows and its topic in
+ * memory; the student's concept mastery is rebuilt from the attempts that
+ * remain. False when it is not theirs.
+ */
 export const deleteConversation = async (
   db: Database,
   userId: string,
@@ -211,11 +216,18 @@ export const deleteConversation = async (
     return false;
   }
 
-  const deleted = await db
-    .delete(conversations)
-    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
-    .returning({ id: conversations.id });
-  return deleted.length > 0;
+  return db.transaction(async (tx) => {
+    const deleted = await tx
+      .delete(conversations)
+      .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
+      .returning({ id: conversations.id });
+    if (deleted.length === 0) {
+      return false;
+    }
+
+    await recomputeConceptMemories(tx, userId);
+    return true;
+  });
 };
 
 interface RunRecord {
