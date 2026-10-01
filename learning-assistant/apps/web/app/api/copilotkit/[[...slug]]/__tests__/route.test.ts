@@ -1,13 +1,30 @@
+import {
+  createConversation as createConversationRow,
+  ensureUser,
+} from "@repo/db";
 import { v4 as uuidv4 } from "uuid";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UNAUTHORIZED_STATUS } from "@/constants/auth";
 import { COPILOT_RUNTIME_URL } from "@/constants/copilot";
-import { THREAD_NOT_FOUND_STATUS } from "@/features/threads/constants/threads";
+import { THREAD_NOT_FOUND_STATUS } from "@/features/conversations/constants/threads";
+import {
+  resetTestDatabase,
+  testDatabase,
+} from "@/services/__tests__/database-mock";
 
-const { auth } = vi.hoisted(() => ({ auth: vi.fn() }));
+const { auth, currentUser } = vi.hoisted(() => ({
+  auth: vi.fn(),
+  currentUser: vi.fn(async () => null),
+}));
 
-vi.mock("@clerk/nextjs/server", () => ({ auth }));
+vi.mock("@clerk/nextjs/server", () => ({ auth, currentUser }));
+vi.mock("@repo/db/client", () =>
+  import("@/services/__tests__/database-mock").then((m) => m.CLIENT_MOCK),
+);
+vi.mock("@repo/db/checkpointer", () =>
+  import("@/services/__tests__/database-mock").then((m) => m.CHECKPOINTER_MOCK),
+);
 
 const route = await import("@/app/api/copilotkit/[[...slug]]/route");
 
@@ -41,6 +58,16 @@ const runInput = (threadId: string) => ({
   forwardedProps: {},
 });
 
+/** A conversation of `clerkUserId`'s, as "New topic" makes one. */
+const createConversation = async (clerkUserId: string): Promise<string> => {
+  const db = testDatabase.current!;
+  const userId = await ensureUser(db, {
+    clerkUserId,
+    getEmail: async () => null,
+  });
+  return (await createConversationRow(db, userId)).id;
+};
+
 const listThreadIds = async (): Promise<string[]> => {
   const response = await route.GET(
     requestTo("GET", "/threads?agentId=learning"),
@@ -49,8 +76,9 @@ const listThreadIds = async (): Promise<string[]> => {
   return threads.map(({ id }) => id);
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   auth.mockReset();
+  await resetTestDatabase();
 });
 
 describe("CopilotKit runtime route without a session", () => {
@@ -73,21 +101,32 @@ describe("CopilotKit runtime route without a session", () => {
 
 describe("CopilotKit runtime route with a session", () => {
   it("reaches the runtime", async () => {
-    auth.mockResolvedValue({ isAuthenticated: true, userId: "user_1" });
+    signInAs("user_1");
 
     const response = await route.GET(requestTo("GET", "/info"));
 
     expect(response.status).toBe(200);
   });
+
+  it("refuses a thread that is no conversation", async () => {
+    signInAs("user_1");
+
+    const response = await route.POST(
+      requestTo("POST", "/agent/learning/run", runInput(uuidv4())),
+    );
+
+    expect(response.status).toBe(THREAD_NOT_FOUND_STATUS);
+  });
 });
 
 describe("CopilotKit runtime route with two users", () => {
-  const threadId = uuidv4();
+  let threadId: string;
 
   beforeEach(async () => {
     signInAs("alice");
+    threadId = await createConversation("alice");
     // No OpenAI key: the run ends at once with the agent's own error, which
-    // is enough to create the thread and make Alice its owner.
+    // is enough for the runtime to hold the thread.
     const run = await route.POST(
       requestTo("POST", "/agent/learning/run", runInput(threadId)),
     );

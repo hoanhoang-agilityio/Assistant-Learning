@@ -3,6 +3,7 @@ import {
   createCopilotRuntimeHandler,
 } from "@copilotkit/runtime/v2";
 import { createLearningAgent, LearningThreadRunner } from "@repo/agent";
+import { getThreadCheckpointer } from "@repo/db";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 
 import {
@@ -11,19 +12,20 @@ import {
   IS_DEVELOPMENT,
 } from "@/constants/copilot";
 import { readApiKeyFromRequest } from "@/features/api-key/services/request-api-key";
-import { createThreadGuardHooks } from "@/features/threads/services/runtime-thread-guard";
-import { threadOwnerStore } from "@/features/threads/services/thread-owners";
+import { conversationOwners } from "@/features/conversations/services/conversation-owners";
+import { createThreadGuardHooks } from "@/features/conversations/services/runtime-thread-guard";
 import {
   createUnauthorizedResponse,
   getSignedInUserId,
   withSignedInUser,
 } from "@/services/auth";
+import { runRateLimiter } from "@/services/rate-limit";
 
 const runtime = new CopilotRuntime({
   // Built per request so each run uses the caller's own OpenAI key, sent
   // sealed in a header and opened only here on the server, and the user id
   // from the Clerk session, never one the client sent. The agent runs its
-  // LangChain graph in this process.
+  // LangChain graph in this process; threads are kept in Postgres.
   agents: async ({ request }) => {
     const userId = await getSignedInUserId();
     if (!userId) {
@@ -33,12 +35,13 @@ const runtime = new CopilotRuntime({
       [LEARNING_AGENT_ID]: createLearningAgent({
         apiKey: readApiKeyFromRequest(request),
         userId,
+        checkpointer: getThreadCheckpointer(),
       }),
     };
   },
   // Reload rebuilds a thread from its checkpoint when the runtime holds no
   // events for it.
-  runner: new LearningThreadRunner(),
+  runner: new LearningThreadRunner(getThreadCheckpointer()),
   forwardHeaders: FORWARD_HEADERS_POLICY,
   // The A2UI middleware delivers surface actions (the quiz Submit) to the
   // agent, and turns the `a2ui_operations` a chat `renderSurface` result
@@ -59,10 +62,11 @@ const runtime = new CopilotRuntime({
 const handleRuntime = createCopilotRuntimeHandler({
   runtime,
   basePath: COPILOT_RUNTIME_URL,
-  // Each thread belongs to the user who started it.
+  // Each thread is a conversation, and only its owner may reach it.
   hooks: createThreadGuardHooks({
     getUserId: getSignedInUserId,
-    owners: threadOwnerStore,
+    owners: conversationOwners,
+    runLimiter: runRateLimiter,
   }),
 });
 
