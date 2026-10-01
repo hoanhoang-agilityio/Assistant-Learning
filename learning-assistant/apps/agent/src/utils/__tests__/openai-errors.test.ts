@@ -5,8 +5,8 @@ import { OPENAI_MODEL } from "../../constants/openai";
 import type { OpenAIErrorKind } from "../../types/errors";
 import { classifyOpenAIError, formatOpenAIError } from "../openai-errors";
 
-const createApiError = (message: string, statusCode: number) =>
-  Object.assign(new Error(message), { statusCode });
+const createApiError = (message: string, status: number) =>
+  Object.assign(new Error(message), { status });
 
 describe("classifyOpenAIError", () => {
   it.each<[string, unknown, OpenAIErrorKind | null]>([
@@ -30,13 +30,6 @@ describe("classifyOpenAIError", () => {
     ],
     ["a 503", createApiError("Service Unavailable", 503), "overloaded"],
     ["a network failure", new TypeError("fetch failed"), "network"],
-    [
-      "a wrapped retry error",
-      Object.assign(new Error("Failed after 3 attempts."), {
-        lastError: createApiError("Too Many Requests", 429),
-      }),
-      "rateLimit",
-    ],
     ["a string", "invalid api key", "auth"],
     ["anything else", new Error("Schema validation failed"), null],
   ])("classifies %s", (_, error, kind) => {

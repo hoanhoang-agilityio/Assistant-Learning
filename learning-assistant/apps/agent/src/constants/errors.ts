@@ -4,8 +4,8 @@ import type { OpenAIErrorKind } from "../types/errors";
 
 /**
  * How each kind of OpenAI failure is recognised: HTTP status codes from the
- * AI SDK's `APICallError`, and patterns in the message for errors without one
- * (or wrapped in a `RetryError`). Checked in this order.
+ * OpenAI SDK's `APIError`, and patterns in the message for errors without
+ * one. Checked in this order.
  */
 export const OPENAI_ERROR_MATCHERS: readonly {
   kind: OpenAIErrorKind;
@@ -46,14 +46,6 @@ export const MISSING_API_KEY_ERROR = `No OpenAI API key is saved. Enter one on t
 
 /** The opening of the chat message a failed run leaves. */
 export const RUN_ERROR_INTRO = "Sorry, that did not work.";
-
-/**
- * The result given to a server tool call that never returned one: the model
- * sent invalid arguments or named a tool that does not exist. It keeps the
- * history valid, since the next request fails if any call has no result.
- */
-export const LOST_TOOL_RESULT =
-  "This tool call failed before it returned a result. Check the tool's arguments and try again.";
 
 /**
  * The result the Supervisor reads for a tool call that never got one: the

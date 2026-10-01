@@ -7,20 +7,8 @@ import {
   type SubagentTool,
 } from "@repo/shared/schemas";
 
-/** The student's side of a turn in the LangSmith trace when Submit started it. */
-export const QUIZ_SUBMIT_TURN = "Submitted the quiz.";
-
 /** Upper bound on LLM steps (tool calls and replies) in one Supervisor run. */
 export const SUPERVISOR_MAX_STEPS = 8;
-
-/**
- * Internal `CUSTOM` events that carry streamed output to `syncStateFromTools`,
- * which turns them into state and never forwards them.
- */
-export const DRAFT_EVENTS = {
-  stage: "learning.stageDraft",
-  board: "learning.boardDraft",
-} as const;
 
 /**
  * Least time between two streamed drafts of the same output. Each one sends

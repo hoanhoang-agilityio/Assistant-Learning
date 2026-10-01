@@ -1,58 +1,12 @@
-import type { ToolDefinition } from "@copilotkit/runtime/v2";
 import type {
   BoardSurface,
-  Draft,
   Evaluation,
-  LearningState,
   Material,
   Score,
   Settings,
   Stage,
   Status,
 } from "@repo/shared/schemas";
-import type { Env } from "@repo/shared/types/env";
-import type { Operation } from "fast-json-patch";
-
-import type { AnswerKeyStore } from "./answer-key";
-import type { RunSettings } from "./llm";
-
-/**
- * A JSON Patch operation. The wrapper emits top-level `add`s, and the diff
- * inside a draft that grows.
- */
-export type StatePatchOperation = Operation;
-
-/** The next state, and the patch that turns the previous state into it. */
-export interface StateUpdate {
-  state: LearningState;
-  patch: StatePatchOperation[];
-}
-
-/** A surface tool call's arguments so far, parsed from partial JSON. */
-export interface BoardDraftEvent {
-  toolCallId: string;
-  toolCallName: string;
-  args: unknown;
-}
-
-/** What a run's tools can see: the user's settings and the full state. */
-export interface SupervisorRunContext {
-  /** The user's settings and API key. The key must never reach state. */
-  settings: RunSettings;
-  /**
-   * The state as of now, including results of earlier tools in the same run
-   * (autopilot runs research, then learning material, then the quiz).
-   */
-  getState: () => LearningState;
-  /** Aborted when the user stops the run. */
-  signal: AbortSignal;
-  /** Server env, for optional keys such as `TAVILY_API_KEY`. */
-  env: Env;
-  /** Seals the quiz answer key and unseals it to grade the quiz. */
-  answerKeys: AnswerKeyStore;
-  /** Streams a subagent's partial output to the canvas. */
-  reportDraft: (draft: Draft) => void;
-}
 
 /** A web search result given to the Research Agent. */
 export interface SearchResult {
@@ -61,32 +15,9 @@ export interface SearchResult {
   content: string;
 }
 
-export interface LearningSupervisorAgentConfig {
-  /** Supervisor system prompt. */
-  prompt?: string;
-  /** Upper bound on LLM steps in one run. */
-  maxSteps?: number;
-  /** Builds the subagent tools for one run. */
-  tools?: (ctx: SupervisorRunContext) => ToolDefinition[];
-  /** The user's OpenAI API key for this request, opened from its sealed header. */
-  apiKey?: string;
-  /** The signed-in user's id from the verified session, for trace metadata. */
-  userId?: string;
-  /**
-   * Server env for optional keys such as `TAVILY_API_KEY` and
-   * `QUIZ_SEAL_SECRET`. Defaults to `process.env`.
-   */
-  env?: Env;
-  /**
-   * Where the quiz answer key is kept. Defaults to sealing it into state with
-   * `QUIZ_SEAL_SECRET` from `env`.
-   */
-  answerKeys?: AnswerKeyStore;
-}
-
 /**
  * The state the Supervisor LLM sees. It never holds the full learning material or quiz,
- * because `BuiltInAgent` writes the whole state into the system prompt.
+ * because the whole of it is written into the system prompt on every call.
  */
 export interface SupervisorState {
   /** The user's settings the Supervisor must respect. */

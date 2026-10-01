@@ -9,21 +9,16 @@ export const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 /**
- * The HTTP status of an AI SDK `APICallError`, also when it is wrapped in a
- * `RetryError` (`lastError`).
+ * The HTTP status of an OpenAI SDK `APIError`. `ChatOpenAI` throws it on
+ * after its retries, with the status kept.
  */
-const readStatusCode = (error: unknown): number | null => {
-  if (!error || typeof error !== "object") {
-    return null;
-  }
-  if ("statusCode" in error && typeof error.statusCode === "number") {
-    return error.statusCode;
-  }
-  if ("lastError" in error) {
-    return readStatusCode(error.lastError);
-  }
-  return null;
-};
+const readStatusCode = (error: unknown): number | null =>
+  error &&
+  typeof error === "object" &&
+  "status" in error &&
+  typeof error.status === "number"
+    ? error.status
+    : null;
 
 /** Which known OpenAI failure this is, or `null` for anything else. */
 export const classifyOpenAIError = (error: unknown): OpenAIErrorKind | null => {

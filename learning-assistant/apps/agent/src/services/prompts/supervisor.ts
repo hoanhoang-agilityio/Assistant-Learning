@@ -13,8 +13,8 @@ import { REFLECTION_MESSAGE_PREFIX } from "@repo/shared/constants/messages";
 
 /**
  * Supervisor system prompt, built from named blocks so changes diff cleanly.
- * `BuiltInAgent` appends the trimmed state after it under
- * "## Application State".
+ * `supervisorContextMiddleware` appends the app context and the trimmed
+ * state after it under "## Application State".
  */
 
 const OVERVIEW = `# Overview
