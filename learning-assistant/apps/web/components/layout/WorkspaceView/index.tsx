@@ -6,6 +6,7 @@ import { CanvasArea } from "@/features/canvas/components/CanvasArea";
 import { ChatPanel } from "@/features/chat/components/ChatPanel";
 import { ChatPopup } from "@/features/chat/components/ChatPopup";
 import { ChatRail } from "@/features/chat/components/ChatRail";
+import { ConversationSidebar } from "@/features/conversations/components/ConversationSidebar";
 import { ResumeBanner } from "@/features/conversations/components/ResumeBanner";
 import type { Display } from "@/types/layout";
 
@@ -16,8 +17,8 @@ export interface WorkspaceViewProps {
 }
 
 /**
- * Page layout: the header, the resume banner, then the chat and the canvas
- * side by side. A
+ * Page layout: the header, then the conversation list, the chat and the
+ * canvas side by side, with the resume banner above the last two. A
  * previewed device layout is drawn in a centred frame; its transform makes
  * the fixed-position popup anchor to the frame instead of the window.
  *
@@ -47,6 +48,7 @@ export const WorkspaceView = ({ display, panelsRef }: WorkspaceViewProps) => {
       >
         <Header />
         <div className="flex flex-1 overflow-hidden">
+          <ConversationSidebar />
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <ResumeBanner />
             <div ref={panelsRef} className="flex flex-1 overflow-hidden">
