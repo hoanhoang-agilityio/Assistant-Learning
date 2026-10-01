@@ -19,6 +19,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -151,3 +152,56 @@ export const reflections = pgTable("reflections", {
   text: text("text").notNull(),
   createdAt: createdAt(),
 });
+
+/**
+ * What a student is like as a learner (E2): noticed by the agent after a
+ * run or set by the student. Kept when a conversation is deleted.
+ */
+export const learnerProfiles = pgTable("learner_profiles", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  level: text("level").$type<LearningLevel>(),
+  style: text("style"),
+  language: text("language"),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * A concept's running mastery over the student's graded attempts (E3).
+ * Rebuilt from the attempts that remain when a conversation is deleted.
+ */
+export const conceptMemories = pgTable(
+  "concept_memories",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** The concept's name, normalised (`toConceptKey`). */
+    key: text("key").notNull(),
+    concept: text("concept").notNull(),
+    correct: integer("correct").notNull(),
+    total: integer("total").notNull(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.key] })],
+);
+
+/** A topic the student was quizzed on, with its best and latest score (E3). */
+export const topicMemories = pgTable(
+  "topic_memories",
+  {
+    conversationId: uuid("conversation_id")
+      .primaryKey()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    topic: text("topic").notNull(),
+    bestPct: integer("best_pct").notNull(),
+    latestPct: integer("latest_pct").notNull(),
+    attempts: integer("attempts").notNull(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("topic_memories_user_idx").on(table.userId)],
+);

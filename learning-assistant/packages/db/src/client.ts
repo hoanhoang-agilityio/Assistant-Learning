@@ -12,6 +12,9 @@ import * as schema from "./schema";
 /** The app's database, whichever driver runs it (Postgres, or PGlite in tests). */
 export type Database = PgDatabase<PgQueryResultHKT, typeof schema>;
 
+/** A transaction on the app's database. */
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
 interface Connection {
   pool: pg.Pool;
   db: Database;

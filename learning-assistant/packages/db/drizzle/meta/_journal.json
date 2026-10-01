@@ -8,6 +8,13 @@
       "when": 1790825438816,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790849069214,
+      "tag": "0001_memory",
+      "breakpoints": true
     }
   ]
 }
