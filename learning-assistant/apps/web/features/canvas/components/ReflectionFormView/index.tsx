@@ -1,5 +1,5 @@
 import { CheckCircle2, MessageCircle, Pencil } from "lucide-react";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import { CARD_CLASS } from "@/features/canvas/constants/canvas";
 import {
@@ -34,7 +34,7 @@ export const ReflectionFormView = ({
   onSubmit,
   onEdit,
 }: ReflectionFormViewProps) => {
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSubmit();
   };

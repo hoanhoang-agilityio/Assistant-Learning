@@ -166,9 +166,11 @@ describe("the Submit button", () => {
     expect(JSON.stringify(lastMessages(events))).not.toContain(
       A2UI_ACTION_TOOL,
     );
-    expect(
-      thread?.messages.slice(-3).map((message) => message.getType()),
-    ).toEqual(["ai", "tool", "ai"]);
+    expect(thread?.messages.slice(-3).map((message) => message.type)).toEqual([
+      "ai",
+      "tool",
+      "ai",
+    ]);
     expect(thread).toMatchObject({ pendingSubmit: false });
   });
 

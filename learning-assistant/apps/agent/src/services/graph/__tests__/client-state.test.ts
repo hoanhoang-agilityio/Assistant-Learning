@@ -196,7 +196,7 @@ describe("a new topic", () => {
   const researchOnRequest = () =>
     teachThen((messages) => {
       const last = messages.at(-1);
-      if (last?.getType() !== "tool") {
+      if (last?.type !== "tool") {
         return lastHumanText(messages).startsWith("research")
           ? {
               toolCalls: [{ name: "research", args: { topic: "black holes" } }],
@@ -325,7 +325,7 @@ describe("a tool call left without a result", () => {
     await chat(asked, lastSnapshot(asked), "never mind, hello");
 
     const seen = supervisorCalls.at(-1)?.messages ?? [];
-    expect(seen.map((message) => message.getType())).toEqual([
+    expect(seen.map((message) => message.type)).toEqual([
       "system",
       "human",
       "ai",
@@ -334,7 +334,7 @@ describe("a tool call left without a result", () => {
     ]);
     expect(seen[3]?.text).toContain(UNANSWERED_TOOL_RESULT);
     const thread = await readCheckpoint(checkpointer, threadId);
-    expect(thread?.messages.map((message) => message.getType())).toEqual([
+    expect(thread?.messages.map((message) => message.type)).toEqual([
       "human",
       "ai",
       "human",

@@ -203,7 +203,7 @@ describe("prerequisites", () => {
 describe("the learning path", () => {
   it("runs research, learning material and the quiz one after another", async () => {
     const { supervisorCalls } = scriptAgents((messages) => {
-      const done = messages.filter((message) => message.getType() === "tool");
+      const done = messages.filter((message) => message.type === "tool");
       const next = ["research", "makeMaterial", "generateQuiz"][done.length];
       return next
         ? {
@@ -253,7 +253,7 @@ describe("the learning path", () => {
 
   it("never sends or saves the quiz's answers", async () => {
     scriptAgents((messages) => {
-      const done = messages.filter((message) => message.getType() === "tool");
+      const done = messages.filter((message) => message.type === "tool");
       const next = ["research", "makeMaterial", "generateQuiz"][done.length];
       return next
         ? {
@@ -363,7 +363,7 @@ describe("Stop", () => {
     ).toBe(true);
     expect(lastSnapshot(events)).toEqual(initialLearningState);
     const thread = await readCheckpoint(checkpointer, threadId);
-    expect(thread?.messages.map((message) => message.getType())).toEqual([
+    expect(thread?.messages.map((message) => message.type)).toEqual([
       "human",
       "ai",
     ]);
@@ -380,7 +380,7 @@ describe("Stop", () => {
 
     expect(textOf(events)).toBe("Hello again.");
     expect(
-      supervisorCalls.at(-1)?.messages.map((message) => message.getType()),
+      supervisorCalls.at(-1)?.messages.map((message) => message.type),
     ).toEqual(["system", "human", "ai", "tool", "human"]);
   });
 });

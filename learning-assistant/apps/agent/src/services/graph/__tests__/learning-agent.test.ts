@@ -135,12 +135,10 @@ describe("a chat message through the runtime", () => {
       state: lastSnapshot(first),
     });
 
-    const seen = model.calls
-      .at(-1)
-      ?.messages.map((message) => message.getType());
+    const seen = model.calls.at(-1)?.messages.map((message) => message.type);
     expect(seen).toEqual(["system", "human", "ai", "human"]);
     const checkpoint = await readThread();
-    expect(checkpoint?.messages.map((message) => message.getType())).toEqual([
+    expect(checkpoint?.messages.map((message) => message.type)).toEqual([
       "human",
       "ai",
       "human",
@@ -173,8 +171,8 @@ describe("what the Supervisor reads", () => {
     });
 
     const [system, ...rest] = model.calls[0]?.messages ?? [];
-    expect(system?.getType()).toBe("system");
-    expect(rest.map((message) => message.getType())).toEqual(["human"]);
+    expect(system?.type).toBe("system");
+    expect(rest.map((message) => message.type)).toEqual(["human"]);
     expect(system?.text.startsWith(SUPERVISOR_PROMPT)).toBe(true);
     expect(system?.text).toContain(APP_CONTEXT_HEADING);
     expect(system?.text).toContain('The display:\n{"theme":"dark"}');
@@ -194,7 +192,7 @@ describe("what the Supervisor reads", () => {
     });
 
     const checkpoint = await readThread();
-    expect(checkpoint?.messages.map((message) => message.getType())).toEqual([
+    expect(checkpoint?.messages.map((message) => message.type)).toEqual([
       "human",
       "ai",
     ]);
@@ -257,7 +255,7 @@ describe("what the browser may write", () => {
 describe("a frontend tool", () => {
   it("is offered to the model and left for the browser to run", async () => {
     const model = scriptModel((messages) =>
-      messages.at(-1)?.getType() === "tool"
+      messages.at(-1)?.type === "tool"
         ? { text: "Dark theme is on." }
         : {
             toolCalls: [
@@ -303,7 +301,7 @@ describe("a frontend tool", () => {
       content: "",
     });
     const checkpoint = await readThread();
-    expect(checkpoint?.messages.map((message) => message.getType())).toEqual([
+    expect(checkpoint?.messages.map((message) => message.type)).toEqual([
       "human",
       "ai",
       "tool",

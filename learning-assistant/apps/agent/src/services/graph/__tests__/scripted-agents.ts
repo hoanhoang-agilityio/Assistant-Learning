@@ -157,12 +157,11 @@ export const scriptAgents = (
 
 /** The text of the last message a student wrote. */
 export const lastHumanText = (messages: BaseMessage[]): string =>
-  messages.filter((message) => message.getType() === "human").at(-1)?.text ??
-  "";
+  messages.filter((message) => message.type === "human").at(-1)?.text ?? "";
 
 /** Whether the model is being called right after a tool returned. */
 export const isAfterTool = (messages: BaseMessage[]): boolean =>
-  messages.at(-1)?.getType() === "tool";
+  messages.at(-1)?.type === "tool";
 
 const LEARNING_PATH = ["research", "makeMaterial", "generateQuiz"];
 
@@ -179,7 +178,7 @@ export const teachThen = (
   replies: Partial<SubagentReplies> = {},
 ) =>
   scriptAgents((messages, call) => {
-    const done = messages.filter((message) => message.getType() === "tool");
+    const done = messages.filter((message) => message.type === "tool");
     const next = LEARNING_PATH[done.length];
     if (!next || !lastHumanText(messages).startsWith("teach me")) {
       return otherwise(messages, call);

@@ -20,7 +20,7 @@ describe("answerOpenToolCalls", () => {
 
     const repaired = answerOpenToolCalls(messages);
 
-    expect(repaired.map((message) => message.getType())).toEqual([
+    expect(repaired.map((message) => message.type)).toEqual([
       "human",
       "ai",
       "tool",
