@@ -8,6 +8,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "test": "turbo run test",
+    "db:generate": "pnpm --filter @repo/db db:generate",
+    "db:migrate": "pnpm --filter @repo/db db:migrate",
     "prepare": "cd .. && husky learning-assistant/.husky"
   },
   "devDependencies": {
