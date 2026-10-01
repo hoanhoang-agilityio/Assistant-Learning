@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { CONFIRM_NEW_TOPIC_TOOL } from "../constants/agents";
+import {
+  CONFIRM_NEW_TOPIC_TOOL,
+  NEW_CONVERSATION_REQUIREMENT,
+} from "../constants/agents";
 import {
   EvaluationSchema,
   FeedbackSchema,
@@ -35,9 +38,17 @@ const MarkdownSchema = z.string().min(1);
 
 /**
  * `research` refused to replace existing learning material or a quiz. Not a
- * failure: nothing changed, and `instruction` tells the Supervisor to ask the
- * student with `confirmNewTopic` first.
+ * failure: nothing changed, and `instruction` tells the Supervisor to point
+ * the student to "New topic", which starts a new conversation.
  */
+export const NewConversationRequiredSchema = z.object({
+  ok: z.literal(false),
+  requires: z.literal(NEW_CONVERSATION_REQUIREMENT),
+  topic: z.string().min(1),
+  instruction: z.string().min(1),
+});
+
+/** The refusal the new-topic card answered. It goes with the card. */
 export const TopicConfirmationRequiredSchema = z.object({
   ok: z.literal(false),
   requires: z.literal(CONFIRM_NEW_TOPIC_TOOL),
@@ -48,14 +59,14 @@ export const TopicConfirmationRequiredSchema = z.object({
 /**
  * What each subagent tool returns. Tools never throw: a failure comes back as
  * `{ ok: false, error }` so the wrapper can set `status.error`. `research`
- * can also refuse until the student confirms a new topic.
+ * can also refuse a second topic in one conversation.
  */
 export const ToolResultSchemas = {
   research: z.union([
     createResultSchema(
       z.object({ topic: z.string().min(1), research: ResearchResultSchema }),
     ),
-    TopicConfirmationRequiredSchema,
+    NewConversationRequiredSchema,
   ]),
   makeMaterial: createResultSchema(z.object({ markdown: MarkdownSchema })),
   simplify: createResultSchema(
@@ -92,7 +103,7 @@ export const ToolSummarySchemas = {
     createResultSchema(
       z.object({ topic: z.string().min(1), title: z.string().min(1) }),
     ),
-    TopicConfirmationRequiredSchema,
+    NewConversationRequiredSchema,
   ]),
   makeMaterial: createResultSchema(z.object({ characters: z.int().min(1) })),
   simplify: createResultSchema(
@@ -131,6 +142,6 @@ export type ToolSummaryData<T extends SubagentTool> = Extract<
   { ok: true }
 >["data"];
 
-export type TopicConfirmationRequired = z.infer<
-  typeof TopicConfirmationRequiredSchema
+export type NewConversationRequired = z.infer<
+  typeof NewConversationRequiredSchema
 >;

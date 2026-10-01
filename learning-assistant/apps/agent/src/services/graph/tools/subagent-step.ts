@@ -5,9 +5,9 @@ import { Command } from "@langchain/langgraph";
 import type {
   Draft,
   LearningState,
+  NewConversationRequired,
   SubagentTool,
   ToolSummaryData,
-  TopicConfirmationRequired,
 } from "@repo/shared/schemas";
 import { readLearningState } from "@repo/shared/utils/learning-state";
 
@@ -95,12 +95,12 @@ const toToolMessage = (
 
 /**
  * The result of a tool that did nothing and changed nothing: `research`
- * waiting for the student to confirm a new topic.
+ * refusing a second topic in one conversation.
  */
 export const replyWithoutRunning = (
   tool: SubagentTool,
   { toolCallId }: SubagentToolRuntime,
-  result: TopicConfirmationRequired,
+  result: NewConversationRequired,
 ): Command =>
   new Command({
     update: { messages: [toToolMessage(tool, toolCallId, result)] },

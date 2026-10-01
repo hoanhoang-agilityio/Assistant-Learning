@@ -1,4 +1,4 @@
-import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
+import { NEW_CONVERSATION_REQUIREMENT } from "@repo/shared/constants/agents";
 import { type Material, ToolParamSchemas } from "@repo/shared/schemas";
 import {
   getActiveMaterial,
@@ -10,9 +10,9 @@ import {
 import { tool } from "langchain";
 
 import {
+  NEW_CONVERSATION_INSTRUCTION,
   TOOL_DESCRIPTIONS,
   TOOL_ERRORS,
-  TOPIC_CONFIRMATION_INSTRUCTION,
 } from "../../../constants/tools";
 import type { SubagentToolDeps } from "../../../types/graph";
 import { runMakeMaterial } from "../../subagents/material";
@@ -33,15 +33,14 @@ export const createMaterialTools = ({
 }: SubagentToolDeps) => [
   tool(
     async ({ topic }, runtime: SubagentToolRuntime) => {
-      // The model alone cannot be trusted to ask before replacing work. Once
-      // the student confirms, the run that follows starts from a cleared
-      // state (see `createRunInput`), so this passes.
+      // The model alone cannot be trusted not to replace work: a new topic
+      // is a new conversation (plan D5), started from "New topic".
       if (hasTopicWork(readLearningState(runtime.state))) {
         return replyWithoutRunning("research", runtime, {
           ok: false,
-          requires: CONFIRM_NEW_TOPIC_TOOL,
+          requires: NEW_CONVERSATION_REQUIREMENT,
           topic,
-          instruction: TOPIC_CONFIRMATION_INSTRUCTION,
+          instruction: NEW_CONVERSATION_INSTRUCTION,
         });
       }
 

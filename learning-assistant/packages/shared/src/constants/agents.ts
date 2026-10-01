@@ -2,9 +2,15 @@
 export const LEARNING_AGENT_ID = "learning";
 
 /**
- * The frontend tool that asks the student to confirm a new topic when learning material
- * or a quiz exist. It is human-in-the-loop: the chat renders it, and the
- * student's choice is its result.
+ * What `research` asks for when the conversation already has learning
+ * material or a quiz: a new topic is a new conversation (plan D5), which
+ * the student starts with "New topic".
+ */
+export const NEW_CONVERSATION_REQUIREMENT = "newConversation";
+
+/**
+ * The new-topic confirmation card's frontend tool. The agent no longer
+ * calls it; it goes with the card.
  */
 export const CONFIRM_NEW_TOPIC_TOOL = "confirmNewTopic";
 

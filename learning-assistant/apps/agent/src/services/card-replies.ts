@@ -9,8 +9,6 @@ import {
   type ToolCallResultEvent,
   type ToolCallStartEvent,
 } from "@ag-ui/client";
-import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
-import { NewTopicDecisionSchema } from "@repo/shared/schemas";
 import { concatMap, type OperatorFunction } from "rxjs";
 
 import { RUN_ERROR_INTRO } from "../constants/errors";
@@ -47,25 +45,8 @@ const isSuccess = (content: string): boolean => {
 };
 
 /**
- * The student kept the current topic. The card says only that, and the
- * decision asks the Supervisor what they want to do next, so its reply must
- * reach the chat.
- */
-const isKeptTopic = (name: string, content: string): boolean => {
-  if (name !== CONFIRM_NEW_TOPIC_TOOL) {
-    return false;
-  }
-  try {
-    const decision = NewTopicDecisionSchema.safeParse(JSON.parse(content));
-    return decision.success && !decision.data.confirmed;
-  } catch {
-    return false;
-  }
-};
-
-/**
  * Whether the history ends with a card tool's successful result that needs
- * no reply. A frontend tool (theme, layout, settings, chat cards, new topic)
+ * no reply. A frontend tool (theme, layout, settings, chat cards)
  * finishes on the client, so its result starts the next run.
  */
 const endsWithCardResult = (messages: Message[]): boolean => {
@@ -81,8 +62,7 @@ const endsWithCardResult = (messages: Message[]): boolean => {
   return (
     call !== undefined &&
     CARD_TOOLS.has(call.function.name) &&
-    isSuccess(last.content) &&
-    !isKeptTopic(call.function.name, last.content)
+    isSuccess(last.content)
   );
 };
 

@@ -1,7 +1,7 @@
 import {
   CHAT_CARD_TOOLS,
-  CONFIRM_NEW_TOPIC_TOOL,
   DELETE_BOARD_SURFACE_TOOL,
+  NEW_CONVERSATION_REQUIREMENT,
   READ_BOARD_SURFACE_TOOL,
   RENDER_SURFACE_TOOL,
   SET_LAYOUT_TOOL,
@@ -37,9 +37,8 @@ const RESPONSIBILITIES = `# Responsibilities
 const TOOL_ROUTING = `# Tools
 | Tool | Use when | Needs first |
 | --- | --- | --- |
-| research(topic) | The student asks to learn or research a topic | Nothing, or ${CONFIRM_NEW_TOPIC_TOOL} returned confirmed true (see New topic) |
+| research(topic) | The student asks to learn or research a topic | material and quiz are null (see New topic) |
 | ${RENDER_SURFACE_TOOL}(target "canvas", title, components) | The student asks to show, list or put something on the board or the canvas ("show me all X in the board", "a table of X on the canvas"), or wants an overview or cheat sheet to keep | Nothing: never research, learning material or a quiz |
-| ${CONFIRM_NEW_TOPIC_TOOL}(topic) | The student asks about a different topic while learning material or a quiz exists | material or quiz is not null |
 | makeMaterial() | The student wants learning material (study notes) | research is not null |
 | simplify(scope, selection?) | The student wants the learning material simpler; scope "all" or "selection" with the exact selected text | material is not null |
 | generateQuiz() | The student wants a quiz or new questions | material is not null |
@@ -51,8 +50,8 @@ const TOOL_ROUTING = `# Tools
 - Call one tool at a time and wait for its result.
 - A message that mentions the board or the canvas is a Board request: answer
   it with one ${RENDER_SURFACE_TOOL} view (see Visual answers) built from what
-  you know. Do not call research, makeMaterial, generateQuiz or
-  ${CONFIRM_NEW_TOPIC_TOOL} for it, even when it names a topic.
+  you know. Do not call research, makeMaterial or generateQuiz for it, even
+  when it names a topic.
 - ${SET_THEME_TOOL} and ${SET_LAYOUT_TOOL} only change the display. Check
   "Context from the application" first; if it already shows what they asked
   for, say so instead of calling the tool.
@@ -135,16 +134,12 @@ const SPECIAL_PHASES = `# Special phases
   answer the quiz or call evaluate for them. "Show me all X", "list X" and
   anything on the board are not Autopilot: they are one ${RENDER_SURFACE_TOOL}
   view.
-- New topic: when learning material or a quiz already exists and the student asks about a
-  different topic, call ${CONFIRM_NEW_TOPIC_TOOL}(topic) and write nothing
-  else; the chat shows a card where they confirm or keep the current topic.
-  Its result says what they chose and what to do next. If confirmed is true,
-  the canvas is already cleared: call research with that topic straight
-  away. If it is false, do not call research; stay on the current topic.
-  Never ask for this confirmation in plain text, and never call
-  ${CONFIRM_NEW_TOPIC_TOOL} when material and quiz are both null.
-  A research result with requires "${CONFIRM_NEW_TOPIC_TOOL}" is not an error:
-  nothing changed, so call ${CONFIRM_NEW_TOPIC_TOOL}(topic) as above.
+- New topic: each conversation is one topic. When learning material or a
+  quiz already exists and the student asks to learn a different topic, do
+  not call research: tell them in one or two sentences to press "New topic"
+  in the conversation list and ask there; this conversation keeps its work.
+  A research result with requires "${NEW_CONVERSATION_REQUIREMENT}" is not an
+  error: nothing changed; reply the same way and do not call research again.
 - Quiz submitted: when the student presses Submit on the canvas, the app
   grades the quiz itself; you only run when grading failed, and the last
   message is that evaluate result. Explain the error. Do not call evaluate

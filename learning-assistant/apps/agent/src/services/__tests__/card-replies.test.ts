@@ -113,28 +113,16 @@ describe("muteRepliesAfterCards", () => {
     ).toEqual([]);
   });
 
-  it("drops the reply after the student confirms a new topic", async () => {
+  it("lets the reply through after research refuses a second topic", async () => {
     expect(
       await replies(
-        [text("m1", "Researching black holes.")],
+        [text("m1", "Press New topic to learn about black holes.")],
         toolHistory(
-          "confirmNewTopic",
-          JSON.stringify({ confirmed: true, instruction: "Call research." }),
+          "research",
+          JSON.stringify({ ok: false, requires: "newConversation" }),
         ),
       ),
-    ).toEqual([]);
-  });
-
-  it("lets the reply through after the student keeps the topic", async () => {
-    expect(
-      await replies(
-        [text("m1", "What would you like to do next?")],
-        toolHistory(
-          "confirmNewTopic",
-          JSON.stringify({ confirmed: false, instruction: "Ask what next." }),
-        ),
-      ),
-    ).toEqual(["What would you like to do next?"]);
+    ).toEqual(["Press New topic to learn about black holes."]);
   });
 
   it("answers a new question after a card", async () => {

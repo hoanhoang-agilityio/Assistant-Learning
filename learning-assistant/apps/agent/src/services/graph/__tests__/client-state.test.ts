@@ -2,7 +2,7 @@ import type { BaseEvent } from "@ag-ui/client";
 import { MemorySaver } from "@langchain/langgraph";
 import { QUIZ_ACTIONS } from "@repo/shared/a2ui/quiz-actions";
 import {
-  CONFIRM_NEW_TOPIC_TOOL,
+  NEW_CONVERSATION_REQUIREMENT,
   SET_THEME_TOOL,
 } from "@repo/shared/constants/agents";
 import {
@@ -14,7 +14,7 @@ import { v4 as uuidv4 } from "uuid";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UNANSWERED_TOOL_RESULT } from "../../../constants/errors";
-import { TOPIC_CONFIRMATION_INSTRUCTION } from "../../../constants/tools";
+import { NEW_CONVERSATION_INSTRUCTION } from "../../../constants/tools";
 import { createChatModel } from "../../llm/chat-model";
 import {
   createHandler,
@@ -24,6 +24,7 @@ import {
   readCheckpoint,
   runTurn,
   snapshotsOf,
+  textOf,
   toolCallsOf,
   toolResultsOf,
   userMessage,
@@ -39,6 +40,7 @@ vi.mock("../../llm/chat-model", () => ({ createChatModel: vi.fn() }));
 
 const SETTINGS = { questionCount: 3, learningLevel: "beginner", theme: "dark" };
 const ANSWERS = { q1: 1, q2: 0, q3: 3 };
+const NEW_TOPIC_REPLY = "Press New topic to learn about black holes.";
 
 const frontendTool = (name: string) => ({
   name,
@@ -72,7 +74,7 @@ const chat = (
     messages: [...lastMessages(previous), userMessage(content)],
     state,
     forwardedProps: { settings: SETTINGS },
-    tools: [frontendTool(CONFIRM_NEW_TOPIC_TOOL), frontendTool(SET_THEME_TOOL)],
+    tools: [frontendTool(SET_THEME_TOOL)],
   });
 
 const submit = (previous: BaseEvent[]) =>
@@ -192,34 +194,21 @@ describe("what the browser changed since the last run", () => {
 });
 
 describe("a new topic", () => {
-  /** Asks to research whatever the student names; confirms first when told to. */
+  /** Researches whatever the student names; points them to "New topic" when refused. */
   const researchOnRequest = () =>
     teachThen((messages) => {
       const last = messages.at(-1);
-      if (last?.type !== "tool") {
-        return lastHumanText(messages).startsWith("research")
-          ? {
-              toolCalls: [{ name: "research", args: { topic: "black holes" } }],
-            }
+      if (last?.type === "tool") {
+        return last.text.includes(NEW_CONVERSATION_REQUIREMENT)
+          ? { text: NEW_TOPIC_REPLY }
           : { text: "Done." };
       }
-      if (last.text.includes(CONFIRM_NEW_TOPIC_TOOL)) {
-        return {
-          toolCalls: [
-            {
-              name: CONFIRM_NEW_TOPIC_TOOL,
-              args: { topic: "black holes" },
-              id: "call_confirm",
-            },
-          ],
-        };
-      }
-      return last.text.includes('"confirmed":true')
+      return lastHumanText(messages).startsWith("research")
         ? { toolCalls: [{ name: "research", args: { topic: "black holes" } }] }
         : { text: "Done." };
     });
 
-  it("is not researched over existing work until the student confirms", async () => {
+  it("is never researched over this conversation's work", async () => {
     researchOnRequest();
     const quizzed = await reachQuiz();
 
@@ -229,83 +218,25 @@ describe("a new topic", () => {
       "research black holes",
     );
 
-    expect(toolCallsOf(events)).toEqual(["research", CONFIRM_NEW_TOPIC_TOOL]);
+    expect(toolCallsOf(events)).toEqual(["research"]);
     expect(toolResultsOf(events)).toEqual([
       {
         ok: false,
-        requires: CONFIRM_NEW_TOPIC_TOOL,
+        requires: NEW_CONVERSATION_REQUIREMENT,
         topic: "black holes",
-        instruction: TOPIC_CONFIRMATION_INSTRUCTION,
+        instruction: NEW_CONVERSATION_INSTRUCTION,
       },
     ]);
+    expect(textOf(events)).toBe(NEW_TOPIC_REPLY);
     expect(lastSnapshot(events)).toEqual(lastSnapshot(quizzed));
   });
 
-  it("starts from a cleared canvas once they do", async () => {
+  it("keeps the work even when the browser sends a cleared state", async () => {
     researchOnRequest();
     const quizzed = await reachQuiz();
-    const asked = await chat(
-      quizzed,
-      lastSnapshot(quizzed),
-      "research black holes",
-    );
 
-    const events = await runTurn(handler, {
-      threadId,
-      messages: [
-        ...lastMessages(asked),
-        {
-          id: uuidv4(),
-          role: "tool",
-          toolCallId: "call_confirm",
-          content: JSON.stringify({
-            confirmed: true,
-            instruction: "Research it.",
-          }),
-        },
-      ],
-      // The card clears the browser's copy; the server clears its own.
-      state: initialLearningState,
-      forwardedProps: { settings: SETTINGS },
-      tools: [frontendTool(CONFIRM_NEW_TOPIC_TOOL)],
-    });
+    const events = await chat(quizzed, initialLearningState, "hello");
 
-    expect(snapshotsOf(events).at(0)).toEqual(initialLearningState);
-    expect(toolCallsOf(events)).toEqual(["research"]);
-    expect(lastSnapshot(events)).toMatchObject({
-      stage: "research",
-      topic: "black holes",
-      material: null,
-      quiz: null,
-    });
-  });
-
-  it("keeps the work when they do not", async () => {
-    researchOnRequest();
-    const quizzed = await reachQuiz();
-    const asked = await chat(
-      quizzed,
-      lastSnapshot(quizzed),
-      "research black holes",
-    );
-
-    const events = await runTurn(handler, {
-      threadId,
-      messages: [
-        ...lastMessages(asked),
-        {
-          id: uuidv4(),
-          role: "tool",
-          toolCallId: "call_confirm",
-          content: JSON.stringify({ confirmed: false, instruction: "Stay." }),
-        },
-      ],
-      state: initialLearningState,
-      forwardedProps: { settings: SETTINGS },
-      tools: [frontendTool(CONFIRM_NEW_TOPIC_TOOL)],
-    });
-
-    expect(toolCallsOf(events)).toEqual([]);
     expect(lastSnapshot(events)).toMatchObject({
       stage: "quiz",
       material: { original: MATERIAL.markdown },

@@ -1,6 +1,5 @@
 import {
   CHAT_CARD_TOOLS,
-  CONFIRM_NEW_TOPIC_TOOL,
   DELETE_BOARD_SURFACE_TOOL,
   RENDER_SURFACE_TOOL,
   SET_LAYOUT_TOOL,
@@ -49,10 +48,11 @@ export const TOOL_ERRORS = {
 } as const;
 
 /**
- * What `research` tells the Supervisor when it refuses to replace learning
- * material or a quiz the student has not agreed to lose.
+ * What `research` tells the Supervisor when the conversation already has
+ * learning material or a quiz: each topic is its own conversation.
  */
-export const TOPIC_CONFIRMATION_INSTRUCTION = `Nothing was researched and nothing changed: learning material or a quiz exists. Call ${CONFIRM_NEW_TOPIC_TOOL} with this topic and write nothing else; research it only after the student confirms.`;
+export const NEW_CONVERSATION_INSTRUCTION =
+  'Nothing was researched and nothing changed: this conversation already has learning material or a quiz, and each topic gets its own conversation. In one or two sentences, tell the student to press "New topic" in the conversation list and ask about this topic there. Do not call research again.';
 
 /** Prefix for an unexpected failure, followed by the error message. */
 export const TOOL_FAILURE_PREFIX: Record<SubagentTool, string> = {
@@ -118,7 +118,6 @@ export const BOARD_EMPTY =
 export const CARD_TOOLS: ReadonlySet<string> = new Set([
   ...Object.keys(TOOL_DESCRIPTIONS),
   ...Object.values(CHAT_CARD_TOOLS),
-  CONFIRM_NEW_TOPIC_TOOL,
   SET_THEME_TOOL,
   SET_LAYOUT_TOOL,
   SET_LEARNING_SETTINGS_TOOL,
