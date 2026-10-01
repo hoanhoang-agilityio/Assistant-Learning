@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { useChatUiTools } from "@/features/chat/hooks/use-chat-ui-tools";
 import { useStageSuggestions } from "@/features/chat/hooks/use-stage-suggestions";
 import { useToolRenderers } from "@/features/chat/hooks/use-tool-renderers";
+import { useConversationRefresh } from "@/features/conversations/hooks/use-conversation-refresh";
 import { useLearningSettingsTool } from "@/features/settings/hooks/use-learning-settings-tool";
 import { useThemeTool } from "@/features/settings/hooks/use-theme-tool";
 import { useAgentEventLog } from "@/hooks/use-agent-event-log";
@@ -29,6 +30,7 @@ export const useWorkspace = () => {
   useChatUiTools();
   useDisplayContext();
   useAgentEventLog();
+  useConversationRefresh();
 
   return { display, panelsRef };
 };

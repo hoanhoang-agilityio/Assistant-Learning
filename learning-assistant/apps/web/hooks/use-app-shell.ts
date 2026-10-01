@@ -7,6 +7,8 @@ import {
   useApiKeyStore,
   useSealedApiKey,
 } from "@/features/api-key/hooks/use-api-key-store";
+import { useConversationBootstrap } from "@/features/conversations/hooks/use-conversation-bootstrap";
+import { useConversationStore } from "@/features/conversations/hooks/use-conversation-store";
 import { useResolvedTheme } from "@/features/settings/hooks/use-resolved-theme";
 import {
   useSettings,
@@ -19,8 +21,8 @@ import { useLayoutStore } from "@/hooks/use-layout-store";
 /**
  * Loads the saved API key, settings and layout, sends the user to the key page
  * when no key is saved, keeps the theme class and the account's settings in
- * sync, and builds what the provider sends on every request: the sealed key
- * as a header and the settings as `properties`.
+ * sync, opens a conversation, and builds what the provider sends on every
+ * request: the sealed key as a header and the settings as `properties`.
  */
 export const useAppShell = () => {
   const router = useRouter();
@@ -34,6 +36,7 @@ export const useAppShell = () => {
       useApiKeyStore.persist.rehydrate(),
       useSettingsStore.persist.rehydrate(),
       useLayoutStore.persist.rehydrate(),
+      useConversationStore.persist.rehydrate(),
     ]).then(() => {
       setIsHydrated(true);
     });
@@ -48,6 +51,9 @@ export const useAppShell = () => {
 
   useThemeClass(useResolvedTheme(), isHydrated);
   useSettingsSync(isHydrated);
+  const conversations = useConversationBootstrap(
+    isHydrated && sealedKey !== null,
+  );
 
   const headers = useMemo(
     (): Record<string, string> =>
@@ -58,5 +64,11 @@ export const useAppShell = () => {
   // Provider `properties` are merged into `forwardedProps` on each run.
   const properties = useMemo(() => ({ settings }), [settings]);
 
-  return { isReady: isHydrated && sealedKey !== null, headers, properties };
+  return {
+    isReady: isHydrated && sealedKey !== null && conversations.isReady,
+    loadError: conversations.error,
+    handleRetry: conversations.handleRetry,
+    headers,
+    properties,
+  };
 };

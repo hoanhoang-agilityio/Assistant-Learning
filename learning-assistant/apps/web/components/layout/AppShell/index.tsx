@@ -6,6 +6,8 @@ import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 import { Workspace } from "@/components/layout/Workspace";
 import { COPILOT_RUNTIME_URL } from "@/constants/copilot";
 import { CHAT_UI_CATALOG } from "@/features/chat/constants/chat-catalog";
+import { ConversationLoadError } from "@/features/conversations/components/ConversationLoadError";
+import { ConversationThread } from "@/features/conversations/components/ConversationThread";
 import { useAppShell } from "@/hooks/use-app-shell";
 
 /**
@@ -21,11 +23,16 @@ const CHAT_A2UI = { catalog: CHAT_UI_CATALOG, includeSchema: false };
  * The client root: loads the saved API key and settings, and sends both to the
  * agent on every run (the sealed key as a header, the settings in
  * `forwardedProps.settings`). Renders nothing until a key is known to be
- * saved; without one the user is sent to the key page.
+ * saved and a conversation is open; without a key the user is sent to the
+ * key page. The chat runs on the open conversation's thread.
  */
 export const AppShell = () => {
-  const { isReady, headers, properties } = useAppShell();
+  const { isReady, loadError, handleRetry, headers, properties } =
+    useAppShell();
 
+  if (loadError) {
+    return <ConversationLoadError message={loadError} onRetry={handleRetry} />;
+  }
   if (!isReady) {
     return null;
   }
@@ -38,7 +45,9 @@ export const AppShell = () => {
       properties={properties}
       a2ui={CHAT_A2UI}
     >
-      <Workspace />
+      <ConversationThread>
+        <Workspace />
+      </ConversationThread>
     </CopilotKitProvider>
   );
 };
