@@ -45,14 +45,16 @@ export interface StepContext {
 }
 
 /**
- * How a step ended. A success names the state keys it writes and the summary
- * for the Supervisor; a failure is a message the student can act on.
+ * How a step ended. A success names the state keys it writes, the summary
+ * for the Supervisor and how its result is kept with the conversation; a
+ * failure is a message the student can act on.
  */
 export type StepOutcome<T extends SubagentTool> =
   | {
       ok: true;
       update: Partial<LearningState>;
       summary: ToolSummaryData<T>;
+      record?: (threadId: string) => Promise<void>;
     }
   | { ok: false; error: string };
 
@@ -60,6 +62,25 @@ export const failStep = (error: string): { ok: false; error: string } => ({
   ok: false,
   error,
 });
+
+/**
+ * Keeps a completed stage with its conversation. The checkpoint already
+ * holds the result, so a failure here is logged and the step still counts.
+ */
+const recordOutcome = async (
+  tool: SubagentTool,
+  threadId: string | undefined,
+  record: ((threadId: string) => Promise<void>) | undefined,
+): Promise<void> => {
+  if (!threadId || !record) {
+    return;
+  }
+  try {
+    await record(threadId);
+  } catch (error) {
+    console.error(`[${tool}] Saving the result failed`, error);
+  }
+};
 
 const toToolMessage = (
   tool: SubagentTool,
@@ -105,6 +126,9 @@ export const runSubagentStep = async <T extends SubagentTool>(
   work: (step: StepContext) => Promise<StepOutcome<T>>,
 ): Promise<Command> => {
   const { signal } = runtime;
+  const configuredThreadId: unknown = runtime.config.configurable?.thread_id;
+  const threadId =
+    typeof configuredThreadId === "string" ? configuredThreadId : undefined;
   const task = SUBAGENT_TASK[tool];
   const state = readLearningState(runtime.state);
   const running: LearningState = {
@@ -142,6 +166,10 @@ export const runSubagentStep = async <T extends SubagentTool>(
     outcome = failStep(
       `${TOOL_FAILURE_PREFIX[tool]}: ${formatOpenAIError(error)}`,
     );
+  }
+
+  if (outcome.ok) {
+    await recordOutcome(tool, threadId, outcome.record);
   }
 
   const update: Partial<LearningState> = outcome.ok

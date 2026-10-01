@@ -1,4 +1,5 @@
 import type { Quiz, QuizDraft } from "@repo/shared/schemas";
+import { v4 as uuidv4 } from "uuid";
 
 import { QUESTION_ID_PREFIX } from "../../constants/answer-key";
 import type { AnswerKeyStore } from "../../types/answer-key";
@@ -12,7 +13,7 @@ import type { AnswerKeyStore } from "../../types/answer-key";
 export const createSealedQuiz = async (
   draft: QuizDraft,
   answerKeys: AnswerKeyStore,
-  createId: () => string = () => crypto.randomUUID(),
+  createId: () => string = uuidv4,
 ): Promise<Quiz> => {
   const id = createId();
   const answerKeySealed = await answerKeys.seal(id, {

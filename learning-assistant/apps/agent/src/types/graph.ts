@@ -1,6 +1,7 @@
 import type { Env } from "@repo/shared/types/env";
 
 import type { AnswerKeyStore } from "./answer-key";
+import type { LearningRecords } from "./records";
 
 /** What the subagent tools of one request share. None of it reaches state. */
 export interface SubagentToolDeps {
@@ -10,6 +11,8 @@ export interface SubagentToolDeps {
   env: Env;
   /** Seals the quiz answer key and unseals it to grade the quiz. */
   answerKeys: AnswerKeyStore;
+  /** Keeps each completed stage outside the checkpoints. */
+  records: LearningRecords;
 }
 
 /** A Board tool call's arguments so far, parsed from partial JSON. */

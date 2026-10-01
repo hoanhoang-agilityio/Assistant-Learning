@@ -1,5 +1,5 @@
 import { CONFIRM_NEW_TOPIC_TOOL } from "@repo/shared/constants/agents";
-import { ToolParamSchemas } from "@repo/shared/schemas";
+import { type Material, ToolParamSchemas } from "@repo/shared/schemas";
 import {
   getActiveMaterial,
   hasQuizData,
@@ -26,7 +26,11 @@ import {
 } from "./subagent-step";
 
 /** Research, learning material and simplify. */
-export const createMaterialTools = ({ apiKey, env }: SubagentToolDeps) => [
+export const createMaterialTools = ({
+  apiKey,
+  env,
+  records,
+}: SubagentToolDeps) => [
   tool(
     async ({ topic }, runtime: SubagentToolRuntime) => {
       // The model alone cannot be trusted to ask before replacing work. Once
@@ -54,6 +58,8 @@ export const createMaterialTools = ({ apiKey, env }: SubagentToolDeps) => [
           ok: true,
           update: { topic, research, quizOutdated: false },
           summary: { topic, title: research.title },
+          record: (threadId) =>
+            records.recordResearch(threadId, { topic, research }),
         };
       });
     },
@@ -78,17 +84,16 @@ export const createMaterialTools = ({ apiKey, env }: SubagentToolDeps) => [
           onDraft: (draft) =>
             step.reportDraft({ task: "material", markdown: draft }),
         });
+        const material = {
+          original: markdown,
+          simplified: null,
+          view: "original" as const,
+        };
         return {
           ok: true,
-          update: {
-            material: {
-              original: markdown,
-              simplified: null,
-              view: "original",
-            },
-            quizOutdated: false,
-          },
+          update: { material, quizOutdated: false },
           summary: { characters: markdown.length },
+          record: (threadId) => records.recordMaterial(threadId, material),
         };
       }),
     {
@@ -126,18 +131,20 @@ export const createMaterialTools = ({ apiKey, env }: SubagentToolDeps) => [
             step.reportDraft({ task: "simplify", markdown: toWhole(draft) }),
         });
 
+        const simplified: Material =
+          part === undefined
+            ? { ...material, simplified: markdown, view: "simplified" }
+            : writeActiveMaterial(material, toWhole(markdown));
         return {
           ok: true,
           update: {
-            material:
-              part === undefined
-                ? { ...material, simplified: markdown, view: "simplified" }
-                : writeActiveMaterial(material, toWhole(markdown)),
+            material: simplified,
             // Simplifying changes the learning material, so an existing quiz
             // is out of date.
             quizOutdated: step.state.quizOutdated || hasQuizData(step.state),
           },
           summary: { scope, characters: markdown.length },
+          record: (threadId) => records.recordMaterial(threadId, simplified),
         };
       }),
     {

@@ -15,7 +15,11 @@ import {
 } from "./subagent-step";
 
 /** `generateQuiz` and `evaluate`. */
-export const createQuizTools = ({ apiKey, answerKeys }: SubagentToolDeps) => [
+export const createQuizTools = ({
+  apiKey,
+  answerKeys,
+  records,
+}: SubagentToolDeps) => [
   tool(
     (_args, runtime: SubagentToolRuntime) =>
       runSubagentStep("generateQuiz", runtime, apiKey, async (step) => {
@@ -36,6 +40,7 @@ export const createQuizTools = ({ apiKey, answerKeys }: SubagentToolDeps) => [
           ok: true,
           update: { quiz, quizOutdated: false },
           summary: { questionCount: quiz.questions.length },
+          record: (threadId) => records.recordQuiz(threadId, quiz),
         };
       }),
     {
@@ -68,20 +73,23 @@ export const createQuizTools = ({ apiKey, answerKeys }: SubagentToolDeps) => [
           signal: step.signal,
           onDraft: (draft) => step.reportDraft({ task: "evaluate", ...draft }),
         });
+        const graded = { ...check.quiz, answers, submitted: true };
         return {
           ok: true,
-          update: {
-            evaluation,
-            score,
-            feedback,
-            quiz: { ...check.quiz, answers, submitted: true },
-          },
+          update: { evaluation, score, feedback, quiz: graded },
           summary: {
             correct: evaluation.correct,
             total: evaluation.total,
             weakestConcept: evaluation.weakestConcept,
             score,
           },
+          record: (threadId) =>
+            records.recordEvaluation(threadId, {
+              quiz: graded,
+              evaluation,
+              score,
+              feedback,
+            }),
         };
       }),
     {
