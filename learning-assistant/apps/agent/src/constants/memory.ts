@@ -19,5 +19,18 @@ export const SUMMARY_ITEM_MAX_CHARS = 600;
 /** Ends a message the summariser reads cut short. */
 export const TRUNCATION_MARK = "…";
 
-/** Heading of the summary in what the Supervisor reads. */
+/** Upper bound on what is remembered about the student in the Supervisor's prompt (E4). */
+export const MEMORY_PROMPT_MAX_CHARS = 1200;
+
+/** Concepts the student found hard, at most, in the prompt; weakest first. */
+export const MEMORY_PROMPT_MAX_CONCEPTS = 5;
+
+/** Topics studied before, at most, in the prompt; most recent first. */
+export const MEMORY_PROMPT_MAX_TOPICS = 5;
+
+/** Concepts the student found hard, at most, that the Quiz Agent revisits. */
+export const QUIZ_WEAK_CONCEPTS = 3;
+
+/** Headings of what the Supervisor reads besides the app context and state. */
+export const STUDENT_MEMORY_HEADING = "## What you remember about this student";
 export const CONVERSATION_SUMMARY_HEADING = "## Earlier in this conversation";

@@ -3,6 +3,7 @@ import {
   LearningStateSchema,
   QuizSubmissionSchema,
   SettingsSchema,
+  StudentMemorySchema,
 } from "@repo/shared/schemas";
 import { z } from "zod";
 
@@ -61,6 +62,11 @@ export const RunContextSchema = z.object({
    * the button sent; without it grading uses the answers in state.
    */
   submit: z.object({ submission: QuizSubmissionSchema.optional() }).nullable(),
+  /**
+   * What is kept about the student across conversations, read once for the
+   * run. Data, not instructions.
+   */
+  memory: StudentMemorySchema,
 });
 
 export type AppContextEntry = z.infer<typeof AppContextEntrySchema>;

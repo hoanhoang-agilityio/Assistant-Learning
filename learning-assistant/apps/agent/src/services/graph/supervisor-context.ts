@@ -12,8 +12,9 @@ import { toSupervisorState } from "../supervisor-state";
 
 /**
  * Builds what the Supervisor reads on each model call, without writing any
- * of it to state: its prompt, then the summary of the conversation's older
- * messages, the app context the run was started with (`useAgentContext` entries reach the graph only in the
+ * of it to state: its prompt, then what is kept about the student, the
+ * summary of the conversation's older messages, the app context the run
+ * was started with (`useAgentContext` entries reach the graph only in the
  * run context) and the state, trimmed to what it needs to choose the next
  * step; and only the messages the summary does not cover, with every tool
  * call answered (see `answerOpenToolCalls`). `messages` itself keeps the
@@ -28,7 +29,7 @@ export const supervisorContextMiddleware = createMiddleware({
   stateSchema: LearningGraphStateSchema,
   contextSchema: RunContextSchema,
   wrapModelCall: (request, handler) => {
-    const { settings, appContext } = request.runtime.context;
+    const { settings, appContext, memory } = request.runtime.context;
     const { summary, summarizedUpTo } = request.state;
     const state = toSupervisorState(readLearningState(request.state), settings);
     const recent = findUnsummarized(request.messages, summarizedUpTo);
@@ -37,7 +38,7 @@ export const supervisorContextMiddleware = createMiddleware({
       ...request,
       messages: answerOpenToolCalls(recent),
       systemMessage: request.systemMessage.concat(
-        `\n\n${formatSupervisorContext({ state, appContext, summary })}`,
+        `\n\n${formatSupervisorContext({ state, appContext, summary, memory })}`,
       ),
       modelSettings: { ...request.modelSettings, parallel_tool_calls: false },
     });

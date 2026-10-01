@@ -1,6 +1,7 @@
 import type { BaseMessage } from "@langchain/core/messages";
 import type { StateSnapshot } from "@langchain/langgraph";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
+import { EMPTY_STUDENT_MEMORY } from "@repo/shared/constants/memory";
 import { readLearningState } from "@repo/shared/utils/learning-state";
 import { v4 as uuidv4 } from "uuid";
 
@@ -229,6 +230,7 @@ export const createInProcessClient = ({
             (input?.[APP_CONTEXT_INPUT_KEY] as { context?: unknown })?.context,
           ),
           submit: parseSubmitAction({ a2uiAction }),
+          memory: EMPTY_STUDENT_MEMORY,
         };
 
         try {

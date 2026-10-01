@@ -5,6 +5,7 @@ import {
 } from "@ag-ui/client";
 import { HumanMessage } from "@langchain/core/messages";
 import { MemorySaver } from "@langchain/langgraph";
+import { EMPTY_STUDENT_MEMORY } from "@repo/shared/constants/memory";
 import { DEFAULT_SETTINGS } from "@repo/shared/constants/settings";
 import { initialLearningState } from "@repo/shared/schemas";
 import { v4 as uuidv4 } from "uuid";
@@ -32,6 +33,7 @@ const RUN_CONTEXT: RunContext = {
   settings: DEFAULT_SETTINGS,
   appContext: [],
   submit: null,
+  memory: EMPTY_STUDENT_MEMORY,
 };
 
 let checkpointer: MemorySaver;
