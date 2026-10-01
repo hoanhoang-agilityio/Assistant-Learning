@@ -9,7 +9,6 @@ import { concat, defer, EMPTY, Observable, type Subscriber, tap } from "rxjs";
 
 import { NO_API_KEY, RELOAD_RUN_ID } from "../../constants/graph";
 import { createChatModel } from "../llm/chat-model";
-import { threadCheckpointer } from "./checkpointer";
 import { toClientEvents } from "./client-events";
 import { createGraphAgent } from "./learning-agent";
 import { createLearningGraph } from "./learning-graph";
@@ -34,7 +33,7 @@ interface SnapshotSource {
 export class LearningThreadRunner extends InMemoryAgentRunner {
   private checkpointer: BaseCheckpointSaver;
 
-  constructor(checkpointer: BaseCheckpointSaver = threadCheckpointer) {
+  constructor(checkpointer: BaseCheckpointSaver) {
     super();
     this.checkpointer = checkpointer;
   }

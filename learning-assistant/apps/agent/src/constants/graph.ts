@@ -32,9 +32,6 @@ export const APP_CONTEXT_INPUT_KEY = "ag-ui";
  */
 export const IN_PROCESS_DEPLOYMENT_URL = "inproc://learning";
 
-/** Holds the process's thread checkpoints on `globalThis`. */
-export const CHECKPOINTER_GLOBAL_KEY = "__learningThreadCheckpointer";
-
 /** The run that replays a thread from its checkpoint on reload. */
 export const RELOAD_RUN_ID = "reload";
 

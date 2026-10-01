@@ -5,7 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "env": ["NODE_ENV", "COPILOTKIT_DEBUG"],
+      "env": ["NODE_ENV", "NEXT_RUNTIME", "COPILOTKIT_DEBUG"],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
     "lint": {

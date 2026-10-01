@@ -7,7 +7,6 @@ import { MISSING_API_KEY_ERROR } from "../../constants/errors";
 import { IN_PROCESS_DEPLOYMENT_URL } from "../../constants/graph";
 import type { LearningRecords } from "../../types/records";
 import { createChatModel } from "../llm/chat-model";
-import { threadCheckpointer } from "./checkpointer";
 import { toClientEvents } from "./client-events";
 import { createInProcessClient } from "./in-process-client";
 import { createLearningGraph, type LearningGraph } from "./learning-graph";
@@ -19,8 +18,8 @@ interface LearningAgentOptions {
   apiKey?: string;
   /** The signed-in user's id, from the verified session. */
   userId: string;
-  /** Where threads are kept. Defaults to this process's checkpoints. */
-  checkpointer?: BaseCheckpointSaver;
+  /** Where threads are kept. */
+  checkpointer: BaseCheckpointSaver;
   /** Where each conversation's runs and completed stages are kept. Defaults to nowhere. */
   records?: LearningRecords;
 }
@@ -56,7 +55,7 @@ export const createGraphAgent = (
 export const createLearningAgent = ({
   apiKey,
   userId,
-  checkpointer = threadCheckpointer,
+  checkpointer,
   records = NO_RECORDS,
 }: LearningAgentOptions): AbstractAgent => {
   const trimmedKey = apiKey?.trim();
