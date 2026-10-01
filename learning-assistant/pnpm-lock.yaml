@@ -47,9 +47,6 @@ importers:
       '@ag-ui/langgraph':
         specifier: 0.0.43
         version: 0.0.43(@ag-ui/client@0.0.59)(@ag-ui/core@0.0.59)(@opentelemetry/api@1.9.1)(openai@7.23.0(undici@6.28.1)(ws@8.21.3)(zod@4.6.5))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(ws@8.21.3)
-      '@ai-sdk/openai':
-        specifier: 3.0.113
-        version: 3.0.113(zod@4.6.5)
       '@copilotkit/runtime':
         specifier: 1.72.0
         version: 1.72.0(6e8ffd3ad77a045cadee14cc38bd591c)
@@ -68,18 +65,12 @@ importers:
       '@repo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      ai:
-        specifier: 6.0.285
-        version: 6.0.285(zod@4.6.5)
       fast-json-patch:
         specifier: 3.1.1
         version: 3.1.1
       langchain:
         specifier: 1.5.11
         version: 1.5.11(@langchain/core@1.2.11(@opentelemetry/api@1.9.1)(openai@7.23.0(undici@6.28.1)(ws@8.21.3)(zod@4.6.5))(ws@8.21.3))(@opentelemetry/api@1.9.1)(openai@7.23.0(undici@6.28.1)(ws@8.21.3)(zod@4.6.5))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(ws@8.21.3)
-      langsmith:
-        specifier: 0.10.4
-        version: 0.10.4(@opentelemetry/api@1.9.1)(openai@7.23.0(undici@6.28.1)(ws@8.21.3)(zod@4.6.5))(ws@8.21.3)
       rxjs:
         specifier: 7.8.1
         version: 7.8.1
@@ -6274,13 +6265,6 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 3.25.76
 
-  '@ai-sdk/gateway@3.0.196(zod@4.6.5)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.16
-      '@ai-sdk/provider-utils': 4.0.51(zod@4.6.5)
-      '@vercel/oidc': 3.2.0
-      zod: 4.6.5
-
   '@ai-sdk/google-vertex@3.0.174(supports-color@7.2.0)(zod@3.25.76)':
     dependencies:
       '@ai-sdk/anthropic': 2.0.102(zod@3.25.76)
@@ -6325,12 +6309,6 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
       zod: 3.25.76
 
-  '@ai-sdk/openai@3.0.113(zod@4.6.5)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.16
-      '@ai-sdk/provider-utils': 4.0.51(zod@4.6.5)
-      zod: 4.6.5
-
   '@ai-sdk/provider-utils@3.0.37(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 2.0.4
@@ -6346,14 +6324,6 @@ snapshots:
       eventsource-parser: 3.1.1
       undici: 6.28.1
       zod: 3.25.76
-
-  '@ai-sdk/provider-utils@4.0.51(zod@4.6.5)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.16
-      '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.1.1
-      undici: 6.28.1
-      zod: 4.6.5
 
   '@ai-sdk/provider@2.0.4':
     dependencies:
@@ -8864,14 +8834,6 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.51(zod@3.25.76)
       '@opentelemetry/api': 1.9.1
       zod: 3.25.76
-
-  ai@6.0.285(zod@4.6.5):
-    dependencies:
-      '@ai-sdk/gateway': 3.0.196(zod@4.6.5)
-      '@ai-sdk/provider': 3.0.16
-      '@ai-sdk/provider-utils': 4.0.51(zod@4.6.5)
-      '@opentelemetry/api': 1.9.1
-      zod: 4.6.5
 
   ajv-formats@3.0.1(ajv@8.20.0):
     optionalDependencies:
