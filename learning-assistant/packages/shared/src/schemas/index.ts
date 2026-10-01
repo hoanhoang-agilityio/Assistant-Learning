@@ -5,6 +5,7 @@ export * from "./evaluation";
 export * from "./feedback-surface";
 export * from "./learning-state";
 export * from "./material";
+export * from "./memory";
 export * from "./quiz";
 export * from "./render-surface";
 export * from "./research";
