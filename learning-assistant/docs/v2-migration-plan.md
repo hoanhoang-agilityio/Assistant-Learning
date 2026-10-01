@@ -110,12 +110,12 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | A3 | Five subagent tools with prerequisites and state effects (stage, what each clears, `status.error`/`failed`); each returns `Command` with a `ToolMessage`. Parallel tool calls off (two writes to one key kill the run, F-7). **Done in M3** (`services/graph/tools`). The `ToolMessage` is a short summary (`ToolSummarySchemas`), not the result: the result goes to state only, so the thread no longer carries the research, the material and the quiz into every later model call |
 | A4 | Quiz: keep sealing; port the quiz-security tests; no correct answer in any state or event before Submit. **Done in M3**: route-level tests search the whole event stream and the checkpoint |
 | A5 | Submit routing from `a2uiAction` in run `context`: grade in code, model only explains failures. Decide what to do with the synthetic `ai`+`tool` pair the A2UI middleware appends (it holds the answers and stays in history). **Done in M3** (`quiz-submit.ts`): the first model call of a Submit run is answered by a model that only calls `evaluate`; a graded quiz ends the run there. The synthetic pair is dropped before it reaches the thread |
-| A6 | Chat cards, `renderSurface`, Board read/update/delete, catalog validation, `a2ui_operations` results (verified pattern) |
+| A6 | Chat cards, `renderSurface`, Board read/update/delete, catalog validation, `a2ui_operations` results (verified pattern). **Done in M4** (`services/graph/tools/surface-tools.ts`): Board writes are `Command`s on `board`; their result names the view (`{ surface: { id, title, revision } }`), so the thread does not carry its components twice. The chat cards needed no change: `copilotkitMiddleware` already offers them |
 | A7 | Card-only replies; `toolErrorMiddleware` so a failing tool does not end the run; readable run errors (`explainRunErrors` stays). Keep `repairToolHistory` (Stop leaves unanswered tool calls that OpenAI rejects). Delete only the workarounds that stop being needed. **Done in M3**: replies after a card are dropped from the stream and from message snapshots (the thread keeps them); open tool calls are answered for the model only (`answerOpenToolCalls`). The AI SDK workarounds are still in the tree, unused, until A11 |
-| A8 | Draft streaming for every stage (manual state emit, throttled 120 ms) and the Board (from `TOOL_CALL_ARGS`; try a `STATE_DELTA` for `boardDraft` from the route middleware). **Stages done in M3; the Board part moves to M4 with its tools (A6)** |
+| A8 | Draft streaming for every stage (manual state emit, throttled 120 ms) and the Board (from `TOOL_CALL_ARGS`; try a `STATE_DELTA` for `boardDraft` from the route middleware). **Stages done in M3, the Board in M4** (`services/graph/board-drafts.ts`): the event filter parses the call's `TOOL_CALL_ARGS` and sends `boardDraft` as a `STATE_DELTA`, the whole draft first and then the diff inside it |
 | A9 | Call limit (`modelCallLimitMiddleware`), Stop (tools honour `config.signal`), retries. **Done in M3**: 8 model calls per run, then the run ends; Stop ends the run without an error and saves nothing of the step. Retries are the OpenAI client's defaults plus the quiz and feedback-surface retries that were already there |
-| A10 | LangSmith tracing with `thread_id` and the current turn names; nothing secret in `context` |
-| A11 | Remove `ai`, `@ai-sdk/openai`, `BuiltInAgent` wrapper, and its tests when parity is confirmed |
+| A10 | LangSmith tracing with `thread_id` and the current turn names; nothing secret in `context`. **Done in M4**: LangChain's own tracing, one trace per turn named `learning` or `learning: quiz submit`, with `thread_id` and `user_id` in the run metadata, which every step and subagent call inherits. Not seen in LangSmith yet: tracing is off in `.env` (cap) |
+| A11 | Remove `ai`, `@ai-sdk/openai`, `BuiltInAgent` wrapper, and its tests when parity is confirmed. **Done in M4**, with `langsmith` as a direct dependency and the AI SDK error shape in `classifyOpenAIError` (it now reads the OpenAI SDK's `status`). Left: `ToolResultSchemas` in `@repo/shared`, the old wrapper's result format, still typing `runEvaluation` |
 | A12 | App context: the in-process client passes `useAgentContext` entries as run context; the context builder renders them without CopilotKit's A2UI entries. **Done in M2**: `supervisorContextMiddleware` appends the entries and the trimmed state to the system message on each model call, and writes nothing to the thread |
 
 **Found in M2** (all covered by route-level tests in `apps/agent/src/services/graph/__tests__`):
@@ -141,6 +141,15 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | M3-6 | A run error right after a successful card left its chat message muted in the next message snapshot | The mute skips the message a failed run leaves |
 | M3-7 | The model trusted an old `evaluate` result in the thread over the state after the student edited the material | The state section now says it outranks earlier messages |
 | M3-8 | Confirming a new topic cleared only the browser's copy of the state | The run that starts with the card's confirmed result starts from the initial state |
+
+**Found in M4**:
+
+| # | Finding | What the code does |
+| --- | --- | --- |
+| M4-1 | With the Responses API only the first and last stream events carry the response id; LangChain names every chunk in between `run-<id>`. The adapter streams a message under the chunks' id and the final `MESSAGES_SNAPSHOT` holds the saved `resp_` id, so the browser drops the streamed message and appends the saved one at the end: below a chat surface drawn after it | `createChatModel` builds a `ChatOpenAIResponses` subclass that gives every chunk the response id (`withResponseId`). `ChatOpenAI` cannot be extended for this: it hands Responses calls to an inner model of its own |
+| M4-2 | Between the model call and the tool, the adapter sends snapshots without the Board draft, so the canvas would blank the draft before the view arrives | The event filter keeps the draft in every snapshot that still holds the Board it started on, until the view lands, the call fails, or the run ends |
+| M4-3 | A delta changes the browser's state without a snapshot, so the next snapshot can equal the last one sent and be dropped | The repeated-snapshot filter forgets the last snapshot after a delta |
+| M4-4 | Each model call is its own assistant message, so `readBoardSurface` (no card) left an empty avatar before the edit's card | The chat draws no turn whose tool calls all have no card (`TOOLS_WITHOUT_CARD`) |
 
 ### B. Clerk (Next.js backend is the authority)
 
@@ -210,7 +219,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | M1 | B1–B4, B10 | Sign-in required; every route checks the session on the backend |
 | M2 | A1–A2, A12 | A chat message runs through the LangChain agent end to end, in the browser. **Done.** Until M3 the Supervisor has only the frontend tools: research, learning material, the quiz, cards and the Board are off on this branch |
 | M3 | A3–A5, A7–A9 | Research → Score works with quiz security and streaming. **Done**, in the browser too: research, learning material, quiz, Submit, score and feedback, retake, an edit of the material, a new topic, Stop. Cards and the Board are still off (M4) |
-| M4 | A6, A10 | Cards, Board, tracing at parity; then A11 removes the AI SDK code |
+| M4 | A6, A10 | Cards, Board, tracing at parity; then A11 removes the AI SDK code. **Done**, in the browser too: concept and comparison cards, a chat surface, a Board view streamed and saved, an edit, a removal, and research on the new model class |
 | M5 | C1–C7, FE1–FE3, B6–B8 | Multiple conversations, resume, delete |
 | M6 | E1–E6 | Short- and long-term memory |
 | M7 | FE4–FE5, F | History page, tests, docs |
@@ -222,7 +231,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | The in-process client is our code against `@ag-ui/langgraph` internals (11 SDK methods, event shapes) | An adapter upgrade can break the agent | Pin `@ag-ui/langgraph`; route-level tests (F4); keep the client small |
 | `useAgentContext` does not reach the model via `copilotkitMiddleware` | Agent blind to what is on screen | A12 |
 | No dual engine means no fallback if parity is late | Regression for users | Work on a branch; merge only at parity; keep the old code in git history |
-| Full-state `STATE_SNAPSHOT` on every draft emit (no deltas) | Bigger streams as Board and material grow | Throttle; keep drafts small. Measured in M3 against the real model: research → material → quiz in one run sent 45 snapshots, about 260 KB with the adapter's duplicate `CUSTOM` events, which are now dropped (not re-measured; roughly half). If the Board makes this too big in M4, send deltas from the event filter |
+| Full-state `STATE_SNAPSHOT` on every draft emit (no deltas) | Bigger streams as Board and material grow | Throttle; keep drafts small. Measured in M3 against the real model: research → material → quiz in one run sent 45 snapshots, about 260 KB with the adapter's duplicate `CUSTOM` events, which are now dropped (not re-measured; roughly half). If the Board makes this too big in M4, send deltas from the event filter. M4: Board drafts are deltas (diffs inside the draft); a saved view still goes out in full snapshots |
 | A stale browser overwrites newer learning material (a dropped stream, then an edit) | A simplify result lost, the quiz cleared | The browser's material is taken as an edit whenever its text differs. Add a revision the browser must echo if this shows up |
 | Browser receives all graph state via `RAW`/`rawEvent` | Server-only data and model inputs leak | Route filter (verified); F4 test |
 | Client state overwrites the checkpoint | Edits lost or server keys forged | D10 + schema whitelists (verified) |
@@ -232,7 +241,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | Cross-user thread access (the runtime's thread endpoints are unscoped) | Data leak | Interim B7 guard (M1, tested with two users) → `conversations` in M5; B10 |
 | User key in traces | Secret leak | D1: key only inside the model instance (verified not in traces) |
 | Two copies of `@ag-ui/langgraph` (0.0.42 via sdk-js, 0.0.43 via runtime) | Subtle mismatches | Align versions when adding `@copilotkit/sdk-js`; pnpm override if needed |
-| LangSmith trace cap already hit once | No tracing | Sample the traces |
+| LangSmith trace cap already hit once | No tracing | Sample the traces: `LANGSMITH_TRACING_SAMPLING_RATE` (0–1) is read by `langsmith` itself |
 
 ## 8. Design doc changes this implies
 
