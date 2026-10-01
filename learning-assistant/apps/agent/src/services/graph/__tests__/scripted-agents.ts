@@ -45,6 +45,8 @@ export const EXPLANATIONS = {
   summary: "Solid on closures; review scope.",
 };
 
+export const SUMMARY = "The student asked about closures and got answers.";
+
 export const FEEDBACK_COMPONENTS: FeedbackComponent[] = [
   {
     id: "root",
@@ -68,6 +70,8 @@ interface SubagentReplies {
   quiz: object | Error;
   explanations: object | Error;
   feedback: FeedbackComponent[] | Error;
+  /** The summariser's summary of a conversation's older messages. */
+  summary: object | Error;
   /** How long the Research Agent's model takes to start answering. */
   researchDelayMs?: number;
 }
@@ -78,6 +82,7 @@ const DEFAULT_REPLIES: SubagentReplies = {
   quiz: QUIZ_DRAFT,
   explanations: EXPLANATIONS,
   feedback: FEEDBACK_COMPONENTS,
+  summary: { summary: SUMMARY },
 };
 
 const toJsonTurn = (reply: object | Error, delayMs?: number): ScriptedTurn => {
@@ -99,9 +104,10 @@ const readSchemaKeys = ({ options }: ScriptedCall): string[] => {
 
 /**
  * Scripts every model of a run. `supervisor` answers the Supervisor's calls;
- * each subagent call is recognised by the output it asks for and answered
- * from `replies`. Returns the Supervisor's calls, in order, and every model
- * that was created (the first is the Supervisor's).
+ * each subagent and memory call is recognised by the output it asks for and
+ * answered from `replies`. Returns the Supervisor's calls and the
+ * summariser's, each in order, and every model that was created (the first
+ * is the Supervisor's).
  */
 export const scriptAgents = (
   supervisor: (messages: BaseMessage[], call: ScriptedCall) => ScriptedTurn,
@@ -109,6 +115,7 @@ export const scriptAgents = (
 ) => {
   const all = { ...DEFAULT_REPLIES, ...replies };
   const supervisorCalls: ScriptedCall[] = [];
+  const summaryCalls: ScriptedCall[] = [];
 
   const script = (
     messages: BaseMessage[],
@@ -141,6 +148,10 @@ export const scriptAgents = (
     if (keys.includes("explanations")) {
       return toJsonTurn(all.explanations);
     }
+    if (keys.length === 1 && keys[0] === "summary") {
+      summaryCalls.push(call);
+      return toJsonTurn(all.summary);
+    }
 
     supervisorCalls.push(call);
     return supervisor(messages, call);
@@ -152,7 +163,7 @@ export const scriptAgents = (
     models.push(model);
     return model as never;
   });
-  return { supervisorCalls, models };
+  return { supervisorCalls, summaryCalls, models };
 };
 
 /** The text of the last message a student wrote. */

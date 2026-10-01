@@ -241,7 +241,8 @@ describe("renderSurface on the Board", () => {
     expect(boardOf(events).map(({ title }) => title)).toEqual(
       [2, 3, 4, 5, 6, 7, 8, 9].map((index) => `View ${index}`),
     );
-  });
+    // Nine whole turns: about 3 s alone, past the 5 s default under load.
+  }, 15_000);
 });
 
 describe("editing the Board", () => {

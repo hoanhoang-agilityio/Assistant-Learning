@@ -14,6 +14,7 @@ import {
 import type { LearningRecords } from "../../types/records";
 import { getErrorMessage } from "../../utils/openai-errors";
 import { SUPERVISOR_PROMPT } from "../prompts/supervisor";
+import { createConversationSummaryMiddleware } from "./conversation-summary";
 import { frontendToolsMiddleware } from "./frontend-tools";
 import { quizSubmitMiddleware } from "./quiz-submit";
 import { supervisorContextMiddleware } from "./supervisor-context";
@@ -45,8 +46,9 @@ const toToolFailure = (error: unknown): string =>
  * run rather than failing it; a failed tool call answered with an error the
  * Supervisor can explain, instead of failing the run; the run's frontend
  * tools, offered to the model, ending the run when one is called so the
- * browser can run it; the quiz Submit; and what the
- * Supervisor reads on each call.
+ * browser can run it; the quiz Submit; what the Supervisor reads on each
+ * call; and, after the turn, the summary of the conversation's older
+ * messages.
  */
 export const createLearningGraph = ({
   model,
@@ -72,6 +74,7 @@ export const createLearningGraph = ({
       frontendToolsMiddleware,
       quizSubmitMiddleware,
       supervisorContextMiddleware,
+      createConversationSummaryMiddleware(apiKey),
     ],
     checkpointer,
   });
