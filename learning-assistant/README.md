@@ -6,14 +6,16 @@ It is built on CopilotKit 1.72, AG-UI and A2UI. A Supervisor agent hands work to
 
 ## Setup
 
-You need Node.js 24 or later and pnpm 11 (`corepack enable` picks the version in `package.json`).
+You need Node.js 24 or later, pnpm 11 (`corepack enable` picks the version in `package.json`) and Postgres 16. Docker gives you one that matches `.env.example`:
 
 ```bash
 pnpm install
 cp apps/web/.env.example apps/web/.env
+docker compose up -d
+pnpm db:migrate
 ```
 
-Fill in `apps/web/.env` (see below). At minimum, set `API_KEY_SEAL_SECRET`, `QUIZ_SEAL_SECRET` and the two Clerk keys (create an application at <https://dashboard.clerk.com>, then copy its keys from **API Keys**). Then start the app:
+Fill in `apps/web/.env` (see below). At minimum, set `API_KEY_SEAL_SECRET`, `QUIZ_SEAL_SECRET` and the two Clerk keys (create an application at <https://dashboard.clerk.com>, then copy its keys from **API Keys**); `DATABASE_URL` already points at the Docker database. `pnpm db:migrate` creates the app's tables; the server creates the conversation checkpoint tables itself when it starts. Then start the app:
 
 ```bash
 pnpm dev
@@ -79,7 +81,9 @@ Ask for something to keep, or mention the board or the canvas, and the assistant
 
 ### 7. Switch to a new topic
 
-When learning material or a quiz exists and you ask about a different topic, the chat shows a card. **Start new topic** clears the canvas and researches the new topic; **Keep current topic** leaves everything as it is. The chat history is kept either way.
+Each topic is its own conversation. Press **New topic** in the conversation list on the left to start one; the conversation you were in keeps its chat, canvas and Board. If you ask about a different topic in a conversation that already has learning material or a quiz, the assistant tells you to press **New topic**.
+
+The list shows each conversation's title, stage, status (active, completed, or abandoned after a week untouched) and latest score. Search it, rename a conversation with the pencil, or delete it for good with the bin (it asks first). Opening a conversation, or reloading the page, brings back its chat, canvas and Board, and a banner says where you left off.
 
 ### 8. Change settings and the display
 
@@ -110,6 +114,8 @@ All variables live in `apps/web/.env` and are read on the server only, except `N
 | `API_KEY_SEAL_SECRET`               | Yes      | Secret used to encrypt the user's OpenAI key, so the browser never stores the plain key. Generate one with `openssl rand -base64 32` |
 | `QUIZ_SEAL_SECRET`                  | Yes      | Secret used to encrypt the quiz answer key until Submit. Generate one with `openssl rand -base64 32`                                 |
 | `TAVILY_API_KEY`                    | No       | Turns on web research with cited sources. Without it, research uses only the model's own knowledge and lists no sources              |
+| `DATABASE_URL`                      | Yes      | Postgres connection string. Conversations, their checkpoints, quiz attempts and settings live there                                  |
+| `CLERK_WEBHOOK_SIGNING_SECRET`      | No       | Signing secret of a Clerk webhook endpoint at `/api/webhooks/clerk`; deleting a user in Clerk then deletes their data here           |
 | `NEXT_PUBLIC_RUNTIME_URL`           | No       | Base path of the CopilotKit runtime route. Defaults to `/api/copilotkit`                                                             |
 | `LANGSMITH_TRACING`                 | No       | Set to `true` to send every LLM call to LangSmith                                                                                    |
 | `LANGSMITH_API_KEY`                 | No       | LangSmith API key. Required when `LANGSMITH_TRACING` is `true`                                                                       |
@@ -122,20 +128,22 @@ With tracing on, each turn of the conversation is one `learning` trace. Its Supe
 
 Every agent uses OpenAI's `gpt-5.4-mini` with low reasoning effort, called with the user's own key. Both are set in [apps/agent/src/constants/openai.ts](./apps/agent/src/constants/openai.ts).
 
-Settings hold the question count (3–20), the learning level, the theme, and a link to change the API key. They are saved in the browser and sent with every run. If OpenAI rejects the key, the quota runs out or the model is not available, the chat and the canvas explain what to fix.
+Settings hold the question count (3–20), the learning level, the theme, and a link to change the API key. They are saved to your account (the browser keeps a copy for the first paint) and sent with every run. If OpenAI rejects the key, the quota runs out or the model is not available, the chat and the canvas explain what to fix.
 
 ## Scripts
 
 Run these from the repo root. Turborepo runs them in every package.
 
-| Command            | What it does                                     |
-| ------------------ | ------------------------------------------------ |
-| `pnpm dev`         | Starts the web app on port 3000                  |
-| `pnpm build`       | Builds for production                            |
-| `pnpm lint`        | Runs ESLint with zero warnings allowed           |
-| `pnpm check-types` | Type-checks every package                        |
-| `pnpm test`        | Runs the Vitest suites                           |
-| `pnpm format`      | Formats `ts`, `tsx` and `md` files with Prettier |
+| Command            | What it does                                                     |
+| ------------------ | ---------------------------------------------------------------- |
+| `pnpm dev`         | Starts the web app on port 3000                                  |
+| `pnpm build`       | Builds for production                                            |
+| `pnpm lint`        | Runs ESLint with zero warnings allowed                           |
+| `pnpm check-types` | Type-checks every package                                        |
+| `pnpm test`        | Runs the Vitest suites                                           |
+| `pnpm format`      | Formats `ts`, `tsx` and `md` files with Prettier                 |
+| `pnpm db:migrate`  | Applies the database migrations to `DATABASE_URL`                |
+| `pnpm db:generate` | Writes a migration after a change to `packages/db/src/schema.ts` |
 
 Commits go through Husky: lint-staged formats and lints staged files, and commitlint checks for a conventional commit message.
 

@@ -1,6 +1,6 @@
 # v2 Migration Plan: single LangChain.js agent + Clerk + conversations + memory
 
-2026-09-30 · Spikes done, see [v2-spike-findings.md](./v2-spike-findings.md). Parked variant: `v2-migration-plan-python.md` (referenced earlier, not in the repo).
+2026-10-01 · M5 done · Spikes done, see [v2-spike-findings.md](./v2-spike-findings.md). Parked variant: `v2-migration-plan-python.md` (referenced earlier, not in the repo).
 
 ## 1. Goal and scope
 
@@ -37,7 +37,7 @@ Out of scope: FastAPI/Python, dual engines, pgvector, Playwright, rewriting the 
 flowchart LR
   B[Browser<br/>Clerk UI + CopilotKit] -->|AG-UI + Clerk session cookie| N[Next.js route<br/>Clerk check + CopilotRuntime]
   N --> A[LangGraphAgent<br/>in-process client + event filter]
-  A --> L[LangChain.js createAgent<br/>copilotkitMiddleware + own middleware]
+  A --> L[LangChain.js createAgent<br/>own middleware]
   L --> P[(Postgres<br/>checkpointer + domain tables)]
   N --> P
 ```
@@ -76,7 +76,7 @@ flowchart LR
 | D2 | Long-term memory storage | Typed tables written by code (matches the "drop mem0" decision). `PostgresStore` exists in JS if free-form memories are ever needed |
 | D3 | Subagent shape | Each is one structured-output call inside a tool, streamed as raw text with `response_format: json_schema` + partial-JSON parsing (`withStructuredOutput` does not stream partials) |
 | D4 | Answer key | Keep AES-GCM sealing in state. Safe in checkpoints and in `STATE_SNAPSHOT`; relies on the `RAW`/`rawEvent` filter for everything else |
-| D5 | New topic | New conversation (design Q34); drop the `confirmNewTopic` card |
+| D5 | New topic | New conversation (design Q34); drop the `confirmNewTopic` card. **Done in M5**: `research` refuses a second topic in a conversation (`requires: "newConversation"`), and the Supervisor points the student to "New topic" |
 | D6 | Migration style | Replace `apps/agent` internals in place on a branch; delete the AI SDK code when parity is reached. The in-process client and route pieces live in `apps/agent` (or `apps/web`), not in a new app |
 | D7 | Existing sessions | Nothing to migrate: v1 keeps no persisted data |
 | D8 | Short-term memory | Accepted: two states, full `messages` plus `summary` for agent context (E1) |
@@ -90,7 +90,7 @@ flowchart LR
 | # | Question | Result |
 | --- | --- | --- |
 | S1 | Which of H1/H2/H3 works with CopilotKit 1.72? | H1 |
-| S2 | Does `copilotkitMiddleware` with JS `createAgent` work in our versions? | Yes, except `useAgentContext` never reaches the model (A12) |
+| S2 | Does `copilotkitMiddleware` with JS `createAgent` work in our versions? | Yes, except `useAgentContext` never reaches the model (A12). Replaced in M5: the whole `@copilotkit/sdk-js/langgraph` entry is deprecated (M5-1) |
 | S3 | How do tools stream drafts mid-tool? | `dispatchCustomEvent("manually_emit_state", fullState)`; not `copilotkitEmitState` |
 | S4 | Client `agent.setState` vs checkpoint? | Client state overwrites; fixed by schema key whitelists (D10) |
 | S5 | Where do `forwardedProps` arrive? | Only via our in-process client, into run `context` |
@@ -110,7 +110,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | A3 | Five subagent tools with prerequisites and state effects (stage, what each clears, `status.error`/`failed`); each returns `Command` with a `ToolMessage`. Parallel tool calls off (two writes to one key kill the run, F-7). **Done in M3** (`services/graph/tools`). The `ToolMessage` is a short summary (`ToolSummarySchemas`), not the result: the result goes to state only, so the thread no longer carries the research, the material and the quiz into every later model call |
 | A4 | Quiz: keep sealing; port the quiz-security tests; no correct answer in any state or event before Submit. **Done in M3**: route-level tests search the whole event stream and the checkpoint |
 | A5 | Submit routing from `a2uiAction` in run `context`: grade in code, model only explains failures. Decide what to do with the synthetic `ai`+`tool` pair the A2UI middleware appends (it holds the answers and stays in history). **Done in M3** (`quiz-submit.ts`): the first model call of a Submit run is answered by a model that only calls `evaluate`; a graded quiz ends the run there. The synthetic pair is dropped before it reaches the thread |
-| A6 | Chat cards, `renderSurface`, Board read/update/delete, catalog validation, `a2ui_operations` results (verified pattern). **Done in M4** (`services/graph/tools/surface-tools.ts`): Board writes are `Command`s on `board`; their result names the view (`{ surface: { id, title, revision } }`), so the thread does not carry its components twice. The chat cards needed no change: `copilotkitMiddleware` already offers them |
+| A6 | Chat cards, `renderSurface`, Board read/update/delete, catalog validation, `a2ui_operations` results (verified pattern). **Done in M4** (`services/graph/tools/surface-tools.ts`): Board writes are `Command`s on `board`; their result names the view (`{ surface: { id, title, revision } }`), so the thread does not carry its components twice. The chat cards needed no change: `copilotkitMiddleware` already offers them (since M5 our own `frontendToolsMiddleware`, M5-1) |
 | A7 | Card-only replies; `toolErrorMiddleware` so a failing tool does not end the run; readable run errors (`explainRunErrors` stays). Keep `repairToolHistory` (Stop leaves unanswered tool calls that OpenAI rejects). Delete only the workarounds that stop being needed. **Done in M3**: replies after a card are dropped from the stream and from message snapshots (the thread keeps them); open tool calls are answered for the model only (`answerOpenToolCalls`). The AI SDK workarounds are still in the tree, unused, until A11 |
 | A8 | Draft streaming for every stage (manual state emit, throttled 120 ms) and the Board (from `TOOL_CALL_ARGS`; try a `STATE_DELTA` for `boardDraft` from the route middleware). **Stages done in M3, the Board in M4** (`services/graph/board-drafts.ts`): the event filter parses the call's `TOOL_CALL_ARGS` and sends `boardDraft` as a `STATE_DELTA`, the whole draft first and then the diff inside it |
 | A9 | Call limit (`modelCallLimitMiddleware`), Stop (tools honour `config.signal`), retries. **Done in M3**: 8 model calls per run, then the run ends; Stop ends the run without an error and saves nothing of the step. Retries are the OpenAI client's defaults plus the quiz and feedback-surface retries that were already there |
@@ -151,6 +151,21 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | M4-3 | A delta changes the browser's state without a snapshot, so the next snapshot can equal the last one sent and be dropped | The repeated-snapshot filter forgets the last snapshot after a delta |
 | M4-4 | Each model call is its own assistant message, so `readBoardSurface` (no card) left an empty avatar before the edit's card | The chat draws no turn whose tool calls all have no card (`TOOLS_WITHOUT_CARD`) |
 
+**Found in M5**:
+
+| # | Finding | What the code does |
+| --- | --- | --- |
+| M5-1 | `@copilotkit/sdk-js/langgraph` is deprecated as a whole since 1.68.2, `copilotkitMiddleware` included, with "no 1:1 v2 replacement" | `frontendToolsMiddleware` (`services/graph/frontend-tools.ts`) does the three things we used: offers the run's frontend tools to the model, takes their calls out of the message so the run ends, and puts them back when it ends. `@copilotkit/sdk-js` and the `@ag-ui/langgraph` override are gone (one copy, 0.0.43) |
+| M5-2 | Other deprecated APIs in use: LangChain's `message.getType()`, React's `FormEvent`. ESLint here uses the Babel parser and cannot see deprecations | `.type` and `SubmitEvent`. A TypeScript language-service check (suggestion diagnostics with `reportsDeprecated`) now finds none in the four packages |
+| M5-3 | An explicit `threadId` makes `CopilotChat` hide its welcome screen and `/connect`; a non-explicit one only clears the messages, not the state | `ConversationThread` passes a started conversation as explicit (the checkpoint comes back) and a new one as not (welcome screen, no request). Switching clears the agent's messages and state first, so the canvas never shows the last conversation |
+| M5-4 | The browser sends the whole thread on every run, so its last user message is not necessarily new | `findUserText` skips messages the checkpoint already holds; a Submit press has none |
+| M5-5 | The M1 guard let the first run claim any thread id it named | A thread is a conversation made by `POST /api/conversations`; any other id gets 404 on every runtime route. "New topic" reuses the one conversation not started yet |
+| M5-6 | Thread ids come from the browser; a non-uuid makes Postgres throw on the `uuid` column | The repositories check the id first and answer "not found" |
+| M5-7 | A stage completes in the checkpoint before its row is written | A failed write is logged and the stage still counts; the checkpoint stays the source for resume |
+| M5-8 | Tools see the thread only in `runtime.config.configurable.thread_id` | `runSubagentStep` reads it there and passes it to the step's `record` |
+
+Not done in M5: `/conversations/[id]/state` and `/messages` (reload goes through `/connect`; History page in M7), `PATCH /attempts/[id]/answers` (draft answers live only until the next run), writing `reflections`, and the student's own material edits in `material` (only tool output is written). Runs still take settings from `forwardedProps` (validated), not from `user_settings`.
+
 ### B. Clerk (Next.js backend is the authority)
 
 | # | Task |
@@ -160,9 +175,9 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | B3 | `proxy.ts` (Next 16's name for middleware) runs `clerkMiddleware()` only to make the session readable; it checks nothing (Clerk now advises against route protection there and deprecated `createRouteMatcher`). Pages call `requireSignedInUser`, route handlers go through `withSignedInUser` (401), server actions check `getSignedInUserId` |
 | B4 | The runtime route builds the agent per request with the verified `userId` as trusted run context; the client cannot supply or override it |
 | B5 | ~~Agent service reachable only from Next~~ Not needed with H1 |
-| B6 | Lazy user row on first request; Clerk webhook `user.deleted` (signature verified) cascades conversations, checkpoints, memory, stored key |
-| B7 | Thread ownership: look up a client `thread_id` in `conversations` for this user before any run, `/connect`, `/stop`, read or delete. Never trust it as is. **Interim done in M1** (`features/threads`): the runtime's own thread endpoints (list, messages, events, state, `/connect`, `/stop`, and `threads/clear`, which wiped every user's threads) knew no users; runtime hooks now keep an in-memory owner per thread, answer 404 for anyone else and filter the list. M5 swaps the in-memory owners for `conversations` |
-| B8 | Rate limits per user id |
+| B6 | Lazy user row on first request; Clerk webhook `user.deleted` (signature verified) cascades conversations, checkpoints, memory, stored key. **Done in M5** (`services/users.ts`, `services/clerk-webhook.ts`): memory and a stored key do not exist yet |
+| B7 | Thread ownership: look up a client `thread_id` in `conversations` for this user before any run, `/connect`, `/stop`, read or delete. Never trust it as is. **Interim done in M1** (`features/threads`): the runtime's own thread endpoints (list, messages, events, state, `/connect`, `/stop`, and `threads/clear`, which wiped every user's threads) knew no users; runtime hooks now keep an in-memory owner per thread, answer 404 for anyone else and filter the list. **Done in M5** (`features/conversations`): owners come from `conversations`, and a thread no conversation has is a 404 too |
+| B8 | Rate limits per user id. **Done in M5**: 20 runs and 60 changes per minute, in process memory (D9) |
 | B9 | Decide the BYOK page's fate (D1) |
 | B10 | Auth tests: no session → 401 on every route, other user's thread → 404, deleted user |
 
@@ -170,21 +185,21 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 
 | # | Task |
 | --- | --- |
-| C1 | Postgres + migrations (drizzle or similar). Tables from design.md: `users`, `user_settings`, `conversations`, `research`, `material`, `quiz_attempts`, `reflections` |
-| C2 | Checkpointer tables via `PostgresSaver.setup()` (idempotent, run at boot) |
-| C3 | Domain rows written by tool bodies when a stage completes, from the tool's own output, never from round-tripped client state |
-| C4 | Route handlers: `GET/POST/PATCH/DELETE /api/conversations`, `/conversations/[id]/state`, `/messages`, `/attempts`, `PATCH /attempts/[id]/answers` (debounced, no agent run). Reload of the open thread goes through `/connect` + `CheckpointRunner` |
-| C5 | Auto-title; status rules (active, completed, abandoned computed on read) |
-| C6 | Delete: rows cascade + `checkpointer.deleteThread(id)`, then recompute memory |
-| C7 | Settings move to `user_settings`; localStorage stays as first-paint cache |
+| C1 | Postgres + migrations (drizzle or similar). Tables from design.md: `users`, `user_settings`, `conversations`, `research`, `material`, `quiz_attempts`, `reflections`. **Done in M5**: `@repo/db` (drizzle), Postgres 16 in `docker-compose.yml`, `pnpm db:migrate`; PGlite runs the same migrations in tests |
+| C2 | Checkpointer tables via `PostgresSaver.setup()` (idempotent, run at boot). **Done in M5** (`apps/web/instrumentation.ts`); the `MemorySaver` is gone |
+| C3 | Domain rows written by tool bodies when a stage completes, from the tool's own output, never from round-tripped client state. **Done in M5** (`LearningRecords`, injected; M5-7, M5-8) |
+| C4 | Route handlers: `GET/POST/PATCH/DELETE /api/conversations`, `/conversations/[id]/state`, `/messages`, `/attempts`, `PATCH /attempts/[id]/answers` (debounced, no agent run). Reload of the open thread goes through `/connect` + `CheckpointRunner`. **Done in M5** except `/state`, `/messages` and the answers `PATCH` |
+| C5 | Auto-title; status rules (active, completed, abandoned computed on read). **Done in M5**: titled by the first message, then by the research unless renamed |
+| C6 | Delete: rows cascade + `checkpointer.deleteThread(id)`, then recompute memory. **Done in M5**, without memory (M6) |
+| C7 | Settings move to `user_settings`; localStorage stays as first-paint cache. **Done in M5** (`useSettingsSync`) |
 
 ### FE. Frontend
 
 | # | Task |
 | --- | --- |
-| FE1 | Conversation sidebar with search, rename, delete confirmation, status and score badges |
-| FE2 | Switching conversation: `threadId`, load state and messages, resume banner |
-| FE3 | Remove `confirmNewTopic` HITL; "New topic" creates a conversation |
+| FE1 | Conversation sidebar with search, rename, delete confirmation, status and score badges. **Done in M5** |
+| FE2 | Switching conversation: `threadId`, load state and messages, resume banner. **Done in M5** (M5-3) |
+| FE3 | Remove `confirmNewTopic` HITL; "New topic" creates a conversation. **Done in M5** |
 | FE4 | Re-check hooks against the D10 state split: Submit, material edits, reflection, suggestions |
 | FE5 | Memory panel; History/Progress page last |
 
@@ -220,7 +235,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | M2 | A1–A2, A12 | A chat message runs through the LangChain agent end to end, in the browser. **Done.** Until M3 the Supervisor has only the frontend tools: research, learning material, the quiz, cards and the Board are off on this branch |
 | M3 | A3–A5, A7–A9 | Research → Score works with quiz security and streaming. **Done**, in the browser too: research, learning material, quiz, Submit, score and feedback, retake, an edit of the material, a new topic, Stop. Cards and the Board are still off (M4) |
 | M4 | A6, A10 | Cards, Board, tracing at parity; then A11 removes the AI SDK code. **Done**, in the browser too: concept and comparison cards, a chat surface, a Board view streamed and saved, an edit, a removal, and research on the new model class |
-| M5 | C1–C7, FE1–FE3, B6–B8 | Multiple conversations, resume, delete |
+| M5 | C1–C7, FE1–FE3, B6–B8 | Multiple conversations, resume, delete. **Done**, in the browser too: three conversations, switching and a reload after a server restart restore chat, canvas and Board, rename, delete (rows and checkpoints), and another user's conversation answers 404 on every route |
 | M6 | E1–E6 | Short- and long-term memory |
 | M7 | FE4–FE5, F | History page, tests, docs |
 
@@ -229,7 +244,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | The in-process client is our code against `@ag-ui/langgraph` internals (11 SDK methods, event shapes) | An adapter upgrade can break the agent | Pin `@ag-ui/langgraph`; route-level tests (F4); keep the client small |
-| `useAgentContext` does not reach the model via `copilotkitMiddleware` | Agent blind to what is on screen | A12 |
+| `useAgentContext` does not reach the model via the frontend tools middleware | Agent blind to what is on screen | A12 |
 | No dual engine means no fallback if parity is late | Regression for users | Work on a branch; merge only at parity; keep the old code in git history |
 | Full-state `STATE_SNAPSHOT` on every draft emit (no deltas) | Bigger streams as Board and material grow | Throttle; keep drafts small. Measured in M3 against the real model: research → material → quiz in one run sent 45 snapshots, about 260 KB with the adapter's duplicate `CUSTOM` events, which are now dropped (not re-measured; roughly half). If the Board makes this too big in M4, send deltas from the event filter. M4: Board drafts are deltas (diffs inside the draft); a saved view still goes out in full snapshots |
 | A stale browser overwrites newer learning material (a dropped stream, then an edit) | A simplify result lost, the quiz cleared | The browser's material is taken as an edit whenever its text differs. Add a revision the browser must echo if this shows up |
@@ -240,7 +255,7 @@ Exit status: a tool that streams a draft, updates state and survives reload work
 | Summary drifts or drops facts | Agent forgets earlier details | Rolling summary refreshed from the old summary plus the new chunk; recent messages stay verbatim |
 | Cross-user thread access (the runtime's thread endpoints are unscoped) | Data leak | Interim B7 guard (M1, tested with two users) → `conversations` in M5; B10 |
 | User key in traces | Secret leak | D1: key only inside the model instance (verified not in traces) |
-| Two copies of `@ag-ui/langgraph` (0.0.42 via sdk-js, 0.0.43 via runtime) | Subtle mismatches | Align versions when adding `@copilotkit/sdk-js`; pnpm override if needed |
+| Two copies of `@ag-ui/langgraph` (0.0.42 via sdk-js, 0.0.43 via runtime) | Subtle mismatches | Resolved in M5: `@copilotkit/sdk-js` removed, one copy without an override |
 | LangSmith trace cap already hit once | No tracing | Sample the traces: `LANGSMITH_TRACING_SAMPLING_RATE` (0–1) is read by `langsmith` itself |
 
 ## 8. Design doc changes this implies
