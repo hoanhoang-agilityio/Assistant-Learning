@@ -7,6 +7,7 @@ import { A2UI_ACTION_TOOL } from "../../constants/graph";
 import {
   createRunInput,
   dropActionMessages,
+  findUserText,
   isNewTopicConfirmed,
 } from "../run-input";
 
@@ -169,5 +170,36 @@ describe("createRunInput", () => {
     });
 
     expect(run.input.messages).toEqual([]);
+  });
+});
+
+describe("findUserText", () => {
+  it("is the newest message the student wrote in this run", () => {
+    expect(findUserText([human("first"), human("second")], [])).toBe("second");
+  });
+
+  it("skips messages the checkpoint already holds", () => {
+    const saved = [new HumanMessage({ id: "first", content: "first" })];
+    expect(findUserText([human("first")], saved)).toBeNull();
+  });
+
+  it("joins the text parts of a message with several", () => {
+    const message = {
+      id: "m1",
+      type: "human",
+      content: [
+        { type: "text", text: "Teach me" },
+        { type: "image_url", image_url: "x" },
+        { type: "text", text: "closures" },
+      ],
+    };
+    expect(findUserText([message], [])).toBe("Teach me closures");
+  });
+
+  it("is null for a run without a student message", () => {
+    expect(findUserText(undefined, [])).toBeNull();
+    expect(
+      findUserText([{ id: "t", type: "tool", content: "{}" }], []),
+    ).toBeNull();
   });
 });
