@@ -8,6 +8,7 @@ import {
   CLIENT_VISIBLE_STATE_KEYS,
   FRONTEND_TOOLS_INPUT_KEY,
   GRAPH_RECURSION_LIMIT,
+  TURN_RUN_NAMES,
 } from "../../constants/graph";
 import type { RunContext } from "../../schemas/graph";
 import { getErrorMessage } from "../../utils/openai-errors";
@@ -221,7 +222,11 @@ export const createInProcessClient = ({
             streamMode: "values",
             recursionLimit: GRAPH_RECURSION_LIMIT,
             runId,
-            runName: LEARNING_AGENT_ID,
+            // One LangSmith trace per turn, named by what started it. Every
+            // step and subagent call inherits the metadata: `thread_id`
+            // groups a conversation in the Threads view.
+            runName: TURN_RUN_NAMES[context.submit ? "submit" : "chat"],
+            metadata: { thread_id: threadId, user_id: userId },
             signal: abort.signal,
             context,
           });

@@ -1,3 +1,4 @@
+import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 import { initialLearningState, type LearningState } from "@repo/shared/schemas";
 
 /**
@@ -63,3 +64,12 @@ export const GRAPH_RECURSION_LIMIT = 150;
 /** Headings of what the Supervisor's prompt calls by name. */
 export const APP_CONTEXT_HEADING = "## Context from the application";
 export const APP_STATE_HEADING = "## Application State";
+
+/**
+ * What each kind of turn is called in LangSmith: a chat message, or a press
+ * of the quiz's Submit button.
+ */
+export const TURN_RUN_NAMES = {
+  chat: LEARNING_AGENT_ID,
+  submit: `${LEARNING_AGENT_ID}: quiz submit`,
+} as const;
