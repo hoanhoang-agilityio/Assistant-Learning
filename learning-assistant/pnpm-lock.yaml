@@ -117,6 +117,9 @@ importers:
       '@repo/agent':
         specifier: workspace:*
         version: link:../agent
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@repo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -154,6 +157,9 @@ importers:
       '@eslint/compat':
         specifier: 2.1.1
         version: 2.1.1(eslint@10.9.1(jiti@2.6.1)(supports-color@7.2.0))
+      '@langchain/langgraph':
+        specifier: 1.4.15
+        version: 1.4.15(@langchain/core@1.2.11(@opentelemetry/api@1.9.1)(openai@7.23.0(undici@6.28.1)(ws@8.21.3)(zod@4.6.5))(ws@8.21.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.6.5)
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
