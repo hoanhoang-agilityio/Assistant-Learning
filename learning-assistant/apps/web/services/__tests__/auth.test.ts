@@ -72,7 +72,7 @@ describe("withSignedInUser", () => {
   it("answers 401 and never runs the handler when signed out", async () => {
     signOut();
 
-    const response = await withSignedInUser(handler)(request);
+    const response = await withSignedInUser(handler)(request, {});
 
     expect(response.status).toBe(UNAUTHORIZED_STATUS);
     expect(await response.json()).toEqual({ error: UNAUTHORIZED_ERROR });
@@ -82,8 +82,17 @@ describe("withSignedInUser", () => {
   it("runs the handler with the session's user id, not the client's", async () => {
     signIn("user_1");
 
-    const response = await withSignedInUser(handler)(request);
+    const response = await withSignedInUser(handler)(request, {});
 
     expect(await response.json()).toEqual({ userId: "user_1" });
+  });
+
+  it("passes the route's context on", async () => {
+    signIn("user_1");
+    const context = { params: Promise.resolve({ id: "c1" }) };
+
+    await withSignedInUser(handler)(request, context);
+
+    expect(handler).toHaveBeenCalledWith(request, "user_1", context);
   });
 });

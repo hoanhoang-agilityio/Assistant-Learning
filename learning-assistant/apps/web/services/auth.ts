@@ -27,14 +27,21 @@ export const createUnauthorizedResponse = (): Response =>
 /**
  * For route handlers: runs `handler` only for a signed-in user and answers
  * 401 otherwise. `proxy.ts` makes the session readable but checks nothing,
- * so every handler goes through this.
+ * so every handler goes through this. `context` is the route's own (its
+ * `params`), passed on as it is.
  */
 export const withSignedInUser =
-  (handler: (request: Request, userId: string) => Promise<Response>) =>
-  async (request: Request): Promise<Response> => {
+  <Context = unknown>(
+    handler: (
+      request: Request,
+      userId: string,
+      context: Context,
+    ) => Promise<Response>,
+  ) =>
+  async (request: Request, context: Context): Promise<Response> => {
     const userId = await getSignedInUserId();
     if (!userId) {
       return createUnauthorizedResponse();
     }
-    return handler(request, userId);
+    return handler(request, userId, context);
   };

@@ -1,17 +1,11 @@
-import {
-  createConversation as createConversationRow,
-  ensureUser,
-} from "@repo/db";
+import type { ConversationSummary } from "@repo/shared/schemas";
 import { v4 as uuidv4 } from "uuid";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UNAUTHORIZED_STATUS } from "@/constants/auth";
 import { COPILOT_RUNTIME_URL } from "@/constants/copilot";
 import { THREAD_NOT_FOUND_STATUS } from "@/features/conversations/constants/threads";
-import {
-  resetTestDatabase,
-  testDatabase,
-} from "@/services/__tests__/database-mock";
+import { resetTestDatabase } from "@/services/__tests__/database-mock";
 
 const { auth, currentUser } = vi.hoisted(() => ({
   auth: vi.fn(),
@@ -27,6 +21,7 @@ vi.mock("@repo/db/checkpointer", () =>
 );
 
 const route = await import("@/app/api/copilotkit/[[...slug]]/route");
+const conversations = await import("@/app/api/conversations/route");
 
 const METHODS = ["GET", "POST", "PATCH", "DELETE"] as const;
 
@@ -36,6 +31,9 @@ const ENDPOINTS = [
   { method: "POST", path: "/agent/learning/connect" },
   { method: "POST", path: "/agent/learning/stop/thread-1" },
 ] as const;
+
+/** Runtime routes take no params of their own. */
+const NO_CONTEXT = {};
 
 const requestTo = (method: string, path: string, body: unknown = {}) =>
   new Request(`http://localhost${COPILOT_RUNTIME_URL}${path}`, {
@@ -58,19 +56,19 @@ const runInput = (threadId: string) => ({
   forwardedProps: {},
 });
 
-/** A conversation of `clerkUserId`'s, as "New topic" makes one. */
-const createConversation = async (clerkUserId: string): Promise<string> => {
-  const db = testDatabase.current!;
-  const userId = await ensureUser(db, {
-    clerkUserId,
-    getEmail: async () => null,
-  });
-  return (await createConversationRow(db, userId)).id;
+/** "New topic": the signed-in user's new conversation. */
+const createConversation = async (): Promise<string> => {
+  const response = await conversations.POST(
+    new Request("http://localhost/api/conversations", { method: "POST" }),
+    NO_CONTEXT,
+  );
+  return ((await response.json()) as ConversationSummary).id;
 };
 
 const listThreadIds = async (): Promise<string[]> => {
   const response = await route.GET(
     requestTo("GET", "/threads?agentId=learning"),
+    NO_CONTEXT,
   );
   const { threads } = (await response.json()) as { threads: { id: string }[] };
   return threads.map(({ id }) => id);
@@ -87,13 +85,16 @@ describe("CopilotKit runtime route without a session", () => {
   });
 
   it.each(METHODS)("%s answers 401", async (method) => {
-    const response = await route[method](requestTo(method, "/info"));
+    const response = await route[method](
+      requestTo(method, "/info"),
+      NO_CONTEXT,
+    );
 
     expect(response.status).toBe(UNAUTHORIZED_STATUS);
   });
 
   it.each(ENDPOINTS)("$method $path answers 401", async ({ method, path }) => {
-    const response = await route[method](requestTo(method, path));
+    const response = await route[method](requestTo(method, path), NO_CONTEXT);
 
     expect(response.status).toBe(UNAUTHORIZED_STATUS);
   });
@@ -103,7 +104,7 @@ describe("CopilotKit runtime route with a session", () => {
   it("reaches the runtime", async () => {
     signInAs("user_1");
 
-    const response = await route.GET(requestTo("GET", "/info"));
+    const response = await route.GET(requestTo("GET", "/info"), NO_CONTEXT);
 
     expect(response.status).toBe(200);
   });
@@ -113,6 +114,7 @@ describe("CopilotKit runtime route with a session", () => {
 
     const response = await route.POST(
       requestTo("POST", "/agent/learning/run", runInput(uuidv4())),
+      NO_CONTEXT,
     );
 
     expect(response.status).toBe(THREAD_NOT_FOUND_STATUS);
@@ -124,11 +126,12 @@ describe("CopilotKit runtime route with two users", () => {
 
   beforeEach(async () => {
     signInAs("alice");
-    threadId = await createConversation("alice");
+    threadId = await createConversation();
     // No OpenAI key: the run ends at once with the agent's own error, which
     // is enough for the runtime to hold the thread.
     const run = await route.POST(
       requestTo("POST", "/agent/learning/run", runInput(threadId)),
+      NO_CONTEXT,
     );
     await run.text();
   });
@@ -138,6 +141,7 @@ describe("CopilotKit runtime route with two users", () => {
 
     const messages = await route.GET(
       requestTo("GET", `/threads/${threadId}/messages?agentId=learning`),
+      NO_CONTEXT,
     );
     expect(messages.status).toBe(200);
   });
@@ -149,6 +153,7 @@ describe("CopilotKit runtime route with two users", () => {
     for (const part of ["messages", "events", "state"]) {
       const response = await route.GET(
         requestTo("GET", `/threads/${threadId}/${part}?agentId=learning`),
+        NO_CONTEXT,
       );
       expect(response.status).toBe(THREAD_NOT_FOUND_STATUS);
     }
@@ -158,12 +163,17 @@ describe("CopilotKit runtime route with two users", () => {
       requestTo("POST", `/agent/learning/stop/${threadId}`),
     ];
     for (const request of posts) {
-      expect((await route.POST(request)).status).toBe(THREAD_NOT_FOUND_STATUS);
+      expect((await route.POST(request, NO_CONTEXT)).status).toBe(
+        THREAD_NOT_FOUND_STATUS,
+      );
     }
   });
 
   it("never lets anyone clear every thread", async () => {
-    const response = await route.POST(requestTo("POST", "/threads/clear"));
+    const response = await route.POST(
+      requestTo("POST", "/threads/clear"),
+      NO_CONTEXT,
+    );
 
     expect(response.status).toBe(THREAD_NOT_FOUND_STATUS);
     expect(await listThreadIds()).toContain(threadId);
