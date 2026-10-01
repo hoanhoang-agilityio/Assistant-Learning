@@ -15,6 +15,7 @@ import type { RunContext } from "../../../schemas/graph";
 import { ScriptedModel } from "../../llm/__tests__/scripted-model";
 import { createChatModel } from "../../llm/chat-model";
 import { createLearningGraph } from "../learning-graph";
+import { NO_RECORDS } from "../no-records";
 import {
   connect,
   createHandler,
@@ -53,6 +54,7 @@ const runElsewhere = async () => {
     model: new ScriptedModel(() => ({ text: REPLY })),
     apiKey: "sk-test",
     checkpointer,
+    records: NO_RECORDS,
   });
   await graph.invoke(
     {

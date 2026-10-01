@@ -13,6 +13,7 @@ import { threadCheckpointer } from "./checkpointer";
 import { toClientEvents } from "./client-events";
 import { createGraphAgent } from "./learning-agent";
 import { createLearningGraph } from "./learning-graph";
+import { NO_RECORDS } from "./no-records";
 
 /**
  * The one private `LangGraphAgent` method this file calls: it emits a
@@ -53,14 +54,15 @@ export class LearningThreadRunner extends InMemoryAgentRunner {
     );
   }
 
-  /** A graph agent that only reads: its model and user are never used. */
+  /** A graph agent that only reads: its model, user and records are never used. */
   private createReader(): LangGraphAgent {
     const graph = createLearningGraph({
       model: createChatModel(NO_API_KEY),
       apiKey: NO_API_KEY,
       checkpointer: this.checkpointer,
+      records: NO_RECORDS,
     });
-    return createGraphAgent(graph, RELOAD_RUN_ID);
+    return createGraphAgent(graph, RELOAD_RUN_ID, NO_RECORDS);
   }
 
   /** The thread's checkpoint as one finished run, or nothing without one. */

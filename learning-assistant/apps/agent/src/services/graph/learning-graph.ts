@@ -11,6 +11,7 @@ import {
   LearningGraphStateSchema,
   RunContextSchema,
 } from "../../schemas/graph";
+import type { LearningRecords } from "../../types/records";
 import { getErrorMessage } from "../../utils/openai-errors";
 import { SUPERVISOR_PROMPT } from "../prompts/supervisor";
 import { frontendToolsMiddleware } from "./frontend-tools";
@@ -26,6 +27,8 @@ interface LearningGraphOptions {
   apiKey: string;
   /** Keeps each thread's messages and state between runs. */
   checkpointer: BaseCheckpointSaver;
+  /** Keeps each completed stage with its conversation. */
+  records: LearningRecords;
 }
 
 /** A tool call that threw instead of returning: bad arguments or an unknown tool. */
@@ -49,10 +52,14 @@ export const createLearningGraph = ({
   model,
   apiKey,
   checkpointer,
+  records,
 }: LearningGraphOptions) =>
   createAgent({
     model,
-    tools: [...createSubagentTools({ apiKey }), ...createSurfaceTools()],
+    tools: [
+      ...createSubagentTools({ apiKey, records }),
+      ...createSurfaceTools(),
+    ],
     systemPrompt: SUPERVISOR_PROMPT,
     stateSchema: LearningGraphStateSchema,
     contextSchema: RunContextSchema,

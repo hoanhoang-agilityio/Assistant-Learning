@@ -7,6 +7,7 @@ import { TURN_RUN_NAMES } from "../../../constants/graph";
 import { createChatModel } from "../../llm/chat-model";
 import { createInProcessClient } from "../in-process-client";
 import { createLearningGraph } from "../learning-graph";
+import { NO_RECORDS } from "../no-records";
 import { isAfterTool, scriptAgents } from "./scripted-agents";
 
 vi.mock("../../llm/chat-model", () => ({ createChatModel: vi.fn() }));
@@ -33,8 +34,13 @@ const streamTurn = async (payload: Record<string, unknown>) => {
     model: createChatModel("sk-test"),
     apiKey: "sk-test",
     checkpointer: new MemorySaver(),
+    records: NO_RECORDS,
   });
-  const client = createInProcessClient({ graph, userId: USER_ID });
+  const client = createInProcessClient({
+    graph,
+    userId: USER_ID,
+    records: NO_RECORDS,
+  });
   const threadId = uuidv4();
 
   const events: GraphEvent[] = [];

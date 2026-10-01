@@ -12,6 +12,7 @@ import { applyClientEdits } from "./client-edits";
 
 /** A message as the AG-UI adapter hands it over: a plain LangChain-style object. */
 interface IncomingMessage {
+  id?: string;
   type?: string;
   content?: unknown;
   tool_call_id?: string;
@@ -96,6 +97,32 @@ export const isNewTopicConfirmed = (
   } catch {
     return false;
   }
+};
+
+/**
+ * The text of the student's newest message in the run, or `null` when it
+ * brought none (a Submit press, a frontend tool's result). The browser sends
+ * the whole thread, so messages the checkpoint already holds are skipped.
+ */
+export const findUserText = (
+  raw: unknown,
+  checkpointed: BaseMessage[],
+): string | null => {
+  const saved = new Set(checkpointed.map(({ id }) => id));
+  const message = toMessages(raw)
+    .filter(({ id, type }) => type === "human" && !saved.has(id))
+    .at(-1);
+  if (typeof message?.content === "string") {
+    return message.content;
+  }
+  if (Array.isArray(message?.content)) {
+    const text = (message.content as { type?: unknown; text?: unknown }[])
+      .filter(({ type, text }) => type === "text" && typeof text === "string")
+      .map(({ text }) => text)
+      .join(" ");
+    return text || null;
+  }
+  return null;
 };
 
 /**

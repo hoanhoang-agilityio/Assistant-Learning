@@ -5,11 +5,13 @@ import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 
 import { MISSING_API_KEY_ERROR } from "../../constants/errors";
 import { IN_PROCESS_DEPLOYMENT_URL } from "../../constants/graph";
+import type { LearningRecords } from "../../types/records";
 import { createChatModel } from "../llm/chat-model";
 import { threadCheckpointer } from "./checkpointer";
 import { toClientEvents } from "./client-events";
 import { createInProcessClient } from "./in-process-client";
 import { createLearningGraph, type LearningGraph } from "./learning-graph";
+import { NO_RECORDS } from "./no-records";
 import { UnavailableAgent } from "./unavailable-agent";
 
 interface LearningAgentOptions {
@@ -19,6 +21,8 @@ interface LearningAgentOptions {
   userId: string;
   /** Where threads are kept. Defaults to this process's checkpoints. */
   checkpointer?: BaseCheckpointSaver;
+  /** Where each conversation's runs and completed stages are kept. Defaults to nowhere. */
+  records?: LearningRecords;
 }
 
 /**
@@ -30,8 +34,9 @@ interface LearningAgentOptions {
 export const createGraphAgent = (
   graph: LearningGraph,
   userId: string,
+  records: LearningRecords,
 ): LangGraphAgent => {
-  const client = createInProcessClient({ graph, userId });
+  const client = createInProcessClient({ graph, userId, records });
   const agent = new LangGraphAgent({
     graphId: LEARNING_AGENT_ID,
     deploymentUrl: IN_PROCESS_DEPLOYMENT_URL,
@@ -52,6 +57,7 @@ export const createLearningAgent = ({
   apiKey,
   userId,
   checkpointer = threadCheckpointer,
+  records = NO_RECORDS,
 }: LearningAgentOptions): AbstractAgent => {
   const trimmedKey = apiKey?.trim();
   if (!trimmedKey) {
@@ -62,6 +68,7 @@ export const createLearningAgent = ({
     model: createChatModel(trimmedKey),
     apiKey: trimmedKey,
     checkpointer,
+    records,
   });
-  return createGraphAgent(graph, userId);
+  return createGraphAgent(graph, userId, records);
 };

@@ -1,5 +1,7 @@
+import type { BaseMessage } from "@langchain/core/messages";
 import type { StateSnapshot } from "@langchain/langgraph";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
+import { readLearningState } from "@repo/shared/utils/learning-state";
 import { v4 as uuidv4 } from "uuid";
 
 import {
@@ -11,9 +13,10 @@ import {
   TURN_RUN_NAMES,
 } from "../../constants/graph";
 import type { RunContext } from "../../schemas/graph";
+import type { LearningRecords } from "../../types/records";
 import { getErrorMessage } from "../../utils/openai-errors";
 import { readAppContext, readRunSettings } from "../../utils/run-context";
-import { createRunInput } from "../../utils/run-input";
+import { createRunInput, findUserText } from "../../utils/run-input";
 import { parseSubmitAction } from "../../utils/submit-action";
 import type { LearningGraph } from "./learning-graph";
 
@@ -21,6 +24,8 @@ interface InProcessClientOptions {
   graph: LearningGraph;
   /** The signed-in user, from the verified session. Never from the request. */
   userId: string;
+  /** Where each run is noted against its conversation. */
+  records: LearningRecords;
 }
 
 /**
@@ -107,13 +112,34 @@ const toThreadState = ({
  * - The schemas it reports make the adapter cut the browser's state down
  *   before it arrives, and the snapshots down to the keys the browser may
  *   see.
+ *
+ * After each run, stopped or failed ones too, it notes the run in the
+ * conversation's records.
  */
 export const createInProcessClient = ({
   graph,
   userId,
+  records,
 }: InProcessClientOptions) => {
   const compiled = graph.graph;
   const running = new Map<string, AbortController>();
+
+  /**
+   * Notes the run against its conversation: the stage it saved, and the
+   * student's message, which names a new conversation. Whatever happens
+   * here, the run itself has already been saved.
+   */
+  const recordRun = async (threadId: string, userText: string | null) => {
+    try {
+      const { values } = await compiled.getState(toThreadConfig(threadId));
+      await records.recordRun(threadId, {
+        stage: readLearningState(values).stage,
+        userText,
+      });
+    } catch (error) {
+      console.error("[learning] Recording the run failed", error);
+    }
+  };
 
   return {
     assistants: {
@@ -194,6 +220,7 @@ export const createInProcessClient = ({
         const runId = uuidv4();
         const abort = new AbortController();
         running.set(threadId, abort);
+        let userText: string | null = null;
 
         const context: RunContext = {
           userId,
@@ -211,6 +238,10 @@ export const createInProcessClient = ({
           };
           const before = await compiled.getState(toThreadConfig(threadId));
           const run = createRunInput({ before: before.values ?? {}, input });
+          userText = findUserText(
+            input?.messages,
+            (before.values?.messages ?? []) as BaseMessage[],
+          );
           // The state the run starts from. The adapter builds each snapshot
           // from the values it has seen so far; without this, the first
           // ones hold only the keys a node has just written, and the
@@ -250,6 +281,7 @@ export const createInProcessClient = ({
           if (running.get(threadId) === abort) {
             running.delete(threadId);
           }
+          await recordRun(threadId, userText);
         }
       },
     },
