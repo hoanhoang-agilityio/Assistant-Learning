@@ -19,6 +19,7 @@ import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 import { v4 as uuidv4 } from "uuid";
 
+import type { LearningMemory } from "../../../types/memory";
 import type { LearningRecords } from "../../../types/records";
 import { createLearningAgent } from "../learning-agent";
 import { NO_RECORDS } from "../no-records";
@@ -31,6 +32,7 @@ interface HandlerOptions {
   apiKey?: string;
   userId?: string;
   records?: LearningRecords;
+  memory?: LearningMemory;
 }
 
 /** One request to the run or connect endpoint, as the browser sends it. */
@@ -50,6 +52,7 @@ export const createHandler = ({
   apiKey = "sk-test",
   userId = "user_1",
   records = NO_RECORDS,
+  memory,
 }: HandlerOptions) => {
   const runtime = new CopilotRuntime({
     agents: () => ({
@@ -58,6 +61,7 @@ export const createHandler = ({
         userId,
         checkpointer,
         records,
+        memory,
       }),
     }),
     a2ui: { agents: [LEARNING_AGENT_ID], injectA2UITool: false },

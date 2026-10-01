@@ -47,6 +47,9 @@ export const EXPLANATIONS = {
 
 export const SUMMARY = "The student asked about closures and got answers.";
 
+/** A message that says nothing about the student as a learner. */
+export const NO_PROFILE_NEWS = { level: null, style: null, language: null };
+
 export const FEEDBACK_COMPONENTS: FeedbackComponent[] = [
   {
     id: "root",
@@ -72,6 +75,8 @@ interface SubagentReplies {
   feedback: FeedbackComponent[] | Error;
   /** The summariser's summary of a conversation's older messages. */
   summary: object | Error;
+  /** What the profile learner notices in a student's message. */
+  profile: object | Error;
   /** How long the Research Agent's model takes to start answering. */
   researchDelayMs?: number;
 }
@@ -83,6 +88,7 @@ const DEFAULT_REPLIES: SubagentReplies = {
   explanations: EXPLANATIONS,
   feedback: FEEDBACK_COMPONENTS,
   summary: { summary: SUMMARY },
+  profile: NO_PROFILE_NEWS,
 };
 
 const toJsonTurn = (reply: object | Error, delayMs?: number): ScriptedTurn => {
@@ -105,9 +111,9 @@ const readSchemaKeys = ({ options }: ScriptedCall): string[] => {
 /**
  * Scripts every model of a run. `supervisor` answers the Supervisor's calls;
  * each subagent and memory call is recognised by the output it asks for and
- * answered from `replies`. Returns the Supervisor's calls and the
- * summariser's, each in order, and every model that was created (the first
- * is the Supervisor's).
+ * answered from `replies`. Returns the Supervisor's calls, the summariser's
+ * and the profile learner's, each in order, and every model that was
+ * created (the first is the Supervisor's).
  */
 export const scriptAgents = (
   supervisor: (messages: BaseMessage[], call: ScriptedCall) => ScriptedTurn,
@@ -116,6 +122,7 @@ export const scriptAgents = (
   const all = { ...DEFAULT_REPLIES, ...replies };
   const supervisorCalls: ScriptedCall[] = [];
   const summaryCalls: ScriptedCall[] = [];
+  const profileCalls: ScriptedCall[] = [];
 
   const script = (
     messages: BaseMessage[],
@@ -152,6 +159,10 @@ export const scriptAgents = (
       summaryCalls.push(call);
       return toJsonTurn(all.summary);
     }
+    if (keys.includes("language")) {
+      profileCalls.push(call);
+      return toJsonTurn(all.profile);
+    }
 
     supervisorCalls.push(call);
     return supervisor(messages, call);
@@ -163,7 +174,7 @@ export const scriptAgents = (
     models.push(model);
     return model as never;
   });
-  return { supervisorCalls, summaryCalls, models };
+  return { supervisorCalls, summaryCalls, profileCalls, models };
 };
 
 /** The text of the last message a student wrote. */
