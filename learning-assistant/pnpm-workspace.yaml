@@ -1,9 +1,6 @@
 packages:
   - "apps/*"
   - "packages/*"
-# @copilotkit/sdk-js pins 0.0.42; the runtime uses 0.0.43. One copy only.
-overrides:
-  "@ag-ui/langgraph": 0.0.43
 allowBuilds:
   '@scarf/scarf': false
   unrs-resolver: false

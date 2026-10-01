@@ -12,8 +12,8 @@ import { toSupervisorState } from "../supervisor-state";
 /**
  * Builds what the Supervisor reads on each model call, without writing any
  * of it to state: its prompt, then the app context the run was started with
- * (`useAgentContext` entries do not reach the model through
- * `copilotkitMiddleware`) and the state, trimmed to what it needs to choose
+ * (`useAgentContext` entries reach the graph only in the run context) and
+ * the state, trimmed to what it needs to choose
  * the next step; and the thread's messages with every tool call answered
  * (see `answerOpenToolCalls`). Declaring the state schema is what puts those
  * keys in `request.state`; without it the request holds only `messages`.

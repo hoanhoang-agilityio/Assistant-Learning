@@ -1,4 +1,3 @@
-import { copilotkitMiddleware } from "@copilotkit/sdk-js/langgraph";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import {
@@ -14,6 +13,7 @@ import {
 } from "../../schemas/graph";
 import { getErrorMessage } from "../../utils/openai-errors";
 import { SUPERVISOR_PROMPT } from "../prompts/supervisor";
+import { frontendToolsMiddleware } from "./frontend-tools";
 import { quizSubmitMiddleware } from "./quiz-submit";
 import { supervisorContextMiddleware } from "./supervisor-context";
 import { createSubagentTools } from "./tools/subagent-tools";
@@ -40,9 +40,9 @@ const toToolFailure = (error: unknown): string =>
  *
  * The middleware, in order: a cap on model calls in one run, which ends the
  * run rather than failing it; a failed tool call answered with an error the
- * Supervisor can explain, instead of failing the run; `copilotkitMiddleware`,
- * which offers the run's frontend tools to the model and ends the run when
- * one is called, so the browser can run it; the quiz Submit; and what the
+ * Supervisor can explain, instead of failing the run; the run's frontend
+ * tools, offered to the model, ending the run when one is called so the
+ * browser can run it; the quiz Submit; and what the
  * Supervisor reads on each call.
  */
 export const createLearningGraph = ({
@@ -62,7 +62,7 @@ export const createLearningGraph = ({
         exitBehavior: "end",
       }),
       toolErrorMiddleware({ onError: toToolFailure }),
-      copilotkitMiddleware,
+      frontendToolsMiddleware,
       quizSubmitMiddleware,
       supervisorContextMiddleware,
     ],
