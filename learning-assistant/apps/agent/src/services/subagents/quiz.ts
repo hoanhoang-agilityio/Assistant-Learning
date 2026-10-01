@@ -15,6 +15,8 @@ interface QuizParams {
   /** The learning material in the view the student is looking at. */
   material: string;
   count: number;
+  /** Concepts the student found hard before, revisited when the material covers them. */
+  weakConcepts?: readonly string[];
   settings: RunSettings;
   signal?: AbortSignal;
   /** Called with the questions written so far, without their answers. */
@@ -33,6 +35,7 @@ const createQuizDraftSchema = (count: number) =>
 export const runQuiz = async ({
   material,
   count,
+  weakConcepts,
   settings,
   signal,
   onDraft,
@@ -45,7 +48,7 @@ export const runQuiz = async ({
       return await generateStructured({
         settings,
         system: createQuizSystem(settings.learningLevel),
-        prompt: createQuizPrompt(material, count),
+        prompt: createQuizPrompt(material, count, weakConcepts),
         schema,
         signal,
         onPartial: onDraft

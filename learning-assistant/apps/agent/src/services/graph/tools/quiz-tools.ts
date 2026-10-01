@@ -2,8 +2,10 @@ import { ToolParamSchemas } from "@repo/shared/schemas";
 import { getActiveMaterial } from "@repo/shared/utils/learning-state";
 import { tool } from "langchain";
 
+import { QUIZ_WEAK_CONCEPTS } from "../../../constants/memory";
 import { TOOL_DESCRIPTIONS, TOOL_ERRORS } from "../../../constants/tools";
 import type { SubagentToolDeps } from "../../../types/graph";
+import { pickWeakConcepts } from "../../../utils/student-memory";
 import { validateSubmission } from "../../../utils/submission";
 import { createSealedQuiz } from "../../answer-key/seal-quiz";
 import { runEvaluation } from "../../evaluate";
@@ -30,6 +32,10 @@ export const createQuizTools = ({
         const draft = await runQuiz({
           material: getActiveMaterial(material),
           count: step.settings.questionCount,
+          weakConcepts: pickWeakConcepts(
+            runtime.context.memory.concepts,
+            QUIZ_WEAK_CONCEPTS,
+          ).map(({ concept }) => concept),
           settings: step.settings,
           signal: step.signal,
           // The draft holds the questions only; the answers stay here.

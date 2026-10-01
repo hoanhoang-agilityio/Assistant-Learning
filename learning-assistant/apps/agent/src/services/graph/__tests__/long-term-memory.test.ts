@@ -19,7 +19,7 @@ import {
   typesOf,
   userMessage,
 } from "./runtime-harness";
-import { scriptAgents } from "./scripted-agents";
+import { scriptAgents, teachThen } from "./scripted-agents";
 
 vi.mock("../../llm/chat-model", () => ({ createChatModel: vi.fn() }));
 
@@ -204,5 +204,31 @@ describe("long-term memory through the runtime", () => {
     expect(typesOf(events)).not.toContain(EventType.RUN_ERROR);
     expect(errors).toHaveBeenCalled();
     errors.mockRestore();
+  });
+
+  it("asks the Quiz Agent to revisit concepts the student found hard", async () => {
+    const { models } = teachThen();
+    const { store } = createMemoryStore({
+      [ALICE]: memoryOf("any", "Lexical scope"),
+    });
+    const handler = createHandler({
+      checkpointer: new MemorySaver(),
+      userId: ALICE,
+      memory: store,
+    });
+
+    await runTurn(handler, {
+      threadId,
+      messages: [userMessage("teach me closures end to end")],
+      forwardedProps: { settings: SETTINGS },
+    });
+
+    const quizPrompt = models
+      .flatMap(({ calls }) => calls)
+      .map(({ messages }) => messages.at(-1)?.text ?? "")
+      .find((text) => text.startsWith("Write exactly"));
+    expect(quizPrompt).toContain(
+      "Concepts this student found hard in earlier quizzes: Lexical scope.",
+    );
   });
 });

@@ -79,5 +79,20 @@ export const createQuizSystem = (level: LearningLevel) =>
     "Base every question and answer on the learning material only. `explanation` says in one or two sentences why the correct option is right.",
   ].join("\n\n");
 
-export const createQuizPrompt = (material: string, count: number) =>
-  `Write exactly ${count} questions from this learning material:\n\n${material}`;
+/**
+ * The quiz request. Concepts the student found hard in earlier quizzes get
+ * about a fifth of the questions, when the material covers them.
+ */
+export const createQuizPrompt = (
+  material: string,
+  count: number,
+  weakConcepts: readonly string[] = [],
+) =>
+  [
+    `Write exactly ${count} questions from this learning material:\n\n${material}`,
+    ...(weakConcepts.length > 0
+      ? [
+          `Concepts this student found hard in earlier quizzes: ${weakConcepts.join(", ")}. If the material covers any of them, spend about a fifth of the questions on them, tagged with the same concept name; otherwise ignore them.`,
+        ]
+      : []),
+  ].join("\n\n");
