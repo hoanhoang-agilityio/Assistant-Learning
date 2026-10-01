@@ -257,12 +257,13 @@ export const BoardRemovalResultSchema = z.object({
 });
 
 /**
- * A `renderSurface` (canvas) or `updateBoardSurface` result: the new Board
- * view. A chat result is an `a2ui_operations` envelope instead, which the
- * A2UI middleware draws.
+ * A `renderSurface` (canvas) or `updateBoardSurface` result: which Board
+ * view was written. The view itself goes to `state.board`, so the thread
+ * does not carry its components twice. A chat result is an
+ * `a2ui_operations` envelope instead, which the A2UI middleware draws.
  */
 export const BoardSurfaceResultSchema = z.object({
-  surface: BoardSurfaceSchema,
+  surface: BoardSurfaceSchema.pick({ id: true, title: true, revision: true }),
 });
 
 export type SurfaceComponent = z.infer<typeof SurfaceComponentSchema>;

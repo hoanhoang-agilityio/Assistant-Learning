@@ -17,6 +17,7 @@ import { SUPERVISOR_PROMPT } from "../prompts/supervisor";
 import { quizSubmitMiddleware } from "./quiz-submit";
 import { supervisorContextMiddleware } from "./supervisor-context";
 import { createSubagentTools } from "./tools/subagent-tools";
+import { createSurfaceTools } from "./tools/surface-tools";
 
 interface LearningGraphOptions {
   /** The Supervisor's model, already holding the user's API key. */
@@ -32,9 +33,10 @@ const toToolFailure = (error: unknown): string =>
   JSON.stringify({ ok: false, error: getErrorMessage(error) });
 
 /**
- * The Supervisor as a LangChain agent. It is built for each request, because
- * the model and the subagent tools carry that user's API key; threads live
- * in the shared `checkpointer`.
+ * The Supervisor as a LangChain agent, with the subagent tools and the tools
+ * that draw in the chat and on the Board. It is built for each request,
+ * because the model and the subagent tools carry that user's API key;
+ * threads live in the shared `checkpointer`.
  *
  * The middleware, in order: a cap on model calls in one run, which ends the
  * run rather than failing it; a failed tool call answered with an error the
@@ -50,7 +52,7 @@ export const createLearningGraph = ({
 }: LearningGraphOptions) =>
   createAgent({
     model,
-    tools: createSubagentTools({ apiKey }),
+    tools: [...createSubagentTools({ apiKey }), ...createSurfaceTools()],
     systemPrompt: SUPERVISOR_PROMPT,
     stateSchema: LearningGraphStateSchema,
     contextSchema: RunContextSchema,

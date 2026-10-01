@@ -167,7 +167,6 @@ describe("isBoardSurfaceResult", () => {
           surface: {
             id: "board-1",
             title: "Overview",
-            operations: [],
             revision: 1,
           },
         }),
