@@ -2,6 +2,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import type { StateSnapshot } from "@langchain/langgraph";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 import { EMPTY_STUDENT_MEMORY } from "@repo/shared/constants/memory";
+import type { Settings, StudentMemory } from "@repo/shared/schemas";
 import { readLearningState } from "@repo/shared/utils/learning-state";
 import { v4 as uuidv4 } from "uuid";
 
@@ -14,6 +15,7 @@ import {
   TURN_RUN_NAMES,
 } from "../../constants/graph";
 import type { RunContext } from "../../schemas/graph";
+import type { RunMemory } from "../../types/memory";
 import type { LearningRecords } from "../../types/records";
 import { getErrorMessage } from "../../utils/openai-errors";
 import { readAppContext, readRunSettings } from "../../utils/run-context";
@@ -27,6 +29,8 @@ interface InProcessClientOptions {
   userId: string;
   /** Where each run is noted against its conversation. */
   records: LearningRecords;
+  /** What is kept about the user across conversations; none without it. */
+  memory?: RunMemory;
 }
 
 /**
@@ -114,13 +118,16 @@ const toThreadState = ({
  *   before it arrives, and the snapshots down to the keys the browser may
  *   see.
  *
- * After each run, stopped or failed ones too, it notes the run in the
- * conversation's records.
+ * Before each run it reads what is kept about the user (E4), once for the
+ * whole run. After each run, stopped or failed ones too, it notes the run
+ * in the conversation's records and, without holding up the stream, learns
+ * from the student's message what it says about them (E2).
  */
 export const createInProcessClient = ({
   graph,
   userId,
   records,
+  memory,
 }: InProcessClientOptions) => {
   const compiled = graph.graph;
   const running = new Map<string, AbortController>();
@@ -139,6 +146,45 @@ export const createInProcessClient = ({
       });
     } catch (error) {
       console.error("[learning] Recording the run failed", error);
+    }
+  };
+
+  /** What is kept about the user; nothing, rather than no run, when it cannot be read. */
+  const loadMemory = async (): Promise<StudentMemory> => {
+    if (!memory) {
+      return EMPTY_STUDENT_MEMORY;
+    }
+    try {
+      return await memory.store.load(userId);
+    } catch (error) {
+      console.error("[learning] Reading the student's memory failed", error);
+      return EMPTY_STUDENT_MEMORY;
+    }
+  };
+
+  /**
+   * Keeps what the student's message says about them in their profile. It
+   * runs after the run has been saved and nothing waits for it.
+   */
+  const learnFromMessage = async (
+    remembered: StudentMemory,
+    userText: string,
+    settings: Settings,
+  ): Promise<void> => {
+    if (!memory) {
+      return;
+    }
+    try {
+      const update = await memory.learnProfile({
+        profile: remembered.profile,
+        userText,
+        settings,
+      });
+      if (update) {
+        await memory.store.saveProfile(userId, update);
+      }
+    } catch (error) {
+      console.error("[learning] Learning the student's profile failed", error);
     }
   };
 
@@ -222,6 +268,7 @@ export const createInProcessClient = ({
         const abort = new AbortController();
         running.set(threadId, abort);
         let userText: string | null = null;
+        const remembered = await loadMemory();
 
         const context: RunContext = {
           userId,
@@ -230,7 +277,7 @@ export const createInProcessClient = ({
             (input?.[APP_CONTEXT_INPUT_KEY] as { context?: unknown })?.context,
           ),
           submit: parseSubmitAction({ a2uiAction }),
-          memory: EMPTY_STUDENT_MEMORY,
+          memory: remembered,
         };
 
         try {
@@ -284,6 +331,9 @@ export const createInProcessClient = ({
             running.delete(threadId);
           }
           await recordRun(threadId, userText);
+          if (userText) {
+            void learnFromMessage(remembered, userText, context.settings);
+          }
         }
       },
     },

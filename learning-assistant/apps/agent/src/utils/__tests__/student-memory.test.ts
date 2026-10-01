@@ -6,7 +6,11 @@ import type { ConceptMemory, TopicMemory } from "@repo/shared/schemas";
 import { describe, expect, it } from "vitest";
 
 import { STUDENT_MEMORY_HEADING } from "../../constants/memory";
-import { formatStudentMemory, pickWeakConcepts } from "../student-memory";
+import {
+  formatStudentMemory,
+  pickWeakConcepts,
+  toProfileUpdate,
+} from "../student-memory";
 
 const UPDATED_AT = "2026-10-01T00:00:00.000Z";
 
@@ -81,5 +85,26 @@ describe("formatStudentMemory", () => {
     expect(text).toContain("language: Vietnamese");
     expect(text).toContain("Concept 1");
     expect(text).not.toContain("Topic 5");
+  });
+});
+
+describe("toProfileUpdate", () => {
+  it("is null when the message says nothing new", () => {
+    expect(
+      toProfileUpdate(
+        { ...EMPTY_PROFILE, language: "Vietnamese" },
+        { level: null, style: null, language: "Vietnamese" },
+      ),
+    ).toBeNull();
+  });
+
+  it("changes only what the message says, cut to size", () => {
+    expect(
+      toProfileUpdate(EMPTY_PROFILE, {
+        level: "intermediate",
+        style: ` ${"s".repeat(300)} `,
+        language: null,
+      }),
+    ).toEqual({ level: "intermediate", style: "s".repeat(160) });
   });
 });

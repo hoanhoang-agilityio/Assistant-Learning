@@ -1,7 +1,12 @@
-import { WEAK_CONCEPT_PERCENT } from "@repo/shared/constants/memory";
+import {
+  PROFILE_LANGUAGE_MAX_LENGTH,
+  PROFILE_STYLE_MAX_LENGTH,
+  WEAK_CONCEPT_PERCENT,
+} from "@repo/shared/constants/memory";
 import type {
   ConceptMemory,
   LearnerProfile,
+  ProfileUpdate,
   StudentMemory,
   TopicMemory,
 } from "@repo/shared/schemas";
@@ -12,6 +17,7 @@ import {
   MEMORY_PROMPT_MAX_TOPICS,
   STUDENT_MEMORY_HEADING,
 } from "../constants/memory";
+import type { ProfileObservation } from "../schemas/memory";
 
 /** Stored text on one line, so it cannot start a heading of its own. */
 const toLine = (text: string): string => text.replace(/\s+/g, " ").trim();
@@ -96,4 +102,27 @@ export const formatStudentMemory = (
     text = render();
   }
   return text;
+};
+
+/**
+ * The profile fields an observation changes, cut to the lengths the profile
+ * keeps; `null` when it changes none. A field the observation leaves `null`
+ * is not a request to forget it.
+ */
+export const toProfileUpdate = (
+  profile: LearnerProfile,
+  observation: ProfileObservation,
+): ProfileUpdate | null => {
+  const style = observation.style?.trim().slice(0, PROFILE_STYLE_MAX_LENGTH);
+  const language = observation.language
+    ?.trim()
+    .slice(0, PROFILE_LANGUAGE_MAX_LENGTH);
+  const update: ProfileUpdate = {
+    ...(observation.level && observation.level !== profile.level
+      ? { level: observation.level }
+      : {}),
+    ...(style && style !== profile.style ? { style } : {}),
+    ...(language && language !== profile.language ? { language } : {}),
+  };
+  return Object.keys(update).length > 0 ? update : null;
 };

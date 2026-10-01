@@ -61,7 +61,11 @@ export class LearningThreadRunner extends InMemoryAgentRunner {
       checkpointer: this.checkpointer,
       records: NO_RECORDS,
     });
-    return createGraphAgent(graph, RELOAD_RUN_ID, NO_RECORDS);
+    return createGraphAgent({
+      graph,
+      userId: RELOAD_RUN_ID,
+      records: NO_RECORDS,
+    });
   }
 
   /** The thread's checkpoint as one finished run, or nothing without one. */

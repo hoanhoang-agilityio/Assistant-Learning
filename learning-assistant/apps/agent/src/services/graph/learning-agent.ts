@@ -5,8 +5,10 @@ import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 
 import { MISSING_API_KEY_ERROR } from "../../constants/errors";
 import { IN_PROCESS_DEPLOYMENT_URL } from "../../constants/graph";
+import type { LearningMemory, RunMemory } from "../../types/memory";
 import type { LearningRecords } from "../../types/records";
 import { createChatModel } from "../llm/chat-model";
+import { learnProfile } from "../memory/learn-profile";
 import { toClientEvents } from "./client-events";
 import { createInProcessClient } from "./in-process-client";
 import { createLearningGraph, type LearningGraph } from "./learning-graph";
@@ -21,6 +23,18 @@ interface LearningAgentOptions {
   checkpointer: BaseCheckpointSaver;
   /** Where each conversation's runs and completed stages are kept. */
   records: LearningRecords;
+  /**
+   * What is kept about the user across conversations. Without it the agent
+   * neither reads nor learns anything beyond the conversation.
+   */
+  memory?: LearningMemory;
+}
+
+interface GraphAgentOptions {
+  graph: LearningGraph;
+  userId: string;
+  records: LearningRecords;
+  memory?: RunMemory;
 }
 
 /**
@@ -29,12 +43,13 @@ interface LearningAgentOptions {
  * adapter calls), and everything the adapter emits is cut down to what the
  * browser may receive.
  */
-export const createGraphAgent = (
-  graph: LearningGraph,
-  userId: string,
-  records: LearningRecords,
-): LangGraphAgent => {
-  const client = createInProcessClient({ graph, userId, records });
+export const createGraphAgent = ({
+  graph,
+  userId,
+  records,
+  memory,
+}: GraphAgentOptions): LangGraphAgent => {
+  const client = createInProcessClient({ graph, userId, records, memory });
   const agent = new LangGraphAgent({
     graphId: LEARNING_AGENT_ID,
     deploymentUrl: IN_PROCESS_DEPLOYMENT_URL,
@@ -56,6 +71,7 @@ export const createLearningAgent = ({
   userId,
   checkpointer,
   records,
+  memory,
 }: LearningAgentOptions): AbstractAgent => {
   const trimmedKey = apiKey?.trim();
   if (!trimmedKey) {
@@ -68,5 +84,13 @@ export const createLearningAgent = ({
     checkpointer,
     records,
   });
-  return createGraphAgent(graph, userId, records);
+  return createGraphAgent({
+    graph,
+    userId,
+    records,
+    memory: memory && {
+      store: memory,
+      learnProfile: (input) => learnProfile({ ...input, apiKey: trimmedKey }),
+    },
+  });
 };
