@@ -1,6 +1,6 @@
 # v2 Migration Plan: single LangChain.js agent + Clerk + conversations + memory
 
-2026-10-01 · M6 done · Spikes done, see [v2-spike-findings.md](./v2-spike-findings.md). Parked variant: `v2-migration-plan-python.md` (referenced earlier, not in the repo).
+2026-10-02 · M7 done: the migration is complete · Spikes done, see [v2-spike-findings.md](./v2-spike-findings.md). Parked variant: `v2-migration-plan-python.md` (referenced earlier, not in the repo).
 
 ## 1. Goal and scope
 
@@ -179,7 +179,7 @@ Not done in M5: `/conversations/[id]/state` and `/messages` (reload goes through
 | B7 | Thread ownership: look up a client `thread_id` in `conversations` for this user before any run, `/connect`, `/stop`, read or delete. Never trust it as is. **Interim done in M1** (`features/threads`): the runtime's own thread endpoints (list, messages, events, state, `/connect`, `/stop`, and `threads/clear`, which wiped every user's threads) knew no users; runtime hooks now keep an in-memory owner per thread, answer 404 for anyone else and filter the list. **Done in M5** (`features/conversations`): owners come from `conversations`, and a thread no conversation has is a 404 too |
 | B8 | Rate limits per user id. **Done in M5**: 20 runs and 60 changes per minute, in process memory (D9) |
 | B9 | Decide the BYOK page's fate (D1) |
-| B10 | Auth tests: no session → 401 on every route, other user's thread → 404, deleted user |
+| B10 | Auth tests: no session → 401 on every route, other user's thread → 404, deleted user. **Done**: route tests since M1/M5, and in M7 page tests (`app/__tests__/pages.test.ts`): every page sends a signed-out visitor to sign in, `/history` shows only the session user's topics and nothing to a deleted user's still-valid session |
 
 ### C. Persistence and conversations
 
@@ -200,8 +200,8 @@ Not done in M5: `/conversations/[id]/state` and `/messages` (reload goes through
 | FE1 | Conversation sidebar with search, rename, delete confirmation, status and score badges. **Done in M5** |
 | FE2 | Switching conversation: `threadId`, load state and messages, resume banner. **Done in M5** (M5-3) |
 | FE3 | Remove `confirmNewTopic` HITL; "New topic" creates a conversation. **Done in M5** |
-| FE4 | Re-check hooks against the D10 state split: Submit, material edits, reflection, suggestions |
-| FE5 | Memory panel; History/Progress page last |
+| FE4 | Re-check hooks against the D10 state split: Submit, material edits, reflection, suggestions. **Done in M7**: Submit after a Retake with the same answers (M7-1), a material edit a quick run missed (M7-2), a suggestion D5 refuses (M7-3); the reflection hook needed no change. Message ids come from `uuid` |
+| FE5 | Memory panel; History/Progress page last. **Done in M7**: Settings → Memory (`/memory`) shows the profile, concepts and topics; the profile is edited in a form that sends only changed fields, and each field, concept or topic can be forgotten after a confirmation step. The header's Progress (`/history`) is server-rendered from `quiz_attempts` (`getLearningHistory`): per topic the latest and best score, a chart of every attempt, the latest attempt's concept mastery, and Retake (`/?retake=<id>`, M7-4) |
 
 ### E. Memory
 
@@ -233,14 +233,29 @@ Not done in M5: `/conversations/[id]/state` and `/messages` (reload goes through
 
 Not done in M6: the Memory panel and History page (FE5, M7); a profile field the student set can be overwritten by what a later message says. Topics are remembered only once a quiz is graded.
 
+**Found in M7**:
+
+| # | Finding | What the code does |
+| --- | --- | --- |
+| M7-1 | The server read a retake only from changed answers, so Retake and then the same answers again left the quiz graded, and Submit failed with "already submitted" | A graded quiz the browser sends back as not submitted is a retake too (`applyAnswers`). The browser can undo a grade this way, never make one |
+| M7-2 | A material edit reached the state 600 ms after the last keystroke; a run started sooner (a suggestion) went without it, and the run's snapshots then overwrote it | The editor also saves a waiting edit when it loses focus, which happens before any click elsewhere |
+| M7-3 | The Feedback stage's "Start a new topic" suggestion asked for what D5 makes Research refuse | Replaced with two follow-ups on the graded quiz |
+| M7-4 | A reload replays the checkpoint more than once in dev (two `/connect` requests succeed), and a later replay brings the graded quiz back after a retake was applied | A Retake from the Progress page holds for that quiz and is applied again after each replay, until the student picks an answer, another quiz arrives or another conversation opens. Where the second `/connect` comes from was not traced |
+| M7-5 | Two more route-level tests and one PGlite `beforeEach` crossed Vitest's defaults under turbo's parallel load (with `next dev` running) | 15 s test and 30 s hook timeouts in the agent, db and web Vitest configs; M6-7's per-test timeout is gone |
+| M7-6 | A chart in an SVG `viewBox` scales its text with the card: 16 px labels on a wide card, 6 px on a narrow one | The chart measures its card (`useElementWidth`) and is drawn at that width |
+| M7-7 | Importing `app/page.tsx` in a test pulls in CopilotKit's CSS, which Node cannot load | The page tests mock `AppShell` and read the props the page gives it |
+| M7-8 | The M6 browser check left test values in the profile | Forgotten through the new Memory panel, which tested `DELETE` and `PATCH` |
+
+Not done in M7: `ToolResultSchemas` in `@repo/shared` still types `runEvaluation` (A11); `PATCH /attempts/[id]/answers`, writing `reflections` and the student's own material edits to `material` (M5); a profile field the student set can still be overwritten by what a later message says (M6); B9 (BYOK page) is undecided; a forgotten memory has no undo. Seen once and not looked into: a conversation whose row says Quiz while its checkpoint holds only a Board view.
+
 ### F. Testing and docs
 
 | # | Task |
 | --- | --- |
-| F1 | Vitest with a scripted fake chat model for the agent (pattern in `spikes/v2/src/scripted-model.ts`; stream tool name and args in separate chunks) |
-| F2 | Keep pure-logic tests (scoring, sealing, state rules); rewrite wrapper-level tests; drop tests that only guarded AI SDK quirks |
-| F3 | Update design.md v2 section and decision log; README setup for Clerk and Postgres |
-| F4 | Route-level tests from the spikes: no `RAW`/`rawEvent`/server-only keys in the stream, client cannot write server keys, no key in traces |
+| F1 | Vitest with a scripted fake chat model for the agent (pattern in `spikes/v2/src/scripted-model.ts`; stream tool name and args in separate chunks). **Done** since M2 (`ScriptedModel`, `runtime-harness.ts`, `scripted-agents.ts`) |
+| F2 | Keep pure-logic tests (scoring, sealing, state rules); rewrite wrapper-level tests; drop tests that only guarded AI SDK quirks. **Done** (A11 in M4); nothing in the tests mentions the AI SDK |
+| F3 | Update design.md v2 section and decision log; README setup for Clerk and Postgres. **Done in M7**: design.md's v2 section describes what was built (Q47–Q56 for D1–D10 and the Progress page); README has Clerk and Postgres setup step by step, the Memory panel and Progress page, and the v2 architecture |
+| F4 | Route-level tests from the spikes: no `RAW`/`rawEvent`/server-only keys in the stream, client cannot write server keys, no key in traces. **Done in M7** (`stream-security.test.ts`, `in-process-client.test.ts`): research → material → quiz, a Submit and a reload, with long-term memory loaded, send no raw event, no server-only key in a snapshot or delta, and none of the key, the memory, the prompt or the graph's own keys; no traced step holds the key. The client-write tests were already there (M2, M3) |
 
 ## 6. Suggested order
 
@@ -253,7 +268,7 @@ Not done in M6: the Memory panel and History page (FE5, M7); a profile field the
 | M4 | A6, A10 | Cards, Board, tracing at parity; then A11 removes the AI SDK code. **Done**, in the browser too: concept and comparison cards, a chat surface, a Board view streamed and saved, an edit, a removal, and research on the new model class |
 | M5 | C1–C7, FE1–FE3, B6–B8 | Multiple conversations, resume, delete. **Done**, in the browser too: three conversations, switching and a reload after a server restart restore chat, canvas and Board, rename, delete (rows and checkpoints), and another user's conversation answers 404 on every route |
 | M6 | E1–E6 | Short- and long-term memory. **Done**, in the browser too: with the summary budget lowered for the check, a first message set the profile (beginner, analogies), a Vietnamese one added the language and the replies followed both; Autopilot and a Submit wrote four concepts and the topic; a later turn folded the first two into a Vietnamese summary without answers, `messages` kept all 15, the Supervisor answered from the summary, and a replay of every run carried none of it; deleting the conversation removed its checkpoints, topic and concepts and kept the profile |
-| M7 | FE4–FE5, F | History page, tests, docs |
+| M7 | FE4–FE5, F | History page, tests, docs. **Done**, in the browser too: the profile's M6 test values forgotten and cleared in the Memory panel; a quiz graded, its topic on the Progress page with its concepts in Memory; Retake from Progress opened the conversation at an empty quiz; the same answers submitted again were graded (attempt 2 on the chart); both pages fit a 375 px phone |
 
 ## 7. Risks
 
