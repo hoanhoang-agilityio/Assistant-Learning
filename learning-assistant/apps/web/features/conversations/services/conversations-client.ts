@@ -5,27 +5,10 @@ import {
 } from "@repo/shared/schemas";
 
 import { CONVERSATIONS_API_PATH } from "@/features/conversations/constants/conversations";
+import { expectOk } from "@/services/expect-ok";
 
 const toConversationPath = (id: string) =>
   `${CONVERSATIONS_API_PATH}/${encodeURIComponent(id)}`;
-
-/** The response, or an error with the server's message. */
-const expectOk = async (response: Response): Promise<Response> => {
-  if (response.ok) {
-    return response;
-  }
-
-  let message = `Request failed (${response.status})`;
-  try {
-    const body = (await response.json()) as { error?: unknown };
-    if (typeof body.error === "string") {
-      message = body.error;
-    }
-  } catch {
-    // Keep the status message.
-  }
-  throw new Error(message);
-};
 
 /** The signed-in user's conversations, most recent first. */
 export const fetchConversations = async (): Promise<ConversationSummary[]> => {
