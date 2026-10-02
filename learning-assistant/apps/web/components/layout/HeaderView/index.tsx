@@ -1,5 +1,7 @@
 import { UserButton } from "@clerk/nextjs";
-import { Moon, Sparkles, Sun } from "lucide-react";
+import { HISTORY_ROUTE } from "@repo/shared/constants/routes";
+import { Moon, Sparkles, Sun, TrendingUp } from "lucide-react";
+import Link from "next/link";
 
 import { SettingsPopover } from "@/features/settings/components/SettingsPopover";
 
@@ -9,7 +11,8 @@ export interface HeaderViewProps {
 }
 
 /**
- * App title, theme toggle, the settings popover and Clerk's user menu. Breakpoints are container
+ * App title, theme toggle, the Progress page link, the settings popover and
+ * Clerk's user menu. Breakpoints are container
  * queries, so a previewed device frame gets the narrow header too. While the
  * settings popover is open the header rises above the chat popup (z 1200),
  * which otherwise covers it; only then, so a full-screen popup on a phone
@@ -40,6 +43,14 @@ export const HeaderView = ({ isDark, onToggleTheme }: HeaderViewProps) => (
       >
         {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
       </button>
+      <Link
+        href={HISTORY_ROUTE}
+        aria-label="Progress"
+        className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition-all hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
+      >
+        <TrendingUp className="h-4 w-4" />
+        <span className="hidden @2xl:inline">Progress</span>
+      </Link>
       <SettingsPopover />
       <UserButton />
     </div>
