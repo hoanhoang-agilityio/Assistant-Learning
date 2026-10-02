@@ -13,6 +13,7 @@ import { isAfterTool, scriptAgents } from "./scripted-agents";
 vi.mock("../../llm/chat-model", () => ({ createChatModel: vi.fn() }));
 
 const USER_ID = "user_42";
+const API_KEY = "sk-trace-test-key";
 
 /** A graph event as the client yields it: what LangSmith records per step. */
 interface GraphEvent {
@@ -31,8 +32,8 @@ const streamTurn = async (payload: Record<string, unknown>) => {
       : { toolCalls: [{ name: "research", args: { topic: "closures" } }] },
   );
   const graph = createLearningGraph({
-    model: createChatModel("sk-test"),
-    apiKey: "sk-test",
+    model: createChatModel(API_KEY),
+    apiKey: API_KEY,
     checkpointer: new MemorySaver(),
     records: NO_RECORDS,
   });
@@ -77,6 +78,13 @@ describe("tracing", () => {
           metadata["emit-messages"] === false,
       ),
     ).toBe(true);
+  });
+
+  it("never records the user's API key in a step", async () => {
+    const { events } = await streamTurn({});
+
+    expect(events.length).toBeGreaterThan(0);
+    expect(JSON.stringify(events)).not.toContain(API_KEY);
   });
 
   it("names the turn by what started it", async () => {
