@@ -1,6 +1,6 @@
 # Learning Assistant — Design Doc
 
-2026-09-18 · Hoan Minh Hoang · Task breakdown: [v1-tasks.md](./v1-tasks.md)
+2026-09-18, v2 section updated 2026-10-02 · Hoan Minh Hoang · Task breakdown: [v1-tasks.md](./v1-tasks.md) · v2 migration: [v2-migration-plan.md](./v2-migration-plan.md)
 
 ## Overview
 
@@ -19,8 +19,11 @@ The end-to-end flow is **Research → Learning Material → Quiz → Evaluation 
 | Review the whole flow                                  | Stepper canvas with six stages                  |
 | Ask a side question and get a visual answer (M8)       | Supervisor → chat cards or `renderSurface`      |
 | Build a cheat sheet or overview to keep (M8)           | Supervisor → `renderSurface` → canvas Board     |
+| Come back to a topic, or start a new one (v2)          | Conversation sidebar → one thread per topic     |
+| See and correct what the assistant remembers (v2)      | Settings → Memory panel (`/memory`)             |
+| See scores over time and retake a quiz (v2)            | Progress page (`/history`)                      |
 
-**Scope.** v1 is TypeScript only in `apps/web`, keeps state for the session only, and has no auth or database. v2 moves the agents to Python (LangGraph + FastAPI) and adds Clerk auth, Postgres persistence, long-term memory and multiple conversations. v1 includes the seams that make that migration cheap.
+**Scope.** v1 is TypeScript only in `apps/web`, keeps state for the session only, and has no auth or database. v2 replaces the agent with a LangChain.js `createAgent` Supervisor, still in TypeScript and in the same Next.js process, and adds Clerk auth, Postgres persistence, short- and long-term memory, multiple conversations and a Progress page. v1 includes the seams that made that migration cheap.
 
 ## v1 architecture
 
@@ -258,55 +261,72 @@ v1 shipped as six milestone commits on the `learning-assistant` branch; M7 and M
 
 **Testing.** Vitest covers the pure logic: scoring, mastery, tiers, sealing round-trips, template and data binding, and turning tool results into state deltas. Playwright is out of scope for v1.
 
-## v2 migration: LangGraph + FastAPI
+## v2: LangChain.js agent, Clerk and Postgres
 
-v2 replaces the TypeScript wrapper agent with a Python LangGraph graph behind FastAPI, and adds Clerk auth, Postgres persistence, long-term memory and multiple conversations. The frontend keeps the same AG-UI contract, so the canvas, A2UI and chat do not change.
+v2 replaces the AI SDK wrapper agent with a LangChain.js `createAgent` Supervisor and adds Clerk auth, Postgres persistence, short- and long-term memory, multiple conversations and a Progress page. The plan was first a Python LangGraph graph behind FastAPI; the spikes showed the same graph runs in TypeScript inside the Next.js route with one auth check and no second service (Q47). The frontend keeps the same AG-UI contract, so the canvas, A2UI and chat changed only where state ownership did. How it was built, milestone by milestone, is in [v2-migration-plan.md](./v2-migration-plan.md).
 
 ### Seams built in v1
 
-- The frontend talks only AG-UI. In v2, `CopilotRuntime` points to a `LangGraphHttpAgent` (FastAPI + `ag-ui-langgraph`) instead of the wrapper.
-- zod schemas are exported to JSON Schema in `@repo/shared/schema/*.json`, and Python generates Pydantic models from them. A2UI templates are already JSON.
-- `forwardedProps.settings` maps to LangGraph `config.configurable`.
-- The answer key goes through `AnswerKeyStore`. In v2 it lives in the database and never reaches the client.
+- The frontend talks only AG-UI. In v2, `CopilotRuntime` hosts a `LangGraphAgent` (`@ag-ui/langgraph`) whose client runs the compiled graph in the same process, instead of the wrapper.
+- zod schemas in `@repo/shared` type both sides; A2UI templates are already JSON.
+- `forwardedProps.settings` reaches the graph as run context.
+- The answer key stays AES-GCM-sealed in state (Q50); the stream filter keeps everything else server-side.
 - The agent name and tool names stay the same, so tool renderers keep working.
 
 ### Topology and auth
 
 ```mermaid
 sequenceDiagram
-  participant B as Browser (Clerk)
-  participant N as Next CopilotRuntime
-  participant F as FastAPI + LangGraph
+  participant B as Browser (Clerk UI + CopilotKit)
+  participant N as Next.js route
+  participant G as createAgent graph (same process)
   participant P as Postgres
-  B->>N: AG-UI run + Clerk session
-  N->>N: verify Clerk session
-  N->>F: forward run + Clerk JWT
-  F->>F: verify JWT via JWKS, user_id = sub
-  F->>P: checkpoint, store, domain tables
-  F-->>B: AG-UI events (via N)
+  B->>N: AG-UI run + Clerk session cookie
+  N->>N: auth(): userId from the verified session
+  N->>P: is the thread one of this user's conversations?
+  N->>G: run, with userId, settings, app context and memory as run context
+  G->>P: checkpoint, domain rows, memory
+  G-->>N: graph events
+  N-->>B: filtered AG-UI events
 ```
 
-Next acts as a backend-for-frontend (BFF). Clerk is checked in Next and again in FastAPI, so FastAPI stays safe if it is reached directly. A user row is created on the first request, keyed by `clerk_user_id`, and a Clerk webhook handles user deletion.
+Clerk is used on both sides, and the Next.js backend is the authority (Q48). The browser shows Clerk's sign-in UI and nothing it sends is trusted. `proxy.ts` only makes the session readable; pages call `requireSignedInUser`, route handlers go through `withSignedInUser` (401), and every runtime route looks the thread up in `conversations` for this user first (404 otherwise). The agent receives `userId` from the route as run context, set after everything the client sent. A user row is created on the first request, and a Clerk `user.deleted` webhook (signature verified) deletes the row, which cascades to everything, and the thread checkpoints.
+
+### The agent
+
+| Piece             | What it does                                                                                                                                                                                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| In-process client | Runs the graph for `LangGraphAgent`. Puts the verified `userId`, the settings, a quiz Submit, the `useAgentContext` entries and the student's memory into run context; ignores any `config`, `context` or `command` the browser sends                                                                   |
+| Client edits      | Starts each run from the checkpoint and applies only what the browser may change: quiz answers for the quiz the server holds, the learning material's text and view, the reflection, and a retake (a graded quiz sent back as not submitted). An edit clears what was built from the old material (Q51) |
+| Supervisor        | `createAgent` with the v1 prompt and tool names. Subagent tools return a `Command` with the state update and a short `ToolMessage`; parallel tool calls are off. Eight model calls per run at most                                                                                                      |
+| Middleware        | Context builder (prompt, memory, summary, app context, trimmed state on each model call, nothing written to the thread), quiz Submit (graded in code), frontend tools, tool errors, card-only replies, conversation summary                                                                             |
+| Stream filter     | Drops `RAW` events and `rawEvent`, keeps only the canvas's state keys, drops repeated snapshots, streams Board drafts as deltas and ends at a run error with a readable message                                                                                                                         |
+| Model             | `ChatOpenAI` (Responses API, `gpt-5.4-mini`, low reasoning), built per request with the user's key inside the instance, never in run context (Q49)                                                                                                                                                      |
+
+Reload runs through `CheckpointRunner`: `/connect` replays the checkpoint, so a conversation comes back with its chat, canvas and Board after a server restart. `/connect` and Stop use process memory, so the app runs as one instance, or sticky by thread (Q55).
 
 ### Persistence
 
-The LangGraph checkpointer (`AsyncPostgresSaver`) holds each thread's full state and is used to resume a conversation. Domain tables (alembic + SQLModel, as in the sibling repos) are written when each stage completes and are used for history, dashboards and memory.
+The checkpointer (`PostgresSaver`) holds each thread's full state and is used to resume a conversation. Domain tables (drizzle, in `@repo/db`) are written by tool code when a stage completes, from the tool's own output, never from state the browser sent; they feed the sidebar, the Progress page and memory.
 
-| Table           | Key columns                                                                                                                           |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `users`         | id, clerk_user_id, email, created_at                                                                                                  |
-| `user_settings` | user_id, question_count, level, theme                                                                                                 |
-| `conversations` | id = thread_id, user_id, title, topic, stage, status, last_activity_at, created_at                                                    |
-| `research`      | conversation_id, payload jsonb, sources jsonb                                                                                         |
-| `material`      | conversation_id, original, simplified, updated_at                                                                                     |
-| `quiz_attempts` | id, conversation_id, attempt_no, questions, answer_key, answers, status, score_pct, tier, mastery, feedback, started_at, submitted_at |
-| `reflections`   | conversation_id, rating, text                                                                                                         |
+| Table              | Key columns                                                                                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `users`            | id, clerk_user_id, email, created_at                                                                                                           |
+| `user_settings`    | user_id, question_count, learning_level, theme                                                                                                 |
+| `conversations`    | id = thread_id, user_id, title, topic, stage, status, last_activity_at, created_at                                                             |
+| `research`         | conversation_id, payload jsonb, sources jsonb                                                                                                  |
+| `material`         | conversation_id, original, simplified, updated_at                                                                                              |
+| `quiz_attempts`    | id, conversation_id, quiz_id, attempt_no, questions, answer_key, answers, status, score_pct, tier, mastery, feedback, started_at, submitted_at |
+| `reflections`      | conversation_id, attempt_id, rating, text                                                                                                      |
+| `learner_profiles` | user_id, level, style, language                                                                                                                |
+| `concept_memories` | user_id, key, concept, correct, total                                                                                                          |
+| `topic_memories`   | conversation_id, user_id, topic, best_pct, latest_pct, attempts                                                                                |
 
-Settings move from `localStorage` to `user_settings`, so they follow the user across devices.
+Settings live in `user_settings`; `localStorage` keeps a copy for the first paint.
 
 ### Conversations and unfinished work
 
-One conversation is one LangGraph thread and one topic. "New topic" creates a new conversation instead of resetting the current one. A conversation can hold several quiz attempts.
+One conversation is one thread and one topic. "New topic" creates a new conversation (or reuses the one not started yet) instead of resetting the current one, and the Research tool refuses a second topic in a conversation (Q52). A conversation can hold several quiz attempts.
 
 ```mermaid
 stateDiagram-v2
@@ -318,32 +338,41 @@ stateDiagram-v2
 ```
 
 - `abandoned` is computed from `last_activity_at` when the data is read. There is no cron job.
-- A quiz attempt is `in_progress` until it becomes `submitted`. Draft answers are saved with a debounced `PATCH /api/v1/attempts/{id}/answers`, which does not start an agent run.
-- Resuming restores the checkpoint state, the canvas stage and the draft answers. A banner shows e.g. "You were on the Quiz stage, 3/5 answered."
+- A quiz attempt is `in_progress` until it becomes `submitted`. Draft answers live in the browser's state and reach the checkpoint with the next run; the planned `PATCH /attempts/{id}/answers` was not built.
+- Resuming restores the checkpoint state, the canvas stage and the answers saved with the last run. A banner shows e.g. "You were on the Quiz stage, 3/5 answered."
 - An attempt that is never submitted is not scored and does not count toward mastery.
 
 ### Memory
 
-| Kind                | Where                                       | Contents                                                                                          | Written by                                                                        |
-| ------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Short-term          | Checkpointer, per thread                    | Messages + state; once a thread passes ~30 messages, old ones are summarised into `state.summary` | Summarise node                                                                    |
-| Long-term: profile  | `AsyncPostgresStore` `(user_id, "profile")` | Preferred level, explanation style, language                                                      | The LLM, extracting from reflections and chat in a background step after each run |
-| Long-term: concepts | `(user_id, "concepts")`                     | Running mastery per concept                                                                       | Code, after each submitted attempt                                                |
-| Long-term: topics   | `(user_id, "topics")`                       | Topics studied, best and latest score                                                             | Code, after each submitted attempt                                                |
+| Kind                | Where                  | Contents                                                              | Written by                                                                        |
+| ------------------- | ---------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Short-term          | Checkpoint, per thread | Every message, plus `summary` and `summarizedUpTo` (graph state only) | The summariser, after a run that leaves over ~3,000 unsummarised tokens           |
+| Long-term: profile  | `learner_profiles`     | Preferred level, explanation style, language                          | One small structured call after each run with a student message; the Memory panel |
+| Long-term: concepts | `concept_memories`     | Correct and total per concept, over every graded attempt              | Code, in the transaction that records a graded attempt                            |
+| Long-term: topics   | `topic_memories`       | One per conversation: topic, best and latest score, attempts          | Code, in the same transaction                                                     |
 
-The Supervisor prompt reads the profile and the relevant weak concepts. The Quiz Agent spends about 20% of questions on weak concepts that relate to the topic. A Memory panel in Settings lets users view and delete memories. Semantic search (pgvector) is left out for now.
+`messages` is never trimmed (the chat, resume and memory read it); only the agent's view uses the summary in place of older messages, and the summary never reaches the browser (Q53). Long-term memory is read once per run into run context, not graph state, so a forgotten memory is gone from the next run and never sits in an old checkpoint (Q54). The prompt gets the profile, up to five concepts under 70% and five recent topics, one line each within 1,200 characters, under a heading that marks it as data. The Quiz Agent spends about a fifth of the questions on up to three weak concepts the material covers. Semantic search (pgvector) is left out.
+
+The **Memory panel** (Settings → Memory, `/memory`) shows all of it: the profile can be edited (only changed fields are sent; a cleared field is forgotten), and any profile field, concept or topic can be forgotten after a confirmation step (`GET`/`PATCH /api/memory`, `DELETE /api/memory/[kind]/[id]`).
+
+### Progress page
+
+`/history` (the header's **Progress**) is rendered on the server from `quiz_attempts`, not from memory, so a topic forgotten in the Memory panel still shows its record. Each topic with a graded attempt gets a card: latest and best score, a line chart of every attempt (drawn at the card's width, with a tooltip per point and a hidden table for screen readers), the concept mastery of the latest attempt, and **Retake** (Q56). Retake links to `/?retake=<conversation id>`: the app opens that conversation, and once its state is back from the checkpoint, the canvas clears the graded results like the quiz's own Retake and opens the Quiz stage. The server takes it as a retake with the next run, even when the student picks the same answers again.
 
 ### Multiple conversations and deletion
 
-- A collapsible conversation sidebar next to the chat, with a "New topic" button. Rows show title, topic, stage, status and score, and can be searched, filtered, renamed and deleted.
-- A History / Progress page shows scores over time for each topic, per-concept mastery and a Retake button. It is the last v2 milestone.
-- API: `GET/POST/PATCH/DELETE /api/v1/conversations` and `GET /conversations/{id}/attempts`. Switching conversations changes `<CopilotKit threadId>`.
-- **Delete is permanent**, after a confirmation step. In one request it removes the rows (cascading to research, material, attempts and reflections) and calls `checkpointer.adelete_thread`.
-- On delete, long-term memory is recomputed: the topic's entry is removed and concept mastery is rebuilt from the attempts that remain. Profile memories are kept, and users delete them in the Memory panel.
+- A collapsible conversation sidebar next to the chat, with a "New topic" button. Rows show title, stage, status and score, and can be searched, renamed and deleted.
+- API: `GET/POST/PATCH/DELETE /api/conversations` and `GET /api/conversations/{id}/attempts`. Switching conversations changes the chat's thread id.
+- **Delete is permanent**, after a confirmation step. In one request it removes the rows (cascading to research, material, attempts, reflections and the topic memory) and the thread's checkpoints.
+- On delete, concept mastery is rebuilt from the attempts that remain; a concept the student forgot is not brought back. Profile memories are kept, and users delete them in the Memory panel.
+
+### Testing
+
+Vitest throughout. Pure logic keeps unit tests (scoring, sealing, client edits, memory and summary rules, chart geometry). The agent is tested at the route: the real `CopilotRuntime` handler, the in-process client and the graph, with a scripted chat model (`ScriptedModel`) answering every model call, so tests read the exact event stream the browser would. They cover the quiz never leaking before Submit, no raw events or server-only state over a whole learning path and its reload, the client unable to write server keys, no API key in a traced step, and memory and summaries. `@repo/db` runs its repositories against PGlite with the real migrations, and the web route and page tests mock only Clerk and the database client: every route answers 401 without a session, every page sends a signed-out visitor to sign in, and another user's conversation, memory or history is never visible. Playwright is still out of scope.
 
 ## Decision log
 
-We agreed these decisions in the design review on 2026-09-18; Q40–Q46 were added with M8 on 2026-09-24. Where a later decision replaced an earlier one, the row says so.
+We agreed these decisions in the design review on 2026-09-18; Q40–Q46 were added with M8 on 2026-09-24, and Q47–Q56 with the v2 migration (spikes on 2026-09-30 to M7 on 2026-10-02; D1–D10 in [v2-migration-plan.md](./v2-migration-plan.md#4-decisions-recommendation-first)). Where a later decision replaced an earlier one, the row says so.
 
 | #   | Decision                                                                                                         |
 | --- | ---------------------------------------------------------------------------------------------------------------- |
@@ -379,11 +408,11 @@ We agreed these decisions in the design review on 2026-09-18; Q40–Q46 were add
 | Q30 | New topic resets after a human-in-the-loop confirmation (v2: a new conversation)                                 |
 | Q31 | Vitest for pure logic, no Playwright; six milestone commits                                                      |
 | Q32 | v1 builds the migration seams                                                                                    |
-| Q33 | Next as BFF; Clerk checked in Next and in FastAPI                                                                |
+| Q33 | Next as BFF; Clerk checked in Next and in FastAPI (replaced by Q47–Q48)                                          |
 | Q34 | One conversation = one thread = one topic                                                                        |
 | Q35 | Checkpointer to resume + domain tables written at stage completion                                               |
 | Q36 | Conversation and attempt statuses; draft answers saved via PATCH; resume                                         |
-| Q37 | Short-term summarisation; long-term profile, concepts and topics in the store; Memory panel                      |
+| Q37 | Short-term summarisation; long-term profile, concepts and topics in the store; Memory panel (store: see Q54)     |
 | Q38 | Conversation sidebar, History page; delete is permanent                                                          |
 | Q39 | On delete, recompute topics and concept mastery; keep profile memories                                           |
 | Q40 | M8: side questions can be answered with four fixed chat cards or a free-form `renderSurface` in the chat         |
@@ -393,3 +422,13 @@ We agreed these decisions in the design review on 2026-09-18; Q40–Q46 were add
 | Q44 | M8: a tool's chat card is the whole reply, enforced in code; a submitted quiz gets no Supervisor summary         |
 | Q45 | M8: tool calls the AI SDK rejects get a failure result, so the thread never breaks                               |
 | Q46 | M8: shiki, lazy-loaded, highlights Board code (reverses M7.3's "no highlighting dependency")                     |
+| Q47 | v2: LangChain.js `createAgent` in the Next route via `LangGraphAgent` + our in-process client; no FastAPI        |
+| Q48 | Clerk UI in the browser; the Next backend is the authority and gives the agent `userId` as run context           |
+| Q49 | BYOK kept; the key goes into the model instance per request, never into run context or traces (D1)               |
+| Q50 | Answer key stays AES-GCM-sealed in state; the stream filter drops `RAW` and `rawEvent` (D4)                      |
+| Q51 | The server starts from the checkpoint and applies only the edits the browser may make (D10)                      |
+| Q52 | New topic = new conversation; Research refuses a second topic; no confirmation card (D5, replaces Q30)           |
+| Q53 | Short-term memory: full `messages` plus a rolling summary only the agent reads (D8)                              |
+| Q54 | Long-term memory in typed tables written by code, read once per run into run context; no store (D2)              |
+| Q55 | One instance, or sticky by thread: reload and Stop use the runner's process memory (D9)                          |
+| Q56 | Progress page from quiz attempts, server-rendered; Retake opens the conversation and resets its quiz             |

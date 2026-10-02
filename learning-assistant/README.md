@@ -2,32 +2,53 @@
 
 A tutor that takes a student from a topic to scored, personalised feedback in one session: **Research → Learning Material → Quiz → Evaluation → Score → Feedback**. You chat on the left, and the canvas on the right shows each stage as it is built.
 
-It is built on CopilotKit 1.72, AG-UI and A2UI. A Supervisor agent hands work to four subagents (Research, Material, Quiz and Evaluator). The full design is in [docs/design.md](./docs/design.md) and the task breakdown is in [docs/v1-tasks.md](./docs/v1-tasks.md).
+It is built on CopilotKit 1.72, AG-UI, A2UI and LangChain.js. A Supervisor agent hands work to four subagents (Research, Material, Quiz and Evaluator). You sign in with Clerk, each topic is its own conversation that you can come back to, and the assistant remembers what you found hard across topics. The full design is in [docs/design.md](./docs/design.md), the v1 task breakdown in [docs/v1-tasks.md](./docs/v1-tasks.md) and the v2 migration in [docs/v2-migration-plan.md](./docs/v2-migration-plan.md).
 
 ## Setup
 
-You need Node.js 24 or later, pnpm 11 (`corepack enable` picks the version in `package.json`) and Postgres 16. Docker gives you one that matches `.env.example`:
+You need Node.js 24 or later, pnpm 11 (`corepack enable` picks the version in `package.json`), Docker (or your own Postgres 16), a Clerk account and an OpenAI API key.
 
 ```bash
 pnpm install
 cp apps/web/.env.example apps/web/.env
+```
+
+Then set up the four things `apps/web/.env` needs.
+
+**1. Secrets.** Generate `API_KEY_SEAL_SECRET` and `QUIZ_SEAL_SECRET`, each with `openssl rand -base64 32`.
+
+**2. Clerk (sign-in).**
+
+1. Create an application at <https://dashboard.clerk.com> and pick the sign-in methods you want (email, Google…). The development instance needs no domain.
+2. Under **API Keys**, copy the publishable key (`pk_test_…`) into `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and the secret key (`sk_test_…`) into `CLERK_SECRET_KEY`.
+3. Optional: to delete a user's data when they are deleted in Clerk, add a webhook endpoint under **Webhooks** pointing at `https://<your host>/api/webhooks/clerk`, subscribed to `user.deleted`, and copy its signing secret into `CLERK_WEBHOOK_SIGNING_SECRET`. Locally, Clerk can only reach it through a tunnel (for example `ngrok http 3000`); without the secret the endpoint answers 400 and nothing else changes.
+
+The app has its own sign-in and sign-up pages (`/sign-in`, `/sign-up`). The browser only shows Clerk's UI; the Next.js server checks the session on every page and API route, and the agent gets the user's id from the server, never from the browser.
+
+**3. Postgres.** `docker compose up -d` starts Postgres 16 with the user, password and database that `DATABASE_URL` in `.env.example` already names. To use your own server, create a database and set `DATABASE_URL` to it (`postgres://user:password@host:5432/database`). Then create the app's tables:
+
+```bash
 docker compose up -d
 pnpm db:migrate
 ```
 
-Fill in `apps/web/.env` (see below). At minimum, set `API_KEY_SEAL_SECRET`, `QUIZ_SEAL_SECRET` and the two Clerk keys (create an application at <https://dashboard.clerk.com>, then copy its keys from **API Keys**); `DATABASE_URL` already points at the Docker database. `pnpm db:migrate` creates the app's tables; the server creates the conversation checkpoint tables itself when it starts. Then start the app:
+`pnpm db:migrate` applies the migrations in `packages/db/drizzle/` (users, settings, conversations, research, learning material, quiz attempts, reflections and long-term memory). The conversation checkpoints get their own tables, which the server creates when it starts. Run `pnpm db:migrate` again after pulling a change to `packages/db/src/schema.ts`.
+
+**4. Optional.** `TAVILY_API_KEY` for web research with sources, and the `LANGSMITH_*` variables for tracing (see [Environment variables](#environment-variables)).
+
+Then start the app:
 
 ```bash
 pnpm dev
 ```
 
-Open <http://localhost:3000>. You are asked to sign in first (Clerk); every page and API route needs a signed-in user. Then you are sent to the API key page: enter your own OpenAI API key. The server checks it with OpenAI, then returns it sealed (AES-256-GCM with `API_KEY_SEAL_SECRET`). The browser keeps only the sealed key, in `sessionStorage`, so it is cleared when the tab closes. Without a saved key, the assistant sends you back to the key page. After you change `.env`, restart the dev server.
+Open <http://localhost:3000> and sign in. You are then sent to the API key page: enter your own OpenAI API key. The server checks it with OpenAI, then returns it sealed (AES-256-GCM with `API_KEY_SEAL_SECRET`). The browser keeps only the sealed key, in `sessionStorage`, so it is cleared when the tab closes. Without a saved key, the assistant sends you back to the key page. After you change `.env`, restart the dev server.
 
 ## Using the app
 
 The screen has two parts. The **chat** is where you ask for things; it can be docked on the left, float as a popup, or be hidden (`Pop out`, `Collapse` and the resize handle are in its header). The **canvas** has two tabs: **Learning path**, a six-stage stepper (Research → Learning Material → Quiz → Evaluation → Score → Feedback), and **Board**, where views the assistant draws for you are kept. Every action shows a small card in the chat, such as "Research ready: photosynthesis", and its result appears on the canvas.
 
-You can use the app in nine ways. The messages are examples; any wording that says the same thing works, in any language.
+You can use the app in ten ways. The messages are examples; any wording that says the same thing works, in any language.
 
 ### 1. Learn a topic step by step
 
@@ -50,11 +71,11 @@ Each step needs the one before it. If you skip ahead ("make a quiz" with no mate
 - **Original / Simplified**: switch between the notes and a simpler rewrite.
 - **Simplify all**, or "Simplify my learning material": rewrites the whole set into the Simplified view.
 - **Simplify selection**: press **Edit**, select a passage in the text, then press **Simplify selection**. Only that passage is rewritten.
-- **Edit**: change the notes yourself. They are saved for the session. A quiz written from the old notes is cleared, and the assistant offers a new one when you ask about it.
+- **Edit**: change the notes yourself. The edit reaches the assistant with your next message and stays in the conversation. A quiz written from the old notes is cleared, and the assistant offers a new one when you ask about it.
 
 ### 4. Practise with the quiz
 
-- **Retake** clears your answers so you can try the same questions again.
+- **Retake** clears your answers so you can try the same questions again. The **Progress** page has a Retake button for every topic you were graded on.
 - **New questions**, or "Give me new questions": writes a new quiz and clears the old results.
 - Answer every question and say "grade my answers" in the chat instead of pressing **Submit**.
 - On the Feedback card, a **Review …** link for your weakest concept takes you back to the learning material.
@@ -103,6 +124,11 @@ Settings apply to the next research, material or quiz; existing content is not r
 
 While a step runs, its chat card has a **Stop** button. If a step fails, the stage shows the error with a **Retry** button, and the assistant explains what went wrong in the chat.
 
+### 10. See your progress and what the assistant remembers
+
+- **Progress** (header): one card per topic you were graded on, with your latest and best score, a chart of every attempt, the mastery of each concept in your latest attempt, and **Retake**, which opens that conversation with the quiz ready to take again.
+- **Settings → Memory**: what the assistant keeps about you across conversations. Your profile (level, explanation style, language) is noticed from what you write, and you can edit it here. Concepts keep your mastery over every graded quiz; weak ones get extra questions in new quizzes. Topics keep your best and latest score. **Forget** removes any of them (it asks first), and the assistant reads it no more from the next message on. Deleting a conversation also removes its topic and recounts your concepts.
+
 ## Environment variables
 
 All variables live in `apps/web/.env` and are read on the server only, except `NEXT_PUBLIC_*`, which the browser also sees.
@@ -121,6 +147,7 @@ All variables live in `apps/web/.env` and are read on the server only, except `N
 | `LANGSMITH_API_KEY`                 | No       | LangSmith API key. Required when `LANGSMITH_TRACING` is `true`                                                                       |
 | `LANGSMITH_PROJECT`                 | No       | LangSmith project the traces go to. Defaults to `default`                                                                            |
 | `LANGSMITH_ENDPOINT`                | No       | LangSmith API URL. Defaults to `https://api.smith.langchain.com`; use `https://eu.api.smith.langchain.com` for the EU region         |
+| `LANGSMITH_TRACING_SAMPLING_RATE`   | No       | Share of turns to trace, from 0 to 1, to stay under LangSmith's monthly cap                                                          |
 
 With tracing on, each turn of the conversation is one `learning` trace. Its Supervisor steps (`supervisor`) and subagent tool calls (`research`, `makeMaterial`, `generateQuiz`…) are nested under it, each subagent with its own LLM calls. Every trace carries the chat's `thread_id`, so LangSmith's **Threads** tab groups a conversation's turns together, and the signed-in Clerk `user_id`.
 
@@ -150,31 +177,33 @@ Commits go through Husky: lint-staged formats and lints staged files, and commit
 ## Architecture
 
 ```text
-apps/web/                  Next.js app (UI, CopilotKit runtime)
-  app/api/copilotkit/      CopilotRuntime route that registers the agent
-  features/canvas/         Stepper, stages, A2UI catalog and surfaces
-  features/chat/           Chat panel, tool progress cards, new-topic confirmation
-  features/settings/       Settings store and popover
+apps/web/                  Next.js app: pages, API routes, the CopilotKit runtime
+  app/api/copilotkit/      CopilotRuntime route: Clerk check, thread guard, the agent
+  app/api/conversations/   Conversations and their quiz attempts
+  app/api/memory/          The Memory panel's API
+  app/history/, memory/    Progress page and Memory panel
+  features/                canvas, chat, conversations, memory, history, settings, api-key
   components/layout/       App shell, header, workspace, resize handle
-apps/agent/                @repo/agent: Supervisor wrapper, subagents, tools, prompts, scoring
+apps/agent/                @repo/agent: the LangChain agent, its tools, prompts and memory
+packages/db/               @repo/db: drizzle schema, migrations, repositories, checkpointer
 packages/shared/           zod schemas, A2UI templates and shared constants
 packages/eslint-config/    ESLint presets
 packages/typescript-config/ tsconfig presets
 ```
 
-Everything runs inside the Next.js app: the runtime route imports `@repo/agent`, so the agent runs in the same process. `CopilotRuntime` hosts one agent, `LearningSupervisorAgent`. It is a thin wrapper around CopilotKit's `BuiltInAgent`, and on each run it does four things:
+Everything runs inside the Next.js app. The runtime route checks the Clerk session, then builds the agent for that request: a LangChain.js `createAgent` Supervisor, run in the same process through `@ag-ui/langgraph`'s `LangGraphAgent` and a small client of our own. Each run, the client:
 
-1. Reads the user's settings from `forwardedProps` and builds the Supervisor with the user's OpenAI key.
-2. Gives the Supervisor its subagent tools (`research`, `makeMaterial`, `simplify`, `generateQuiz`, `evaluate`), each running a focused `generateObject` call.
-3. Passes the Supervisor a trimmed state, never the full learning material or quiz.
-4. Turns each tool result into an AG-UI `STATE_DELTA`, so the canvas updates without the LLM copying data into state.
+1. Reads the settings and a quiz Submit from `forwardedProps`, and puts them, the verified user id, the app context and the student's long-term memory into the run's context. The OpenAI key stays inside the model instance, so it never reaches a trace.
+2. Starts from the conversation's checkpoint and applies only the edits the browser may make (quiz answers, the learning material's text and view, the reflection). Every other state key the browser sends is ignored.
+3. Runs the Supervisor with its subagent tools (`research`, `makeMaterial`, `simplify`, `generateQuiz`, `evaluate`) and its chat and Board tools. Each subagent is one structured-output call that streams a draft to the canvas.
+4. Filters the stream to the browser: no raw graph events, only the canvas's state keys, and one snapshot per change.
 
 A few rules keep the flow reliable:
 
 - **The quiz stays sealed.** The answer key is encrypted into state, and no snapshot or delta before Submit contains the correct answers.
-- **Submit is graded in code.** The Submit button sends an A2UI action, and the wrapper grades the quiz before the Supervisor runs. The LLM only writes the chat summary.
-- **Fixed stages are templates.** Research, Quiz, Evaluation and Score are A2UI templates from `packages/shared/src/a2ui/templates/`, bound to agent state. Only the Feedback stage is generated: the Evaluator writes it with a small Feedback catalog, and a plain summary is shown if it cannot be drawn.
-- **A new topic needs confirmation.** When learning material or a quiz exists, the chat asks before anything is cleared (human-in-the-loop). The chat history is kept.
+- **Submit is graded in code.** The Submit button sends an A2UI action, and the run's first model call is answered by one that only calls `evaluate`. A graded quiz ends the run there; the real model only explains a failed grading.
+- **One conversation, one topic.** "New topic" starts a new conversation. Each is a thread whose checkpoint (Postgres) brings back its chat, canvas and Board on reload.
+- **Records and memory are written by code.** Each finished stage writes its row (research, material, quiz attempt). A graded attempt updates concept mastery and the topic's scores in the same transaction. After a run, one small model call notes what the student's message says about them (level, style, language), and long threads are folded into a summary that only the agent reads.
 - **Failures can be retried.** A failed step sets `status.error`. The canvas shows it with a Retry button, and the Supervisor explains it in chat.
 
-v1 keeps state for the session only and has no auth or database. v2 moves the agents to Python (LangGraph and FastAPI) and adds auth, persistence and multiple conversations. See [docs/design.md](./docs/design.md#v2-migration-langgraph--fastapi) for the plan.
+The design is in [docs/design.md](./docs/design.md#v2-langchainjs-agent-clerk-and-postgres), and the migration from v1 in [docs/v2-migration-plan.md](./docs/v2-migration-plan.md).
