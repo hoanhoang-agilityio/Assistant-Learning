@@ -1,4 +1,5 @@
 import { useCopilotKit } from "@copilotkit/react-core/v2";
+import { v4 as uuidv4 } from "uuid";
 
 import { useLearningAgent } from "@/hooks/use-learning-agent";
 
@@ -11,7 +12,7 @@ export const useSendMessage = () => {
   const { agent } = useLearningAgent();
 
   return (content: string) => {
-    agent.addMessage({ id: crypto.randomUUID(), role: "user", content });
+    agent.addMessage({ id: uuidv4(), role: "user", content });
     copilotkit.runAgent({ agent }).catch((error: unknown) => {
       console.error("[canvas] Sending a message failed", error);
     });

@@ -50,7 +50,13 @@ export const STAGE_SUGGESTIONS: Record<
   score: [
     { title: "What should I review?", message: "What should I review next?" },
   ],
+  // A new topic is a new conversation ("New topic" in the sidebar), not a
+  // chat message: the assistant would only point there.
   feedback: [
-    { title: "Start a new topic", message: "I want to learn a new topic." },
+    {
+      title: "Explain my weakest concept",
+      message: "Explain my weakest concept again.",
+    },
+    { title: "What should I review?", message: "What should I review next?" },
   ],
 };

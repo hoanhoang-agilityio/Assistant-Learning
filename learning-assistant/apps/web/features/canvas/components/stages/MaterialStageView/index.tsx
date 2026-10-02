@@ -27,6 +27,8 @@ export interface MaterialStageViewProps {
   isLocked: boolean;
   onChange: (text: string) => void;
   onSelect: (event: SyntheticEvent<HTMLTextAreaElement>) => void;
+  /** The editor lost focus: a waiting edit is written now. */
+  onBlur: () => void;
   onModeChange: (mode: MaterialMode) => void;
   onViewChange: (view: MaterialView) => void;
   onSimplifyAll: () => void;
@@ -50,6 +52,7 @@ export const MaterialStageView = ({
   isLocked,
   onChange,
   onSelect,
+  onBlur,
   onModeChange,
   onViewChange,
   onSimplifyAll,
@@ -104,6 +107,7 @@ export const MaterialStageView = ({
         readOnly={isLocked}
         onChange={(event) => onChange(event.target.value)}
         onSelect={onSelect}
+        onBlur={onBlur}
         rows={18}
         className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800 transition-all outline-none read-only:opacity-60 focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
       />

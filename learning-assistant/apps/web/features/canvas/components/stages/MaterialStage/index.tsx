@@ -20,6 +20,7 @@ export const MaterialStage = ({ material }: MaterialStageProps) => {
     isLocked,
     handleChange,
     handleSelect,
+    handleBlur,
     handleModeChange,
     handleViewChange,
     handleSimplifyAll,
@@ -38,6 +39,7 @@ export const MaterialStage = ({ material }: MaterialStageProps) => {
       isLocked={isLocked}
       onChange={handleChange}
       onSelect={handleSelect}
+      onBlur={handleBlur}
       onModeChange={handleModeChange}
       onViewChange={handleViewChange}
       onSimplifyAll={handleSimplifyAll}

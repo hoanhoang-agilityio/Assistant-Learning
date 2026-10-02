@@ -31,8 +31,10 @@ import { useLearningAgent } from "@/hooks/use-learning-agent";
 /**
  * The Learning Material editor. Keystrokes stay in a local draft and are written to the
  * agent's state after a pause (`agent.setState`); the pending edit is flushed
- * first whenever the agent is about to read the learning material. Editing is locked
- * while the agent runs, so a server update never races a local edit.
+ * first whenever the agent is about to read the learning material, and when
+ * the editor loses focus, so a run started from the chat carries it too.
+ * Editing is locked while the agent runs, so a server update never races a
+ * local edit.
  */
 export const useMaterialStage = (material: Material) => {
   const { agent, isRunning } = useLearningAgent();
@@ -112,6 +114,7 @@ export const useMaterialStage = (material: Material) => {
     isLocked: isRunning,
     handleChange,
     handleSelect,
+    handleBlur: flush,
     handleModeChange: setMode,
     handleViewChange,
     handleSimplifyAll,
