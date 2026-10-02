@@ -3,6 +3,7 @@ export * from "./conversations";
 export * from "./display";
 export * from "./evaluation";
 export * from "./feedback-surface";
+export * from "./history";
 export * from "./learning-state";
 export * from "./material";
 export * from "./memory";
