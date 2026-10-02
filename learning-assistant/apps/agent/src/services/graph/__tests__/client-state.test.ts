@@ -77,21 +77,19 @@ const chat = (
     tools: [frontendTool(SET_THEME_TOOL)],
   });
 
-const submit = (previous: BaseEvent[]) =>
+/** A Submit press on `quiz` as the browser holds it, with `ANSWERS` picked. */
+const submit = (previous: BaseEvent[], quiz = quizOf(previous)) =>
   runTurn(handler, {
     threadId,
     messages: lastMessages(previous),
-    state: {
-      ...lastSnapshot(previous),
-      quiz: { ...quizOf(previous), answers: ANSWERS },
-    },
+    state: { ...lastSnapshot(previous), quiz: { ...quiz, answers: ANSWERS } },
     forwardedProps: {
       settings: SETTINGS,
       a2uiAction: {
         userAction: {
           name: QUIZ_ACTIONS.submit,
           surfaceId: "quiz",
-          context: { quizId: quizOf(previous).id, answers: ANSWERS },
+          context: { quizId: quiz.id, answers: ANSWERS },
         },
       },
     },
@@ -176,6 +174,23 @@ describe("what the browser changed since the last run", () => {
       evaluation: null,
       score: null,
       feedback: null,
+    });
+  });
+
+  it("grades a retaken quiz again when the student picks the same answers", async () => {
+    teachThen();
+    const graded = await submit(await reachQuiz());
+    const retaken = { ...quizOf(graded), answers: {}, submitted: false };
+
+    const events = await submit(graded, retaken);
+
+    expect(toolResultsOf(events)).toEqual([
+      expect.objectContaining({ ok: true }),
+    ]);
+    expect(lastSnapshot(events)).toMatchObject({
+      stage: "evaluation",
+      quiz: { answers: ANSWERS, submitted: true },
+      status: { running: null },
     });
   });
 

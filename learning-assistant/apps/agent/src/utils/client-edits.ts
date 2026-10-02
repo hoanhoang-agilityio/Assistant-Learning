@@ -17,6 +17,7 @@ import { z } from "zod";
 const ClientQuizSchema = z.object({
   id: QuizSchema.shape.id,
   answers: QuizSchema.shape.answers,
+  submitted: QuizSchema.shape.submitted.optional(),
 });
 const ClientReflectionSchema = ReflectionSchema.nullable();
 
@@ -68,8 +69,10 @@ const applyMaterial = (state: LearningState, raw: unknown): LearningState => {
 
 /**
  * The browser's answers, for the quiz the server holds and its questions
- * only. The canvas locks a graded quiz, so answers that differ from the
- * graded ones mean the student pressed Retake: the results are cleared.
+ * only. The canvas locks a graded quiz, so a graded quiz the browser holds
+ * as not submitted, or with other answers, means the student pressed Retake:
+ * the results are cleared. The browser can undo a grade this way, never
+ * make one.
  */
 const applyAnswers = (state: LearningState, raw: unknown): LearningState => {
   const client = readField(ClientQuizSchema, raw);
@@ -84,11 +87,13 @@ const applyAnswers = (state: LearningState, raw: unknown): LearningState => {
       return answer === undefined ? [] : [[id, answer]];
     }),
   );
-  if (isSameAnswers(answers, quiz.answers)) {
+  const isSame = isSameAnswers(answers, quiz.answers);
+  const isRetake = quiz.submitted && (client.submitted === false || !isSame);
+  if (isSame && !isRetake) {
     return state;
   }
 
-  const base = quiz.submitted ? retakeQuiz(state) : state;
+  const base = isRetake ? retakeQuiz(state) : state;
   return { ...base, quiz: { ...quiz, answers, submitted: false } };
 };
 

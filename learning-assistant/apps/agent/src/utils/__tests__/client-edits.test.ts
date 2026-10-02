@@ -118,6 +118,25 @@ describe("applyClientEdits", () => {
         reflection: null,
       });
     });
+
+    it("reads a graded quiz sent back as not submitted as a retake, even with the same answers", () => {
+      const next = applyClientEdits(GRADED, {
+        quiz: { ...GRADED.quiz, submitted: false },
+      });
+
+      expect(next).toMatchObject({
+        stage: "quiz",
+        quiz: { answers: { q1: 0, q2: 1 }, submitted: false },
+        evaluation: null,
+        score: null,
+      });
+    });
+
+    it("never grades a quiz the browser sends as submitted", () => {
+      expect(
+        applyClientEdits(QUIZZED, { quiz: { ...QUIZ, submitted: true } }),
+      ).toBe(QUIZZED);
+    });
   });
 
   describe("learning material", () => {
