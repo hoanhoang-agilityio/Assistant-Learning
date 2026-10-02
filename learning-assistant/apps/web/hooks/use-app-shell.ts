@@ -1,4 +1,4 @@
-import { API_KEY_ROUTE } from "@repo/shared/constants/routes";
+import { API_KEY_ROUTE, HOME_ROUTE } from "@repo/shared/constants/routes";
 import { useRouter } from "next/navigation";
 import { useLayoutEffect, useMemo, useState } from "react";
 
@@ -17,18 +17,30 @@ import {
 import { useSettingsSync } from "@/features/settings/hooks/use-settings-sync";
 import { useThemeClass } from "@/features/settings/hooks/use-theme-class";
 import { useLayoutStore } from "@/hooks/use-layout-store";
+import { useRetakeRequestActions } from "@/hooks/use-retake-request-store";
 
 /**
  * Loads the saved API key, settings and layout, sends the user to the key page
  * when no key is saved, keeps the theme class and the account's settings in
  * sync, opens a conversation, and builds what the provider sends on every
  * request: the sealed key as a header and the settings as `properties`.
+ * `retakeId` comes from a History page Retake link: it is handed on as a
+ * request and dropped from the URL, so a reload does not retake again.
  */
-export const useAppShell = () => {
+export const useAppShell = (retakeId: string | null) => {
   const router = useRouter();
+  const { requestRetake } = useRetakeRequestActions();
   const settings = useSettings();
   const sealedKey = useSealedApiKey();
   const [isHydrated, setIsHydrated] = useState(false);
+
+  // Before the conversations load, so the bootstrap opens this one.
+  useLayoutEffect(() => {
+    if (retakeId) {
+      requestRetake(retakeId);
+      router.replace(HOME_ROUTE);
+    }
+  }, [retakeId, requestRetake, router]);
 
   // Load saved state before first paint.
   useLayoutEffect(() => {

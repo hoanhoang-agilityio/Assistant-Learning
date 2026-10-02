@@ -1,5 +1,6 @@
 import { useRef } from "react";
 
+import { useRetakeFromHistory } from "@/features/canvas/hooks/use-retake-from-history";
 import { useChatUiTools } from "@/features/chat/hooks/use-chat-ui-tools";
 import { useStageSuggestions } from "@/features/chat/hooks/use-stage-suggestions";
 import { useToolRenderers } from "@/features/chat/hooks/use-tool-renderers";
@@ -31,6 +32,7 @@ export const useWorkspace = () => {
   useDisplayContext();
   useAgentEventLog();
   useConversationRefresh();
+  useRetakeFromHistory();
 
   return { display, panelsRef };
 };

@@ -19,6 +19,11 @@ import { useAppShell } from "@/hooks/use-app-shell";
  */
 const CHAT_A2UI = { catalog: CHAT_UI_CATALOG, includeSchema: false };
 
+export interface AppShellProps {
+  /** A conversation to open and retake, from a History page link. */
+  retakeId: string | null;
+}
+
 /**
  * The client root: loads the saved API key and settings, and sends both to the
  * agent on every run (the sealed key as a header, the settings in
@@ -26,9 +31,9 @@ const CHAT_A2UI = { catalog: CHAT_UI_CATALOG, includeSchema: false };
  * saved and a conversation is open; without a key the user is sent to the
  * key page. The chat runs on the open conversation's thread.
  */
-export const AppShell = () => {
+export const AppShell = ({ retakeId }: AppShellProps) => {
   const { isReady, loadError, handleRetry, headers, properties } =
-    useAppShell();
+    useAppShell(retakeId);
 
   if (loadError) {
     return <ConversationLoadError message={loadError} onRetry={handleRetry} />;

@@ -15,11 +15,12 @@ import {
   pickConversation,
   toActiveConversation,
 } from "@/features/conversations/utils/conversations";
+import { useRetakeRequestStore } from "@/hooks/use-retake-request-store";
 
 /**
  * Loads the user's conversations once the stores are hydrated and opens
- * one: the conversation open last time, else the most recent, else a new
- * one. The chat waits for this, so its first run always has a conversation
+ * one: the one a Retake link names, else the conversation open last time,
+ * else the most recent, else a new one. The chat waits for this, so its first run always has a conversation
  * the server knows.
  */
 export const useConversationBootstrap = (isHydrated: boolean) => {
@@ -37,7 +38,15 @@ export const useConversationBootstrap = (isHydrated: boolean) => {
     let isCancelled = false;
     const load = async () => {
       const loaded = await fetchConversations();
-      const savedId = useConversationStore.getState().active?.id;
+      const { conversationId: retakeId, actions } =
+        useRetakeRequestStore.getState();
+      const isRetakeKnown = loaded.some(({ id }) => id === retakeId);
+      if (!isRetakeKnown) {
+        actions.clearRetake();
+      }
+      const savedId = isRetakeKnown
+        ? (retakeId ?? undefined)
+        : useConversationStore.getState().active?.id;
       const picked =
         pickConversation(loaded, savedId) ?? (await createConversation());
       if (isCancelled) {
