@@ -4,6 +4,12 @@ import type { ConversationStatus, Stage } from "@repo/shared/schemas";
 /** The conversations API. The sidebar and the route handlers share it. */
 export const CONVERSATIONS_API_PATH = "/api/conversations";
 
+/** `/api/conversations/[id]/answers`: the quiz's draft answers. */
+export const CONVERSATION_ANSWERS_SEGMENT = "answers";
+
+/** Pause after the last pick before the draft answers are kept. */
+export const DRAFT_ANSWERS_SAVE_DELAY_MS = 800;
+
 export const CONVERSATION_NOT_FOUND_STATUS = 404;
 export const CONVERSATION_NOT_FOUND_ERROR = "Conversation not found.";
 
