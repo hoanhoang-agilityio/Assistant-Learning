@@ -2,6 +2,7 @@ import type {
   Evaluation,
   Feedback,
   LearningLevel,
+  ProfileField,
   QuizQuestion,
   ResearchResult,
   Source,
@@ -155,7 +156,8 @@ export const reflections = pgTable("reflections", {
 
 /**
  * What a student is like as a learner (E2): noticed by the agent after a
- * run or set by the student. Kept when a conversation is deleted.
+ * run or set by the student, whose own setting wins. Kept when a
+ * conversation is deleted.
  */
 export const learnerProfiles = pgTable("learner_profiles", {
   userId: uuid("user_id")
@@ -164,6 +166,12 @@ export const learnerProfiles = pgTable("learner_profiles", {
   level: text("level").$type<LearningLevel>(),
   style: text("style"),
   language: text("language"),
+  /** Fields the student set themselves; what a run learns never changes these. */
+  studentFields: text("student_fields")
+    .array()
+    .$type<ProfileField[]>()
+    .notNull()
+    .default([]),
   updatedAt: updatedAt(),
 });
 

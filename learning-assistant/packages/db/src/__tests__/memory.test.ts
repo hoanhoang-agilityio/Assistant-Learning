@@ -110,23 +110,72 @@ describe("memory repository", () => {
 
   describe("profile", () => {
     it("changes only the fields given, and forgets one set to null", async () => {
-      await saveLearnerProfile(db, alice, {
-        level: "advanced",
-        language: "Vietnamese",
-      });
-      await saveLearnerProfile(db, alice, { style: "short analogies" });
+      await saveLearnerProfile(
+        db,
+        alice,
+        { level: "advanced", language: "Vietnamese" },
+        "agent",
+      );
+      await saveLearnerProfile(
+        db,
+        alice,
+        { style: "short analogies" },
+        "agent",
+      );
       expect((await getStudentMemory(db, alice)).profile).toEqual({
         level: "advanced",
         style: "short analogies",
         language: "Vietnamese",
       });
 
-      await saveLearnerProfile(db, alice, { language: null });
+      await saveLearnerProfile(db, alice, { language: null }, "agent");
       expect((await getStudentMemory(db, alice)).profile.language).toBeNull();
     });
 
+    it("keeps what the student set from what a run learns later", async () => {
+      await saveLearnerProfile(
+        db,
+        alice,
+        { language: "Vietnamese", style: "analogies" },
+        "agent",
+      );
+      await saveLearnerProfile(db, alice, { language: "English" }, "student");
+
+      const kept = await saveLearnerProfile(
+        db,
+        alice,
+        { language: "French", style: "short answers", level: "beginner" },
+        "agent",
+      );
+
+      expect(kept).toEqual({
+        level: "beginner",
+        style: "short answers",
+        language: "English",
+      });
+    });
+
+    it("lets a run learn a field again once the student forgets it", async () => {
+      await saveLearnerProfile(db, alice, { language: "English" }, "student");
+      await saveLearnerProfile(db, alice, { language: null }, "student");
+
+      await saveLearnerProfile(db, alice, { language: "French" }, "agent");
+      expect((await getStudentMemory(db, alice)).profile.language).toBe(
+        "French",
+      );
+    });
+
+    it("lets the student change their own setting", async () => {
+      await saveLearnerProfile(db, alice, { level: "advanced" }, "student");
+      await saveLearnerProfile(db, alice, { level: "beginner" }, "student");
+
+      expect((await getStudentMemory(db, alice)).profile.level).toBe(
+        "beginner",
+      );
+    });
+
     it("is one student's only", async () => {
-      await saveLearnerProfile(db, alice, { level: "advanced" });
+      await saveLearnerProfile(db, alice, { level: "advanced" }, "student");
       expect(await getStudentMemory(db, bob)).toEqual(EMPTY_STUDENT_MEMORY);
     });
   });
@@ -217,7 +266,7 @@ describe("memory repository", () => {
 
   it("goes with the user", async () => {
     await studyClosures();
-    await saveLearnerProfile(db, alice, { level: "advanced" });
+    await saveLearnerProfile(db, alice, { level: "advanced" }, "student");
 
     await deleteUser(db, "user_alice");
     expect(await getStudentMemory(db, alice)).toEqual(EMPTY_STUDENT_MEMORY);

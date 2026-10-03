@@ -3,6 +3,7 @@ import type {
   ConceptMemory,
   Evaluation,
   LearnerProfile,
+  ProfileField,
   ProfileUpdate,
   QuizQuestion,
   StudentMemory,
@@ -53,6 +54,13 @@ const toTopicMemory = (
   updatedAt: row.updatedAt.toISOString(),
 });
 
+/** The profile's own fields, without who set them. */
+const PROFILE_COLUMNS = {
+  level: learnerProfiles.level,
+  style: learnerProfiles.style,
+  language: learnerProfiles.language,
+};
+
 /** Weakest first; among equals, the one with more evidence. */
 const byMastery = (a: ConceptMemory, b: ConceptMemory): number =>
   a.percent - b.percent || b.total - a.total;
@@ -63,11 +71,7 @@ export const getStudentMemory = async (
   userId: string,
 ): Promise<StudentMemory> => {
   const [profile] = await db
-    .select({
-      level: learnerProfiles.level,
-      style: learnerProfiles.style,
-      language: learnerProfiles.language,
-    })
+    .select(PROFILE_COLUMNS)
     .from(learnerProfiles)
     .where(eq(learnerProfiles.userId, userId));
   const concepts = await db
@@ -87,30 +91,54 @@ export const getStudentMemory = async (
   };
 };
 
+/** Who changes the profile: the student, or what a run noticed about them. */
+export type ProfileSource = "student" | "agent";
+
 /**
  * Changes the fields `update` names and keeps the rest; `null` forgets a
- * field. Used both for what a run learns and for the student's own edits.
+ * field. A field the student sets is theirs: what a run learns later never
+ * changes it, until the student forgets it. Returns the profile as kept.
  */
 export const saveLearnerProfile = async (
   db: Database,
   userId: string,
   update: ProfileUpdate,
+  source: ProfileSource,
   now = new Date(),
-): Promise<LearnerProfile> => {
-  const [row] = await db
-    .insert(learnerProfiles)
-    .values({ ...EMPTY_PROFILE, ...update, userId, updatedAt: now })
-    .onConflictDoUpdate({
-      target: learnerProfiles.userId,
-      set: { ...update, updatedAt: now },
-    })
-    .returning({
-      level: learnerProfiles.level,
-      style: learnerProfiles.style,
-      language: learnerProfiles.language,
-    });
-  return row ?? EMPTY_PROFILE;
-};
+): Promise<LearnerProfile> =>
+  db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ studentFields: learnerProfiles.studentFields })
+      .from(learnerProfiles)
+      .where(eq(learnerProfiles.userId, userId));
+    const studentFields = new Set(current?.studentFields ?? []);
+    const changes = Object.fromEntries(
+      (Object.entries(update) as [ProfileField, string | null | undefined][])
+        .filter(([, value]) => value !== undefined)
+        .filter(([field]) => source === "student" || !studentFields.has(field)),
+    ) as ProfileUpdate;
+
+    if (source === "student") {
+      for (const [field, value] of Object.entries(changes)) {
+        if (value === null) {
+          studentFields.delete(field as ProfileField);
+        } else {
+          studentFields.add(field as ProfileField);
+        }
+      }
+    }
+    const kept = { ...changes, studentFields: [...studentFields] };
+
+    const [row] = await tx
+      .insert(learnerProfiles)
+      .values({ ...EMPTY_PROFILE, ...kept, userId, updatedAt: now })
+      .onConflictDoUpdate({
+        target: learnerProfiles.userId,
+        set: { ...kept, updatedAt: now },
+      })
+      .returning(PROFILE_COLUMNS);
+    return row ?? EMPTY_PROFILE;
+  });
 
 /** Forgets one concept until a new graded attempt tests it. False when there was none. */
 export const deleteConceptMemory = async (

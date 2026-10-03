@@ -186,6 +186,24 @@ describe("/api/memory", () => {
     });
   });
 
+  it("keeps the student's own setting from what a run learns, until they forget it", async () => {
+    signInAs(ALICE);
+    await patchProfile({ language: "English" });
+
+    await learningMemory.saveProfile(ALICE, {
+      language: "French",
+      level: "beginner",
+    });
+    expect((await readMemory()).profile).toMatchObject({
+      language: "English",
+      level: "beginner",
+    });
+
+    await forget("profile", "language");
+    await learningMemory.saveProfile(ALICE, { language: "French" });
+    expect((await readMemory()).profile.language).toBe("French");
+  });
+
   it("refuses a profile edit it cannot read", async () => {
     signInAs(ALICE);
 

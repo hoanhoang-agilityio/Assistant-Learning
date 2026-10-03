@@ -16,6 +16,7 @@ export const learningMemory: LearningMemory = {
       getDatabase(),
       await getUserRowId(clerkUserId),
       update,
+      "agent",
     );
   },
 };

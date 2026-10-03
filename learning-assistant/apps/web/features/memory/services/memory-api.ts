@@ -58,7 +58,10 @@ export const getMemoryHandler = async (
   return Response.json(await getStudentMemory(getDatabase(), userId));
 };
 
-/** `PATCH /api/memory` with profile fields: the student's own edit; `null` forgets one. */
+/**
+ * `PATCH /api/memory` with profile fields: the student's own edit, which
+ * what a run learns later never changes; `null` forgets one.
+ */
 export const updateProfileHandler = async (
   request: Request,
   clerkUserId: string,
@@ -77,7 +80,12 @@ export const updateProfileHandler = async (
   }
 
   const userId = await getUserRowId(clerkUserId);
-  const profile = await saveLearnerProfile(getDatabase(), userId, parsed.data);
+  const profile = await saveLearnerProfile(
+    getDatabase(),
+    userId,
+    parsed.data,
+    "student",
+  );
   return Response.json({ profile });
 };
 
@@ -99,7 +107,7 @@ const forgetItem = async (
   if (!field.success) {
     return false;
   }
-  await saveLearnerProfile(db, userId, { [field.data]: null });
+  await saveLearnerProfile(db, userId, { [field.data]: null }, "student");
   return true;
 };
 

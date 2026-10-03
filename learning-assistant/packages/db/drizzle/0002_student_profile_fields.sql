@@ -1,0 +1,1 @@
+ALTER TABLE "learner_profiles" ADD COLUMN "student_fields" text[] DEFAULT '{}' NOT NULL;
