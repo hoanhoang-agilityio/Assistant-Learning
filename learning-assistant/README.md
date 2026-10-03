@@ -76,6 +76,7 @@ Each step needs the one before it. If you skip ahead ("make a quiz" with no mate
 ### 4. Practise with the quiz
 
 - **Retake** clears your answers so you can try the same questions again. The **Progress** page has a Retake button for every topic you were graded on.
+- Answers you have picked are kept as you go: a reload, or switching to another conversation and back, brings them back.
 - **New questions**, or "Give me new questions": writes a new quiz and clears the old results.
 - Answer every question and say "grade my answers" in the chat instead of pressing **Submit**.
 - On the Feedback card, a **Review …** link for your weakest concept takes you back to the learning material.
@@ -127,7 +128,7 @@ While a step runs, its chat card has a **Stop** button. If a step fails, the sta
 ### 10. See your progress and what the assistant remembers
 
 - **Progress** (header): one card per topic you were graded on, with your latest and best score, a chart of every attempt, the mastery of each concept in your latest attempt, and **Retake**, which opens that conversation with the quiz ready to take again.
-- **Settings → Memory**: what the assistant keeps about you across conversations. Your profile (level, explanation style, language) is noticed from what you write, and you can edit it here. Concepts keep your mastery over every graded quiz; weak ones get extra questions in new quizzes. Topics keep your best and latest score. **Forget** removes any of them (it asks first), and the assistant reads it no more from the next message on. Deleting a conversation also removes its topic and recounts your concepts.
+- **Settings → Memory**: what the assistant keeps about you across conversations. Your profile (level, explanation style, language) is noticed from what you write, and you can edit it here; what you set yourself is kept until you change or forget it. Concepts keep your mastery over every graded quiz; weak ones get extra questions in new quizzes. Topics keep your best and latest score. **Forget** removes any of them (it asks first), and the assistant reads it no more from the next message on. Deleting a conversation also removes its topic and recounts your concepts.
 
 ## Environment variables
 

@@ -1,6 +1,6 @@
 # v2 Migration Plan: single LangChain.js agent + Clerk + conversations + memory
 
-2026-10-02 · M7 done: the migration is complete · Spikes done, see [v2-spike-findings.md](./v2-spike-findings.md). Parked variant: `v2-migration-plan-python.md` (referenced earlier, not in the repo).
+2026-10-03 · M7 done: the migration is complete, with fixes after it (M7-9 to M7-15) · Spikes done, see [v2-spike-findings.md](./v2-spike-findings.md). Parked variant: `v2-migration-plan-python.md` (referenced earlier, not in the repo).
 
 ## 1. Goal and scope
 
@@ -240,13 +240,27 @@ Not done in M6: the Memory panel and History page (FE5, M7); a profile field the
 | M7-1 | The server read a retake only from changed answers, so Retake and then the same answers again left the quiz graded, and Submit failed with "already submitted" | A graded quiz the browser sends back as not submitted is a retake too (`applyAnswers`). The browser can undo a grade this way, never make one |
 | M7-2 | A material edit reached the state 600 ms after the last keystroke; a run started sooner (a suggestion) went without it, and the run's snapshots then overwrote it | The editor also saves a waiting edit when it loses focus, which happens before any click elsewhere |
 | M7-3 | The Feedback stage's "Start a new topic" suggestion asked for what D5 makes Research refuse | Replaced with two follow-ups on the graded quiz |
-| M7-4 | A reload replays the checkpoint more than once in dev (two `/connect` requests succeed), and a later replay brings the graded quiz back after a retake was applied | A Retake from the Progress page holds for that quiz and is applied again after each replay, until the student picks an answer, another quiz arrives or another conversation opens. Where the second `/connect` comes from was not traced |
+| M7-4 | A reload replayed the checkpoint twice, and the second replay brought the graded quiz back after a retake was applied. Traced after M7 (M7-9) | A Retake from the Progress page holds for that quiz and is applied again after any later replay, until the student picks an answer or another quiz arrives; opening another conversation in the sidebar drops it |
 | M7-5 | Two more route-level tests and one PGlite `beforeEach` crossed Vitest's defaults under turbo's parallel load (with `next dev` running) | 15 s test and 30 s hook timeouts in the agent, db and web Vitest configs; M6-7's per-test timeout is gone |
 | M7-6 | A chart in an SVG `viewBox` scales its text with the card: 16 px labels on a wide card, 6 px on a narrow one | The chart measures its card (`useElementWidth`) and is drawn at that width |
 | M7-7 | Importing `app/page.tsx` in a test pulls in CopilotKit's CSS, which Node cannot load | The page tests mock `AppShell` and read the props the page gives it |
 | M7-8 | The M6 browser check left test values in the profile | Forgotten through the new Memory panel, which tested `DELETE` and `PATCH` |
 
-Not done in M7: `ToolResultSchemas` in `@repo/shared` still types `runEvaluation` (A11); `PATCH /attempts/[id]/answers`, writing `reflections` and the student's own material edits to `material` (M5); a profile field the student set can still be overwritten by what a later message says (M6); B9 (BYOK page) is undecided; a forgotten memory has no undo. Seen once and not looked into: a conversation whose row says Quiz while its checkpoint holds only a Board view.
+Fixed after M7 (2026-10-03):
+
+| # | Finding | What the code does |
+| --- | --- | --- |
+| M7-9 | The docked chat and the popup are both always mounted, and every `CopilotChat` with an explicit thread connects on mount: each reload and switch replayed the thread twice, in production too | Each chat has its own `ConversationThread`; only the docked one, which never unmounts, may connect. The popup gets the same thread, never as explicit, and shows the shared agent. The flag cannot be turned off below a provider that sets it, so no provider wraps both. One `/connect` per load and per switch |
+| M7-10 | Without a provider around the workspace, `agent.threadId` is a random id until the docked chat's effect moves it, so the Retake hook read the mismatch as a switch and dropped the request | The Retake hook waits for the thread; the sidebar ends a pending Retake when another conversation opens. The draft-answers hook keys on the open conversation, not `agent.threadId` |
+| M7-11 | A profile field the student set could be overwritten by what a later message said (M6) | `learner_profiles.student_fields` (migration `0002_student_profile_fields`): `saveLearnerProfile(…, "student")` marks a field, `null` unmarks it; `"agent"` writes skip marked fields |
+| M7-12 | Picked answers lived only in the browser until the next run: a reload or a switch lost them (`PATCH /attempts/[id]/answers` was not built, M5) | `GET`/`PUT /api/conversations/[id]/answers` keep them in the quiz's open attempt; a pick on a graded quiz opens the retake's attempt, which grading closes. `useDraftAnswers` saves 800 ms after a pick (never during a run) and restores once the state is back, unless the student picked since or came from a Progress Retake |
+| M7-13 | `ToolResultSchemas` (the old wrapper's result format) still typed `runEvaluation` (A11) | Removed; `runEvaluation` returns the agent's own `EvaluationResult` |
+| M7-14 | A `next dev` that ran through many branch checkouts kept stale server modules: the new answers route answered an empty 500 while the same code returned 200 against the same database | Restarted the dev server (as in M6-9) |
+| M7-15 | The Memory panel kept an empty notice line and squeezed concept names next to their counts on narrow screens | The notice takes no space when empty; a concept's name has its own line, its count sits by the meter |
+
+The "HTTP status codes" conversation whose row says Quiz while its checkpoint holds only a Board view dates from M6-9: its research, material and graded attempt were recorded while checkpoints went to the old `MemorySaver`. Stale local data, not a code path; deleting the conversation clears it.
+
+Not done: writing `reflections` and the student's own material edits to `material` (M5; the checkpoint keeps both, and nothing reads those rows yet); B9 (BYOK page) is undecided; a forgotten memory has no undo.
 
 ### F. Testing and docs
 

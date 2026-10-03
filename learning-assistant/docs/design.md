@@ -338,8 +338,8 @@ stateDiagram-v2
 ```
 
 - `abandoned` is computed from `last_activity_at` when the data is read. There is no cron job.
-- A quiz attempt is `in_progress` until it becomes `submitted`. Draft answers live in the browser's state and reach the checkpoint with the next run; the planned `PATCH /attempts/{id}/answers` was not built.
-- Resuming restores the checkpoint state, the canvas stage and the answers saved with the last run. A banner shows e.g. "You were on the Quiz stage, 3/5 answered."
+- A quiz attempt is `in_progress` until it becomes `submitted`. Draft answers are kept a moment after each pick with `PUT /api/conversations/{id}/answers` (no agent run) in the quiz's open attempt; a pick on a graded quiz opens the retake's attempt, which grading closes.
+- Resuming restores the checkpoint state and the canvas stage, then puts the kept answers back (`GET /api/conversations/{id}/answers`), retaking a graded quiz if that is where the student was. A banner shows e.g. "You were on the Quiz stage, 3/5 answered."
 - An attempt that is never submitted is not scored and does not count toward mastery.
 
 ### Memory
@@ -353,7 +353,7 @@ stateDiagram-v2
 
 `messages` is never trimmed (the chat, resume and memory read it); only the agent's view uses the summary in place of older messages, and the summary never reaches the browser (Q53). Long-term memory is read once per run into run context, not graph state, so a forgotten memory is gone from the next run and never sits in an old checkpoint (Q54). The prompt gets the profile, up to five concepts under 70% and five recent topics, one line each within 1,200 characters, under a heading that marks it as data. The Quiz Agent spends about a fifth of the questions on up to three weak concepts the material covers. Semantic search (pgvector) is left out.
 
-The **Memory panel** (Settings → Memory, `/memory`) shows all of it: the profile can be edited (only changed fields are sent; a cleared field is forgotten), and any profile field, concept or topic can be forgotten after a confirmation step (`GET`/`PATCH /api/memory`, `DELETE /api/memory/[kind]/[id]`).
+The **Memory panel** (Settings → Memory, `/memory`) shows all of it: the profile can be edited (only changed fields are sent; a cleared field is forgotten), and any profile field, concept or topic can be forgotten after a confirmation step (`GET`/`PATCH /api/memory`, `DELETE /api/memory/[kind]/[id]`). A profile field the student sets is theirs (`student_fields`): what a run learns later never changes it, until they forget it.
 
 ### Progress page
 
