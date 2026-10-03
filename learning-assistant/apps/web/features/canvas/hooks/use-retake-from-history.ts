@@ -16,9 +16,9 @@ import { useRequestStage } from "@/hooks/use-stage-request-store";
  * stage opens. The state comes back from the checkpoint in a replay that
  * counts as a run, and a later replay (the chat reconnecting) would bring
  * the graded quiz back; so the request holds for that quiz, and is applied
- * again after each, until the student picks an answer, a different quiz
- * arrives, or another conversation opens. A conversation
- * with no quiz drops it once a replay has ended.
+ * again after each, until the student picks an answer or a different quiz
+ * arrives. Opening another conversation drops it too (the sidebar does),
+ * and a conversation with no quiz drops it once a replay has ended.
  */
 export const useRetakeFromHistory = () => {
   const conversationId = useRetakeConversationId();
@@ -35,8 +35,9 @@ export const useRetakeFromHistory = () => {
       quizIdRef.current = null;
       return;
     }
+    // Until the chat has moved the agent to the conversation, its state is
+    // not that conversation's yet.
     if (agent.threadId !== conversationId) {
-      clearRetake();
       return;
     }
     if (isRunning) {

@@ -20,6 +20,7 @@ import {
   toActiveConversation,
 } from "@/features/conversations/utils/conversations";
 import { useLearningAgent } from "@/hooks/use-learning-agent";
+import { useRetakeRequestActions } from "@/hooks/use-retake-request-store";
 
 /**
  * The sidebar's logic: search, switching, "New topic", rename and a delete
@@ -33,6 +34,7 @@ export const useConversationSidebar = () => {
   const isOpen = useIsSidebarOpen();
   const actions = useConversationActions();
   const { agent } = useLearningAgent();
+  const { clearRetake } = useRetakeRequestActions();
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -51,6 +53,7 @@ export const useConversationSidebar = () => {
     }
     agent.setMessages([]);
     agent.setState(initialLearningState);
+    clearRetake();
     actions.openConversation(toActiveConversation(conversation));
   };
 
