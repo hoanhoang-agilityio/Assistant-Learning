@@ -13,11 +13,11 @@ import { useRequestStage } from "@/hooks/use-stage-request-store";
  * Carries out a Retake asked for from the History page, on the conversation
  * the bootstrap opened for it: the graded results are cleared like the
  * quiz's own Retake (`agent.setState`, sent with the next run) and the Quiz
- * stage opens. The state comes back from the checkpoint in replays that
- * count as runs, and more than one can land (one per chat that connects),
- * each bringing the graded quiz back; so the request holds for that quiz,
- * and is applied again after each, until the student picks an answer, a
- * different quiz arrives, or another conversation opens. A conversation
+ * stage opens. The state comes back from the checkpoint in a replay that
+ * counts as a run, and a later replay (the chat reconnecting) would bring
+ * the graded quiz back; so the request holds for that quiz, and is applied
+ * again after each, until the student picks an answer, a different quiz
+ * arrives, or another conversation opens. A conversation
  * with no quiz drops it once a replay has ended.
  */
 export const useRetakeFromHistory = () => {

@@ -7,6 +7,7 @@ import { ChatPanel } from "@/features/chat/components/ChatPanel";
 import { ChatPopup } from "@/features/chat/components/ChatPopup";
 import { ChatRail } from "@/features/chat/components/ChatRail";
 import { ConversationSidebar } from "@/features/conversations/components/ConversationSidebar";
+import { ConversationThread } from "@/features/conversations/components/ConversationThread";
 import { ResumeBanner } from "@/features/conversations/components/ResumeBanner";
 import type { Display } from "@/types/layout";
 
@@ -25,6 +26,9 @@ export interface WorkspaceViewProps {
  * The docked chat and the popup both stay mounted and only hide: a
  * `CopilotChat` without a `threadId` clears the agent's messages when it
  * mounts, so remounting one on a mode switch would wipe the conversation.
+ * Only the docked chat, which never unmounts, connects to the thread; the
+ * popup shows the same agent. Two connecting chats would replay the thread
+ * twice on every reload and switch.
  */
 export const WorkspaceView = ({ display, panelsRef }: WorkspaceViewProps) => {
   const { frameWidth, chat } = display;
@@ -53,13 +57,17 @@ export const WorkspaceView = ({ display, panelsRef }: WorkspaceViewProps) => {
             <ResumeBanner />
             <div ref={panelsRef} className="flex flex-1 overflow-hidden">
               {chat === "hidden" && <ChatRail />}
-              <ChatPanel />
+              <ConversationThread>
+                <ChatPanel />
+              </ConversationThread>
               {chat === "docked" && <ResizeHandle containerRef={panelsRef} />}
               <CanvasArea />
             </div>
           </div>
         </div>
-        <ChatPopup />
+        <ConversationThread canConnect={false}>
+          <ChatPopup />
+        </ConversationThread>
       </div>
     </div>
   );
