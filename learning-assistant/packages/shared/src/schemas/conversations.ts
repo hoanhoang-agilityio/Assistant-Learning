@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { TITLE_MAX_LENGTH } from "../constants/conversations";
-import { ScoreSchema, StageSchema } from "./learning-state";
+import { QuizSchema, ScoreSchema, StageSchema } from "./learning-state";
 
 /** What the database keeps; `abandoned` is worked out when a row is read. */
 export const STORED_CONVERSATION_STATUSES = ["active", "completed"] as const;
@@ -49,6 +49,15 @@ export const QuizAttemptSummarySchema = z.object({
   submittedAt: z.iso.datetime({ offset: true }).nullable(),
 });
 
+/**
+ * The answers picked so far for the conversation's quiz, kept between runs
+ * so a reload or a switch does not lose them (`/api/conversations/[id]/answers`).
+ */
+export const DraftAnswersSchema = z.object({
+  quizId: QuizSchema.shape.id,
+  answers: QuizSchema.shape.answers,
+});
+
 export type StoredConversationStatus =
   (typeof STORED_CONVERSATION_STATUSES)[number];
 export type ConversationStatus = z.infer<typeof ConversationStatusSchema>;
@@ -56,3 +65,4 @@ export type AttemptStatus = z.infer<typeof AttemptStatusSchema>;
 export type ConversationSummary = z.infer<typeof ConversationSummarySchema>;
 export type RenameConversation = z.infer<typeof RenameConversationSchema>;
 export type QuizAttemptSummary = z.infer<typeof QuizAttemptSummarySchema>;
+export type DraftAnswers = z.infer<typeof DraftAnswersSchema>;

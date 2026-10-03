@@ -13,11 +13,13 @@ import {
   renameConversation,
 } from "../repositories/conversations";
 import {
+  getDraftAnswers,
   listQuizAttempts,
   recordEvaluation,
   recordMaterial,
   recordQuiz,
   recordResearch,
+  saveDraftAnswers,
 } from "../repositories/records";
 import { getUserSettings, saveUserSettings } from "../repositories/settings";
 import {
@@ -238,6 +240,58 @@ describe("repositories", () => {
         percent: 100,
         tier: "Master",
       });
+    });
+
+    it("keeps the answers picked so far in the open attempt", async () => {
+      const { id } = await createConversation(db, alice);
+      expect(await getDraftAnswers(db, id)).toBeNull();
+      await recordQuiz(db, id, QUIZ);
+
+      expect(
+        await saveDraftAnswers(db, id, { quizId: QUIZ.id, answers: { q1: 1 } }),
+      ).toBe(true);
+      expect(await getDraftAnswers(db, id)).toEqual({
+        quizId: QUIZ.id,
+        answers: { q1: 1 },
+      });
+      expect(await listQuizAttempts(db, id)).toMatchObject([
+        { attemptNo: 1, status: "in_progress", answeredCount: 1 },
+      ]);
+    });
+
+    it("keeps only answers to the quiz's questions, with options that exist", async () => {
+      const { id } = await createConversation(db, alice);
+      await recordQuiz(db, id, QUIZ);
+
+      await saveDraftAnswers(db, id, {
+        quizId: QUIZ.id,
+        answers: { q1: 1, q2: 5, q9: 0 },
+      });
+      expect((await getDraftAnswers(db, id))?.answers).toEqual({ q1: 1 });
+      expect(
+        await saveDraftAnswers(db, id, { quizId: "quiz_0", answers: {} }),
+      ).toBe(false);
+    });
+
+    it("opens one new attempt for a retake, which grading closes", async () => {
+      const { id } = await createConversation(db, alice);
+      await recordQuiz(db, id, QUIZ);
+      await recordEvaluation(db, id, GRADED);
+      expect(await getDraftAnswers(db, id)).toBeNull();
+
+      await saveDraftAnswers(db, id, { quizId: QUIZ.id, answers: {} });
+      await saveDraftAnswers(db, id, { quizId: QUIZ.id, answers: { q2: 0 } });
+      expect(await listQuizAttempts(db, id)).toMatchObject([
+        { attemptNo: 1, status: "submitted" },
+        { attemptNo: 2, status: "in_progress", answeredCount: 1 },
+      ]);
+
+      await recordEvaluation(db, id, GRADED);
+      expect(await listQuizAttempts(db, id)).toMatchObject([
+        { attemptNo: 1, status: "submitted" },
+        { attemptNo: 2, status: "submitted", answeredCount: 2 },
+      ]);
+      expect(await getDraftAnswers(db, id)).toBeNull();
     });
 
     it("keeps the answer key sealed and out of the attempt list", async () => {

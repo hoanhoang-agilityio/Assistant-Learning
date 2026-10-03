@@ -3,18 +3,24 @@ import {
   deleteConversation,
   getConversation,
   getDatabase,
+  getDraftAnswers,
   getThreadCheckpointer,
   listConversations,
   listQuizAttempts,
   renameConversation,
+  saveDraftAnswers,
 } from "@repo/db";
-import { RenameConversationSchema } from "@repo/shared/schemas";
+import {
+  DraftAnswersSchema,
+  RenameConversationSchema,
+} from "@repo/shared/schemas";
 
 import {
   BAD_REQUEST_STATUS,
   CONVERSATION_NOT_FOUND_ERROR,
   CONVERSATION_NOT_FOUND_STATUS,
   CREATED_STATUS,
+  INVALID_ANSWERS_ERROR,
   INVALID_TITLE_ERROR,
   NO_CONTENT_STATUS,
 } from "@/features/conversations/constants/conversations";
@@ -158,4 +164,56 @@ export const listAttemptsHandler = async (
     return createNotFoundResponse();
   }
   return Response.json({ attempts: await listQuizAttempts(db, id) });
+};
+
+/**
+ * `GET /api/conversations/[id]/answers`: the answers picked so far for its
+ * quiz (`{ draft: null }` when nothing is open), to put back after a reload.
+ */
+export const getDraftAnswersHandler = async (
+  _request: Request,
+  clerkUserId: string,
+  { params }: ConversationRouteContext,
+): Promise<Response> => {
+  const { id } = await params;
+  const userId = await getUserRowId(clerkUserId);
+  const db = getDatabase();
+  if (!(await getConversation(db, userId, id))) {
+    return createNotFoundResponse();
+  }
+  return Response.json({ draft: await getDraftAnswers(db, id) });
+};
+
+/**
+ * `PUT /api/conversations/[id]/answers` with `{ quizId, answers }`: keeps
+ * the answers picked so far, without a run. 404 when the conversation is
+ * not theirs or has no such quiz.
+ */
+export const saveDraftAnswersHandler = async (
+  request: Request,
+  clerkUserId: string,
+  { params }: ConversationRouteContext,
+): Promise<Response> => {
+  const limited = limitWrites(clerkUserId);
+  if (limited) {
+    return limited;
+  }
+
+  const parsed = DraftAnswersSchema.safeParse(await readJson(request));
+  if (!parsed.success) {
+    return Response.json(
+      { error: INVALID_ANSWERS_ERROR },
+      { status: BAD_REQUEST_STATUS },
+    );
+  }
+
+  const { id } = await params;
+  const userId = await getUserRowId(clerkUserId);
+  const db = getDatabase();
+  const isSaved =
+    (await getConversation(db, userId, id)) !== null &&
+    (await saveDraftAnswers(db, id, parsed.data));
+  return isSaved
+    ? new Response(null, { status: NO_CONTENT_STATUS })
+    : createNotFoundResponse();
 };

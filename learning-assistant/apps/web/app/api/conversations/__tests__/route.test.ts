@@ -32,6 +32,7 @@ vi.mock("@repo/db/checkpointer", () =>
 const list = await import("@/app/api/conversations/route");
 const one = await import("@/app/api/conversations/[id]/route");
 const attempts = await import("@/app/api/conversations/[id]/attempts/route");
+const answers = await import("@/app/api/conversations/[id]/answers/route");
 
 const URL_BASE = "http://localhost/api/conversations";
 
@@ -99,6 +100,18 @@ const checkpointThread = async (threadId: string) => {
   );
 };
 
+const saveAnswers = (id: string, body: unknown) =>
+  answers.PUT(
+    new Request(`${URL_BASE}/${id}/answers`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+    paramsOf(id),
+  );
+
+const readAnswers = async (id: string) =>
+  answers.GET(new Request(`${URL_BASE}/${id}/answers`), paramsOf(id));
+
 const readCheckpoint = (threadId: string) =>
   testDatabase.checkpointer.getTuple({ configurable: { thread_id: threadId } });
 
@@ -116,6 +129,39 @@ describe("/api/conversations", () => {
       UNAUTHORIZED_STATUS,
     );
     expect((await remove("x")).status).toBe(UNAUTHORIZED_STATUS);
+    expect((await readAnswers("x")).status).toBe(UNAUTHORIZED_STATUS);
+    expect((await saveAnswers("x", {})).status).toBe(UNAUTHORIZED_STATUS);
+  });
+
+  it("keeps the answers picked so far for the conversation's quiz", async () => {
+    const { id } = await create();
+    expect(await (await readAnswers(id)).json()).toEqual({ draft: null });
+    await recordQuiz(testDatabase.current!, id, QUIZ);
+
+    const saved = await saveAnswers(id, {
+      quizId: QUIZ.id,
+      answers: { q1: 1 },
+    });
+    expect(saved.status).toBe(NO_CONTENT_STATUS);
+    expect(await (await readAnswers(id)).json()).toEqual({
+      draft: { quizId: QUIZ.id, answers: { q1: 1 } },
+    });
+  });
+
+  it("refuses answers it cannot read, or for a quiz it does not have", async () => {
+    const { id } = await create();
+    await recordQuiz(testDatabase.current!, id, QUIZ);
+
+    for (const body of [
+      {},
+      { quizId: QUIZ.id },
+      { quizId: QUIZ.id, answers: { q1: -1 } },
+    ]) {
+      expect((await saveAnswers(id, body)).status).toBe(BAD_REQUEST_STATUS);
+    }
+    expect(
+      (await saveAnswers(id, { quizId: "quiz_0", answers: {} })).status,
+    ).toBe(CONVERSATION_NOT_FOUND_STATUS);
   });
 
   it("creates a conversation for a new topic and lists it", async () => {
@@ -193,6 +239,10 @@ describe("/api/conversations", () => {
           paramsOf(id),
         )
       ).status,
+    ).toBe(CONVERSATION_NOT_FOUND_STATUS);
+    expect((await readAnswers(id)).status).toBe(CONVERSATION_NOT_FOUND_STATUS);
+    expect(
+      (await saveAnswers(id, { quizId: QUIZ.id, answers: {} })).status,
     ).toBe(CONVERSATION_NOT_FOUND_STATUS);
     expect(await readCheckpoint(id)).toBeDefined();
   });

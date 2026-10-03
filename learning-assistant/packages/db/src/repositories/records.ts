@@ -1,4 +1,5 @@
 import type {
+  DraftAnswers,
   Evaluation,
   Feedback,
   Material,
@@ -225,4 +226,91 @@ export const listQuizAttempts = async (
     startedAt: row.startedAt.toISOString(),
     submittedAt: row.submittedAt?.toISOString() ?? null,
   }));
+};
+
+/** Only answers for the attempt's own questions, with an option that exists. */
+const keepValidAnswers = (
+  questions: readonly Quiz["questions"][number][],
+  answers: DraftAnswers["answers"],
+): DraftAnswers["answers"] =>
+  Object.fromEntries(
+    questions.flatMap(({ id, options }) => {
+      const answer = answers[id];
+      return answer !== undefined && answer < options.length
+        ? [[id, answer]]
+        : [];
+    }),
+  );
+
+/**
+ * Keeps the answers picked so far for `draft.quizId`, without a run. They go
+ * to that quiz's open attempt; when its latest attempt was graded, the
+ * student is retaking it, so a new attempt opens with the same questions
+ * (grading closes it, as it closes any open attempt). False when the
+ * conversation has no such quiz.
+ */
+export const saveDraftAnswers = async (
+  db: Database,
+  conversationId: string,
+  draft: DraftAnswers,
+  now = new Date(),
+): Promise<boolean> =>
+  db.transaction(async (tx) => {
+    const [latest] = await tx
+      .select()
+      .from(quizAttempts)
+      .where(
+        and(
+          eq(quizAttempts.conversationId, conversationId),
+          eq(quizAttempts.quizId, draft.quizId),
+        ),
+      )
+      .orderBy(desc(quizAttempts.attemptNo))
+      .limit(1);
+    if (!latest) {
+      return false;
+    }
+
+    const answers = keepValidAnswers(latest.questions, draft.answers);
+    if (latest.status === "in_progress") {
+      await tx
+        .update(quizAttempts)
+        .set({ answers })
+        .where(eq(quizAttempts.id, latest.id));
+    } else {
+      await tx.insert(quizAttempts).values({
+        conversationId,
+        quizId: latest.quizId,
+        attemptNo: await nextAttemptNo(tx, conversationId),
+        questions: latest.questions,
+        answerKey: latest.answerKey,
+        answers,
+        status: "in_progress",
+        startedAt: now,
+      });
+    }
+    return true;
+  });
+
+/**
+ * The answers picked so far in the conversation's latest attempt, or `null`
+ * when it has none or the latest attempt is graded.
+ */
+export const getDraftAnswers = async (
+  db: Database,
+  conversationId: string,
+): Promise<DraftAnswers | null> => {
+  const [latest] = await db
+    .select({
+      quizId: quizAttempts.quizId,
+      answers: quizAttempts.answers,
+      status: quizAttempts.status,
+    })
+    .from(quizAttempts)
+    .where(eq(quizAttempts.conversationId, conversationId))
+    .orderBy(desc(quizAttempts.attemptNo))
+    .limit(1);
+  return latest?.status === "in_progress"
+    ? { quizId: latest.quizId, answers: latest.answers }
+    : null;
 };

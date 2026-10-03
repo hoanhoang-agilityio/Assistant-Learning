@@ -9,6 +9,8 @@ export const CONVERSATION_NOT_FOUND_ERROR = "Conversation not found.";
 
 export const BAD_REQUEST_STATUS = 400;
 export const INVALID_TITLE_ERROR = `A title needs 1 to ${TITLE_MAX_LENGTH} characters.`;
+export const INVALID_ANSWERS_ERROR =
+  "Send { quizId, answers } with an option index per question id.";
 export const CREATED_STATUS = 201;
 export const NO_CONTENT_STATUS = 204;
 
