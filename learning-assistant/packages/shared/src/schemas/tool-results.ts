@@ -1,13 +1,7 @@
 import { z } from "zod";
 
 import { NEW_CONVERSATION_REQUIREMENT } from "../constants/agents";
-import {
-  EvaluationSchema,
-  FeedbackSchema,
-  QuizSchema,
-  ScoreSchema,
-} from "./learning-state";
-import { ResearchResultSchema } from "./research";
+import { EvaluationSchema, ScoreSchema } from "./learning-state";
 
 /** Supervisor tools that run a subagent and write its result to state. */
 export const SUBAGENT_TOOLS = [
@@ -31,8 +25,6 @@ const createResultSchema = <T extends z.ZodType>(data: T) =>
     FailureSchema,
   ]);
 
-const MarkdownSchema = z.string().min(1);
-
 /**
  * `research` refused to replace existing learning material or a quiz. Not a
  * failure: nothing changed, and `instruction` tells the Supervisor to point
@@ -44,42 +36,6 @@ export const NewConversationRequiredSchema = z.object({
   topic: z.string().min(1),
   instruction: z.string().min(1),
 });
-
-/**
- * What each subagent tool returns. Tools never throw: a failure comes back as
- * `{ ok: false, error }` so the wrapper can set `status.error`. `research`
- * can also refuse a second topic in one conversation.
- */
-export const ToolResultSchemas = {
-  research: z.union([
-    createResultSchema(
-      z.object({ topic: z.string().min(1), research: ResearchResultSchema }),
-    ),
-    NewConversationRequiredSchema,
-  ]),
-  makeMaterial: createResultSchema(z.object({ markdown: MarkdownSchema })),
-  simplify: createResultSchema(
-    z.discriminatedUnion("scope", [
-      z.object({ scope: z.literal("all"), markdown: MarkdownSchema }),
-      z.object({
-        scope: z.literal("selection"),
-        /** The selected text, exactly as it appears in the active view. */
-        selection: z.string().min(1),
-        markdown: MarkdownSchema,
-      }),
-    ]),
-  ),
-  generateQuiz: createResultSchema(z.object({ quiz: QuizSchema })),
-  evaluate: createResultSchema(
-    z.object({
-      /** The answers that were graded; they replace `quiz.answers`. */
-      answers: QuizSchema.shape.answers,
-      evaluation: EvaluationSchema,
-      score: ScoreSchema,
-      feedback: FeedbackSchema,
-    }),
-  ),
-} as const satisfies Record<SubagentTool, z.ZodType>;
 
 /**
  * What each subagent tool tells the Supervisor and its chat card once it has
@@ -113,15 +69,6 @@ export const ToolSummarySchemas = {
 } as const satisfies Record<SubagentTool, z.ZodType>;
 
 export type SubagentTool = z.infer<typeof SubagentToolSchema>;
-export type ToolResult<T extends SubagentTool> = z.infer<
-  (typeof ToolResultSchemas)[T]
->;
-/** The `data` of a successful result. */
-export type ToolResultData<T extends SubagentTool> = Extract<
-  ToolResult<T>,
-  { ok: true }
->["data"];
-
 export type ToolSummary<T extends SubagentTool> = z.infer<
   (typeof ToolSummarySchemas)[T]
 >;

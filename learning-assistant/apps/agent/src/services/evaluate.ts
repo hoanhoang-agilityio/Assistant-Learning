@@ -1,13 +1,9 @@
-import type {
-  EvaluationFeedback,
-  Quiz,
-  ToolResultData,
-} from "@repo/shared/schemas";
+import type { EvaluationFeedback, Quiz } from "@repo/shared/schemas";
 import { getTier } from "@repo/shared/utils/tier";
 
 import type { AnswerKeyStore } from "../types/answer-key";
 import type { DeepPartial, RunSettings } from "../types/llm";
-import type { EvaluatorInput } from "../types/scoring";
+import type { EvaluationResult, EvaluatorInput } from "../types/scoring";
 import { createGradedQuestions, mergeExplanations } from "../utils/evaluation";
 import { formatFeedbackSummary } from "../utils/feedback-summary";
 import { scoreQuiz } from "../utils/scoring";
@@ -28,7 +24,7 @@ interface EvaluateParams {
    * as they are graded, then again as the explanations, the summary and the
    * Feedback surface are written.
    */
-  onDraft?: (draft: Omit<ToolResultData<"evaluate">, "answers">) => void;
+  onDraft?: (draft: Omit<EvaluationResult, "answers">) => void;
 }
 
 /** The explanations written so far that are complete enough to show. */
@@ -77,7 +73,7 @@ export const runEvaluation = async ({
   settings,
   signal,
   onDraft,
-}: EvaluateParams): Promise<ToolResultData<"evaluate">> => {
+}: EvaluateParams): Promise<EvaluationResult> => {
   const key = await answerKeys.unseal(quiz.id, quiz.answerKeySealed);
   const score = scoreQuiz(quiz.questions, answers, key);
   const tier = getTier(score.percent);

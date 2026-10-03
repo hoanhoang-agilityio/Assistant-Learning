@@ -1,4 +1,10 @@
-import type { Evaluation, Tier } from "@repo/shared/schemas";
+import type {
+  Evaluation,
+  Feedback,
+  Quiz,
+  Score,
+  Tier,
+} from "@repo/shared/schemas";
 
 /** One question graded against the answer key. */
 export interface QuestionResult {
@@ -37,4 +43,13 @@ export interface EvaluatorInput {
   tier: Tier;
   /** The learning material the student was quizzed on. */
   material: string;
+}
+
+/** A graded quiz: what `evaluate` writes to state. */
+export interface EvaluationResult {
+  /** The answers that were graded; they replace `quiz.answers`. */
+  answers: Quiz["answers"];
+  evaluation: Evaluation;
+  score: Score;
+  feedback: Feedback;
 }
