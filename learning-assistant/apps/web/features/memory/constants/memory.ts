@@ -27,7 +27,7 @@ export const MEMORY_COPY = {
   retry: "Try again",
   profile: "Profile",
   profileHint:
-    "Noticed from what you write, or set here. Clear a field to forget it.",
+    "Noticed from what you write, or set here. What you set here stays until you change it; clear a field to forget it.",
   level: "Level",
   levelUnset: "Not set",
   style: "Explanation style",

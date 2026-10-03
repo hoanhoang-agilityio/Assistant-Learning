@@ -117,7 +117,10 @@ export const MemoryPanelView = ({
         </p>
       ) : (
         <div className="space-y-5">
-          <p aria-live="polite" className="min-h-4 text-xs">
+          <p
+            aria-live="polite"
+            className={notice || actionError ? "text-xs" : "sr-only"}
+          >
             {actionError ? (
               <span className="text-rose-600 dark:text-rose-400">
                 {actionError}
@@ -166,8 +169,8 @@ export const MemoryPanelView = ({
                       concept.concept,
                     )}
                   >
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="truncate font-medium">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+                      <span className="font-medium break-words">
                         {concept.concept}
                       </span>
                       {isWeakConcept(concept) && (
@@ -175,26 +178,28 @@ export const MemoryPanelView = ({
                           {MEMORY_COPY.weak}
                         </span>
                       )}
-                      <span className="ml-auto text-xs text-slate-500 tabular-nums dark:text-slate-400">
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div
+                        role="meter"
+                        aria-label={`${concept.concept} mastery`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={concept.percent}
+                        className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"
+                      >
+                        <div
+                          className={`h-full rounded-full ${
+                            isWeakConcept(concept)
+                              ? "bg-amber-500"
+                              : "bg-emerald-500"
+                          }`}
+                          style={{ width: `${concept.percent}%` }}
+                        />
+                      </div>
+                      <span className="shrink-0 text-xs whitespace-nowrap text-slate-500 tabular-nums dark:text-slate-400">
                         {concept.correct}/{concept.total} · {concept.percent}%
                       </span>
-                    </div>
-                    <div
-                      role="meter"
-                      aria-label={`${concept.concept} mastery`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={concept.percent}
-                      className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"
-                    >
-                      <div
-                        className={`h-full rounded-full ${
-                          isWeakConcept(concept)
-                            ? "bg-amber-500"
-                            : "bg-emerald-500"
-                        }`}
-                        style={{ width: `${concept.percent}%` }}
-                      />
                     </div>
                   </MemoryItemRow>
                 ))}
@@ -218,7 +223,7 @@ export const MemoryPanelView = ({
                       topic.topic,
                     )}
                   >
-                    <p className="truncate text-sm font-medium">
+                    <p className="text-sm font-medium break-words">
                       {topic.topic}
                     </p>
                     <p className="text-xs text-slate-500 tabular-nums dark:text-slate-400">
