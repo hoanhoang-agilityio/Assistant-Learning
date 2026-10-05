@@ -23,7 +23,8 @@ export interface WorkspaceViewProps {
  * previewed device layout is drawn in a centred frame; its transform makes
  * the fixed-position popup anchor to the frame instead of the window.
  *
- * The docked chat and the popup both stay mounted and only hide: a
+ * The docked chat and the popup both stay mounted and only hide (keeping
+ * their size, so CopilotKit can measure the chat's scroll area): a
  * `CopilotChat` without a `threadId` clears the agent's messages when it
  * mounts, so remounting one on a mode switch would wipe the conversation.
  * Only the docked chat, which never unmounts, connects to the thread; the
@@ -55,7 +56,10 @@ export const WorkspaceView = ({ display, panelsRef }: WorkspaceViewProps) => {
           <ConversationSidebar />
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <ResumeBanner />
-            <div ref={panelsRef} className="flex flex-1 overflow-hidden">
+            <div
+              ref={panelsRef}
+              className="relative flex flex-1 overflow-hidden"
+            >
               {chat === "hidden" && <ChatRail />}
               <ConversationThread>
                 <ChatPanel />

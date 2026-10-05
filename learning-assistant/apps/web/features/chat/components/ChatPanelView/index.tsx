@@ -24,6 +24,9 @@ export interface ChatPanelViewProps {
 /**
  * Left panel: the Supervisor chat, restyled to match the reference UI. It
  * stays mounted while hidden so the draft and scroll position survive.
+ * Hidden, it leaves the row and turns invisible but keeps its size: under
+ * `display: none` its scroll area measures 0 and CopilotKit turns off
+ * virtualization.
  */
 export const ChatPanelView = ({
   width,
@@ -34,7 +37,9 @@ export const ChatPanelView = ({
   <aside
     id={CHAT_PANEL_ID}
     style={{ width }}
-    className={`${isOpen ? "flex" : "hidden"} shrink-0 flex-col bg-white dark:bg-slate-900/80`}
+    className={`flex shrink-0 flex-col bg-white dark:bg-slate-900/80 ${
+      isOpen ? "" : "invisible absolute inset-y-0 left-0"
+    }`}
   >
     <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30">
       <div className="flex items-center gap-2">
