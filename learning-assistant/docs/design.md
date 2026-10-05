@@ -112,7 +112,6 @@ Agent state is the single source of truth for the canvas. The server changes it 
                 mastery[{ concept, percent }] } | null,
   score: { percent, tier: "Novice"|"Practitioner"|"Master" } | null,
   feedback: { a2uiOperations: unknown[], summary: string } | null,
-  reflection: { rating, text } | null,
   quizOutdated: boolean,
   // M8
   board: { id, title, operations: unknown[], revision }[],   // oldest first, at most 8
@@ -124,7 +123,7 @@ Agent state is the single source of truth for the canvas. The server changes it 
 | Concern                       | Rule                                                                                                                                                                             |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | What the LLM sees             | A trimmed state: `stage`, `status`, `topic`, which stages have data, a 1–2 line summary of each. Never the full learning material or quiz.                                       |
-| Who writes to state           | The wrapper, from subagent results. The client writes only learning material edits, the material view toggle, quiz answers and the reflection.                                   |
+| Who writes to state           | The wrapper, from subagent results. The client writes only learning material edits, the material view toggle and quiz answers.                                                   |
 | Stage advance                 | The wrapper sets `stage` when a tool finishes; the canvas follows it and unlocks that stage.                                                                                     |
 | Answer key                    | `answerKeySealed` is AES-GCM-encrypted `{correctIndex[], explanations[]}` using `QUIZ_SEAL_SECRET`. It is unsealed only inside `evaluate`. Behind an `AnswerKeyStore` interface. |
 | Correct answers on the client | Appear only in `evaluation.perQuestion` after submit.                                                                                                                            |
@@ -139,14 +138,14 @@ The UI follows `apps/web/refer-ui/ai_learning_canvas_chat.tsx` closely: header, 
 
 **Stepper.** A stage can be clicked once its data exists. The canvas moves to a stage when the agent finishes it. While a subagent runs, its stage shows a skeleton, and Stop cancels the run.
 
-| Stage      | Rendering                  | Components                                                                                                                            |
-| ---------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Research   | A2UI, fixed                | ArticleCard, InsightCallout, Flashcards (flipping is local state), SourceList                                                         |
-| Material   | Custom React               | Markdown editor/preview, Simplify for the whole learning material or a selection, Original/Simplified toggle                          |
-| Quiz       | A2UI, fixed                | QuestionCard with ChoicePicker for each question, Submit (`submit_quiz` action), Retake, New questions                                |
-| Evaluation | A2UI, fixed                | StatTiles (accuracy, answered, weakest concept), MasteryBars by concept                                                               |
-| Score      | A2UI, fixed                | TierBadge, ScoreCard, StatChips                                                                                                       |
-| Feedback   | A2UI, dynamic + fixed form | The Evaluator composes FeedbackCard, ConceptChip, ReviewLink and NextStepList; a fixed reflection form (rating + text) is shown below |
+| Stage      | Rendering     | Components                                                                                                   |
+| ---------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
+| Research   | A2UI, fixed   | ArticleCard, InsightCallout, Flashcards (flipping is local state), SourceList                                |
+| Material   | Custom React  | Markdown editor/preview, Simplify for the whole learning material or a selection, Original/Simplified toggle |
+| Quiz       | A2UI, fixed   | QuestionCard with ChoicePicker for each question, Submit (`submit_quiz` action), Retake, New questions       |
+| Evaluation | A2UI, fixed   | StatTiles (accuracy, answered, weakest concept), MasteryBars by concept                                      |
+| Score      | A2UI, fixed   | TierBadge, ScoreCard, StatChips                                                                              |
+| Feedback   | A2UI, dynamic | The Evaluator composes FeedbackCard, ConceptChip, ReviewLink and NextStepList                                |
 
 **How fixed surfaces render.** The templates are JSON in `@repo/shared/a2ui/`. The canvas builds `createSurface` + `updateComponents` from the template, plus `updateDataModel` from agent state, and renders them with `A2UIRenderer`. Each `STATE_SNAPSHOT` or `STATE_DELTA` re-renders the surface, and that is the AG-UI state sync.
 
@@ -294,14 +293,14 @@ Clerk is used on both sides, and the Next.js backend is the authority (Q48). The
 
 ### The agent
 
-| Piece             | What it does                                                                                                                                                                                                                                                                                            |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| In-process client | Runs the graph for `LangGraphAgent`. Puts the verified `userId`, the settings, a quiz Submit, the `useAgentContext` entries and the student's memory into run context; ignores any `config`, `context` or `command` the browser sends                                                                   |
-| Client edits      | Starts each run from the checkpoint and applies only what the browser may change: quiz answers for the quiz the server holds, the learning material's text and view, the reflection, and a retake (a graded quiz sent back as not submitted). An edit clears what was built from the old material (Q51) |
-| Supervisor        | `createAgent` with the v1 prompt and tool names. Subagent tools return a `Command` with the state update and a short `ToolMessage`; parallel tool calls are off. Eight model calls per run at most                                                                                                      |
-| Middleware        | Context builder (prompt, memory, summary, app context, trimmed state on each model call, nothing written to the thread), quiz Submit (graded in code), frontend tools, tool errors, card-only replies, conversation summary                                                                             |
-| Stream filter     | Drops `RAW` events and `rawEvent`, keeps only the canvas's state keys, drops repeated snapshots, streams Board drafts as deltas and ends at a run error with a readable message                                                                                                                         |
-| Model             | `ChatOpenAI` (Responses API, `gpt-5.4-mini`, low reasoning), built per request with the user's key inside the instance, never in run context (Q49)                                                                                                                                                      |
+| Piece             | What it does                                                                                                                                                                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| In-process client | Runs the graph for `LangGraphAgent`. Puts the verified `userId`, the settings, a quiz Submit, the `useAgentContext` entries and the student's memory into run context; ignores any `config`, `context` or `command` the browser sends                                                   |
+| Client edits      | Starts each run from the checkpoint and applies only what the browser may change: quiz answers for the quiz the server holds, the learning material's text and view, and a retake (a graded quiz sent back as not submitted). An edit clears what was built from the old material (Q51) |
+| Supervisor        | `createAgent` with the v1 prompt and tool names. Subagent tools return a `Command` with the state update and a short `ToolMessage`; parallel tool calls are off. Eight model calls per run at most                                                                                      |
+| Middleware        | Context builder (prompt, memory, summary, app context, trimmed state on each model call, nothing written to the thread), quiz Submit (graded in code), frontend tools, tool errors, card-only replies, conversation summary                                                             |
+| Stream filter     | Drops `RAW` events and `rawEvent`, keeps only the canvas's state keys, drops repeated snapshots, streams Board drafts as deltas and ends at a run error with a readable message                                                                                                         |
+| Model             | `ChatOpenAI` (Responses API, `gpt-5.4-mini`, low reasoning), built per request with the user's key inside the instance, never in run context (Q49)                                                                                                                                      |
 
 Reload runs through `CheckpointRunner`: `/connect` replays the checkpoint, so a conversation comes back with its chat, canvas and Board after a server restart. `/connect` and Stop use process memory, so the app runs as one instance, or sticky by thread (Q55).
 
@@ -317,7 +316,6 @@ The checkpointer (`PostgresSaver`) holds each thread's full state and is used to
 | `research`         | conversation_id, payload jsonb, sources jsonb                                                                                                  |
 | `material`         | conversation_id, original, simplified, updated_at                                                                                              |
 | `quiz_attempts`    | id, conversation_id, quiz_id, attempt_no, questions, answer_key, answers, status, score_pct, tier, mastery, feedback, started_at, submitted_at |
-| `reflections`      | conversation_id, attempt_id, rating, text                                                                                                      |
 | `learner_profiles` | user_id, level, style, language                                                                                                                |
 | `concept_memories` | user_id, key, concept, correct, total                                                                                                          |
 | `topic_memories`   | conversation_id, user_id, topic, best_pct, latest_pct, attempts                                                                                |
@@ -363,7 +361,7 @@ The **Memory panel** (Settings → Memory, `/memory`) shows all of it: the profi
 
 - A collapsible conversation sidebar next to the chat, with a "New topic" button. Rows show title, stage, status and score, and can be searched, renamed and deleted.
 - API: `GET/POST/PATCH/DELETE /api/conversations` and `GET /api/conversations/{id}/attempts`. Switching conversations changes the chat's thread id.
-- **Delete is permanent**, after a confirmation step. In one request it removes the rows (cascading to research, material, attempts, reflections and the topic memory) and the thread's checkpoints.
+- **Delete is permanent**, after a confirmation step. In one request it removes the rows (cascading to research, material, attempts and the topic memory) and the thread's checkpoints.
 - On delete, concept mastery is rebuilt from the attempts that remain; a concept the student forgot is not brought back. Profile memories are kept, and users delete them in the Memory panel.
 
 ### Testing

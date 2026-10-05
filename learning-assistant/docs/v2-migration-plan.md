@@ -260,7 +260,7 @@ Fixed after M7 (2026-10-03):
 
 The "HTTP status codes" conversation whose row says Quiz while its checkpoint holds only a Board view dates from M6-9: its research, material and graded attempt were recorded while checkpoints went to the old `MemorySaver`. Stale local data, not a code path; deleting the conversation clears it.
 
-Not done: writing `reflections` and the student's own material edits to `material` (M5; the checkpoint keeps both, and nothing reads those rows yet); B9 (BYOK page) is undecided; a forgotten memory has no undo.
+Not done: the student's own material edits to `material` (M5; the checkpoint keeps them, and nothing reads those rows yet); B9 (BYOK page) is undecided; a forgotten memory has no undo.
 
 ### F. Testing and docs
 

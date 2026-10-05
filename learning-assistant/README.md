@@ -32,7 +32,7 @@ docker compose up -d
 pnpm db:migrate
 ```
 
-`pnpm db:migrate` applies the migrations in `packages/db/drizzle/` (users, settings, conversations, research, learning material, quiz attempts, reflections and long-term memory). The conversation checkpoints get their own tables, which the server creates when it starts. Run `pnpm db:migrate` again after pulling a change to `packages/db/src/schema.ts`.
+`pnpm db:migrate` applies the migrations in `packages/db/drizzle/` (users, settings, conversations, research, learning material, quiz attempts and long-term memory). The conversation checkpoints get their own tables, which the server creates when it starts. Run `pnpm db:migrate` again after pulling a change to `packages/db/src/schema.ts`.
 
 **4. Optional.** `TAVILY_API_KEY` for web research with sources, and the `LANGSMITH_*` variables for tracing (see [Environment variables](#environment-variables)).
 
@@ -52,13 +52,12 @@ You can use the app in ten ways. The messages are examples; any wording that say
 
 ### 1. Learn a topic step by step
 
-| Step              | Say or do                                                                                | What happens                                                                                        |
-| ----------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Research          | "Research JavaScript closures"                                                           | The Research stage fills with a reading, key insight, flashcards and sources                        |
-| Learning material | "Make learning material"                                                                 | Study notes appear in the Learning Material stage                                                   |
-| Quiz              | "Quiz me"                                                                                | A multiple-choice quiz with your question count appears. The answers stay sealed                    |
-| Answer and submit | Pick an option for each question, then press **Submit**                                  | The quiz is graded in code. Evaluation, Score (Novice, Practitioner or Master) and Feedback fill in |
-| Reflect           | In Feedback, rate the session, write a note and press **Save reflection & send to chat** | The assistant answers your note and suggests a next step                                            |
+| Step              | Say or do                                               | What happens                                                                                        |
+| ----------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Research          | "Research JavaScript closures"                          | The Research stage fills with a reading, key insight, flashcards and sources                        |
+| Learning material | "Make learning material"                                | Study notes appear in the Learning Material stage                                                   |
+| Quiz              | "Quiz me"                                               | A multiple-choice quiz with your question count appears. The answers stay sealed                    |
+| Answer and submit | Pick an option for each question, then press **Submit** | The quiz is graded in code. Evaluation, Score (Novice, Practitioner or Master) and Feedback fill in |
 
 Each step needs the one before it. If you skip ahead ("make a quiz" with no material), the assistant says what is missing and offers to do it.
 
@@ -195,7 +194,7 @@ packages/typescript-config/ tsconfig presets
 Everything runs inside the Next.js app. The runtime route checks the Clerk session, then builds the agent for that request: a LangChain.js `createAgent` Supervisor, run in the same process through `@ag-ui/langgraph`'s `LangGraphAgent` and a small client of our own. Each run, the client:
 
 1. Reads the settings and a quiz Submit from `forwardedProps`, and puts them, the verified user id, the app context and the student's long-term memory into the run's context. The OpenAI key stays inside the model instance, so it never reaches a trace.
-2. Starts from the conversation's checkpoint and applies only the edits the browser may make (quiz answers, the learning material's text and view, the reflection). Every other state key the browser sends is ignored.
+2. Starts from the conversation's checkpoint and applies only the edits the browser may make (quiz answers, the learning material's text and view). Every other state key the browser sends is ignored.
 3. Runs the Supervisor with its subagent tools (`research`, `makeMaterial`, `simplify`, `generateQuiz`, `evaluate`) and its chat and Board tools. Each subagent is one structured-output call that streams a draft to the canvas.
 4. Filters the stream to the browser: no raw graph events, only the canvas's state keys, and one snapshot per change.
 
