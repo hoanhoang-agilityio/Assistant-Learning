@@ -40,7 +40,7 @@ const Tab = ({
     aria-selected={isSelected}
     aria-controls={CANVAS_VIEW_IDS[view].panel}
     onClick={onSelect}
-    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
       isSelected
         ? "bg-indigo-600 text-white shadow-sm"
         : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -66,7 +66,7 @@ export const CanvasAreaView = ({
   <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
     <div
       role="tablist"
-      className="flex items-center gap-1 border-b border-slate-200 bg-white px-4 py-1.5 dark:border-slate-800 dark:bg-slate-900"
+      className="flex items-center gap-1 border-b border-slate-200 bg-white px-3 py-1.5 @md:px-4 dark:border-slate-800 dark:bg-slate-900"
     >
       <Tab
         view="stages"

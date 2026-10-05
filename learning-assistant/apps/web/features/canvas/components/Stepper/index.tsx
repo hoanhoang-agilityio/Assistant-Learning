@@ -30,7 +30,7 @@ export const Stepper = ({
   return (
     <nav
       aria-label="Learning stages"
-      className="border-b border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-800/60"
+      className="border-b border-slate-200 bg-white px-2 py-3 @md:p-4 dark:border-slate-800 dark:bg-slate-800/60"
     >
       <div className="relative mx-auto max-w-4xl">
         <div

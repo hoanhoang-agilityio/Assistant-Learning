@@ -98,17 +98,18 @@ export const SettingsPopoverView = ({
     <div ref={containerRef} className="relative">
       <button
         type="button"
+        aria-label="Settings"
         aria-expanded={isOpen}
         aria-controls={panelId}
         onClick={onToggle}
-        className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all ${
+        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition-all @md:px-3 ${
           isOpen
             ? "border-indigo-300 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400"
             : "border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
         }`}
       >
         <Settings className="h-4 w-4" />
-        <span>Settings</span>
+        <span className="hidden @2xl:inline">Settings</span>
       </button>
 
       {isOpen && (

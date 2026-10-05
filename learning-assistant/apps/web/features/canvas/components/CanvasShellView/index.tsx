@@ -74,12 +74,17 @@ export const CanvasShellView = ({
       onSelectStage={onSelectStage}
     />
 
-    <div className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-6 py-2 dark:border-slate-800 dark:bg-slate-800/40">
+    <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white/80 px-3 py-2 @md:px-6 dark:border-slate-800 dark:bg-slate-800/40">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="shrink-0 rounded-md bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-600 dark:bg-indigo-950/80 dark:text-indigo-300">
-          Stage {stageNumber} of {stageCount}
+        <span className="shrink-0 rounded-md bg-indigo-100 px-2 py-1 text-xs font-semibold whitespace-nowrap text-indigo-600 @md:px-2.5 dark:bg-indigo-950/80 dark:text-indigo-300">
+          <span className="hidden @md:inline">
+            Stage {stageNumber} of {stageCount}
+          </span>
+          <span className="@md:hidden">
+            {stageNumber}/{stageCount}
+          </span>
         </span>
-        <h2 className="text-sm font-bold">{step.title}</h2>
+        <h2 className="truncate text-sm font-bold">{step.title}</h2>
         <span className="hidden truncate text-xs text-slate-400 @3xl:inline">
           — {step.description}
         </span>
@@ -97,17 +102,18 @@ export const CanvasShellView = ({
         </button>
         <button
           type="button"
+          aria-label="Next stage"
           disabled={!hasNext}
           onClick={onNext}
-          className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-all hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600"
+          className="flex items-center gap-1 rounded-lg bg-indigo-600 px-2 py-1.5 text-xs font-medium text-white shadow-sm transition-all hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 @md:px-3"
         >
-          <span>Next Stage</span>
+          <span className="hidden @md:inline">Next Stage</span>
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
     </div>
 
-    <div className="flex-1 overflow-y-auto p-6">
+    <div className="flex-1 overflow-y-auto p-3 @md:p-6">
       <div className="mx-auto max-w-4xl space-y-6">
         {error && (
           <StageError
