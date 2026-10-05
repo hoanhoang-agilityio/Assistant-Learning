@@ -218,7 +218,6 @@ describe("what the browser may write", () => {
         stage: "score",
         topic: "Forged",
         material: { original: "# Forged", simplified: null, view: "original" },
-        reflection: { rating: 5, text: "Forged" },
         score: { percent: 100, tier: "Master" },
       },
     });
@@ -229,7 +228,6 @@ describe("what the browser may write", () => {
       stage: "idle",
       topic: null,
       material: null,
-      reflection: null,
       score: null,
     });
   });

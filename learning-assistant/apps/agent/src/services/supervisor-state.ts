@@ -18,7 +18,6 @@ export const toSupervisorState = (
     evaluation,
     score,
     feedback,
-    reflection,
     quizOutdated,
     board,
   }: LearningState,
@@ -49,7 +48,6 @@ export const toSupervisorState = (
   },
   score,
   hasFeedback: feedback !== null,
-  hasReflection: reflection !== null,
   quizOutdated,
   board: board.map(({ id, title }) => ({ id, title })),
 });

@@ -40,7 +40,6 @@ export interface SupervisorState {
   evaluation: Pick<Evaluation, "correct" | "total" | "weakestConcept"> | null;
   score: Score | null;
   hasFeedback: boolean;
-  hasReflection: boolean;
   quizOutdated: boolean;
   /** Board views by name; their components stay on the canvas. */
   board: Pick<BoardSurface, "id" | "title">[];

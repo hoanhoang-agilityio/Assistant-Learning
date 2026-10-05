@@ -193,19 +193,6 @@ describe("what the browser changed since the last run", () => {
       status: { running: null },
     });
   });
-
-  it("saves a reflection once there is feedback to reflect on", async () => {
-    teachThen();
-    const quizzed = await reachQuiz();
-    const reflection = { rating: 4, text: "Clear notes" };
-
-    const early = await chat(quizzed, { ...lastSnapshot(quizzed), reflection });
-    expect(lastSnapshot(early)).toMatchObject({ reflection: null });
-
-    const graded = await submit(early);
-    const events = await chat(graded, { ...lastSnapshot(graded), reflection });
-    expect(lastSnapshot(events)).toMatchObject({ reflection });
-  });
 });
 
 describe("a new topic", () => {

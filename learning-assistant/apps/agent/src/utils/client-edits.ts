@@ -3,8 +3,6 @@ import {
   MaterialSchema,
   type Quiz,
   QuizSchema,
-  type Reflection,
-  ReflectionSchema,
 } from "@repo/shared/schemas";
 import { replaceMaterial, retakeQuiz } from "@repo/shared/utils/client-edits";
 import { z } from "zod";
@@ -19,7 +17,6 @@ const ClientQuizSchema = z.object({
   answers: QuizSchema.shape.answers,
   submitted: QuizSchema.shape.submitted.optional(),
 });
-const ClientReflectionSchema = ReflectionSchema.nullable();
 
 const readField = <T>(schema: z.ZodType<T>, raw: unknown): T | undefined => {
   const parsed = schema.safeParse(raw);
@@ -31,19 +28,6 @@ const isSameAnswers = (a: Quiz["answers"], b: Quiz["answers"]): boolean => {
   return (
     ids.length === Object.keys(b).length && ids.every((id) => a[id] === b[id])
   );
-};
-
-const isSameReflection = (a: Reflection | null, b: Reflection | null) =>
-  a?.rating === b?.rating && a?.text === b?.text;
-
-/** A reflection belongs to feedback: without feedback there is nothing to write. */
-const applyReflection = (state: LearningState, raw: unknown): LearningState => {
-  const reflection = readField(ClientReflectionSchema, raw);
-  return reflection === undefined ||
-    !state.feedback ||
-    isSameReflection(reflection, state.reflection)
-    ? state
-    : { ...state, reflection };
 };
 
 /**
@@ -99,8 +83,7 @@ const applyAnswers = (state: LearningState, raw: unknown): LearningState => {
 
 /**
  * Applies what the browser changed since the last run to the server's
- * `state`: the reflection, the learning material's text and view, and the
- * quiz answers, each with what follows from it (an edit clears the quiz, a
+ * `state`: the learning material's text and view, and the quiz answers, each with what follows from it (an edit clears the quiz, a
  * retake clears the results). `client` is the state the browser sent; only
  * those fields are read, so it cannot write a stage, a quiz, a grade or
  * anything else the server owns.
@@ -109,12 +92,6 @@ export const applyClientEdits = (
   state: LearningState,
   client: unknown,
 ): LearningState => {
-  const { reflection, material, quiz } = (client ?? {}) as Record<
-    string,
-    unknown
-  >;
-  return applyAnswers(
-    applyMaterial(applyReflection(state, reflection), material),
-    quiz,
-  );
+  const { material, quiz } = (client ?? {}) as Record<string, unknown>;
+  return applyAnswers(applyMaterial(state, material), quiz);
 };

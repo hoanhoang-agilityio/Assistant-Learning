@@ -10,7 +10,6 @@ import { initialLearningState, type LearningState } from "@repo/shared/schemas";
 export const CLIENT_INPUT_STATE_KEYS = [
   "quiz",
   "material",
-  "reflection",
 ] as const satisfies readonly (keyof LearningState)[];
 
 /**

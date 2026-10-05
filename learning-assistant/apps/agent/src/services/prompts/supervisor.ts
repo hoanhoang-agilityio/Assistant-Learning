@@ -9,7 +9,6 @@ import {
   SET_THEME_TOOL,
   UPDATE_BOARD_SURFACE_TOOL,
 } from "@repo/shared/constants/agents";
-import { REFLECTION_MESSAGE_PREFIX } from "@repo/shared/constants/messages";
 
 import {
   CONVERSATION_SUMMARY_HEADING,
@@ -149,10 +148,6 @@ const SPECIAL_PHASES = `# Special phases
   grades the quiz itself; you only run when grading failed, and the last
   message is that evaluate result. Explain the error. Do not call evaluate
   or generateQuiz again.
-- Reflection: a message starting with "${REFLECTION_MESSAGE_PREFIX}" comes from the
-  reflection form in the Feedback stage. Thank the student in one sentence,
-  respond to what they wrote, and suggest one next step (retake the quiz, new
-  questions, or a new topic). Do not call any tool for it.
 - Learning material edited: when "Application State" shows quizOutdated true, the student
   changed the learning material and the old quiz was cleared. If they ask about the quiz
   or results, say so and offer a new quiz.`;

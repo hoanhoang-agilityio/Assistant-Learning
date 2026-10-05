@@ -55,7 +55,6 @@ describe("toSupervisorState", () => {
       evaluation: null,
       score: null,
       hasFeedback: false,
-      hasReflection: false,
       quizOutdated: false,
       board: [{ id: "board-1", title: "HTTP methods" }],
     });

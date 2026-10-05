@@ -115,7 +115,6 @@ describe("applyClientEdits", () => {
         evaluation: null,
         score: null,
         feedback: null,
-        reflection: null,
       });
     });
 
@@ -190,32 +189,6 @@ describe("applyClientEdits", () => {
         initialLearningState,
       );
       expect(applyClientEdits(QUIZZED, { material: null })).toBe(QUIZZED);
-    });
-  });
-
-  describe("reflection", () => {
-    const reflection = { rating: 4, text: "Clear" };
-
-    it("is saved once there is feedback", () => {
-      expect(applyClientEdits(GRADED, { reflection }).reflection).toEqual(
-        reflection,
-      );
-    });
-
-    it("is ignored without feedback, or when it is not a reflection", () => {
-      expect(applyClientEdits(QUIZZED, { reflection })).toBe(QUIZZED);
-      expect(applyClientEdits(GRADED, { reflection: { rating: 9 } })).toBe(
-        GRADED,
-      );
-    });
-
-    it("is cleared with the results it was about", () => {
-      const next = applyClientEdits(
-        { ...GRADED, reflection },
-        { reflection, quiz: { ...GRADED.quiz, answers: {} } },
-      );
-
-      expect(next.reflection).toBeNull();
     });
   });
 });
