@@ -13,6 +13,7 @@ export const ConversationSidebar = () => {
       hasConversations={sidebar.hasConversations}
       activeId={sidebar.activeId}
       isOpen={sidebar.isOpen}
+      isDrawer={sidebar.isDrawer}
       isBusy={sidebar.isBusy}
       error={sidebar.error}
       query={sidebar.query}
@@ -28,6 +29,7 @@ export const ConversationSidebar = () => {
       onDelete={sidebar.handleDelete}
       onCancelDelete={sidebar.handleCancelDelete}
       onToggle={sidebar.handleToggle}
+      onCloseDrawer={sidebar.handleCloseDrawer}
     />
   );
 };

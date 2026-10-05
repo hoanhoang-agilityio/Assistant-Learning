@@ -52,7 +52,7 @@ export const WorkspaceView = ({ display, panelsRef }: WorkspaceViewProps) => {
         }`}
       >
         <Header />
-        <div className="flex flex-1 overflow-hidden">
+        <div className="relative flex flex-1 overflow-hidden">
           <ConversationSidebar />
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <ResumeBanner />

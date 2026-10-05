@@ -59,3 +59,10 @@ export const CONVERSATION_COPY = {
   actionFailed: "That did not work. Try again.",
   resumeDismiss: "Dismiss",
 } as const;
+
+/** DOM id of the open conversation list, for its toggles' `aria-controls`. */
+export const CONVERSATION_SIDEBAR_ID = "conversation-sidebar";
+
+/** The sidebar's and the rail's icon buttons. */
+export const CONVERSATION_ICON_BUTTON_CLASS =
+  "rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200";

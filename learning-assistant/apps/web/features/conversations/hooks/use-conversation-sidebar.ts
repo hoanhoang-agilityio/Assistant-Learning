@@ -1,6 +1,6 @@
 import type { ConversationSummary } from "@repo/shared/schemas";
 import { initialLearningState } from "@repo/shared/schemas";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CONVERSATION_COPY } from "@/features/conversations/constants/conversations";
 import {
@@ -19,6 +19,7 @@ import {
   pickNextConversation,
   toActiveConversation,
 } from "@/features/conversations/utils/conversations";
+import { useDisplay } from "@/hooks/use-display";
 import { useLearningAgent } from "@/hooks/use-learning-agent";
 import { useRetakeRequestActions } from "@/hooks/use-retake-request-store";
 
@@ -27,11 +28,16 @@ import { useRetakeRequestActions } from "@/hooks/use-retake-request-store";
  * that asks first. Switching clears the chat and the canvas at once; the
  * chat then reopens the conversation from the server (see
  * `ConversationThread`).
+ *
+ * On a compact screen the list is a drawer over the canvas: closed until
+ * opened, and closed again once a conversation is picked. The saved open
+ * state is the wide layout's only.
  */
 export const useConversationSidebar = () => {
   const conversations = useConversations();
   const active = useActiveConversation();
-  const isOpen = useIsSidebarOpen();
+  const isSavedOpen = useIsSidebarOpen();
+  const { isCompact } = useDisplay();
   const actions = useConversationActions();
   const { agent } = useLearningAgent();
   const { clearRetake } = useRetakeRequestActions();
@@ -40,6 +46,23 @@ export const useConversationSidebar = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const isOpen = isCompact ? isDrawerOpen : isSavedOpen;
+  const isDrawerShown = isCompact && isDrawerOpen;
+
+  // Escape closes the drawer, unless it is cancelling a rename.
+  useEffect(() => {
+    if (!isDrawerShown || editingId !== null) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsDrawerOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isDrawerShown, editingId]);
 
   const list = useMemo(() => conversations ?? [], [conversations]);
   const visible = useMemo(
@@ -48,6 +71,7 @@ export const useConversationSidebar = () => {
   );
 
   const open = (conversation: ConversationSummary) => {
+    setIsDrawerOpen(false);
     if (conversation.id === active?.id) {
       return;
     }
@@ -107,11 +131,20 @@ export const useConversationSidebar = () => {
       setDeletingId(null);
     });
 
+  const handleToggle = () => {
+    if (isCompact) {
+      setIsDrawerOpen(!isOpen);
+    } else {
+      actions.setSidebarOpen(!isOpen);
+    }
+  };
+
   return {
     conversations: visible,
     hasConversations: list.length > 0,
     activeId: active?.id ?? null,
     isOpen,
+    isDrawer: isCompact,
     isBusy,
     error,
     query,
@@ -126,6 +159,7 @@ export const useConversationSidebar = () => {
     handleRequestDelete: setDeletingId,
     handleCancelDelete: () => setDeletingId(null),
     handleDelete,
-    handleToggle: () => actions.setSidebarOpen(!isOpen),
+    handleToggle,
+    handleCloseDrawer: () => setIsDrawerOpen(false),
   };
 };
