@@ -12,8 +12,8 @@ import { useRequestStage } from "@/hooks/use-stage-request-store";
 /**
  * The Feedback surface's operations and actions. `surfaceKey` changes only
  * when the operations do, so the surface is redrawn once per new feedback
- * (the agent's state is re-read, as new objects, on every render);
- * `feedbackKey` changes with any new feedback. A review link opens the learning material.
+ * (the agent's state is re-read, as new objects, on every render). A review
+ * link opens the learning material.
  */
 export const useFeedbackStage = (feedback: Feedback) => {
   const requestStage = useRequestStage();
@@ -36,7 +36,6 @@ export const useFeedbackStage = (feedback: Feedback) => {
   return {
     operations,
     surfaceKey,
-    feedbackKey: `${surfaceKey}${feedback.summary}`,
     summary: feedback.summary,
     hasSurface: operations.length > 0,
     handleAction,

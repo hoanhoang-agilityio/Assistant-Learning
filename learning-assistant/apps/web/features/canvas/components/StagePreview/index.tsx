@@ -38,13 +38,6 @@ export const StagePreview = ({ stage, state }: StagePreviewProps) => {
         )
       );
     case "feedback":
-      return (
-        state.feedback && (
-          <FeedbackStage
-            feedback={state.feedback}
-            reflection={state.reflection}
-          />
-        )
-      );
+      return state.feedback && <FeedbackStage feedback={state.feedback} />;
   }
 };

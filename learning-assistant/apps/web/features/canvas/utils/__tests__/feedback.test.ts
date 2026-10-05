@@ -6,10 +6,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   createReviewConceptAction,
-  formatReflectionMessage,
   parseFeedbackOperations,
   parseReviewConcept,
-  toReflection,
 } from "@/features/canvas/utils/feedback";
 
 const CREATE = {
@@ -54,32 +52,5 @@ describe("review concept action", () => {
   it("rejects a context without a concept", () => {
     expect(parseReviewConcept({})).toBeNull();
     expect(parseReviewConcept(null)).toBeNull();
-  });
-});
-
-describe("toReflection", () => {
-  it("trims the text", () => {
-    expect(toReflection({ rating: 4, text: "  more examples " })).toEqual({
-      rating: 4,
-      text: "more examples",
-    });
-  });
-
-  it.each([0, 6, 2.5])("rejects a rating of %s", (rating) => {
-    expect(toReflection({ rating, text: "" })).toBeNull();
-  });
-});
-
-describe("formatReflectionMessage", () => {
-  it("includes the rating and the text", () => {
-    expect(formatReflectionMessage({ rating: 4, text: "More examples" })).toBe(
-      "My reflection (4/5): More examples",
-    );
-  });
-
-  it("still says something without text", () => {
-    expect(formatReflectionMessage({ rating: 2, text: "" })).toBe(
-      "My reflection: I rated this lesson 2/5.",
-    );
   });
 });
