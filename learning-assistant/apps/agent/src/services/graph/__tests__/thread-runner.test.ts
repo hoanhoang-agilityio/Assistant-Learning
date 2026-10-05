@@ -61,7 +61,7 @@ const runElsewhere = async () => {
   await graph.invoke(
     {
       messages: [new HumanMessage({ id: uuidv4(), content: "hi" })],
-      reflection: { rating: 4, text: "Clear notes" },
+      topic: "Closures",
     },
     { configurable: { thread_id: threadId }, context: RUN_CONTEXT },
   );
@@ -93,7 +93,7 @@ describe("reloading a thread", () => {
     const [, state, messages] = events;
     expect((state as StateSnapshotEvent).snapshot).toEqual({
       ...initialLearningState,
-      reflection: { rating: 4, text: "Clear notes" },
+      topic: "Closures",
     });
     expect(
       (messages as MessagesSnapshotEvent).messages.map(({ role, content }) => [

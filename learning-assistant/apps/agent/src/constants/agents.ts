@@ -42,8 +42,8 @@ export const SUBAGENT_CLEARS: Record<
   research: ["material", ...QUIZ_STATE_KEYS],
   makeMaterial: QUIZ_STATE_KEYS,
   simplify: QUIZ_STATE_KEYS,
-  generateQuiz: ["evaluation", "score", "feedback", "reflection"],
-  evaluate: ["reflection"],
+  generateQuiz: ["evaluation", "score", "feedback"],
+  evaluate: [],
 };
 
 /** How each subagent adapts its writing to the student's level. */

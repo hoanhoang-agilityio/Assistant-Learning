@@ -29,7 +29,6 @@ export const QUIZ_STATE_KEYS = [
   "evaluation",
   "score",
   "feedback",
-  "reflection",
 ] as const;
 
 export const StageSchema = z.enum(STAGES);
@@ -148,11 +147,6 @@ export const DraftSchema = z.discriminatedUnion("task", [
   }),
 ]);
 
-export const ReflectionSchema = z.object({
-  rating: z.int().min(1).max(5),
-  text: z.string(),
-});
-
 /** Shared AG-UI agent state: the single source of truth for the canvas. */
 export const LearningStateSchema = z.object({
   stage: StageSchema,
@@ -164,7 +158,6 @@ export const LearningStateSchema = z.object({
   evaluation: EvaluationSchema.nullable(),
   score: ScoreSchema.nullable(),
   feedback: FeedbackSchema.nullable(),
-  reflection: ReflectionSchema.nullable(),
   /**
    * The student edited the learning material after a quiz existed, so the quiz and its
    * results were cleared. Reset when a new quiz, learning material or research arrive.
@@ -187,7 +180,6 @@ export type Quiz = z.infer<typeof QuizSchema>;
 export type Evaluation = z.infer<typeof EvaluationSchema>;
 export type Score = z.infer<typeof ScoreSchema>;
 export type Feedback = z.infer<typeof FeedbackSchema>;
-export type Reflection = z.infer<typeof ReflectionSchema>;
 export type BoardSurface = z.infer<typeof BoardSurfaceSchema>;
 export type BoardDraft = z.infer<typeof BoardDraftSchema>;
 export type ResearchDraft = z.infer<typeof ResearchDraftSchema>;
@@ -205,7 +197,6 @@ export const initialLearningState: LearningState = {
   evaluation: null,
   score: null,
   feedback: null,
-  reflection: null,
   quizOutdated: false,
   board: [],
   draft: null,

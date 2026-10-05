@@ -38,7 +38,6 @@ const withResults: LearningState = {
   },
   score: { percent: 100, tier: "Master" },
   feedback: { a2uiOperations: [], summary: "Great" },
-  reflection: { rating: 5, text: "Fun" },
 };
 
 describe("applyMaterialEdit", () => {
@@ -74,7 +73,6 @@ describe("applyMaterialEdit", () => {
       evaluation: null,
       score: null,
       feedback: null,
-      reflection: null,
       quizOutdated: true,
     });
   });
@@ -179,7 +177,6 @@ describe("retakeQuiz", () => {
       evaluation: null,
       score: null,
       feedback: null,
-      reflection: null,
     });
   });
 

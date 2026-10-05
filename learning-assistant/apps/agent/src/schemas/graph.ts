@@ -24,7 +24,6 @@ export const LearningGraphStateSchema = z.object({
   evaluation: shape.evaluation.default(initialLearningState.evaluation),
   score: shape.score.default(initialLearningState.score),
   feedback: shape.feedback.default(initialLearningState.feedback),
-  reflection: shape.reflection.default(initialLearningState.reflection),
   quizOutdated: shape.quizOutdated.default(initialLearningState.quizOutdated),
   board: shape.board.default(initialLearningState.board),
   draft: shape.draft.default(initialLearningState.draft),
