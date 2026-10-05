@@ -127,7 +127,7 @@ export const renameConversationHandler = async (
 /**
  * `DELETE /api/conversations/[id]`: for good. The thread's checkpoints go
  * first, then the conversation's rows, which cascade to its research,
- * material, attempts and reflections.
+ * material and attempts.
  */
 export const deleteConversationHandler = async (
   _request: Request,

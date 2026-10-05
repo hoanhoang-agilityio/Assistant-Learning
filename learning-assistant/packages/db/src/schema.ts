@@ -140,20 +140,6 @@ export const quizAttempts = pgTable(
   ],
 );
 
-/** The student's rating and note after the feedback. */
-export const reflections = pgTable("reflections", {
-  id: uuid("id").primaryKey().$defaultFn(uuidv4),
-  conversationId: uuid("conversation_id")
-    .notNull()
-    .references(() => conversations.id, { onDelete: "cascade" }),
-  attemptId: uuid("attempt_id").references(() => quizAttempts.id, {
-    onDelete: "cascade",
-  }),
-  rating: integer("rating").notNull(),
-  text: text("text").notNull(),
-  createdAt: createdAt(),
-});
-
 /**
  * What a student is like as a learner (E2): noticed by the agent after a
  * run or set by the student, whose own setting wins. Kept when a
