@@ -7,6 +7,9 @@ export const CONVERSATIONS_API_PATH = "/api/conversations";
 /** `/api/conversations/[id]/answers`: the quiz's draft answers. */
 export const CONVERSATION_ANSWERS_SEGMENT = "answers";
 
+/** `/api/conversations/[id]/title`: a title summarised from the first message. */
+export const CONVERSATION_TITLE_SEGMENT = "title";
+
 /** Pause after the last pick before the draft answers are kept. */
 export const DRAFT_ANSWERS_SAVE_DELAY_MS = 800;
 
@@ -15,6 +18,13 @@ export const CONVERSATION_NOT_FOUND_ERROR = "Conversation not found.";
 
 export const BAD_REQUEST_STATUS = 400;
 export const INVALID_TITLE_ERROR = `A title needs 1 to ${TITLE_MAX_LENGTH} characters.`;
+export const INVALID_TITLE_MESSAGE_ERROR =
+  "Send { message } with the first message.";
+export const MISSING_API_KEY_STATUS = 401;
+export const MISSING_API_KEY_ERROR =
+  "Add your OpenAI API key to name the conversation.";
+export const TITLE_FAILED_STATUS = 502;
+export const TITLE_FAILED_ERROR = "The conversation could not be named.";
 export const INVALID_ANSWERS_ERROR =
   "Send { quizId, answers } with an option index per question id.";
 export const CREATED_STATUS = 201;

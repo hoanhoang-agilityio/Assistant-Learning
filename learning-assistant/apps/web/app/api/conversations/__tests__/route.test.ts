@@ -1,27 +1,36 @@
-import { recordQuiz } from "@repo/db";
+import { recordConversationRun, recordQuiz, recordResearch } from "@repo/db";
 import type { ConversationSummary, Quiz } from "@repo/shared/schemas";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UNAUTHORIZED_STATUS } from "@/constants/auth";
 import {
+  API_KEY_HEADER,
+  API_KEY_SEAL_SECRET_ENV_KEY,
+} from "@/features/api-key/constants/api-key";
+import { sealApiKey } from "@/features/api-key/services/sealed-api-key";
+import {
   BAD_REQUEST_STATUS,
   CONVERSATION_NOT_FOUND_STATUS,
   CREATED_STATUS,
+  MISSING_API_KEY_STATUS,
   NO_CONTENT_STATUS,
+  TITLE_FAILED_STATUS,
 } from "@/features/conversations/constants/conversations";
 import {
   resetTestDatabase,
   testDatabase,
 } from "@/services/__tests__/database-mock";
 
-const { auth, currentUser } = vi.hoisted(() => ({
+const { auth, currentUser, summarizeTitle } = vi.hoisted(() => ({
   auth: vi.fn(),
+  summarizeTitle: vi.fn(),
   currentUser: vi.fn(async () => ({
     primaryEmailAddress: { emailAddress: "alice@example.com" },
   })),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth, currentUser }));
+vi.mock("@repo/agent", () => ({ summarizeTitle }));
 vi.mock("@repo/db/client", () =>
   import("@/services/__tests__/database-mock").then((m) => m.CLIENT_MOCK),
 );
@@ -33,8 +42,12 @@ const list = await import("@/app/api/conversations/route");
 const one = await import("@/app/api/conversations/[id]/route");
 const attempts = await import("@/app/api/conversations/[id]/attempts/route");
 const answers = await import("@/app/api/conversations/[id]/answers/route");
+const title = await import("@/app/api/conversations/[id]/title/route");
 
 const URL_BASE = "http://localhost/api/conversations";
+const SEAL_SECRET = "test-seal-secret";
+const API_KEY = "sk-title-route";
+const FIRST_MESSAGE = "Can you teach me how closures work in JavaScript?";
 
 const QUIZ: Quiz = {
   id: "quiz_1",
@@ -112,11 +125,28 @@ const saveAnswers = (id: string, body: unknown) =>
 const readAnswers = async (id: string) =>
   answers.GET(new Request(`${URL_BASE}/${id}/answers`), paramsOf(id));
 
+const nameByFirstMessage = (
+  id: string,
+  body: unknown,
+  sealedKey: string | null = sealApiKey(API_KEY, SEAL_SECRET),
+) =>
+  title.POST(
+    new Request(`${URL_BASE}/${id}/title`, {
+      method: "POST",
+      headers: sealedKey ? { [API_KEY_HEADER]: sealedKey } : {},
+      body: JSON.stringify(body),
+    }),
+    paramsOf(id),
+  );
+
 const readCheckpoint = (threadId: string) =>
   testDatabase.checkpointer.getTuple({ configurable: { thread_id: threadId } });
 
 beforeEach(async () => {
   auth.mockReset();
+  summarizeTitle.mockReset();
+  summarizeTitle.mockResolvedValue("JavaScript closures");
+  vi.stubEnv(API_KEY_SEAL_SECRET_ENV_KEY, SEAL_SECRET);
   await resetTestDatabase();
   signInAs("alice");
 });
@@ -190,6 +220,86 @@ describe("/api/conversations", () => {
 
     expect((await rename(id, " ")).status).toBe(BAD_REQUEST_STATUS);
     expect((await rename(id, "x".repeat(200))).status).toBe(BAD_REQUEST_STATUS);
+  });
+
+  it("names a new conversation by a title summarised from its first message", async () => {
+    const { id } = await create();
+
+    const response = await nameByFirstMessage(id, { message: FIRST_MESSAGE });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id,
+      title: "JavaScript closures",
+    });
+    expect(summarizeTitle).toHaveBeenCalledWith({
+      apiKey: API_KEY,
+      userText: FIRST_MESSAGE,
+    });
+  });
+
+  it("replaces the first message a finished run named it by", async () => {
+    const { id } = await create();
+    await recordConversationRun(testDatabase.current!, id, {
+      stage: "idle",
+      userText: FIRST_MESSAGE,
+    });
+
+    const response = await nameByFirstMessage(id, { message: FIRST_MESSAGE });
+
+    expect(await response.json()).toMatchObject({
+      title: "JavaScript closures",
+    });
+  });
+
+  it("keeps another name without calling the model", async () => {
+    const { id } = await create();
+    await recordResearch(testDatabase.current!, id, {
+      topic: "closures",
+      research: {
+        title: "Closures in depth",
+        summary: "s",
+        keyInsight: "k",
+        keyTerms: [],
+        sources: [],
+      },
+    });
+
+    const response = await nameByFirstMessage(id, { message: FIRST_MESSAGE });
+
+    expect(await response.json()).toMatchObject({ title: "Closures in depth" });
+    expect(summarizeTitle).not.toHaveBeenCalled();
+  });
+
+  it("refuses to name without a message, a key, or the conversation", async () => {
+    const { id } = await create();
+
+    expect((await nameByFirstMessage(id, { message: " " })).status).toBe(
+      BAD_REQUEST_STATUS,
+    );
+    expect(
+      (await nameByFirstMessage(id, { message: FIRST_MESSAGE }, null)).status,
+    ).toBe(MISSING_API_KEY_STATUS);
+    signInAs("bob");
+    expect(
+      (await nameByFirstMessage(id, { message: FIRST_MESSAGE })).status,
+    ).toBe(CONVERSATION_NOT_FOUND_STATUS);
+    expect(summarizeTitle).not.toHaveBeenCalled();
+  });
+
+  it("answers 502 and keeps the conversation untitled when the model fails", async () => {
+    const { id } = await create();
+    summarizeTitle.mockRejectedValue(new Error("model down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await nameByFirstMessage(id, { message: FIRST_MESSAGE });
+
+    expect(response.status).toBe(TITLE_FAILED_STATUS);
+    expect(
+      await (
+        await one.GET(new Request(`${URL_BASE}/${id}`), paramsOf(id))
+      ).json(),
+    ).toMatchObject({ title: null });
   });
 
   it("deletes a conversation with its thread's checkpoints", async () => {

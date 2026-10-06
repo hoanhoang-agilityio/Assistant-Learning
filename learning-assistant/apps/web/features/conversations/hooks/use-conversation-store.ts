@@ -30,6 +30,13 @@ export const useConversationStore = create<ConversationStore>()(
                 : [conversation, ...list],
             };
           }),
+        updateConversation: (conversation) =>
+          set(({ conversations }) => ({
+            conversations:
+              conversations?.map((existing) =>
+                existing.id === conversation.id ? conversation : existing,
+              ) ?? null,
+          })),
         removeConversation: (id) =>
           set(({ conversations }) => ({
             conversations: (conversations ?? []).filter(
