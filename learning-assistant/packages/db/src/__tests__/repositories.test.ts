@@ -11,6 +11,7 @@ import {
   listConversations,
   recordConversationRun,
   renameConversation,
+  saveSummarizedTitle,
 } from "../repositories/conversations";
 import {
   getDraftAnswers,
@@ -158,6 +159,53 @@ describe("repositories", () => {
         topic: "closures",
         stage: "research",
       });
+    });
+
+    it("names a conversation by its summarised title, over its first message", async () => {
+      const message = "Can you teach me how closures work in JavaScript?";
+      const before = await createConversation(db, alice);
+      expect(
+        await saveSummarizedTitle(db, alice, before.id, {
+          title: "JavaScript closures",
+          message,
+        }),
+      ).toMatchObject({ title: "JavaScript closures" });
+
+      const { id } = await createConversation(db, alice);
+      await recordConversationRun(db, id, { stage: "idle", userText: message });
+      await saveSummarizedTitle(db, alice, id, {
+        title: "JavaScript closures",
+        message,
+      });
+      expect((await getConversation(db, alice, id))?.title).toBe(
+        "JavaScript closures",
+      );
+    });
+
+    it("keeps a research title or the student's name over the summarised one", async () => {
+      const { id } = await createConversation(db, alice);
+      await recordResearch(db, id, { topic: "closures", research: RESEARCH });
+      expect(
+        await saveSummarizedTitle(db, alice, id, {
+          title: "Summarised",
+          message: "Teach me closures",
+        }),
+      ).toMatchObject({ title: RESEARCH.title });
+
+      await renameConversation(db, alice, id, "Teach me closures");
+      await saveSummarizedTitle(db, alice, id, {
+        title: "Summarised",
+        message: "Teach me closures",
+      });
+      expect((await getConversation(db, alice, id))?.title).toBe(
+        "Teach me closures",
+      );
+      expect(
+        await saveSummarizedTitle(db, bob, id, {
+          title: "Bob's",
+          message: "Teach me closures",
+        }),
+      ).toBeNull();
     });
 
     it("keeps a name the student gave over the research title", async () => {

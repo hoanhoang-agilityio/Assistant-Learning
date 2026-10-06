@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { TITLE_MAX_LENGTH } from "../constants/conversations";
+import {
+  TITLE_MAX_LENGTH,
+  TITLE_MESSAGE_MAX_LENGTH,
+} from "../constants/conversations";
 import { QuizSchema, ScoreSchema, StageSchema } from "./learning-state";
 
 /** What the database keeps; `abandoned` is worked out when a row is read. */
@@ -37,6 +40,11 @@ export const RenameConversationSchema = z.object({
   title: z.string().trim().min(1).max(TITLE_MAX_LENGTH),
 });
 
+/** `POST /api/conversations/[id]/title`: the first message, to name it by. */
+export const SummarizeTitleSchema = z.object({
+  message: z.string().trim().min(1).max(TITLE_MESSAGE_MAX_LENGTH),
+});
+
 /** One quiz attempt as the history lists it. Never the answer key. */
 export const QuizAttemptSummarySchema = z.object({
   id: z.uuid(),
@@ -64,5 +72,6 @@ export type ConversationStatus = z.infer<typeof ConversationStatusSchema>;
 export type AttemptStatus = z.infer<typeof AttemptStatusSchema>;
 export type ConversationSummary = z.infer<typeof ConversationSummarySchema>;
 export type RenameConversation = z.infer<typeof RenameConversationSchema>;
+export type SummarizeTitle = z.infer<typeof SummarizeTitleSchema>;
 export type QuizAttemptSummary = z.infer<typeof QuizAttemptSummarySchema>;
 export type DraftAnswers = z.infer<typeof DraftAnswersSchema>;

@@ -5,6 +5,7 @@ import { useChatUiTools } from "@/features/chat/hooks/use-chat-ui-tools";
 import { useStageSuggestions } from "@/features/chat/hooks/use-stage-suggestions";
 import { useToolRenderers } from "@/features/chat/hooks/use-tool-renderers";
 import { useConversationRefresh } from "@/features/conversations/hooks/use-conversation-refresh";
+import { useConversationTitle } from "@/features/conversations/hooks/use-conversation-title";
 import { useDraftAnswers } from "@/features/conversations/hooks/use-draft-answers";
 import { useLearningSettingsTool } from "@/features/settings/hooks/use-learning-settings-tool";
 import { useThemeTool } from "@/features/settings/hooks/use-theme-tool";
@@ -33,6 +34,7 @@ export const useWorkspace = () => {
   useDisplayContext();
   useAgentEventLog();
   useConversationRefresh();
+  useConversationTitle();
   useRetakeFromHistory();
   useDraftAnswers();
 

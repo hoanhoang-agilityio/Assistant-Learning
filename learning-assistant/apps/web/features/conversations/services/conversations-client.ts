@@ -7,8 +7,10 @@ import {
 } from "@repo/shared/schemas";
 import { z } from "zod";
 
+import { API_KEY_HEADER } from "@/features/api-key/constants/api-key";
 import {
   CONVERSATION_ANSWERS_SEGMENT,
+  CONVERSATION_TITLE_SEGMENT,
   CONVERSATIONS_API_PATH,
 } from "@/features/conversations/constants/conversations";
 import { expectOk } from "@/services/expect-ok";
@@ -18,6 +20,9 @@ const toConversationPath = (id: string) =>
 
 const toAnswersPath = (id: string) =>
   `${toConversationPath(id)}/${CONVERSATION_ANSWERS_SEGMENT}`;
+
+const toTitlePath = (id: string) =>
+  `${toConversationPath(id)}/${CONVERSATION_TITLE_SEGMENT}`;
 
 const SavedDraftSchema = z.object({ draft: DraftAnswersSchema.nullable() });
 
@@ -44,6 +49,28 @@ export const updateConversationTitle = async (
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ title }),
+    }),
+  );
+  return ConversationSummarySchema.parse(await response.json());
+};
+
+/**
+ * The conversation named by a title summarised from its first message,
+ * with the user's sealed key; as it is when it already has another name.
+ */
+export const summarizeConversationTitle = async (
+  id: string,
+  message: string,
+  sealedKey: string,
+): Promise<ConversationSummary> => {
+  const response = await expectOk(
+    await fetch(toTitlePath(id), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [API_KEY_HEADER]: sealedKey,
+      },
+      body: JSON.stringify({ message }),
     }),
   );
   return ConversationSummarySchema.parse(await response.json());
