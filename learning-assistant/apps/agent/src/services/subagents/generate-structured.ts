@@ -11,7 +11,8 @@ import type { DeepPartial, RunSettings } from "../../types/llm";
 import { createChatModel } from "../llm/chat-model";
 
 interface GenerateStructuredParams<T extends z.ZodType> {
-  settings: RunSettings;
+  /** Only the key is read: the model is the same for every call. */
+  settings: Pick<RunSettings, "apiKey">;
   system: string;
   prompt: string;
   schema: T;

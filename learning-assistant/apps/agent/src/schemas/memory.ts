@@ -6,6 +6,11 @@ export const ConversationSummarySchema = z.object({
   summary: z.string().min(1),
 });
 
+/** The title a conversation gets from the student's first message. */
+export const ConversationTitleSchema = z.object({
+  title: z.string().min(1),
+});
+
 /**
  * What one message says about the student as a learner; `null` for each
  * field it says nothing new about.
