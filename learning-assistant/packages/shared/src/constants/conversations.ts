@@ -16,5 +16,8 @@ export const AUTO_TITLE_MAX_LENGTH = 60;
 /** Longest title a student may give a conversation. */
 export const TITLE_MAX_LENGTH = 80;
 
+/** Longest first message the browser may send to have a conversation titled. */
+export const TITLE_MESSAGE_MAX_LENGTH = 20_000;
+
 /** Ends an automatic title that was cut short. */
 export const TITLE_ELLIPSIS = "…";
