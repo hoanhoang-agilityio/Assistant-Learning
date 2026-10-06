@@ -1,3 +1,4 @@
+import { summarizeTitle } from "@repo/agent";
 import {
   createConversation,
   deleteConversation,
@@ -9,12 +10,16 @@ import {
   listQuizAttempts,
   renameConversation,
   saveDraftAnswers,
+  saveSummarizedTitle,
 } from "@repo/db";
 import {
   DraftAnswersSchema,
   RenameConversationSchema,
+  SummarizeTitleSchema,
 } from "@repo/shared/schemas";
+import { createAutoTitle } from "@repo/shared/utils/conversations";
 
+import { readApiKeyFromRequest } from "@/features/api-key/services/request-api-key";
 import {
   BAD_REQUEST_STATUS,
   CONVERSATION_NOT_FOUND_ERROR,
@@ -22,7 +27,12 @@ import {
   CREATED_STATUS,
   INVALID_ANSWERS_ERROR,
   INVALID_TITLE_ERROR,
+  INVALID_TITLE_MESSAGE_ERROR,
+  MISSING_API_KEY_ERROR,
+  MISSING_API_KEY_STATUS,
   NO_CONTENT_STATUS,
+  TITLE_FAILED_ERROR,
+  TITLE_FAILED_STATUS,
 } from "@/features/conversations/constants/conversations";
 import {
   createTooManyRequestsResponse,
@@ -122,6 +132,66 @@ export const renameConversationHandler = async (
     parsed.data.title,
   );
   return renamed ? Response.json(renamed) : createNotFoundResponse();
+};
+
+/**
+ * `POST /api/conversations/[id]/title` with `{ message }`: names a new
+ * conversation by a title summarised from its first message, with the
+ * user's own key, while its first run is still going. A conversation that
+ * already has another name (the student's, or the research title) comes
+ * back as it is, without a model call.
+ */
+export const summarizeTitleHandler = async (
+  request: Request,
+  clerkUserId: string,
+  { params }: ConversationRouteContext,
+): Promise<Response> => {
+  const limited = limitWrites(clerkUserId);
+  if (limited) {
+    return limited;
+  }
+
+  const parsed = SummarizeTitleSchema.safeParse(await readJson(request));
+  if (!parsed.success) {
+    return Response.json(
+      { error: INVALID_TITLE_MESSAGE_ERROR },
+      { status: BAD_REQUEST_STATUS },
+    );
+  }
+  const apiKey = readApiKeyFromRequest(request);
+  if (!apiKey) {
+    return Response.json(
+      { error: MISSING_API_KEY_ERROR },
+      { status: MISSING_API_KEY_STATUS },
+    );
+  }
+
+  const { id } = await params;
+  const { message } = parsed.data;
+  const userId = await getUserRowId(clerkUserId);
+  const db = getDatabase();
+  const conversation = await getConversation(db, userId, id);
+  if (!conversation) {
+    return createNotFoundResponse();
+  }
+  if (
+    conversation.title !== null &&
+    conversation.title !== createAutoTitle(message)
+  ) {
+    return Response.json(conversation);
+  }
+
+  try {
+    const title = await summarizeTitle({ apiKey, userText: message });
+    const saved = await saveSummarizedTitle(db, userId, id, { title, message });
+    return saved ? Response.json(saved) : createNotFoundResponse();
+  } catch (error) {
+    console.error("[conversations] Summarising the title failed", error);
+    return Response.json(
+      { error: TITLE_FAILED_ERROR },
+      { status: TITLE_FAILED_STATUS },
+    );
+  }
 };
 
 /**

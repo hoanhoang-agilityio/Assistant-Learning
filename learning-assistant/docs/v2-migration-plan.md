@@ -189,7 +189,7 @@ Not done in M5: `/conversations/[id]/state` and `/messages` (reload goes through
 | C2 | Checkpointer tables via `PostgresSaver.setup()` (idempotent, run at boot). **Done in M5** (`apps/web/instrumentation.ts`); the `MemorySaver` is gone |
 | C3 | Domain rows written by tool bodies when a stage completes, from the tool's own output, never from round-tripped client state. **Done in M5** (`LearningRecords`, injected; M5-7, M5-8) |
 | C4 | Route handlers: `GET/POST/PATCH/DELETE /api/conversations`, `/conversations/[id]/state`, `/messages`, `/attempts`, `PATCH /attempts/[id]/answers` (debounced, no agent run). Reload of the open thread goes through `/connect` + `CheckpointRunner`. **Done in M5** except `/state`, `/messages` and the answers `PATCH` |
-| C5 | Auto-title; status rules (active, completed, abandoned computed on read). **Done in M5**: titled by the first message, then by the research unless renamed |
+| C5 | Auto-title; status rules (active, completed, abandoned computed on read). **Done in M5**: titled as soon as the first message is sent: the message, cut, at once, then a short summary of it from `POST /api/conversations/[id]/title`; then by the research unless renamed |
 | C6 | Delete: rows cascade + `checkpointer.deleteThread(id)`, then recompute memory. **Done in M5**; since M6 the delete also drops the topic and rebuilds concept mastery in the same transaction |
 | C7 | Settings move to `user_settings`; localStorage stays as first-paint cache. **Done in M5** (`useSettingsSync`) |
 

@@ -19,6 +19,12 @@ export const SUMMARY_ITEM_MAX_CHARS = 600;
 /** Ends a message the summariser reads cut short. */
 export const TRUNCATION_MARK = "…";
 
+/** Longest part of the student's first message the title is summarised from. */
+export const TITLE_INPUT_MAX_CHARS = 1000;
+
+/** How long the title may take; after it the conversation keeps its first message, cut, as a title. */
+export const TITLE_TIMEOUT_MS = 15_000;
+
 /** Upper bound on what is remembered about the student in the Supervisor's prompt (E4). */
 export const MEMORY_PROMPT_MAX_CHARS = 1200;
 

@@ -4,7 +4,7 @@ import {
   getConversationStatus,
   getStoredStatus,
 } from "@repo/shared/utils/conversations";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Database } from "../client";
@@ -200,6 +200,41 @@ export const renameConversation = async (
     .returning();
   const [summary] = await summarize(db, rows, now);
   return summary ?? null;
+};
+
+/**
+ * Names the conversation by the title summarised from its first message,
+ * unless it already has another name: one the student gave it, or the
+ * research title. Its first message, cut short, is replaced, since that is
+ * only what a run that ended first names it by. Returns the conversation
+ * as it is now, or `null` when it is not theirs.
+ */
+export const saveSummarizedTitle = async (
+  db: Database,
+  userId: string,
+  id: string,
+  { title, message }: { title: string; message: string },
+  now = new Date(),
+): Promise<ConversationSummary | null> => {
+  if (!isConversationId(id)) {
+    return null;
+  }
+
+  await db
+    .update(conversations)
+    .set({ title })
+    .where(
+      and(
+        eq(conversations.id, id),
+        eq(conversations.userId, userId),
+        eq(conversations.isTitleCustom, false),
+        or(
+          isNull(conversations.title),
+          eq(conversations.title, createAutoTitle(message) ?? ""),
+        ),
+      ),
+    );
+  return getConversation(db, userId, id, now);
 };
 
 /**
