@@ -10,6 +10,8 @@ export interface ConversationActions {
   setConversations: (conversations: ConversationSummary[]) => void;
   /** Adds the conversation, or replaces the one with its id. */
   upsertConversation: (conversation: ConversationSummary) => void;
+  /** Replaces the one with its id; nothing when it is gone. */
+  updateConversation: (conversation: ConversationSummary) => void;
   removeConversation: (id: string) => void;
   openConversation: (active: ActiveConversation) => void;
   setSidebarOpen: (isOpen: boolean) => void;
