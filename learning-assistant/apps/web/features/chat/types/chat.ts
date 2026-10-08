@@ -1,6 +1,7 @@
 import type {
   CopilotChatAssistantMessageProps,
   CopilotChatUserMessageProps,
+  CopilotKitCoreReact,
 } from "@copilotkit/react-core/v2";
 import type { CHAT_CARD_TOOLS } from "@repo/shared/constants/agents";
 
@@ -22,3 +23,10 @@ export type ToolCallStatus = "inProgress" | "executing" | "complete";
 
 /** The fixed chat cards the Supervisor can pick from (`CHAT_CARD_TOOLS`). */
 export type ChatCardKind = keyof typeof CHAT_CARD_TOOLS;
+
+/** CopilotKit's runtime connection status, as its string values. */
+export type RuntimeConnection =
+  `${CopilotKitCoreReact["runtimeConnectionStatus"]}`;
+
+/** What the chat header badge shows. */
+export type ChatStatus = "starting" | "online" | "thinking" | "offline";
