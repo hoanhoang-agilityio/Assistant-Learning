@@ -1,4 +1,4 @@
-import { API_KEY_ROUTE, MEMORY_ROUTE } from "@repo/shared/constants/routes";
+import { API_KEY_ROUTE } from "@repo/shared/constants/routes";
 import {
   CHAT_MODES,
   type ChatMode,
@@ -12,7 +12,6 @@ import {
   type ViewMode,
 } from "@repo/shared/schemas";
 import {
-  Brain,
   GraduationCap,
   KeyRound,
   LayoutPanelLeft,
@@ -141,14 +140,6 @@ export const SettingsPopoverView = ({
                 </span>
                 <Link href={API_KEY_ROUTE} className={LINK_BUTTON_CLASS}>
                   Change
-                </Link>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1 font-medium text-slate-600 dark:text-slate-300">
-                  <Brain className="h-3.5 w-3.5" /> What the assistant remembers
-                </span>
-                <Link href={MEMORY_ROUTE} className={LINK_BUTTON_CLASS}>
-                  Memory
                 </Link>
               </div>
             </SettingsGroup>

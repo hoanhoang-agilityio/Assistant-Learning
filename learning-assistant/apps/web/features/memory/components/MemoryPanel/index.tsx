@@ -3,7 +3,6 @@
 import { MemoryPanelView } from "@/features/memory/components/MemoryPanelView";
 import { useMemoryPanel } from "@/features/memory/hooks/use-memory-panel";
 
-/** The Memory panel, reached from Settings: view, edit and forget what is kept. */
 export const MemoryPanel = () => {
   const {
     memory,
