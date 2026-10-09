@@ -32,7 +32,7 @@ docker compose up -d
 pnpm db:migrate
 ```
 
-`pnpm db:migrate` applies the migrations in `packages/db/drizzle/` (users, settings, conversations, research, learning material, quiz attempts and long-term memory). The conversation checkpoints get their own tables, which the server creates when it starts. Run `pnpm db:migrate` again after pulling a change to `packages/db/src/schema.ts`.
+`pnpm db:migrate` applies the migrations in `packages/db/drizzle/` (users, settings, conversations, research, learning material, quiz attempts and long-term memory). The conversation checkpoints get their own tables, which the server creates when it starts. Run `pnpm db:migrate` again after pulling a change to `packages/db/src/schema.ts`. On Vercel, `apps/web/vercel.json` runs the migrations before every build, so a deploy brings its database up to date; the build fails if `DATABASE_URL` is missing or wrong. While the database is down or behind, the API routes answer 503 instead of 500.
 
 **4. Optional.** `TAVILY_API_KEY` for web research with sources, and the `LANGSMITH_*` variables for tracing (see [Environment variables](#environment-variables)).
 
