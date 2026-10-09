@@ -3,7 +3,7 @@ import {
   createCopilotRuntimeHandler,
 } from "@copilotkit/runtime/v2";
 import { createLearningAgent, LearningThreadRunner } from "@repo/agent";
-import { getThreadCheckpointer } from "@repo/db";
+import { getThreadCheckpointer, setupThreadCheckpointer } from "@repo/db";
 import { LEARNING_AGENT_ID } from "@repo/shared/constants/agents";
 
 import {
@@ -35,6 +35,8 @@ const runtime = new CopilotRuntime({
     if (!userId) {
       throw createUnauthorizedResponse();
     }
+    // Done at startup already; retried here if the database was down then.
+    await setupThreadCheckpointer();
     return {
       [LEARNING_AGENT_ID]: createLearningAgent({
         apiKey: readApiKeyFromRequest(request),

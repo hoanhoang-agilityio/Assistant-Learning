@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 
 import { UNAUTHORIZED_ERROR, UNAUTHORIZED_STATUS } from "@/constants/auth";
+import { catchDatabaseErrors } from "@/services/database-errors";
 
 /**
  * The signed-in user's Clerk id, from the session Clerk verified on the
@@ -28,7 +29,7 @@ export const createUnauthorizedResponse = (): Response =>
  * For route handlers: runs `handler` only for a signed-in user and answers
  * 401 otherwise. `proxy.ts` makes the session readable but checks nothing,
  * so every handler goes through this. `context` is the route's own (its
- * `params`), passed on as it is.
+ * `params`), passed on as it is. A database outage answers 503, not 500.
  */
 export const withSignedInUser =
   <Context = unknown>(
@@ -43,5 +44,5 @@ export const withSignedInUser =
     if (!userId) {
       return createUnauthorizedResponse();
     }
-    return handler(request, userId, context);
+    return catchDatabaseErrors(() => handler(request, userId, context));
   };

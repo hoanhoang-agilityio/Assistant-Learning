@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UNAUTHORIZED_ERROR, UNAUTHORIZED_STATUS } from "@/constants/auth";
 import {
+  DATABASE_RETRY_AFTER_SECONDS,
+  DATABASE_UNAVAILABLE_ERROR,
+  DATABASE_UNAVAILABLE_STATUS,
+  RETRY_AFTER_HEADER,
+} from "@/constants/database";
+import {
   getSignedInUserId,
   requireSignedInUser,
   withSignedInUser,
@@ -94,5 +100,35 @@ describe("withSignedInUser", () => {
     await withSignedInUser(handler)(request, context);
 
     expect(handler).toHaveBeenCalledWith(request, "user_1", context);
+  });
+
+  it("answers 503 when the database is unavailable", async () => {
+    signIn("user_1");
+    const missingTable = Object.assign(new Error("Failed query"), {
+      cause: Object.assign(new Error("no such table"), { code: "42P01" }),
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await withSignedInUser(async () => {
+      throw missingTable;
+    })(request, {});
+
+    expect(response.status).toBe(DATABASE_UNAVAILABLE_STATUS);
+    expect(response.headers.get(RETRY_AFTER_HEADER)).toBe(
+      DATABASE_RETRY_AFTER_SECONDS,
+    );
+    expect(await response.json()).toEqual({
+      error: DATABASE_UNAVAILABLE_ERROR,
+    });
+  });
+
+  it("throws on errors that are not about the database", async () => {
+    signIn("user_1");
+
+    await expect(
+      withSignedInUser(async () => {
+        throw new Error("boom");
+      })(request, {}),
+    ).rejects.toThrow("boom");
   });
 });
