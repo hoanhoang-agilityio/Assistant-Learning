@@ -39,6 +39,14 @@ const STATUS_BADGE_CLASS: Record<ConversationSummary["status"], string> = {
 
 const BADGE_CLASS = "rounded-full px-1.5 py-0.5 text-[10px] font-medium";
 
+const ROW_CLASS = "group relative rounded-lg border transition-colors";
+
+const ROW_ACTIVE_CLASS =
+  "border-indigo-300 bg-white shadow-sm dark:border-indigo-500/40 dark:bg-slate-800";
+
+const ROW_IDLE_CLASS =
+  "border-slate-200 hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:hover:border-slate-700 dark:hover:bg-slate-800/60";
+
 const ACTION_BUTTON_CLASS =
   "rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200";
 
@@ -75,7 +83,7 @@ export const ConversationRowView = ({
 
   if (isEditing) {
     return (
-      <li className="rounded-lg bg-white dark:bg-slate-800">
+      <li className="rounded-lg border border-indigo-300 bg-white dark:border-indigo-500/40 dark:bg-slate-800">
         <ConversationTitleForm
           initialTitle={conversation.title ?? ""}
           isBusy={isBusy}
@@ -88,11 +96,7 @@ export const ConversationRowView = ({
 
   return (
     <li
-      className={`group relative rounded-lg transition-colors ${
-        isActive
-          ? "bg-white shadow-sm ring-1 ring-indigo-200 dark:bg-slate-800 dark:ring-indigo-500/40"
-          : "hover:bg-white/70 dark:hover:bg-slate-800/60"
-      }`}
+      className={`${ROW_CLASS} ${isActive ? ROW_ACTIVE_CLASS : ROW_IDLE_CLASS}`}
     >
       <button
         type="button"
