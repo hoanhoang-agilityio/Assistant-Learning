@@ -5,7 +5,7 @@
     {
       "id": "root",
       "component": "Stack",
-      "children": ["questions", "actions"]
+      "children": ["actions", "questions"]
     },
     {
       "id": "questions",

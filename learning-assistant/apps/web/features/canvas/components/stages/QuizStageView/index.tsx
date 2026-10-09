@@ -10,7 +10,7 @@ export interface QuizStageViewProps {
   onAction?: (message: A2UIClientEventMessage) => void;
 }
 
-/** The fixed quiz surface: question cards, then Submit, Retake, New questions. */
+/** The fixed quiz surface: Submit, Retake, New questions pinned above the question cards. */
 export const QuizStageView = ({ dataModel, onAction }: QuizStageViewProps) => (
   <CanvasSurface
     template={QUIZ_TEMPLATE}

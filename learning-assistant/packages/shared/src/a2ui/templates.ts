@@ -7,7 +7,7 @@ import scoreTemplate from "./templates/score.json";
 /** The Research stage: article, key insight, flashcards and sources. */
 export const RESEARCH_TEMPLATE: SurfaceTemplate = researchTemplate;
 
-/** The Quiz stage: one QuestionCard per question, then Submit/Retake/New. */
+/** The Quiz stage: a pinned Submit/Retake/New bar, then one QuestionCard per question. */
 export const QUIZ_TEMPLATE: SurfaceTemplate = quizTemplate;
 
 /** The Evaluation stage: stat tiles, then mastery bars by concept. */

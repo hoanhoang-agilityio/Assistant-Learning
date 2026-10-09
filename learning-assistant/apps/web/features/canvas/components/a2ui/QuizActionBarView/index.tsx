@@ -1,7 +1,5 @@
 import { CheckCircle2, RefreshCw, RotateCcw, Send } from "lucide-react";
 
-import { CARD_CLASS } from "@/features/canvas/constants/canvas";
-
 export interface QuizActionBarViewProps {
   answeredCount: number;
   total: number;
@@ -14,10 +12,14 @@ export interface QuizActionBarViewProps {
   onNewQuestions?: () => void;
 }
 
+/** Pinned to the top of the canvas scroll, so the actions stay in reach over the questions. */
+const BAR_CLASS =
+  "sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-md backdrop-blur @md:gap-4 @md:px-5 @md:py-4 dark:border-slate-700 dark:bg-slate-800/95";
+
 const SECONDARY_BUTTON_CLASS =
   "flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:border-slate-700 dark:hover:bg-slate-800";
 
-/** Answered count and progress bar, then Retake, New questions and Submit. */
+/** Answered count and progress bar, then Retake, New questions and Submit, pinned above the questions. */
 export const QuizActionBarView = ({
   answeredCount,
   total,
@@ -29,13 +31,11 @@ export const QuizActionBarView = ({
   onRetake,
   onNewQuestions,
 }: QuizActionBarViewProps) => (
-  <section
-    className={`${CARD_CLASS} flex flex-wrap items-center justify-between gap-4`}
-  >
+  <section className={BAR_CLASS}>
     <div className="min-w-40 flex-1">
       <p className="mb-2 text-xs font-medium text-slate-600 dark:text-slate-300">
         {isSubmitted
-          ? "Submitted — your answers are graded above."
+          ? "Submitted — your answers are graded below."
           : `${answeredCount} of ${total} answered`}
       </p>
       <div
