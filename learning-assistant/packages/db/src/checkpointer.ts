@@ -1,10 +1,14 @@
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 
 import { getPool } from "./client";
-import { CHECKPOINTER_GLOBAL_KEY } from "./constants";
+import {
+  CHECKPOINTER_GLOBAL_KEY,
+  CHECKPOINTER_SETUP_GLOBAL_KEY,
+} from "./constants";
 
 const globalCheckpointer = globalThis as typeof globalThis & {
   [CHECKPOINTER_GLOBAL_KEY]?: PostgresSaver;
+  [CHECKPOINTER_SETUP_GLOBAL_KEY]?: Promise<void>;
 };
 
 /**
@@ -16,6 +20,18 @@ export const getThreadCheckpointer = (): PostgresSaver =>
     getPool(),
   ));
 
-/** Creates the checkpointer's tables. Idempotent; run once at server start. */
+const startSetup = (): Promise<void> =>
+  getThreadCheckpointer()
+    .setup()
+    .catch((error: unknown) => {
+      globalCheckpointer[CHECKPOINTER_SETUP_GLOBAL_KEY] = undefined;
+      throw error;
+    });
+
+/**
+ * Creates the checkpointer's tables, once per process (idempotent). A
+ * failed attempt is forgotten, so the next call tries again once the
+ * database is back.
+ */
 export const setupThreadCheckpointer = (): Promise<void> =>
-  getThreadCheckpointer().setup();
+  (globalCheckpointer[CHECKPOINTER_SETUP_GLOBAL_KEY] ??= startSetup());
