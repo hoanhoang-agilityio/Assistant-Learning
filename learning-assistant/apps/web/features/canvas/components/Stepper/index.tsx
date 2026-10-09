@@ -43,7 +43,7 @@ export const Stepper = ({
             style={{ width: `${progress}%` }}
           />
         </div>
-        <ol className="relative flex items-center">
+        <ol className="relative flex items-start">
           {steps.map(
             ({
               id,
@@ -88,7 +88,7 @@ export const Stepper = ({
                       )}
                     </span>
                     <span
-                      className={`hidden text-[11px] font-medium transition-colors @xl:block ${labelClass}`}
+                      className={`hidden text-center text-[11px] leading-tight font-medium transition-colors @xl:block ${labelClass}`}
                     >
                       {title}
                     </span>
